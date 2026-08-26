@@ -458,10 +458,23 @@ val muslBridgeTask = tasks.register<BuildMuslBridgeTask>("buildMuslBridge") {
     muslVersion.set("1.2.5")
     patchFile.set(rootProject.file("scripts/patches/musl-1.2.5-wta-exec-bridge.patch"))
     x80ShimFile.set(rootProject.file("scripts/musl-bridge/wta_mulxc3.c"))
-    val hostTag = if (System.getProperty("os.name").lowercase().contains("mac")) "darwin-x86_64" else "linux-x86_64"
+    val hostOs = System.getProperty("os.name").lowercase()
+    val hostTag = when {
+        hostOs.contains("mac") || hostOs.contains("darwin") -> "darwin-x86_64"
+        hostOs.contains("windows") -> "windows-x86_64"
+        else -> "linux-x86_64"
+    }
     ndkToolchainDir.set(File(android.ndkDirectory, "toolchains/llvm/prebuilt/$hostTag"))
     workDir.set(layout.buildDirectory.dir("musl-bridge"))
     outputDir.set(layout.buildDirectory.dir("generated/jniLibs/muslBridge"))
+}
+
+val skipMuslBridge = providers.gradleProperty("skipMuslBridge").map(String::toBoolean).orElse(false)
+if (skipMuslBridge.get()) {
+    logger.lifecycle(
+        "skipMuslBridge=true — buildMuslBridge is not wired into native lib merges. " +
+            "libmusl-linker.so will be absent, so Python/Go host previews relying on the W^X exec bridge are unavailable."
+    )
 }
 
 androidComponents {
@@ -471,13 +484,15 @@ androidComponents {
         val cxxBuildType = if (variantBuildTypeName.equals("debug", ignoreCase = true)) "Debug" else "RelWithDebInfo"
         val nativeBuildTaskName = "buildCMake$cxxBuildType"
 
-        tasks.matching { it.name == "merge${capName}NativeLibs" }.configureEach {
-            dependsOn(muslBridgeTask)
+        if (!skipMuslBridge.get()) {
+            tasks.matching { it.name == "merge${capName}NativeLibs" }.configureEach {
+                dependsOn(muslBridgeTask)
+            }
+            variant.sources.jniLibs?.addGeneratedSourceDirectory(
+                muslBridgeTask,
+                BuildMuslBridgeTask::outputDir
+            )
         }
-        variant.sources.jniLibs?.addGeneratedSourceDirectory(
-            muslBridgeTask,
-            BuildMuslBridgeTask::outputDir
-        )
         val syncNodeLauncherTask = tasks.register<SyncNativeExecutableJniLibsTask>("syncNodeLauncherJniLibs$capName") {
             group = "build"
             description = "Copies ABI-specific node launcher executables into generated jniLibs for ${variant.name}."
