@@ -94,7 +94,7 @@ import com.webtoapp.core.stats.AppUsageTracker
 import androidx.compose.ui.text.style.TextOverflow
 import com.webtoapp.ui.components.announcement.toUiTemplate
 
-class WebViewActivity : AppCompatActivity() {
+class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
 
     companion object {
         private const val EXTRA_APP_ID = "app_id"
@@ -136,6 +136,28 @@ class WebViewActivity : AppCompatActivity() {
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
     private var mediaSessionBridge: com.webtoapp.core.webview.MediaSessionBridge? = null
     internal var geckoMediaAdapter: com.webtoapp.core.engine.GeckoMediaSessionAdapter? = null
+    internal var previewNativeBridge: com.webtoapp.core.webview.NativeBridge? = null
+
+    private var pendingScreenCaptureConsent: ((Int, android.content.Intent?) -> Unit)? = null
+    private val screenCaptureConsentLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val callback = pendingScreenCaptureConsent
+        pendingScreenCaptureConsent = null
+        callback?.invoke(result.resultCode, result.data)
+    }
+
+    override fun requestScreenCaptureConsent(onResult: (Int, android.content.Intent?) -> Unit) {
+        try {
+            val manager = getSystemService(android.media.projection.MediaProjectionManager::class.java)
+            pendingScreenCaptureConsent = onResult
+            screenCaptureConsentLauncher.launch(manager.createScreenCaptureIntent())
+        } catch (e: Exception) {
+            com.webtoapp.core.logging.AppLogger.e("WebViewActivity", "Screen capture consent launch failed", e)
+            pendingScreenCaptureConsent = null
+            onResult(android.app.Activity.RESULT_CANCELED, null)
+        }
+    }
 
     private var pendingPermissionRequest: PermissionRequest? = null
     private var pendingGeolocationOrigin: String? = null
@@ -1044,6 +1066,8 @@ class WebViewActivity : AppCompatActivity() {
         mediaSessionBridge = null
         geckoMediaAdapter?.runCatching { release() }
         geckoMediaAdapter = null
+        previewNativeBridge?.runCatching { release() }
+        previewNativeBridge = null
 
         android.webkit.CookieManager.getInstance().flush()
         webView?.let { wv ->
@@ -3244,6 +3268,10 @@ fun WebViewScreen(
                                                 nb,
                                                 com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME
                                             )
+                                            (context as? WebViewActivity)?.let { host ->
+                                                host.previewNativeBridge?.runCatching { release() }
+                                                host.previewNativeBridge = nb
+                                            }
                                         } else if (effectiveWebApp.webViewConfig.enablePrivateNetworkBridge || effectiveWebApp.webViewConfig.enableCorsBypass) {
                                             val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                                                 context = context,

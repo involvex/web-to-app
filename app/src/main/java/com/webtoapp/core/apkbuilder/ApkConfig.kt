@@ -570,6 +570,7 @@ data class WebViewBehaviorBlock(
     val nativeBridgeOrientation: Boolean = true,
     val nativeBridgeFullscreen: Boolean = true,
     val nativeBridgePrint: Boolean = true,
+    val nativeBridgeScreenCapture: Boolean = true,
     val databaseEnabled: Boolean = true,
     val enableCookiePersistence: Boolean = true,
     val enablePrivateNetworkBridge: Boolean = false,

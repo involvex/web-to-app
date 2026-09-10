@@ -49,7 +49,9 @@ fun ExtensionModuleSelectorCard(
     var expanded by remember { mutableStateOf(false) }
     var showModuleDialog by remember { mutableStateOf(false) }
 
-    val allModules = builtInModules + modules
+    val allModules = remember(builtInModules, modules) {
+        mergeBuiltInAndUserModules(builtInModules, modules)
+    }
     val enabledModules = allModules.filter { it.id in selectedModuleIds }
 
     WtaCard(

@@ -28,7 +28,7 @@ import com.webtoapp.data.model.KeyboardAdjustMode
 import com.webtoapp.core.floatingwindow.FloatingWindowService
 import com.webtoapp.ui.shared.WindowHelper
 
-class ShellActivity : AppCompatActivity() {
+class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
 
     private var webView: WebView? = null
     private var browserSurface: BrowserSurface? = null
@@ -39,6 +39,11 @@ class ShellActivity : AppCompatActivity() {
 
     val permissionDelegate = ShellPermissionDelegate(this)
     private val startupPermissions = ShellStartupPermissions(this)
+
+    override fun requestScreenCaptureConsent(onResult: (Int, Intent?) -> Unit) =
+        permissionDelegate.requestScreenCaptureConsent(onResult)
+
+    private var shellNativeBridge: com.webtoapp.core.webview.NativeBridge? = null
 
     private var immersiveFullscreenEnabled: Boolean = false
     private var showStatusBarInFullscreen: Boolean = false
@@ -580,6 +585,7 @@ class ShellActivity : AppCompatActivity() {
                                 orientation = config.webViewConfig.nativeBridgeOrientation,
                                 fullscreen = config.webViewConfig.nativeBridgeFullscreen,
                                 print = config.webViewConfig.nativeBridgePrint,
+                                screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
                             )
                             val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                                 context = this@ShellActivity,
@@ -591,6 +597,7 @@ class ShellActivity : AppCompatActivity() {
                                 customDownloadDirUri = config.webViewConfig.customDownloadDirUri
                             )
                             wv.addJavascriptInterface(nativeBridge, com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME)
+                            shellNativeBridge = nativeBridge
                         } else if (config.webViewConfig.enablePrivateNetworkBridge || config.webViewConfig.enableCorsBypass) {
                             val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                                 context = this@ShellActivity,
@@ -897,6 +904,8 @@ class ShellActivity : AppCompatActivity() {
         mediaSessionBridge = null
         geckoMediaAdapter?.runCatching { release() }
         geckoMediaAdapter = null
+        shellNativeBridge?.runCatching { release() }
+        shellNativeBridge = null
         super.onDestroy()
     }
 

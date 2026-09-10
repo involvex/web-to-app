@@ -266,6 +266,7 @@ internal object ApkConfigJsonFactory {
         "nativeBridgeOrientation" to webViewBehavior.nativeBridgeOrientation,
         "nativeBridgeFullscreen" to webViewBehavior.nativeBridgeFullscreen,
         "nativeBridgePrint" to webViewBehavior.nativeBridgePrint,
+        "nativeBridgeScreenCapture" to webViewBehavior.nativeBridgeScreenCapture,
         "javaScriptCanOpenWindows" to webViewBehavior.javaScriptCanOpenWindows,
         "jsOpenWindowsPolicy" to webViewBehavior.jsOpenWindowsPolicy,
         "databaseEnabled" to webViewBehavior.databaseEnabled,

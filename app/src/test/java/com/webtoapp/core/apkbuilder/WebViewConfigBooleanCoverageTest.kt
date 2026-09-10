@@ -169,7 +169,7 @@ class WebViewConfigBooleanCoverageTest {
             "nativeBridgeScreenWake", "nativeBridgeOpenExternal", "nativeBridgeDeviceInfo",
             "nativeBridgeSecurityInfo", "nativeBridgeNetworkInfo", "nativeBridgeToast",
             "nativeBridgeLogging", "nativeBridgeFindInPage", "nativeBridgeOrientation",
-            "nativeBridgeFullscreen", "nativeBridgePrint",
+            "nativeBridgeFullscreen", "nativeBridgePrint", "nativeBridgeScreenCapture",
             "failoverTriggerNetworkError", "failoverTriggerHttp5xx",
             "failoverTriggerHttp4xx", "failoverTriggerTimeout"
         )
@@ -227,6 +227,38 @@ class WebViewConfigBooleanCoverageTest {
         readShell("autoRefreshIntervalSec", 120)
         readShell("blobInterceptThresholdMb", 10)
         readShell("screenAwakeTimeoutMinutes", 15)
+    }
+
+    @Test
+    fun `nativeBridge screenCapture capability survives the export round-trip`() {
+        fun readScreenCapture(app: WebApp): Boolean {
+            val shellWv = shellWvOf(roundTrip(app))
+            val field = shellWv.javaClass.getDeclaredField("nativeBridgeScreenCapture")
+            field.isAccessible = true
+            return readBool(field, shellWv)
+        }
+
+        val disabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    screenCapture = false
+                )
+            )
+        )
+        assertThat(readScreenCapture(disabled)).isFalse()
+
+        val enabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    screenCapture = true
+                )
+            )
+        )
+        assertThat(readScreenCapture(enabled)).isTrue()
     }
 
     // ────────────────────────────────────────────────────────────
