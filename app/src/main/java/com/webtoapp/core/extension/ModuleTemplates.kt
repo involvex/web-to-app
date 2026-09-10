@@ -30,6 +30,7 @@ object ModuleTemplates {
         imageGrabber(),
 
         videoEnhancer(),
+        streamDetectPip(),
         imageZoomer(),
         audioController(),
 
@@ -840,6 +841,78 @@ if (observerTarget instanceof Node) {
         else if (n.querySelectorAll) n.querySelectorAll('video').forEach(enhanceVideo);
     }));
     }).observe(observerTarget, { childList: true, subtree: true });
+}
+        """.trimIndent(),
+        cssCode = ""
+    )
+
+    private fun streamDetectPip() = ModuleTemplate(
+        id = "template-stream-detect-pip",
+        name = Strings.templateStreamDetectPip,
+        description = Strings.templateStreamDetectPipDesc,
+        icon = "play_circle_filled",
+        category = ModuleCategory.VIDEO,
+        configItems = listOf(
+            ModuleConfigItem(
+                key = "autoEntry",
+                name = Strings.templateAutoEntry,
+                type = ConfigItemType.BOOLEAN,
+                defaultValue = "true"
+            ),
+            ModuleConfigItem(
+                key = "streamingTypes",
+                name = Strings.templateStreamingTypes,
+                type = ConfigItemType.SELECT,
+                defaultValue = "all",
+                options = listOf("all", "hls", "dash", "mp4")
+            )
+        ),
+        code = """
+const autoEntry = getConfig('autoEntry', 'true') === 'true';
+const streamingFilter = getConfig('streamingTypes', 'all') || 'all';
+
+function isYouTube() { return location.hostname.indexOf('youtube.com') >= 0 || location.hostname.indexOf('youtu.be') >= 0; }
+function isHls(src) { return typeof src === 'string' && src.indexOf('.m3u8') >= 0; }
+function isDash(src) { return typeof src === 'string' && src.indexOf('.mpd') >= 0; }
+
+function getSourceType(v) {
+    if (!v.src && v.querySelector) { const s = v.querySelector('source'); if (s) return s.src || ''; }
+    return v.src || '';
+}
+
+function shouldEnter(v) {
+    if (streamingFilter === 'all') return true;
+    var src = getSourceType(v);
+    if (isYouTube()) return true;
+    if (streamingFilter === 'hls') return isHls(src);
+    if (streamingFilter === 'dash') return isDash(src);
+    if (streamingFilter === 'mp4') return src.indexOf('.mp4') >= 0;
+    return true;
+}
+
+function enterPiP(v) {
+    if (document.pictureInPictureElement === v) { document.exitPictureInPicture(); return false; }
+    if (typeof v.requestPictureInPicture === 'function') { v.requestPictureInPicture().catch(function(){}); return true; }
+    if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.enterPiP === 'function') { NativeBridge.enterPiP(); return true; }
+    return false;
+}
+
+function onPlay(e) {
+    var v = e.target;
+    if (!autoEntry || !shouldEnter(v)) return;
+    enterPiP(v);
+}
+
+document.querySelectorAll('video').forEach(function(v) { v.addEventListener('play', onPlay); });
+if (document.body instanceof Node) {
+    new MutationObserver(function(muts) {
+        muts.forEach(function(m) {
+            m.addedNodes.forEach(function(n) {
+                if (n.nodeName === 'VIDEO') n.addEventListener('play', onPlay);
+                else if (n.querySelectorAll) { n.querySelectorAll('video').forEach(function(v) { v.addEventListener('play', onPlay); }); }
+            });
+        });
+    }).observe(document.body, { childList: true, subtree: true });
 }
         """.trimIndent(),
         cssCode = ""

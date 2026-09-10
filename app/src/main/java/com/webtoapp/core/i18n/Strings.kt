@@ -2082,6 +2082,10 @@ object Strings {
     val templateMinSize: String get() = StringsC.templateMinSize
     val templateVideoEnhancer: String get() = StringsC.templateVideoEnhancer
     val templateVideoEnhancerDesc: String get() = StringsC.templateVideoEnhancerDesc
+    val templateStreamDetectPip: String get() = StringsC.templateStreamDetectPip
+    val templateStreamDetectPipDesc: String get() = StringsC.templateStreamDetectPipDesc
+    val templateAutoEntry: String get() = StringsC.templateAutoEntry
+    val templateStreamingTypes: String get() = StringsC.templateStreamingTypes
     val templateDefaultSpeed: String get() = StringsC.templateDefaultSpeed
     val templateShowControlPanel: String get() = StringsC.templateShowControlPanel
     val templateImageZoomer: String get() = StringsC.templateImageZoomer
@@ -2118,6 +2122,8 @@ object Strings {
     val builtinContentEnhancerDesc: String get() = StringsC.builtinContentEnhancerDesc
     val builtinElementBlocker: String get() = StringsC.builtinElementBlocker
     val builtinElementBlockerDesc: String get() = StringsC.builtinElementBlockerDesc
+    val builtinStreamingPip: String get() = StringsC.builtinStreamingPip
+    val builtinStreamingPipDesc: String get() = StringsC.builtinStreamingPipDesc
     val triggerAuto: String get() = StringsC.triggerAuto
     val triggerAutoDesc: String get() = StringsC.triggerAutoDesc
     val triggerManual: String get() = StringsC.triggerManual
@@ -3107,6 +3113,7 @@ object Strings {
     val galleryPlayerSeekBack: String get() = StringsD.galleryPlayerSeekBack
     val tagVideo: String get() = StringsD.tagVideo
     val tagDownload: String get() = StringsD.tagDownload
+    val tagStreaming: String get() = StringsD.tagStreaming
     val tagImage: String get() = StringsD.tagImage
     val tagSpeed: String get() = StringsD.tagSpeed
     val tagPiP: String get() = StringsD.tagPiP
@@ -31078,6 +31085,54 @@ object StringsC {
         AppLanguage.JAPANESE -> "コントロールパネルを表示"
         AppLanguage.KOREAN -> "컨트롤 패널 표시"
     }
+    val templateStreamDetectPip: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流媒体画中画检测"
+        AppLanguage.ENGLISH -> "Streaming PiP Detector"
+        AppLanguage.ARABIC -> "كاشف بث صورة داخل صورة"
+        AppLanguage.PORTUGUESE -> "Detector de Streaming PiP"
+        AppLanguage.SPANISH -> "Detector de Streaming en Imagen Emergente"
+        AppLanguage.FRENCH -> "Détecteur de diffusion image dans l'image"
+        AppLanguage.GERMAN -> "Streaming PiP-Detektor"
+        AppLanguage.RUSSIAN -> "Детектор транслируемого PiP"
+        AppLanguage.JAPANESE -> "ストリーミング PiP 検出"
+        AppLanguage.KOREAN -> "스트리밍 PIP 감지기"
+    }
+    val templateStreamDetectPipDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动检测视频播放并启用画中画，支持 HLS/DASH/YouTube"
+        AppLanguage.ENGLISH -> "Auto-detect video playback and enable PiP; supports HLS, DASH, YouTube"
+        AppLanguage.ARABIC -> "الكشف تلقائياً عن تشغيل الفيديو وتمكيل PiP؛ يدعم HLS و DASH و يوتيوب"
+        AppLanguage.PORTUGUESE -> "Detectar automaticamente a reprodução de vídeo e ativar PiP; suporta HLS, DASH, YouTube"
+        AppLanguage.SPANISH -> "Detectar automáticamente la reproducción de video y activar PiP; soporta HLS, DASH, YouTube"
+        AppLanguage.FRENCH -> "Détection automatique de la lecture vidéo et activation de l'image dans l'image ; prend en charge HLS, DASH, YouTube"
+        AppLanguage.GERMAN -> "Erkennen Sie Videos automatisch und aktivieren Sie Bild-in-Bild; unterstützt HLS, DASH, YouTube"
+        AppLanguage.RUSSIAN -> "Автоматически определять воспроизведение видео и включать PiP; поддерживает HLS, DASH, YouTube"
+        AppLanguage.JAPANESE -> "ビデオ再生を自動検出し PiP を有効にする（HLS/DASH/YouTube をサポート）"
+        AppLanguage.KOREAN -> "비디오 재생을 자동 감지하고 PiP를 활성화; HLS, DASH, YouTube 지원"
+    }
+    val templateAutoEntry: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动进入画中画"
+        AppLanguage.ENGLISH -> "Auto-enter PiP"
+        AppLanguage.ARABIC -> "الدخول التلقائي إلى PiP"
+        AppLanguage.PORTUGUESE -> "Entrar automaticamente no PiP"
+        AppLanguage.SPANISH -> "Entrada automática a PiP"
+        AppLanguage.FRENCH -> "Entrée automatique PiP"
+        AppLanguage.GERMAN -> "Automatisch PiP betreten"
+        AppLanguage.RUSSIAN -> "Автоматически входить в PiP"
+        AppLanguage.JAPANESE -> "自動で PiP に入る"
+        AppLanguage.KOREAN -> "자동 PIP 진입"
+    }
+    val templateStreamingTypes: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流媒体类型"
+        AppLanguage.ENGLISH -> "Streaming Types"
+        AppLanguage.ARABIC -> "أنواع البث"
+        AppLanguage.PORTUGUESE -> "Tipos de Streaming"
+        AppLanguage.SPANISH -> "Tipos de Streaming"
+        AppLanguage.FRENCH -> "Types de diffusion"
+        AppLanguage.GERMAN -> "Streaming-Typen"
+        AppLanguage.RUSSIAN -> "Типы трансляций"
+        AppLanguage.JAPANESE -> "ストリーミングタイプ"
+        AppLanguage.KOREAN -> "스트리밍 타입"
+    }
     val templateImageZoomer: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "图片放大镜"
         AppLanguage.ENGLISH -> "Image Zoomer"
@@ -31342,6 +31397,30 @@ object StringsC {
         AppLanguage.RUSSIAN -> "Управление скоростью, картинка в картинке, фоновое воспроизведение, очистка YouTube"
         AppLanguage.JAPANESE -> "速度制御、ピクチャーインピクチャー、バックグラウンド再生、YouTubeのクリーンアップ"
         AppLanguage.KOREAN -> "속도 제어, PIP(Picture-in-Picture), 백그라운드 재생, YouTube 정리"
+    }
+    val builtinStreamingPip: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流媒体画中画"
+        AppLanguage.ENGLISH -> "Streaming PiP"
+        AppLanguage.ARABIC -> "بث صورة داخل صورة"
+        AppLanguage.PORTUGUESE -> "Streaming PiP"
+        AppLanguage.SPANISH -> "Streaming en imagen emergente"
+        AppLanguage.FRENCH -> "Diffusion image dans l'image"
+        AppLanguage.GERMAN -> "Streaming Bild-in-Bild"
+        AppLanguage.RUSSIAN -> "Транслировать PiP"
+        AppLanguage.JAPANESE -> "ストリーミング PiP"
+        AppLanguage.KOREAN -> "스트리밍 PIP"
+    }
+    val builtinStreamingPipDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动检测视频播放并启用画中画，支持 HLS/DASH/YouTube"
+        AppLanguage.ENGLISH -> "Auto-detect video playback and enable PiP; supports HLS, DASH, YouTube"
+        AppLanguage.ARABIC -> "الكشف تلقائياً عن تشغيل الفيديو وتمكيل PiP؛ يدعم HLS و DASH و يوتيوب"
+        AppLanguage.PORTUGUESE -> "Detectar automaticamente a reprodução de vídeo e ativar PiP; suporta HLS, DASH, YouTube"
+        AppLanguage.SPANISH -> "Detectar automáticamente la reproducción de video y activar PiP; soporta HLS, DASH, YouTube"
+        AppLanguage.FRENCH -> "Détection automatique de la lecture vidéo et activation de l'image dans l'image ; prend en charge HLS, DASH, YouTube"
+        AppLanguage.GERMAN -> "Erkennen Sie Videos automatisch und aktivieren Sie Bild-in-Bild; unterstützt HLS, DASH, YouTube"
+        AppLanguage.RUSSIAN -> "Автоматически определять воспроизведение видео и включать PiP; поддерживает HLS, DASH, YouTube"
+        AppLanguage.JAPANESE -> "ビデオ再生を自動検出し PiP を有効にする（HLS/DASH/YouTube をサポート）"
+        AppLanguage.KOREAN -> "비디오 재생을 자동 감지하고 PiP를 활성화; HLS, DASH, YouTube 지원"
     }
     val builtinWebAnalyzer: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "网页分析"
@@ -44067,6 +44146,18 @@ object StringsD {
         AppLanguage.RUSSIAN -> "Загрузка"
         AppLanguage.JAPANESE -> "ダウンロード"
         AppLanguage.KOREAN -> "다운로드"
+    }
+    val tagStreaming: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流媒体"
+        AppLanguage.ENGLISH -> "Streaming"
+        AppLanguage.ARABIC -> "بث"
+        AppLanguage.PORTUGUESE -> "Streaming"
+        AppLanguage.SPANISH -> "Streaming"
+        AppLanguage.FRENCH -> "Diffusion"
+        AppLanguage.GERMAN -> "Streaming"
+        AppLanguage.RUSSIAN -> "Стриминг"
+        AppLanguage.JAPANESE -> "ストリーミング"
+        AppLanguage.KOREAN -> "스트리밍"
     }
     val tagImage: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "图片"

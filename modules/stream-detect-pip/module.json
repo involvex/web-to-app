@@ -1,0 +1,20 @@
+{
+  "id": "wta-stream-detect-pip",
+  "name": "Streaming PiP Detector",
+  "description": "Automatically detects video playback (HTML5, HLS, DASH, YouTube) and enables Picture-in-Picture. Tap a video in the panel to toggle PiP manually, or let auto-entry trigger on play. Uses native HTML5 PiP when available, falling back to native bridge PiP for broader coverage.",
+  "icon": "play_circle_filled",
+  "category": "VIDEO",
+  "tags": ["video", "streaming", "pip", "hls", "dash", "youtube"],
+  "version": {
+    "code": 1,
+    "name": "1.0.0",
+    "changelog": "Initial release."
+  },
+  "author": {
+    "name": "WebToApp",
+    "url": "https://github.com/shiaho777/web-to-app"
+  },
+  "runAt": "DOCUMENT_END",
+  "urlMatches": [{ "pattern": "*", "isRegex": false, "exclude": false }],
+  "permissions": ["DOM_ACCESS", "PICTURE_IN_PICTURE"]
+}

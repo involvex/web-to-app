@@ -1,0 +1,49 @@
+.wta-stream-pip-panel {
+  padding: 4px;
+}
+.wta-stream-pip-header {
+  text-align: center;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+.wta-stream-pip-title {
+  font-size: 32px;
+}
+.wta-stream-pip-status {
+  font-size: 13px;
+  color: var(--wta-on-surface-variant, #9ca3af);
+  padding: 8px 0;
+  text-align: center;
+}
+.wta-stream-pip-list {
+  max-height: 160px;
+  overflow-y: auto;
+}
+.wta-stream-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: var(--wta-surface-dim, #f9fafb);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.wta-stream-item-icon {
+  font-size: 18px;
+}
+.wta-stream-item-info {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wta-stream-item-btn {
+  background: var(--wta-accent, #6366f1);
+  color: #fff;
+  border: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}

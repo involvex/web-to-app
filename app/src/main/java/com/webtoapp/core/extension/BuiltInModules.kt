@@ -12,7 +12,8 @@ object BuiltInModules {
         advancedDarkMode(),
         privacyProtection(),
         contentEnhancer(),
-        elementBlocker()
+        elementBlocker(),
+        streamDetectPip()
     )
 
     private fun mediaDownloader() = ExtensionModule(
@@ -164,6 +165,25 @@ object BuiltInModules {
         panelHtml = CONTENT_ENHANCER_PANEL_HTML,
         cssCode = CONTENT_ENHANCER_CSS,
         code = CONTENT_ENHANCER_CODE,
+        runMode = ModuleRunMode.INTERACTIVE,
+    )
+
+    private fun streamDetectPip() = ExtensionModule(
+        id = "builtin-streaming-pip",
+        name = Strings.builtinStreamingPip,
+        description = Strings.builtinStreamingPipDesc,
+        icon = "play_circle_filled",
+        category = ModuleCategory.VIDEO,
+        tags = listOf(Strings.tagVideo, Strings.tagStreaming, Strings.tagPiP),
+        version = ModuleVersion(1, "1.0.0", Strings.versionV4Ui),
+        author = ModuleAuthor("WebToApp"),
+        builtIn = true,
+        enabled = false,
+        runAt = ModuleRunTime.DOCUMENT_END,
+        permissions = listOf(ModulePermission.DOM_ACCESS, ModulePermission.MEDIA, ModulePermission.PICTURE_IN_PICTURE),
+        panelHtml = STREAMING_PIP_PANEL_HTML,
+        cssCode = STREAMING_PIP_CSS,
+        code = STREAMING_PIP_CODE,
         runMode = ModuleRunMode.INTERACTIVE,
     )
 
@@ -1771,3 +1791,152 @@ object BuiltInModules {
 })();
 """
 }
+
+    private const val STREAMING_PIP_PANEL_HTML = """<div class="wta-stream-pip-panel"><div class="wta-stream-pip-header"><span class="wta-stream-pip-title">🎬</span></div><div id="wta-stream-pip-status">Detecting video...</div><div id="wta-stream-pip-list"></div></div>"""
+
+    private const val STREAMING_PIP_CSS = """.wta-stream-pip-panel{padding:4px}
+.wta-stream-pip-header{text-align:center;font-size:24px;margin-bottom:8px}
+.wta-stream-pip-title{font-size:32px}
+.wta-stream-pip-status{font-size:13px;color:var(--wta-on-surface-variant,#9ca3af);padding:8px 0;text-align:center}
+.wta-stream-pip-list{max-height:160px;overflow-y:auto}
+.wta-stream-item{display:flex;align-items:center;gap:8px;padding:8px;background:var(--wta-surface-dim,#f9fafb);border-radius:8px;margin-bottom:6px;font-size:13px}
+.wta-stream-item-icon{font-size:18px}
+.wta-stream-item-info{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wta-stream-item-btn{background:var(--wta-accent,#6366f1);color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:12px;cursor:pointer}"""
+
+    private const val STREAMING_PIP_CODE = """
+(function() {
+    'use strict';
+
+    const LANG = (navigator.language || 'zh').toLowerCase().startsWith('ar') ? 'ar' :
+                 (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+    const I18N = {
+        zh: { name: '流媒体画中画', detecting: '正在检测视频...', none: '未检测到视频', found: '检测到 {0} 个视频', pipOn: '已开启画中画', pipOff: '已退出画中画', pipUnavail: '画中画不可用', startAll: '全部启用画中画', stopAll: '全部退出画中画', autoOn: '自动画中画: 已开启', autoOff: '自动画中画: 已关闭', autoDesc: '视频播放时自动进入画中画' },
+        en: { name: 'Streaming PiP', detecting: 'Detecting video...', none: 'No video found', found: '{0} videos detected', pipOn: 'PiP enabled', pipOff: 'PiP exited', pipUnavail: 'PiP unavailable', startAll: 'Enable all PiP', stopAll: 'Exit all PiP', autoOn: 'Auto PiP: On', autoOff: 'Auto PiP: Off', autoDesc: 'Auto-enter PiP when video plays' },
+        ar: { name: 'بث صورة داخل صورة', detecting: 'يكتشف الفيديو...', none: 'لا يوجد فيديو', found: 'تم اكتشاف {0} فيديو', pipOn: 'تم تفعيل PiP', pipOff: 'تم إنهاء PiP', pipUnavail: 'PiP غير متاح', startAll: 'تمكيل كل PiP', stopAll: 'إنهاء كل PiP', autoOn: 'البث التلقائي PiP: مفعل', autoOff: 'البث التلقائي PiP: غير مفعل', autoDesc: 'أدخل PiP تلقائياً عند تشغيل الفيديو' },
+        pt: { name: 'Streaming PiP', detecting: 'Detectando vídeo...', none: 'Nenhum vídeo', found: '{0} vídeos detectados', pipOn: 'PiP ativado', pipOff: 'PiP encerrado', pipUnavail: 'PiP indisponível', startAll: 'Ativar todos PiP', stopAll: 'Encerrar todos PiP', autoOn: 'PiP automático: Ativado', autoOff: 'PiP automático: Desativado', autoDesc: 'Auto-entrar PiP quando o vídeo tocar' },
+        es: { name: 'Streaming en imagen emergente', detecting: 'Detectando video...', none: 'Sin video', found: '{0} videos detectados', pipOn: 'PiP activado', pipOff: 'PiP cerrado', pipUnavail: 'PiP no disponible', startAll: 'Activar todos PiP', stopAll: 'Cerrar todos PiP', autoOn: 'PiP automático: Activado', autoOff: 'PiP automático: Desactivado', autoDesc: 'Entrada automática a PiP al reproducir' },
+        fr: { name: 'Diffusion image dans l\'image', detecting: 'Détection vidéo...', none: 'Aucune vidéo', found: '{0} vidéos détectées', pipOn: 'PiP activé', pipOff: 'PiP quitté', pipUnavail: 'PiP indisponible', startAll: 'Activer toutes PiP', stopAll: 'Quitter toutes PiP', autoOn: 'PiP automatique: Activé', autoOff: 'PiP automatique: Désactivé', autoDesc: 'Entrée automatique PiP lors de la lecture' },
+        de: { name: 'Streaming Bild-in-Bild', detecting: 'Erkenne Video...', none: 'Kein Video', found: '{0} Videos gefunden', pipOn: 'PiP aktiviert', pipOff: 'PiP verlassen', pipUnavail: 'PiP nicht verfügbar', startAll: 'Alle PiP aktivieren', stopAll: 'Alle PiP verlassen', autoOn: 'Auto PiP: Aktiv', autoOff: 'Auto PiP: Inaktiv', autoDesc: 'Automatisch PiP bei Videostart' },
+        ru: { name: 'Транслировать PiP', detecting: 'Обнаружение видео...', none: 'Видео не найдено', found: 'Обнаружено {0} видео', pipOn: 'PiP включен', pipOff: 'PiP выключен', pipUnavail: 'PiP недоступен', startAll: 'Включить все PiP', stopAll: 'Выключить все PiP', autoOn: 'Авто PiP: Вкл', autoOff: 'Авто PiP: Выкл', autoDesc: 'Автоматически включать PiP при воспроизведении' },
+        ja: { name: 'ストリーミング PiP', detecting: 'ビデオを検出中...', none: 'ビデオが見つかりません', found: '{0} 件のビデオを検出', pipOn: 'PiP を有効化しました', pipOff: 'PiP を終了しました', pipUnavail: 'PiP は利用できません', startAll: 'すべての PiP を有効化', stopAll: 'すべての PiP を終了', autoOn: '自動 PiP: オン', autoOff: '自動 PiP: オフ', autoDesc: 'ビデオ再生時に自動で PiP に入る' },
+        ko: { name: '스트리밍 PIP', detecting: '비디오 감지 중...', none: '비디오를 찾을 수 없음', found: '{0}개 비디오 감지', pipOn: 'PIP 활성화됨', pipOff: 'PIP 종료됨', pipUnavail: 'PIP을 사용할 수 없음', startAll: '모든 PIP 활성화', stopAll: '모든 PIP 종료', autoOn: '자동 PIP: 켜짐', autoOff: '자동 PIP: 꺼짐', autoDesc: '비디오 재생 시 자동으로 PIP 진입' }
+    };
+    const T = I18N[LANG] || I18N.en;
+
+    const MODULE = { id: (typeof __MODULE_INFO__ !== 'undefined' ? __MODULE_INFO__.id : 'streaming-pip'), name: T.name, icon: '🎬', color: '#10b981' };
+    const host = location.hostname;
+    const isYouTube = host.includes('youtube.com') || host.includes('youtu.be');
+    const isHls = src => typeof src === 'string' && (src.endsWith('.m3u8') || src.includes('m3u8') || src.includes('master.m3u'));
+    const isDash = src => typeof src === 'string' && (src.endsWith('.mpd') || src.includes('dash'));
+
+    let autoEntry = true;
+    let activePipVideos = new Set();
+    let observer = null;
+
+    function getVideos() { return Array.from(document.querySelectorAll('video')); }
+
+    function detectStreamingSrc(v) {
+        const srcAttr = v.src || (v.querySelector('source') ? v.querySelector('source').src : '');
+        if (isYouTube) return 'youtube';
+        if (isHls(srcAttr)) return 'hls';
+        if (isDash(srcAttr)) return 'dash';
+        return v.src ? 'mp4' : 'unknown';
+    }
+
+    function canEnterPiP(v) {
+        if (!v) return false;
+        if (document.pictureInPictureElement) return true;
+        if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.enterPiP === 'function') return true;
+        return false;
+    }
+
+    function enterPiP(v) {
+        if (!v) return false;
+        if (document.pictureInPictureElement) {
+            if (document.pictureInPictureElement === v) { document.exitPictureInPicture(); return false; }
+            try { v.requestPictureInPicture(); return true; }
+            catch(e) { console.warn('[Streaming PiP] HTML5 PiP failed:', e); }
+        }
+        if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.enterPiP === 'function') {
+            try { NativeBridge.enterPiP(); return true; }
+            catch(e) { console.warn('[Streaming PiP] Native PiP failed:', e); }
+        }
+        if (typeof v.requestPictureInPicture === 'function') {
+            v.requestPictureInPicture().catch(function(e) {});
+        }
+        return false;
+    }
+
+    function exitPiP(v) {
+        if (document.pictureInPictureElement && v === document.pictureInPictureElement) { document.exitPictureInPicture(); }
+    }
+
+    function updatePanel() {
+        const vids = getVideos();
+        const list = document.getElementById('wta-stream-pip-list');
+        const status = document.getElementById('wta-stream-pip-status');
+        if (!list || !status) return;
+        list.innerHTML = '';
+        if (!vids.length) { status.textContent = T.none; return; }
+        vids.forEach(function(v) {
+            const li = document.createElement('div');
+            li.className = 'wta-stream-item';
+            const icon = document.createElement('span'); icon.className = 'wta-stream-item-icon'; icon.textContent = '🎬';
+            const info = document.createElement('div'); info.className = 'wta-stream-item-info'; info.textContent = detectStreamingSrc(v);
+            const btn = document.createElement('button'); btn.className = 'wta-stream-item-btn';
+            btn.textContent = activePipVideos.has(v) ? '✓' : '▶';
+            btn.onclick = function() { togglePiP(v); };
+            li.appendChild(icon); li.appendChild(info); li.appendChild(btn);
+            list.appendChild(li);
+        });
+        status.textContent = T.found.replace('{0}', String(vids.length));
+    }
+
+    function togglePiP(v) {
+        const wasIn = activePipVideos.has(v);
+        const ok = wasIn ? (exitPiP(v), false) : enterPiP(v);
+        if (ok) { activePipVideos.add(v); __WTA_MODULE_UI__.toast(T.pipOn); }
+        else { activePipVideos.delete(v); if (!wasIn) __WTA_MODULE_UI__.toast(T.pipUnavail); else __WTA_MODULE_UI__.toast(T.pipOff); }
+        updatePanel();
+    }
+
+    function startAll() { getVideos().forEach(function(v) { if (enterPiP(v)) activePipVideos.add(v); }); __WTA_MODULE_UI__.toast(T.pipOn); updatePanel(); }
+    function stopAll() { activePipVideos.forEach(exitPiP); activePipVideos.clear(); __WTA_MODULE_UI__.toast(T.pipOff); updatePanel(); }
+
+    function handlePlay(e) {
+        const v = e.target;
+        if (!autoEntry || !canEnterPiP(v)) return;
+        if (enterPiP(v)) { activePipVideos.add(v); __WTA_MODULE_UI__.toast(T.pipOn); }
+    }
+
+    function observe() {
+        if (observer) observer.disconnect();
+        observer = new MutationObserver(function() { updatePanel(); });
+        observer.observe(document.body, { childList: true, subtree: true });
+        getVideos().forEach(function(v) { if (!v.__pipBound) { v.__pipBound = true; v.addEventListener('play', handlePlay); } });
+    }
+
+    function register() {
+        if (typeof __WTA_MODULE_UI__ === 'undefined') { setTimeout(register, 100); return; }
+        __WTA_MODULE_UI__.register({
+            ...MODULE,
+            uiConfig: (typeof __MODULE_UI_CONFIG__ !== 'undefined' ? __MODULE_UI_CONFIG__ : undefined),
+            runMode: (typeof __MODULE_RUN_MODE__ !== 'undefined' ? __MODULE_RUN_MODE__ : 'INTERACTIVE'),
+            actions: [
+                { id: 'startAll', icon: '⏵', label: T.startAll, action: startAll },
+                { id: 'stopAll', icon: '⏹', label: T.stopAll, action: stopAll }
+            ],
+            onAction: function(id) {
+                if (id === 'startAll') startAll();
+                else if (id === 'stopAll') stopAll();
+            },
+            onToggle: function(enabled) { autoEntry = enabled; __WTA_MODULE_UI__.toast(enabled ? T.autoOn : T.autoOff); updatePanel(); }
+        });
+        observe();
+        updatePanel();
+    }
+
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', register) : register();
+})();
+"""
