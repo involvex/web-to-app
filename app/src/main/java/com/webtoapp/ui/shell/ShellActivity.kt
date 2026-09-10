@@ -544,6 +544,20 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                             }
                         }
 
+                        if (config.webViewConfig.enableNativeBridge && config.webViewConfig.nativeBridgeScreenCapture) {
+                            try {
+                                androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
+                                    wv,
+                                    com.webtoapp.core.webview.ScreenCaptureHelper.getInjectionScript(),
+                                    setOf("*")
+                                )
+                                com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "[ScreenCapture] Helper installed at document start (applies to all hosts)")
+                            } catch (e: Exception) {
+                                wv.evaluateJavascript(com.webtoapp.core.webview.ScreenCaptureHelper.getInjectionScript(), null)
+                                com.webtoapp.core.shell.ShellLogger.w("ShellActivity", "[ScreenCapture] Document-start unsupported, used evaluateJavascript fallback", e)
+                            }
+                        }
+
                         if (config.webViewConfig.enableMediaSession) {
                             val mediaBridge = com.webtoapp.core.webview.MediaSessionBridge(
                                 this@ShellActivity,
