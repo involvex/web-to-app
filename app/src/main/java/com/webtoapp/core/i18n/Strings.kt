@@ -622,8 +622,10 @@ object Strings {
     val announcementAllowNeverShowLabel: String get() = StringsA.announcementAllowNeverShowLabel
     val announcementAllowNeverShowHint: String get() = StringsA.announcementAllowNeverShowHint
     val adBlocking: String get() = StringsA.adBlocking
-    val fullscreenMode: String get() = StringsA.fullscreenMode
-    val splashScreen: String get() = StringsA.splashScreen
+     val fullscreenMode: String get() = StringsA.fullscreenMode
+     val pictureInPictureMode: String get() = StringsA.pictureInPictureMode
+     val pictureInPictureDesc: String get() = StringsA.pictureInPictureDesc
+     val splashScreen: String get() = StringsA.splashScreen
     val autoTranslate: String get() = StringsA.autoTranslate
     val htmlApp: String get() = StringsA.htmlApp
     val frontendApp: String get() = StringsA.frontendApp
@@ -4639,7 +4641,8 @@ object Strings {
     val nativeBridgeCapsOrientation: String get() = StringsE.nativeBridgeCapsOrientation
     val nativeBridgeCapsFullscreen: String get() = StringsE.nativeBridgeCapsFullscreen
     val nativeBridgeCapsPrint: String get() = StringsE.nativeBridgeCapsPrint
-    val nativeBridgeCapsScreenCapture: String get() = StringsE.nativeBridgeCapsScreenCapture
+     val nativeBridgeCapsScreenCapture: String get() = StringsE.nativeBridgeCapsScreenCapture
+     val nativeBridgeCapsPip: String get() = StringsE.nativeBridgeCapsPip
     val geolocationAccuracyLabel: String get() = StringsE.geolocationAccuracyLabel
     val geolocationAccuracyCoarse: String get() = StringsE.geolocationAccuracyCoarse
     val geolocationAccuracyFine: String get() = StringsE.geolocationAccuracyFine
@@ -12730,20 +12733,46 @@ object StringsA {
         AppLanguage.KOREAN -> "광고 차단"
     }
 
-    val fullscreenMode: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "全屏模式"
-        AppLanguage.ENGLISH -> "Fullscreen Mode"
-        AppLanguage.ARABIC -> "وضع ملء الشاشة"
-        AppLanguage.PORTUGUESE -> "Modo Tela Cheia"
-        AppLanguage.SPANISH -> "Modo Pantalla Completa"
-        AppLanguage.FRENCH -> "Mode Plein Écran"
-        AppLanguage.GERMAN -> "Vollbildmodus"
-        AppLanguage.RUSSIAN -> "Полноэкранный режим"
-        AppLanguage.JAPANESE -> "全画面モード"
-        AppLanguage.KOREAN -> "전체 화면 모드"
-    }
+     val fullscreenMode: String get() = when (Strings.lang) {
+         AppLanguage.CHINESE -> "全屏模式"
+         AppLanguage.ENGLISH -> "Fullscreen Mode"
+         AppLanguage.ARABIC -> "وضع ملء الشاشة"
+         AppLanguage.PORTUGUESE -> "Modo Tela Cheia"
+         AppLanguage.SPANISH -> "Modo Pantalla Completa"
+         AppLanguage.FRENCH -> "Mode Plein Écran"
+         AppLanguage.GERMAN -> "Vollbildmodus"
+         AppLanguage.RUSSIAN -> "Полноэкранный режим"
+         AppLanguage.JAPANESE -> "全画面モード"
+         AppLanguage.KOREAN -> "전체 화면 모드"
+     }
 
-    val splashScreen: String get() = when (Strings.lang) {
+     val pictureInPictureMode: String get() = when (Strings.lang) {
+         AppLanguage.CHINESE -> "画中画模式"
+         AppLanguage.ENGLISH -> "Picture-in-Picture"
+         AppLanguage.ARABIC -> "فيديو داخل فيديو"
+         AppLanguage.PORTUGUESE -> "PiP - Picture-in-Picture"
+         AppLanguage.SPANISH -> "PiP - Imagen en Imagen"
+         AppLanguage.FRENCH -> "Image dans l'image"
+         AppLanguage.GERMAN -> "Bild-in-Bild"
+         AppLanguage.RUSSIAN -> "Картинка в картинке"
+         AppLanguage.JAPANESE -> "ピクチャーインピクチャー"
+         AppLanguage.KOREAN -> "PIP - 그림 속 그림"
+     }
+
+     val pictureInPictureDesc: String get() = when (Strings.lang) {
+         AppLanguage.CHINESE -> "允许网页通过 NativeBridge.enterPiP() 进入 Android 画中画模式"
+         AppLanguage.ENGLISH -> "Allow the web page to enter Android's PiP mode via NativeBridge.enterPiP()"
+         AppLanguage.ARABIC -> "السماح لصفحة الويب بإدخال وضع PiP عبر NativeBridge.enterPiP()"
+         AppLanguage.PORTUGUESE -> "Permitir que a página entre no modo PiP via NativeBridge.enterPiP()"
+         AppLanguage.SPANISH -> "Permitir que la página entre en modo PiP vía NativeBridge.enterPiP()"
+         AppLanguage.FRENCH -> "Autoriser la page à passer en mode PiP via NativeBridge.enterPiP()"
+         AppLanguage.GERMAN -> "Erlauben Sie der Webseite, den PiP-Modus über NativeBridge.enterPiP() zu aktivieren"
+         AppLanguage.RUSSIAN -> "Разрешить странице входить в режим PIP через NativeBridge.enterPiP()"
+         AppLanguage.JAPANESE -> "Webページが NativeBridge.enterPiP() で PiP モードに入れるように許可"
+         AppLanguage.KOREAN -> "웹 페이지가 NativeBridge.enterPiP()를 통해 PIP 모드로 들어갈 수 있도록 허용"
+     }
+
+     val splashScreen: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "启动画面"
         AppLanguage.ENGLISH -> "Splash Screen"
         AppLanguage.ARABIC -> "شاشة البداية"
@@ -62137,6 +62166,7 @@ object StringsE {
     val nativeBridgeCapsFullscreen: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "全屏"; AppLanguage.ENGLISH -> "Fullscreen"; AppLanguage.ARABIC -> "ملء الشاشة"; AppLanguage.PORTUGUESE -> "Tela Cheia"; AppLanguage.SPANISH -> "Pantalla Completa"; AppLanguage.FRENCH -> "Plein écran"; AppLanguage.GERMAN -> "Vollbild"; AppLanguage.RUSSIAN -> "Полный экран"; AppLanguage.JAPANESE -> "全画面"; AppLanguage.KOREAN -> "전체화면"; }
     val nativeBridgeCapsPrint: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "打印"; AppLanguage.ENGLISH -> "Print"; AppLanguage.ARABIC -> "طباعة"; AppLanguage.PORTUGUESE -> "Imprimir"; AppLanguage.SPANISH -> "Imprimir"; AppLanguage.FRENCH -> "Imprimer"; AppLanguage.GERMAN -> "Drucken"; AppLanguage.RUSSIAN -> "Печать"; AppLanguage.JAPANESE -> "印刷"; AppLanguage.KOREAN -> "인쇄"; }
     val nativeBridgeCapsScreenCapture: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "屏幕截图"; AppLanguage.ENGLISH -> "Screen Capture"; AppLanguage.ARABIC -> "التقاط الشاشة"; AppLanguage.PORTUGUESE -> "Captura de Tela"; AppLanguage.SPANISH -> "Captura de Pantalla"; AppLanguage.FRENCH -> "Capture d'écran"; AppLanguage.GERMAN -> "Bildschirmaufnahme"; AppLanguage.RUSSIAN -> "Снимок экрана"; AppLanguage.JAPANESE -> "スクリーンショット"; AppLanguage.KOREAN -> "화면 캡처"; }
+    val nativeBridgeCapsPip: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "画中画"; AppLanguage.ENGLISH -> "Picture-in-Picture"; AppLanguage.ARABIC -> "فيديو داخل فيديو"; AppLanguage.PORTUGUESE -> "PiP"; AppLanguage.SPANISH -> "PiP"; AppLanguage.FRENCH -> "Image dans l'image"; AppLanguage.GERMAN -> "Bild-in-Bild"; AppLanguage.RUSSIAN -> "Картинка в картинке"; AppLanguage.JAPANESE -> "ピクチャーインピクチャー"; AppLanguage.KOREAN -> "PIP"; }
 
     val geolocationAccuracyLabel: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "精度"; AppLanguage.ENGLISH -> "Accuracy"; AppLanguage.ARABIC -> "الدقة"; AppLanguage.PORTUGUESE -> "Precisão"; AppLanguage.SPANISH -> "Precisión"; AppLanguage.FRENCH -> "Précision"; AppLanguage.GERMAN -> "Genauigkeit"; AppLanguage.RUSSIAN -> "Точность"; AppLanguage.JAPANESE -> "精度"; AppLanguage.KOREAN -> "정확도"; }
     val geolocationAccuracyCoarse: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "粗略"; AppLanguage.ENGLISH -> "Coarse"; AppLanguage.ARABIC -> "تقريبية"; AppLanguage.PORTUGUESE -> "Aproximada"; AppLanguage.SPANISH -> "Aproximada"; AppLanguage.FRENCH -> "Grossière"; AppLanguage.GERMAN -> "Grob"; AppLanguage.RUSSIAN -> "Грубая"; AppLanguage.JAPANESE -> "大まか"; AppLanguage.KOREAN -> "대략"; }

@@ -144,6 +144,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             fullscreen = config.webViewConfig.nativeBridgeFullscreen,
             print = config.webViewConfig.nativeBridgePrint,
             screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
+            pip = config.webViewConfig.nativeBridgePip,
         ),
         javaScriptCanOpenWindows = config.webViewConfig.javaScriptCanOpenWindows,
         jsOpenWindowsPolicy = try {
@@ -249,9 +250,11 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         } catch (e: Exception) {
             com.webtoapp.data.model.SwipeRefreshZone.TOP_EDGE
         },
-        fullscreenEnabled = config.webViewConfig.fullscreenEnabled,
+         fullscreenEnabled = config.webViewConfig.fullscreenEnabled,
 
-        performanceOptimization = config.webViewConfig.performanceOptimization,
+         pictureInPictureEnabled = config.webViewConfig.pictureInPictureEnabled,
+
+         performanceOptimization = config.webViewConfig.performanceOptimization,
         pwaOfflineEnabled = config.webViewConfig.pwaOfflineEnabled && !config.webViewConfig.clearBrowsingDataOnLaunch,
         pwaOfflineStrategy = config.webViewConfig.pwaOfflineStrategy,
 

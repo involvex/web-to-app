@@ -405,6 +405,35 @@ if (NativeBridge.isFullscreen()) {
     // 当前是全屏模式
 }
 ```
+
+### 画中画 (PiP)
+
+#### enterPiP()
+进入画中画模式（Android 8.0+）
+- 返回: boolean - 是否成功进入
+```javascript
+if (NativeBridge.enterPiP()) {
+    console.log('已进入画中画');
+} else {
+    console.log('画中画不可用');
+}
+```
+
+#### exitPiP()
+退出画中画模式
+- 返回: boolean - 是否成功退出
+```javascript
+NativeBridge.exitPiP();
+```
+
+#### isPiPActive()
+检查是否处于画中画模式
+- 返回: boolean
+```javascript
+if (NativeBridge.isPiPActive()) {
+    // 当前是画中画模式
+}
+```
 ### 屏幕截图（WebView 内容）
 
 #### captureScreen(quality?)`
@@ -1856,6 +1885,70 @@ NativeBridge.stopDeviceCapture();
         }
     }
 
+     @JavascriptInterface
+    fun enterPiP(): Boolean {
+        if (!capabilities.pip) return false
+        return try {
+            val activity = context as? Activity ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_PICTURE_IN_PICTURE)
+                ) {
+                    val params = android.app.PictureInPictureParams.Builder()
+                        .setAspectRatio(android.util.Rational(16, 9))
+                        .build()
+                    activity.enterPictureInPictureMode(params)
+                    AppLogger.d("NativeBridge", "Entered PiP mode")
+                    true
+                } else {
+                    AppLogger.w("NativeBridge", "PiP not supported on this device")
+                    false
+                }
+            } else {
+                AppLogger.w("NativeBridge", "PiP requires API 26+, current=${Build.VERSION.SDK_INT}")
+                false
+            }
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "Failed to enter PiP", e)
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun exitPiP(): Boolean {
+        if (!capabilities.pip) return false
+        return try {
+            val activity = context as? Activity ?: return false
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                if (activity.isInPictureInPictureMode) {
+                    activity.enterPictureInPictureMode(
+                        android.app.PictureInPictureParams.Builder().build()
+                    )
+                    AppLogger.d("NativeBridge", "Exited PiP mode")
+                    true
+                } else {
+                    false
+                }
+            } else {
+                false
+            }
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "Failed to exit PiP", e)
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun isPiPActive(): Boolean {
+        if (!capabilities.pip) return false
+        return try {
+            val activity = context as? Activity
+            activity?.isInPictureInPictureMode ?: false
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "Failed to check PiP state", e)
+            false
+        }
+    }
+
     private fun captureWebViewBitmap(): Bitmap? {
         return try {
             val wv = webViewProvider() ?: return null
@@ -2109,7 +2202,8 @@ private fun privateNetworkOnlyCapabilities(): com.webtoapp.data.model.NativeBrid
         orientation = false,
         fullscreen = false,
         print = false,
-        screenCapture = false
+        screenCapture = false,
+        pip = false
     )
 }
 

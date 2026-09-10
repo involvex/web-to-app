@@ -285,6 +285,25 @@ fun CreateAppScreen(
             }
 
             item {
+                WtaSettingCard {
+                    WtaToggleRow(
+                        icon = Icons.Outlined.SmartDisplay,
+                        title = Strings.pictureInPictureMode,
+                        subtitle = Strings.pictureInPictureDesc,
+                        checked = editState.webViewConfig.pictureInPictureEnabled,
+                        onCheckedChange = { enabled ->
+                            viewModel.updateEditState {
+                                copy(webViewConfig = webViewConfig.copy(
+                                    pictureInPictureEnabled = enabled,
+                                    nativeBridgeCapabilities = webViewConfig.nativeBridgeCapabilities.copy(pip = enabled)
+                                ))
+                            }
+                        }
+                    )
+                }
+            }
+
+            item {
                 LandscapeModeCard(
                     enabled = editState.webViewConfig.landscapeMode,
                     onEnabledChange = { enabled ->

@@ -42,6 +42,7 @@ import com.webtoapp.core.agent.tool.builtin.ListFilesTool
 import com.webtoapp.core.agent.tool.builtin.ListModulesTool
 import com.webtoapp.core.agent.tool.builtin.ManageHostsRulesTool
 import com.webtoapp.core.agent.tool.builtin.MoveToCategoryTool
+import com.webtoapp.core.agent.tool.builtin.SetPictureInPictureTool
 import com.webtoapp.core.agent.tool.builtin.ReadFileTool
 import com.webtoapp.core.agent.tool.builtin.ReadAppFileTool
 import com.webtoapp.core.agent.tool.builtin.ScanPortsTool
@@ -89,6 +90,8 @@ class ToolRegistryFactory(
         GetAppTool(),
         CreateAppTool(),
         UpdateAppTool(),
+        // Picture-in-Picture
+        SetPictureInPictureTool(),
         ReadAppFileTool(),
         // Common-config templates
         ListConfigTemplatesTool(),

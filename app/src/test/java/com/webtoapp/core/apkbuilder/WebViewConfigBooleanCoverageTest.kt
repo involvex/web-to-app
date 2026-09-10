@@ -66,9 +66,10 @@ class WebViewConfigBooleanCoverageTest {
             "acceptThirdPartyCookies", "geolocationEnabled", "keepScreenOn",
             "databaseEnabled", "primeUserActivation", "failoverEnabled",
             "hostsMappingEnabled", "autoRefreshEnabled", "autoRefreshShowCountdown",
-            "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
-            "tlsFingerprintEnabled", "statusBarDarkIconsDark"
-        )
+    "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
+    "tlsFingerprintEnabled", "statusBarDarkIconsDark",
+    "pictureInPictureEnabled"
+)
 
         val missing = allBooleanFields - listedFields
         val stale = listedFields - allBooleanFields
@@ -170,6 +171,7 @@ class WebViewConfigBooleanCoverageTest {
             "nativeBridgeSecurityInfo", "nativeBridgeNetworkInfo", "nativeBridgeToast",
             "nativeBridgeLogging", "nativeBridgeFindInPage", "nativeBridgeOrientation",
             "nativeBridgeFullscreen", "nativeBridgePrint", "nativeBridgeScreenCapture",
+            "nativeBridgePip",
             "failoverTriggerNetworkError", "failoverTriggerHttp5xx",
             "failoverTriggerHttp4xx", "failoverTriggerTimeout"
         )
@@ -259,6 +261,62 @@ class WebViewConfigBooleanCoverageTest {
             )
         )
         assertThat(readScreenCapture(enabled)).isTrue()
+    }
+
+    @Test
+    fun `nativeBridge pip capability survives the export round-trip`() {
+        fun readPip(app: WebApp): Boolean {
+            val shellWv = shellWvOf(roundTrip(app))
+            val field = shellWv.javaClass.getDeclaredField("nativeBridgePip")
+            field.isAccessible = true
+            return readBool(field, shellWv)
+        }
+
+        val disabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    pip = false
+                )
+            )
+        )
+        assertThat(readPip(disabled)).isFalse()
+
+        val enabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    pip = true
+                )
+            )
+        )
+        assertThat(readPip(enabled)).isTrue()
+    }
+
+    @Test
+    fun `pictureInPictureEnabled survives the export round-trip`() {
+        fun readPiPEnabled(app: WebApp): Boolean {
+            val shellWv = shellWvOf(roundTrip(app))
+            val field = shellWv.javaClass.getDeclaredField("pictureInPictureEnabled")
+            field.isAccessible = true
+            return readBool(field, shellWv)
+        }
+
+        val disabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(pictureInPictureEnabled = false)
+        )
+        assertThat(readPiPEnabled(disabled)).isFalse()
+
+        val enabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(pictureInPictureEnabled = true)
+        )
+        assertThat(readPiPEnabled(enabled)).isTrue()
     }
 
     // ────────────────────────────────────────────────────────────
@@ -377,7 +435,8 @@ class WebViewConfigBooleanCoverageTest {
             allowFileAccessFromFileURLs = bool("allowFileAccessFromFileURLs"),
             allowUniversalAccessFromFileURLs = bool("allowUniversalAccessFromFileURLs"),
             tlsFingerprintEnabled = bool("tlsFingerprintEnabled"),
-            statusBarDarkIconsDark = bool("statusBarDarkIconsDark")
+            statusBarDarkIconsDark = bool("statusBarDarkIconsDark"),
+            pictureInPictureEnabled = bool("pictureInPictureEnabled")
         )
     }
 }

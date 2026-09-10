@@ -3709,6 +3709,11 @@ fun SpecialSettingsCard(
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(screenCapture = !caps.screenCapture))) },
                                     label = { Text(Strings.nativeBridgeCapsScreenCapture) }
                                 )
+                                FilterChip(
+                                    selected = caps.pip,
+                                    onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(pip = !caps.pip))) },
+                                    label = { Text(Strings.nativeBridgeCapsPip) }
+                                )
                             }
                         }
 

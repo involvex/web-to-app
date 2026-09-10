@@ -370,8 +370,9 @@ data class WebViewConfig(
     val enableOrientationPolyfill: Boolean = false,
     val enableCompatPolyfills: Boolean = false,
 
-    val enableNativeBridge: Boolean = false,
-    val nativeBridgeCapabilities: NativeBridgeCapabilities = NativeBridgeCapabilities(),
+     val enableNativeBridge: Boolean = false,
+     val nativeBridgeCapabilities: NativeBridgeCapabilities = NativeBridgeCapabilities(),
+     val pictureInPictureEnabled: Boolean = false,
 
     val geolocationEnabled: Boolean = false,
     val geolocationAccuracy: GeolocationAccuracy = GeolocationAccuracy.FINE,
@@ -1552,6 +1553,7 @@ data class NativeBridgeCapabilities(
     val fullscreen: Boolean = true,
     val print: Boolean = true,
     val screenCapture: Boolean = true,
+    val pip: Boolean = true,
 )
 
 enum class GeolocationAccuracy {
