@@ -12,7 +12,7 @@
   },
   "author": {
     "name": "WebToApp",
-    "url": "https://github.com/shiaho777/web-to-app"
+    "url": "https://github.com/involvex/web-to-app"
   },
   "runAt": "DOCUMENT_END",
   "urlMatches": [{ "pattern": "*", "isRegex": false, "exclude": false }],

@@ -670,7 +670,7 @@ function themeConfig(lang: Lang, prefix: string) {
       formatOptions: { dateStyle: "medium" },
     },
     editLink: {
-      pattern: "https://github.com/shiaho777/web-to-app/edit/main/docs/:path",
+      pattern: "https://github.com/involvex/web-to-app/edit/main/docs/:path",
       text: isZh ? "在 GitHub 上编辑此页" : "Edit this page on GitHub",
     },
   };
@@ -738,7 +738,7 @@ export default defineConfig({
       },
     },
     socialLinks: [
-      { icon: "github", link: "https://github.com/shiaho777/web-to-app" },
+      { icon: "github", link: "https://github.com/involvex/web-to-app" },
       { icon: "x", link: "https://x.com/shiaho777" },
     ],
     footer: {
