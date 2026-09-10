@@ -182,7 +182,13 @@ class FloatingWindowService : Service() {
                         if (translateEnabled) {
                             injectTranslateScript(webView, translateTargetLanguage, translateShowButton)
                         }
-                        webView.evaluateJavascript(DownloadBridge.getInjectionScript(), null)
+                webView.evaluateJavascript(DownloadBridge.getInjectionScript(), null)
+                if (shellConfig?.webViewConfig?.nativeBridgeScreenCapture == true) {
+                    webView.evaluateJavascript(
+                        com.webtoapp.core.webview.ScreenCaptureHelper.getInjectionScript(),
+                        null
+                    )
+                }
                     }
                 }
 
@@ -296,6 +302,7 @@ class FloatingWindowService : Service() {
                             findInPage = shellConfig.webViewConfig.nativeBridgeFindInPage,
                             orientation = shellConfig.webViewConfig.nativeBridgeOrientation,
                             fullscreen = shellConfig.webViewConfig.nativeBridgeFullscreen,
+                            screenCapture = shellConfig.webViewConfig.nativeBridgeScreenCapture,
                         )
                         val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                             context = this@FloatingWindowService,

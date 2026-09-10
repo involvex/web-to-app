@@ -1,8 +1,10 @@
 package com.webtoapp.ui.shell
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -557,6 +559,33 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
         val callbacks = pendingLocationAccessCallbacks.toList()
         pendingLocationAccessCallbacks.clear()
         callbacks.forEach { it(granted) }
+    }
+
+    private var pendingScreenCaptureConsent: ((Int, Intent?) -> Unit)? = null
+
+    private val screenCaptureConsentLauncher = activity.registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val callback = pendingScreenCaptureConsent
+        pendingScreenCaptureConsent = null
+        callback?.invoke(result.resultCode, result.data)
+    }
+
+    /**
+     * Shows the system screen-capture consent dialog for NativeBridge device
+     * capture. Reports the raw Activity result; the caller feeds it into
+     * DeviceScreenCapture.onConsentResult.
+     */
+    fun requestScreenCaptureConsent(onResult: (resultCode: Int, data: Intent?) -> Unit) {
+        try {
+            val manager = activity.getSystemService(MediaProjectionManager::class.java)
+            pendingScreenCaptureConsent = onResult
+            screenCaptureConsentLauncher.launch(manager.createScreenCaptureIntent())
+        } catch (e: Exception) {
+            AppLogger.e("ShellPermission", "Screen capture consent launch failed", e)
+            pendingScreenCaptureConsent = null
+            onResult(Activity.RESULT_CANCELED, null)
+        }
     }
 
     fun handlePermissionRequest(request: PermissionRequest) {

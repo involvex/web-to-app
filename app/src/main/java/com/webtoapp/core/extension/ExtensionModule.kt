@@ -1184,3 +1184,25 @@ object ModulePresets {
         )
     }
 }
+
+/**
+ * Merges built-in and user module lists into a duplicate-free list.
+ *
+ * A user module file can legally contain an entry with the same id as a
+ * built-in module (import/restore, or a saved customized copy). Concatenating
+ * both lists without dedup produces duplicate ids, which crashes any
+ * `LazyColumn(items(..., key = { it.id }))` rendering the merged list with
+ * `IllegalArgumentException: Key '...' was already used`.
+ *
+ * Mirrors ExtensionManager.rebuildAllModulesCache: the user copy wins when
+ * both lists contain the same id.
+ */
+fun mergeBuiltInAndUserModules(
+    builtIn: List<ExtensionModule>,
+    user: List<ExtensionModule>
+): List<ExtensionModule> {
+    if (builtIn.isEmpty()) return user
+    if (user.isEmpty()) return builtIn
+    val userIds = user.map { it.id }.toSet()
+    return builtIn.filter { it.id !in userIds } + user
+}

@@ -58,6 +58,7 @@ class WebViewManager(
     private val cloudflareCompatScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val backStateGuardScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val printBridgeScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val screenCaptureHelperHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val geolocationShimHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
 
     companion object {
@@ -1608,6 +1609,10 @@ class WebViewManager(
 
             if (config.enablePrintBridge) {
                 installPrintBridgeDocumentStart(this)
+            }
+
+            if (config.enableNativeBridge && config.nativeBridgeCapabilities.screenCapture) {
+                installScreenCaptureHelperDocumentStart(this)
             }
 
             if (config.geolocationEnabled) {
@@ -3778,6 +3783,10 @@ class WebViewManager(
             runCatching { handler.remove() }
         }
         printBridgeScriptHandlers.clear()
+        screenCaptureHelperHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        screenCaptureHelperHandlers.clear()
         blobCacheHookHandlers.values.toList().forEach { handler ->
             runCatching { handler.remove() }
         }
@@ -4056,6 +4065,11 @@ class WebViewManager(
             if (currentConfig?.enablePrintBridge == true) {
                 injectPrintBridgeScript(webView)
             }
+            if (currentConfig?.enableNativeBridge == true &&
+                currentConfig?.nativeBridgeCapabilities?.screenCapture == true
+            ) {
+                injectScreenCaptureHelperScript(webView)
+            }
             // Device disguise fallback (when document-start unsupported)
             val ddCfg = currentDeviceDisguiseConfig
             if (ddCfg != null && ddCfg.enabled && ddCfg.requiresDesktopViewport()) {
@@ -4200,6 +4214,34 @@ class WebViewManager(
             AppLogger.d("WebViewManager", "[PrintBridge] Script injected via evaluateJavascript")
         } catch (e: Exception) {
             AppLogger.e("WebViewManager", "[PrintBridge] Script injection failed", e)
+        }
+    }
+
+    private fun installScreenCaptureHelperDocumentStart(webView: WebView) {
+        if (screenCaptureHelperHandlers.containsKey(webView)) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            AppLogger.i("WebViewManager", "[ScreenCapture] Document-start script unsupported; will use onPageStarted fallback")
+            return
+        }
+        try {
+            screenCaptureHelperHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                ScreenCaptureHelper.getInjectionScript(),
+                setOf("*")
+            )
+            AppLogger.i("WebViewManager", "[ScreenCapture] Helper installed at document start (applies to all hosts)")
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "[ScreenCapture] Document-start install failed, will use onPageStarted fallback", e)
+        }
+    }
+
+    private fun injectScreenCaptureHelperScript(webView: WebView) {
+        if (screenCaptureHelperHandlers.containsKey(webView)) return
+        try {
+            webView.evaluateJavascript(ScreenCaptureHelper.getInjectionScript(), null)
+            AppLogger.d("WebViewManager", "[ScreenCapture] Helper injected via evaluateJavascript")
+        } catch (e: Exception) {
+            AppLogger.e("WebViewManager", "[ScreenCapture] Helper injection failed", e)
         }
     }
 

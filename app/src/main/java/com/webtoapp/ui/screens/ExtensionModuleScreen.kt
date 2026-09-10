@@ -218,7 +218,9 @@ fun ExtensionModuleScreen(
         }
     }
 
-    val allModules = (builtInModules + modules).distinctBy { it.id }
+    val allModules = remember(builtInModules, modules) {
+        mergeBuiltInAndUserModules(builtInModules, modules)
+    }
     val extensionModules = allModules.filter { it.sourceType == ModuleSourceType.CUSTOM }
     val userScriptModules = allModules.filter {
         it.sourceType != ModuleSourceType.CUSTOM && it.sourceType != ModuleSourceType.GREASYFORK

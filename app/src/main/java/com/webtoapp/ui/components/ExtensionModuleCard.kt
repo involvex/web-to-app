@@ -102,7 +102,9 @@ fun ExtensionModuleCard(
     val userModules by extensionManager.modules.collectAsStateWithLifecycle()
     val builtInModules by extensionManager.builtInModules.collectAsStateWithLifecycle()
 
-    val allModules = builtInModules + userModules
+    val allModules = remember(builtInModules, userModules) {
+        mergeBuiltInAndUserModules(builtInModules, userModules)
+    }
 
     val extSiblingsCard = allModules
         .filter { it.sourceType == ModuleSourceType.CHROME_EXTENSION && it.chromeExtId.isNotEmpty() }
@@ -842,7 +844,7 @@ fun ExtensionModuleSelectorDialog(
             } else {
                 true
             }
-        }
+        }.distinctBy { it.id }
     }
     val selectedUnitCount = remember(selectedIds, allModules) {
         selectedIds.mapNotNull { id ->

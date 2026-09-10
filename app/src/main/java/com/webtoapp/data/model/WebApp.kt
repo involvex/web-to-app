@@ -1551,6 +1551,7 @@ data class NativeBridgeCapabilities(
     val orientation: Boolean = true,
     val fullscreen: Boolean = true,
     val print: Boolean = true,
+    val screenCapture: Boolean = true,
 )
 
 enum class GeolocationAccuracy {

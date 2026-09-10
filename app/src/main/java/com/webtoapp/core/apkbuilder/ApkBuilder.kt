@@ -3856,6 +3856,7 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     nativeBridgeOrientation = webViewConfig.nativeBridgeCapabilities.orientation,
     nativeBridgeFullscreen = webViewConfig.nativeBridgeCapabilities.fullscreen,
     nativeBridgePrint = webViewConfig.nativeBridgeCapabilities.print,
+    nativeBridgeScreenCapture = webViewConfig.nativeBridgeCapabilities.screenCapture,
     javaScriptCanOpenWindows = webViewConfig.javaScriptCanOpenWindows,
     jsOpenWindowsPolicy = webViewConfig.jsOpenWindowsPolicy.name,
     databaseEnabled = webViewConfig.databaseEnabled,

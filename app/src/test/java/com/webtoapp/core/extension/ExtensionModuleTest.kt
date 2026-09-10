@@ -144,4 +144,38 @@ class ExtensionModuleTest {
         assertThat(sanitized.storeTags).isEmpty()
         assertThat(sanitized.version).isNotNull()
     }
+
+    @Test
+    fun `mergeBuiltInAndUserModules drops shadowed builtin duplicates`() {
+        // Regression: editing an app -> Extensions -> content filter crashed with
+        // IllegalArgumentException "Key 'builtin-element-blocker' was already used"
+        // because the UI concatenated builtInModules + user modules without dedup,
+        // and the user module file contained an entry with a built-in id.
+        val builtin = listOf(
+            ExtensionModule(id = "builtin-element-blocker", name = "Built-in", code = "builtin"),
+            ExtensionModule(id = "builtin-dark-mode", name = "Dark", code = "dark")
+        )
+        val user = listOf(
+            ExtensionModule(id = "builtin-element-blocker", name = "User copy", code = "user"),
+            ExtensionModule(id = "custom-1", name = "Custom", code = "custom")
+        )
+
+        val merged = mergeBuiltInAndUserModules(builtin, user)
+
+        assertThat(merged.map { it.id }).containsNoDuplicates()
+        assertThat(merged.map { it.id }).containsExactly(
+            "builtin-dark-mode", "builtin-element-blocker", "custom-1"
+        )
+        // The user copy wins, matching ExtensionManager.rebuildAllModulesCache.
+        assertThat(merged.first { it.id == "builtin-element-blocker" }.name)
+            .isEqualTo("User copy")
+    }
+
+    @Test
+    fun `mergeBuiltInAndUserModules handles empty inputs`() {
+        val only = listOf(ExtensionModule(id = "a", name = "A", code = "a"))
+        assertThat(mergeBuiltInAndUserModules(emptyList(), only)).isEqualTo(only)
+        assertThat(mergeBuiltInAndUserModules(only, emptyList())).isEqualTo(only)
+        assertThat(mergeBuiltInAndUserModules(emptyList(), emptyList())).isEmpty()
+    }
 }

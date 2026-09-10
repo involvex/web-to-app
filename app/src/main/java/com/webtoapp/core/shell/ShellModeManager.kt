@@ -1378,6 +1378,9 @@ data class WebViewShellConfig(
     @SerializedName("nativeBridgePrint")
     val nativeBridgePrint: Boolean = true,
 
+    @SerializedName("nativeBridgeScreenCapture")
+    val nativeBridgeScreenCapture: Boolean = true,
+
     @SerializedName("javaScriptCanOpenWindows")
     val javaScriptCanOpenWindows: Boolean = false,
 

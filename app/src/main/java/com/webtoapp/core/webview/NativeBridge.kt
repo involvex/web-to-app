@@ -15,6 +15,9 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.pm.ActivityInfo
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.Bitmap.CompressFormat
+import android.graphics.Canvas
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
@@ -39,6 +42,9 @@ import com.webtoapp.util.isAllowedUrlScheme
 import com.webtoapp.util.normalizeExternalIntentUrl
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.ConnectionSpec
@@ -399,7 +405,105 @@ if (NativeBridge.isFullscreen()) {
     // 当前是全屏模式
 }
 ```
-        """.trimIndent()
+### 屏幕截图（WebView 内容）
+
+#### captureScreen(quality?)`
+捕获当前 WebView 内容为 base64 编码的 JPEG 图片（同步返回，无需系统权限）
+- `quality`: number - 可选，JPEG 质量 0-100，默认 90
+- 返回: string - base64 编码的 JPEG 图片数据
+```javascript
+const imageData = NativeBridge.captureScreen();
+// 或指定质量
+const imageData = NativeBridge.captureScreen(80);
+```
+
+#### startScreenCapture(quality?, callback?, interval?)`
+开始连续捕获 WebView 内容，每一帧以 base64 传给页面全局回调函数
+- `quality`: number - 可选，JPEG 质量 0-100，默认 80
+- `callback`: string - 可选，页面全局函数名，每帧调用 `callback(base64Data)`
+- `interval`: number - 可选，捕获间隔（毫秒），默认 100ms
+```javascript
+window.onWebViewFrame = function(imageData) {
+    document.getElementById('preview').src = 'data:image/jpeg;base64,' + imageData;
+};
+NativeBridge.startScreenCapture(80, 'onWebViewFrame', 200);
+```
+
+#### stopScreenCapture()`
+停止连续屏幕捕获（同时停止设备捕获）
+```javascript
+NativeBridge.stopScreenCapture();
+```
+
+#### setScreenCaptureQuality(quality)`
+设置 WebView 内容截图质量
+- `quality`: number - JPEG 质量 0-100
+```javascript
+NativeBridge.setScreenCaptureQuality(70);
+```
+
+### 设备屏幕捕获（MediaProjection）
+
+捕获整个设备屏幕（状态栏、其他应用等），需要用户在系统弹窗中授权一次。
+仅在 System WebView 引擎的 Activity 内可用；悬浮窗服务与 Gecko 引擎路径
+会通过回调返回 "false"（不支持）。
+
+#### isDeviceCaptureGranted()`
+是否已获得设备屏幕捕获授权（授权在应用进程存活期间保持有效）
+- 返回: boolean
+```javascript
+if (!NativeBridge.isDeviceCaptureGranted()) {
+    NativeBridge.requestDeviceCapture('onCaptureGrant');
+}
+```
+
+#### requestDeviceCapture(callback?)`
+弹出系统授权对话框（已授权时直接回调 "true"）
+- `callback`: string - 可选，页面全局函数名，调用 `callback("true"/"false")`
+```javascript
+window.onCaptureGrant = function(granted) {
+    if (granted === 'true') NativeBridge.startDeviceCapture(70, 'onDeviceFrame', 500);
+};
+NativeBridge.requestDeviceCapture('onCaptureGrant');
+```
+
+#### startDeviceCapture(quality?, callback?, interval?)`
+开始连续捕获设备屏幕（未授权时先弹窗，同意后自动开始）
+- `quality`: number - 可选，JPEG 质量 0-100，默认 70
+- `callback`: string - 可选，页面全局函数名，每帧调用 `callback(base64Data)`；
+  特殊值 "false" 表示被拒绝/不支持，"revoked" 表示授权被系统收回
+- `interval`: number - 可选，捕获间隔（毫秒），最少 100ms，默认 500ms
+```javascript
+window.onDeviceFrame = function(data) {
+    if (data === 'false' || data === 'revoked') return;
+    document.getElementById('preview').src = 'data:image/jpeg;base64,' + data;
+};
+NativeBridge.startDeviceCapture(70, 'onDeviceFrame', 500);
+```
+
+#### stopDeviceCapture()`
+停止设备屏幕捕获（授权保留，下次 start 无需再次弹窗）
+```javascript
+NativeBridge.stopDeviceCapture();
+```
+    """.trimIndent()
+
+        /**
+         * Compresses [bitmap] to JPEG at [quality] (0-100, coerced) and returns
+         * base64 (NO_WRAP) encoded bytes. Extracted from the instance helper so
+         * the encode/decode round-trip is unit-testable without a WebView.
+         */
+        internal fun encodeBitmapToBase64Jpeg(bitmap: Bitmap, quality: Int): String? {
+            return try {
+                val baos = java.io.ByteArrayOutputStream()
+                bitmap.compress(CompressFormat.JPEG, quality.coerceIn(0, 100), baos)
+                val bytes = baos.toByteArray()
+                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            } catch (e: Exception) {
+                AppLogger.e("NativeBridge", "Failed to convert bitmap to base64", e)
+                null
+            }
+        }
 
         internal fun isPrivateNetworkHost(host: String?): Boolean {
             val normalized = host
@@ -457,6 +561,11 @@ if (NativeBridge.isFullscreen()) {
             .retryOnConnectionFailure(true)
             .build()
     }
+
+    private var screenCaptureJob: Job? = null
+    private var screenCaptureQuality: Int = 80
+    private var screenCaptureInterval: Long = 100
+    private var screenCaptureCallback: String? = null
 
     @JavascriptInterface
     fun showToast(message: String, duration: String = "short") {
@@ -1746,6 +1855,236 @@ if (NativeBridge.isFullscreen()) {
             false
         }
     }
+
+    private fun captureWebViewBitmap(): Bitmap? {
+        return try {
+            val wv = webViewProvider() ?: return null
+            if (wv.width <= 0 || wv.height <= 0) return null
+            val bitmap = Bitmap.createBitmap(wv.width, wv.height, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(bitmap)
+            wv.draw(canvas)
+            bitmap
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "Failed to capture WebView bitmap", e)
+            null
+        }
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap, quality: Int): String? {
+        return encodeBitmapToBase64Jpeg(bitmap, quality)
+    }
+
+    private fun dispatchScreenCaptureFrame(imageData: String) {
+        val callback = screenCaptureCallback ?: return
+        invokeJsCallback(callback, imageData)
+    }
+
+    /**
+     * Invokes a page-global JS function by name with a single string argument.
+     * The function name is restricted to identifier characters to prevent
+     * injection via a malicious callback argument.
+     */
+    private fun invokeJsCallback(callback: String, arg: String) {
+        val fn = callback.filter { it.isLetterOrDigit() || it == '_' || it == '.' || it == '$' }
+        if (fn.isEmpty()) return
+        val safeArg = arg
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+        scope.launch(Dispatchers.Main) {
+            webViewProvider()?.evaluateJavascript("$fn('$safeArg')", null)
+        }
+    }
+
+    private val deviceCapture = DeviceScreenCapture(context, scope)
+    private var deviceCaptureQuality: Int = 70
+    private var deviceCaptureInterval: Long = 500
+    private var pendingDeviceStart: Boolean = false
+
+    private fun screenCaptureConsentHost(): ScreenCaptureConsentHost? =
+        context as? ScreenCaptureConsentHost
+
+    private fun stopWebViewCaptureLoop() {
+        screenCaptureJob?.cancel()
+        screenCaptureJob = null
+    }
+
+    @JavascriptInterface
+    fun captureScreen(quality: Int = 90): String {
+        if (!capabilities.screenCapture) return ""
+        val effectiveQuality = quality.coerceIn(0, 100)
+        return try {
+            val bitmap = captureWebViewBitmap() ?: return ""
+            val result = bitmapToBase64(bitmap, effectiveQuality)
+            bitmap.recycle()
+            result ?: ""
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "captureScreen failed", e)
+            ""
+        }
+    }
+
+    @JavascriptInterface
+    fun startScreenCapture(quality: Int = 80, callback: String? = null, interval: Int = 100) {
+        if (!capabilities.screenCapture) return
+        // WebView-content and device capture are mutually exclusive.
+        deviceCapture.stop()
+        pendingDeviceStart = false
+        stopWebViewCaptureLoop()
+        screenCaptureQuality = quality.coerceIn(0, 100)
+        screenCaptureInterval = interval.coerceAtLeast(16).toLong()
+        screenCaptureCallback = callback
+        AppLogger.d("NativeBridge", "Starting screen capture: quality=$screenCaptureQuality interval=$screenCaptureInterval ms")
+        screenCaptureJob = scope.launch(Dispatchers.IO) {
+            while (isActive) {
+                val bitmap = captureWebViewBitmap()
+                val result = bitmap?.let { bitmapToBase64(it, screenCaptureQuality) }
+                bitmap?.recycle()
+                if (result != null) {
+                    dispatchScreenCaptureFrame(result)
+                }
+                delay(screenCaptureInterval)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopScreenCapture() {
+        if (!capabilities.screenCapture) return
+        stopWebViewCaptureLoop()
+        pendingDeviceStart = false
+        deviceCapture.stop()
+        screenCaptureCallback = null
+        AppLogger.d("NativeBridge", "Stopped screen capture")
+    }
+
+    @JavascriptInterface
+    fun setScreenCaptureQuality(quality: Int) {
+        if (!capabilities.screenCapture) return
+        screenCaptureQuality = quality.coerceIn(0, 100)
+    }
+
+    /**
+     * Releases capture resources. Must be called from the host Activity's
+     * onDestroy — the MediaProjection session is Binder-held and survives GC.
+     * Runs unconditionally (no capability gate: cleanup must never be skipped).
+     */
+    fun release() {
+        stopWebViewCaptureLoop()
+        pendingDeviceStart = false
+        deviceCapture.release()
+        screenCaptureCallback = null
+    }
+
+    // ── Device screen capture (MediaProjection) ──────────────────────────
+
+    @JavascriptInterface
+    fun isDeviceCaptureGranted(): Boolean {
+        if (!capabilities.screenCapture) return false
+        return deviceCapture.isGranted
+    }
+
+    @JavascriptInterface
+    fun requestDeviceCapture(callback: String? = null) {
+        if (!capabilities.screenCapture) {
+            if (callback != null) invokeJsCallback(callback, "false")
+            return
+        }
+        if (deviceCapture.isGranted) {
+            if (callback != null) invokeJsCallback(callback, "true")
+            return
+        }
+        if (callback != null) screenCaptureCallback = callback
+        if (!launchDeviceCaptureConsent()) {
+            if (callback != null) invokeJsCallback(callback, "false")
+        }
+    }
+
+    @JavascriptInterface
+    fun startDeviceCapture(quality: Int = 70, callback: String? = null, interval: Int = 500) {
+        if (!capabilities.screenCapture) return
+        // WebView-content and device capture are mutually exclusive.
+        stopWebViewCaptureLoop()
+        deviceCaptureQuality = quality.coerceIn(0, 100)
+        deviceCaptureInterval = interval.coerceAtLeast(100).toLong()
+        if (callback != null) screenCaptureCallback = callback
+        pendingDeviceStart = true
+        AppLogger.d(
+            "NativeBridge",
+            "Starting device capture: quality=$deviceCaptureQuality interval=$deviceCaptureInterval ms"
+        )
+        if (deviceCapture.isGranted) {
+            beginDeviceCaptureLoop()
+            return
+        }
+        if (!launchDeviceCaptureConsent()) {
+            screenCaptureCallback?.let { invokeJsCallback(it, "false") }
+        }
+    }
+
+    @JavascriptInterface
+    fun stopDeviceCapture() {
+        if (!capabilities.screenCapture) return
+        pendingDeviceStart = false
+        deviceCapture.stop()
+        screenCaptureCallback = null
+        AppLogger.d("NativeBridge", "Stopped device capture")
+    }
+
+    /**
+     * Launches the system screen-capture consent dialog when possible and
+     * feeds the result into the projection engine. Returns false when no
+     * consent UI can be shown (service context, unsupported engine path) or
+     * the consent intent could not be built — in that case the caller reports
+     * "false" to JS.
+     */
+    private fun launchDeviceCaptureConsent(): Boolean {
+        val host = screenCaptureConsentHost()
+        if (host == null) {
+            AppLogger.w(
+                "NativeBridge",
+                "Device capture unsupported: no ScreenCaptureConsentHost " +
+                    "(floating window service or non-Activity context)"
+            )
+            return false
+        }
+        val consentIntent = deviceCapture.consentIntent()
+        if (consentIntent == null) {
+            AppLogger.w("NativeBridge", "Device capture unsupported: no consent intent")
+            return false
+        }
+        host.requestScreenCaptureConsent { resultCode, data ->
+            val granted = deviceCapture.onConsentResult(resultCode, data)
+            AppLogger.d("NativeBridge", "Device capture consent granted=$granted")
+            val shouldStart = pendingDeviceStart
+            pendingDeviceStart = false
+            if (granted) {
+                // startDeviceCapture() waits for consent before looping; a bare
+                // requestDeviceCapture() only reports the grant.
+                if (shouldStart && !deviceCapture.isCapturing) {
+                    beginDeviceCaptureLoop()
+                } else {
+                    screenCaptureCallback?.let { invokeJsCallback(it, "true") }
+                }
+            } else {
+                screenCaptureCallback?.let { invokeJsCallback(it, "false") }
+            }
+        }
+        return true
+    }
+
+    private fun beginDeviceCaptureLoop() {
+        deviceCapture.onRevoked = {
+            screenCaptureCallback?.let { invokeJsCallback(it, "revoked") }
+        }
+        val started = deviceCapture.start(deviceCaptureQuality, deviceCaptureInterval) { frame ->
+            screenCaptureCallback?.let { invokeJsCallback(it, frame) }
+        }
+        if (!started) {
+            screenCaptureCallback?.let { invokeJsCallback(it, "false") }
+        }
+    }
 }
 
 private fun privateNetworkOnlyCapabilities(): com.webtoapp.data.model.NativeBridgeCapabilities {
@@ -1769,7 +2108,8 @@ private fun privateNetworkOnlyCapabilities(): com.webtoapp.data.model.NativeBrid
         findInPage = false,
         orientation = false,
         fullscreen = false,
-        print = false
+        print = false,
+        screenCapture = false
     )
 }
 
