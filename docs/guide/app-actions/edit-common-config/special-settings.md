@@ -24,7 +24,7 @@ Compatibility polyfills, bridges, and other specialized toggles. This card colle
 - **Scroll memory** — remember scroll position (`enableScrollMemory`).
 - **Back-state preservation** — `enableBackStatePreservation`.
 - **Blob download interception** — with scope and size threshold (`enableBlobDownloadInterception`, `blobInterceptThresholdMb`).
-- **Streaming PiP** — enable **Video Enhance** (picture-in-picture, speed control, background play) or **Streaming PiP** (auto-detect video playback and auto-enter PiP for HLS/DASH/YouTube) under **Extension Modules**. Streaming PiP registers a panel entry with per-video PiP toggles; use it on video-heavy sites where the native enhance module's manual toggles are easy to miss.
+- **Streaming PiP** — enable **Video Enhance** (picture-in-picture, speed control, background play) or **Streaming PiP** (auto-detect video playback and auto-enter PiP for HLS/DASH/YouTube) under **Extension Modules**. See [Streaming PiP](/guide/app-actions/edit-common-config/streaming-pip) for details.
 
 ## JavaScript & windows
 

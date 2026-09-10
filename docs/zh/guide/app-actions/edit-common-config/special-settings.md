@@ -24,7 +24,7 @@
 - **滚动记忆** —— 记住滚动位置(`enableScrollMemory`)。
 - **返回状态保留** —— `enableBackStatePreservation`。
 - **Blob 下载拦截** —— 带范围和大小阈值(`enableBlobDownloadInterception`、`blobInterceptThresholdMb`)。
-- **流媒体画中画** —— 在 **扩展模块** 下启用 **视频增强**(画中画、倍速、后台播放)或 **流媒体画中画**(自动检测视频播放,自动进入 HLS/DASH/YouTube 的画中画)。流媒体画中画会注册面板入口,带逐视频的 PiP 开关;适合内置增强模块手动开关容易被忽略的视频密集型网站。
+- **流媒体画中画** —— 在 **扩展模块** 下启用 **视频增强**(画中画、倍速、后台播放)或 **流媒体画中画**(自动检测视频播放,自动进入 HLS/DASH/YouTube 的画中画)。详见[流媒体画中画](/zh/guide/app-actions/edit-common-config/streaming-pip)。
 
 ## JavaScript 与窗口
 
