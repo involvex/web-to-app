@@ -362,16 +362,17 @@ The 60 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
 | File system | ReadFileTool, ReadAppFileTool, WriteFileTool, EditFileTool, DeleteFileTool, ListFilesTool, GlobTool, GrepTool | 8 |
 | Apps | ListAppsTool, GetAppTool, CreateAppTool, UpdateAppTool, ShareApkTool, DeleteAppTool, DuplicateAppTool, MoveToCategoryTool, ClearAppCacheTool | 9 |
 | Build & export | BuildApkTool, ExportAppTool, ExportAabTool, ExportAppTemplateTool | 4 |
-| Shorts & media | CreateShortcutTool, GenerateImageTool, ViewImageTool, ListImagesTool | 4 |
+| Shorts & media | CreateShortcutTool, GenerateImageTool, ViewImageTool, ListImagesTool, ScreenshotAppTool | 5 |
 | Ports & engine | ScanPortsTool, KillPortTool, KillAllPortsTool, GetEngineStatusTool, SelectEngineTool, DeleteEngineTool | 6 |
 | Hosts & runtime | GetAdBlockStatusTool, ManageHostsRulesTool, GetRuntimeStatusTool, InstallRuntimeTool, ClearRuntimeCacheTool | 5 |
 | Modules | ListModulesTool, GetModuleTool, CreateModuleTool, UpdateModuleTool | 4 |
 | Stats & apps | GetUsageStatsTool, CheckAppHealthTool, ListInstalledAppsTool, CloneAppTool, BatchImportAppsTool | 5 |
 | Screenshot | ScreenshotAppTool | 1 |
+| Certificates | InspectCertificateTool | 1 |
 | Build env | GetBuildEnvStatusTool, InitializeBuildEnvTool, CheckPlayPolicyTool | 3 |
 | Plan | EnterPlanModeTool, ExitPlanModeTool | 2 |
 | Interaction | AskUserTool, TodoWriteTool, TodoUpdateTool | 3 |
-| **Total** | | **60** |
+| **Total** | | **61** |
 
 ---
 
@@ -1082,11 +1083,13 @@ effort with clear user value. Each includes the specific code paths to modify.
 - **Tests:** `TlsFingerprintTemplateTest.kt` (if fingerprinting changes).
 
 ### 20.14 Certificate Inspection Agent Tool
-**Status:** ❌ No infrastructure.
-- **Files to add:** `core/agent/tool/builtin/CertificateInspectTool.kt`.
-- **Registration:** `ToolRegistryFactory.baseTools()`.
-- **Implementation:** Fetch TLS chain via OkHttp → parse cert details
-  (issuer, SANs, fingerprints).
+**Status:** ✅ Implemented. `InspectCertificate` agent tool fetches the TLS
+  certificate chain for any HTTPS URL and returns issuer, subject, SANs,
+  validity period, serial number, signature algorithm, and SHA-256 fingerprint.
+  Uses `NetworkModule.customClient()` with OkHttp. Read-only (no permission
+  prompt). Registered in `ToolRegistryFactory.baseTools()`.
+
+### 20.15 Network Speed Test Agent Tool
 
 ### 20.15 Network Speed Test Agent Tool
 **Status:** ❌ No infrastructure.
