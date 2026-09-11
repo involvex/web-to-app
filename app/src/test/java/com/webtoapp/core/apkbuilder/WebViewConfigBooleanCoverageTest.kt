@@ -68,7 +68,7 @@ class WebViewConfigBooleanCoverageTest {
             "hostsMappingEnabled", "autoRefreshEnabled", "autoRefreshShowCountdown",
     "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
     "tlsFingerprintEnabled", "statusBarDarkIconsDark",
-    "pictureInPictureEnabled"
+    "pictureInPictureEnabled", "ratingEnabled"
 )
 
         val missing = allBooleanFields - listedFields
@@ -170,8 +170,9 @@ class WebViewConfigBooleanCoverageTest {
             "nativeBridgeScreenWake", "nativeBridgeOpenExternal", "nativeBridgeDeviceInfo",
             "nativeBridgeSecurityInfo", "nativeBridgeNetworkInfo", "nativeBridgeToast",
             "nativeBridgeLogging", "nativeBridgeFindInPage", "nativeBridgeOrientation",
-            "nativeBridgeFullscreen", "nativeBridgePrint", "nativeBridgeScreenCapture",
+            "nativeBridgeFullscreen", "nativeBridgePrint",             "nativeBridgeScreenCapture",
             "nativeBridgePip",
+            "nativeBridgeRating",
             "failoverTriggerNetworkError", "failoverTriggerHttp5xx",
             "failoverTriggerHttp4xx", "failoverTriggerTimeout"
         )
@@ -309,7 +310,7 @@ class WebViewConfigBooleanCoverageTest {
             url = "https://t.example.com",
             webViewConfig = WebViewConfig(pictureInPictureEnabled = false)
         )
-        assertThat(readPiPEnabled(disabled)).isFalse()
+          assertThat(readPiPEnabled(disabled)).isFalse()
 
         val enabled = WebApp(
             name = "test",
@@ -317,6 +318,62 @@ class WebViewConfigBooleanCoverageTest {
             webViewConfig = WebViewConfig(pictureInPictureEnabled = true)
         )
         assertThat(readPiPEnabled(enabled)).isTrue()
+    }
+
+    @Test
+    fun `ratingEnabled survives the export round-trip`() {
+        fun readRating(app: WebApp): Boolean {
+            val shellWv = shellWvOf(roundTrip(app))
+            val field = shellWv.javaClass.getDeclaredField("ratingEnabled")
+            field.isAccessible = true
+            return readBool(field, shellWv)
+        }
+
+        val disabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(ratingEnabled = false)
+        )
+        assertThat(readRating(disabled)).isFalse()
+
+        val enabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(ratingEnabled = true)
+        )
+        assertThat(readRating(enabled)).isTrue()
+    }
+
+    @Test
+    fun `nativeBridge rating capability survives the export round-trip`() {
+        fun readRating(app: WebApp): Boolean {
+            val shellWv = shellWvOf(roundTrip(app))
+            val field = shellWv.javaClass.getDeclaredField("nativeBridgeRating")
+            field.isAccessible = true
+            return readBool(field, shellWv)
+        }
+
+        val disabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    rating = false
+                )
+            )
+        )
+        assertThat(readRating(disabled)).isFalse()
+
+        val enabled = WebApp(
+            name = "test",
+            url = "https://t.example.com",
+            webViewConfig = WebViewConfig(
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    rating = true
+                )
+            )
+        )
+        assertThat(readRating(enabled)).isTrue()
     }
 
     // ────────────────────────────────────────────────────────────
@@ -436,7 +493,8 @@ class WebViewConfigBooleanCoverageTest {
             allowUniversalAccessFromFileURLs = bool("allowUniversalAccessFromFileURLs"),
             tlsFingerprintEnabled = bool("tlsFingerprintEnabled"),
             statusBarDarkIconsDark = bool("statusBarDarkIconsDark"),
-            pictureInPictureEnabled = bool("pictureInPictureEnabled")
-        )
+             pictureInPictureEnabled = bool("pictureInPictureEnabled"),
+             ratingEnabled = bool("ratingEnabled")
+         )
     }
 }

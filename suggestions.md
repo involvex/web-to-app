@@ -999,13 +999,14 @@ effort with clear user value. Each includes the specific code paths to modify.
   → parse resolved IP/provider → compare with configured DoH.
 
 ### 20.3 In-App Rating Prompt
-**Status:** ❌ Trivial to add.
-- **Files to modify:** `core/webview/NativeBridge.kt` → add
-  `@JavascriptInterface fun rateApp()`.
-- **ApkConfig:** Add `ratingEnabled`, `ratingTriggerDays`,
-  `ratingTriggerLaunches` to `WebViewBehaviorBlock`.
-- **Export chain:** → `ApkConfigJsonFactory` → `WebViewShellConfig` →
-  runtime in `ShellActivity.kt`.
+**Status:** ✅ Implemented. `rateApp()` JS interface method on
+  `NativeBridge` opens the Play Store `market://details?id=<packageName`
+  intent for users to rate the app. Gated by `NativeBridgeCapabilities.rating`
+  (default false). Added `ratingEnabled`, `ratingTriggerDays` (default 7),
+  `ratingTriggerLaunches` (default 5) to `WebViewConfig`, fully wired through
+  the export chain (ApkConfig → ApkConfigJsonFactory → WebViewShellConfig →
+  NativeBridge constructor in ShellActivity / ShellWebViewConfig /
+  FloatingWindowService). Tests: `WebViewConfigBooleanCoverageTest`.
 
 ### 20.4 Certificate Transparency Monitoring
 **Status:** ⚠️ `CustomCaTrustStore.kt` exists; CT verification missing.
@@ -1084,10 +1085,12 @@ effort with clear user value. Each includes the specific code paths to modify.
 
 ### 20.14 Certificate Inspection Agent Tool
 **Status:** ✅ Implemented. `InspectCertificate` agent tool fetches the TLS
-  certificate chain for any HTTPS URL and returns issuer, subject, SANs,
-  validity period, serial number, signature algorithm, and SHA-256 fingerprint.
-  Uses `NetworkModule.customClient()` with OkHttp. Read-only (no permission
-  prompt). Registered in `ToolRegistryFactory.baseTools()`.
+  certificate chain for any HTTPS URL via OkHttp and returns issuer, subject,
+  SANs, validity, serial number, signature algorithm, and SHA-256 fingerprint.
+  Read-only. Registered in `ToolRegistryFactory.baseTools()`. Test:
+  `CertificateInspectToolTest.kt`.
+
+### 20.15 Network Speed Test Agent Tool
 
 ### 20.15 Network Speed Test Agent Tool
 
