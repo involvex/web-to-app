@@ -49,6 +49,7 @@ import com.webtoapp.core.agent.tool.builtin.ScanPortsTool
 import com.webtoapp.core.agent.tool.builtin.ScrapeWebsiteTool
 import com.webtoapp.core.agent.tool.builtin.GetScrapedSitesTool
 import com.webtoapp.core.agent.tool.builtin.DeleteScrapedSiteTool
+import com.webtoapp.core.agent.tool.builtin.ConfigureErrorPagesTool
 import com.webtoapp.core.agent.tool.builtin.SelectEngineTool
 import com.webtoapp.core.agent.tool.builtin.ShareApkTool
 import com.webtoapp.core.agent.tool.builtin.TodoUpdateTool
@@ -128,6 +129,8 @@ class ToolRegistryFactory(
         ScrapeWebsiteTool(),
         GetScrapedSitesTool(),
         DeleteScrapedSiteTool(),
+        // Error pages
+        ConfigureErrorPagesTool(),
         // Stats, modifier & import
         GetUsageStatsTool(),
         CheckAppHealthTool(),
