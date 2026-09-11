@@ -69,10 +69,47 @@ class WebBrowseTool : Tool {
 
     private val sessions = ConcurrentHashMap<String, WebBrowseSession>()
 
-    override suspend fun execute(args: JsonObject, ctx: ToolContext): ToolResult = withContext(Dispatchers.IO) {
+    internal fun validateArgs(args: JsonObject): ToolResult? {
         val action = args.get("action")?.asString?.takeIf { it.isNotEmpty() }
-            ?: return@withContext ToolResult.error("WebBrowse: missing `action`.")
+            ?: return ToolResult.error("WebBrowse: missing `action`.")
 
+        if (action !in setOf("navigate", "click", "fill", "js")) {
+            return ToolResult.error("WebBrowse: unknown action `$action`. Supported: navigate, click, fill, js.")
+        }
+
+        val urlStr = args.get("url")?.asString?.takeIf { it.isNotBlank() }
+        if (urlStr != null) {
+            val scheme = Uri.parse(urlStr)?.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") {
+                return ToolResult.error("WebBrowse: only http/https URLs are allowed.")
+            }
+        }
+
+        if (action == "navigate" && urlStr == null) {
+            return ToolResult.error("WebBrowse navigate: missing `url`.")
+        }
+
+        if (action == "js") {
+            val js = args.get("js")?.asString?.takeIf { it.isNotBlank() }
+            if (js == null) return ToolResult.error("WebBrowse js: missing `js` expression.")
+        }
+
+        if (action == "click" || action == "fill") {
+            val sel = args.get("selector")?.asString?.takeIf { it.isNotBlank() }
+                ?: return ToolResult.error("WebBrowse $action: missing `selector`.")
+            if (action == "fill") {
+                val value = args.get("value")?.asString
+                    ?: return ToolResult.error("WebBrowse fill: missing `value`.")
+            }
+        }
+
+        return null
+    }
+
+    override suspend fun execute(args: JsonObject, ctx: ToolContext): ToolResult = withContext(Dispatchers.IO) {
+        validateArgs(args)?.let { return@withContext it }
+
+        val action = args.get("action")?.asString!!
         val url = args.get("url")?.asString?.takeIf { it.isNotBlank() }?.let {
             val scheme = Uri.parse(it)?.scheme?.lowercase()
             if (scheme != "http" && scheme != "https") {

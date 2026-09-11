@@ -95,4 +95,137 @@ class WebBrowseToolTest {
         assertThat(props.has("value")).isTrue()
         assertThat(props.has("submitSelector")).isTrue()
     }
+
+    @Test
+    fun `execute without action returns error`() {
+        val args = JsonObject()
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("missing `action`")
+    }
+
+    @Test
+    fun `file scheme URL is rejected via validation error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "navigate")
+            addProperty("url", "file:///data/local/tmp/secret.html")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("only http/https URLs are allowed")
+    }
+
+    @Test
+    fun `data URI URL is rejected via validation error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "navigate")
+            addProperty("url", "data:text/html,<script>alert(1)</script>")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("only http/https URLs are allowed")
+    }
+
+    @Test
+    fun `unknown action returns error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "swipe")
+            addProperty("url", "https://example.com")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("unknown action")
+    }
+
+    @Test
+    fun `content scheme URL is rejected via validation error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "navigate")
+            addProperty("url", "content://com.example.app/secret")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("only http/https URLs are allowed")
+    }
+
+    @Test
+    fun `navigate without url returns error`() {
+        val args = JsonObject().apply { addProperty("action", "navigate") }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("missing `url`")
+    }
+
+    @Test
+    fun `click without selector returns error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "click")
+            addProperty("url", "https://example.com")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("missing `selector`")
+    }
+
+    @Test
+    fun `fill without value returns error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "fill")
+            addProperty("url", "https://example.com")
+            addProperty("selector", "#input")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("missing `value`")
+    }
+
+    @Test
+    fun `js without expression returns error`() {
+        val args = JsonObject().apply {
+            addProperty("action", "js")
+            addProperty("url", "https://example.com")
+        }
+        val result = tool.validateArgs(args)
+        assertThat(result).isNotNull()
+        assertThat(result!!.isError).isTrue()
+        assertThat(result.text).contains("missing `js`")
+    }
+
+    @Test
+    fun `valid navigate args pass validation`() {
+        val args = JsonObject().apply {
+            addProperty("action", "navigate")
+            addProperty("url", "https://example.com")
+        }
+        assertThat(tool.validateArgs(args)).isNull()
+    }
+
+    @Test
+    fun `valid click args pass validation`() {
+        val args = JsonObject().apply {
+            addProperty("action", "click")
+            addProperty("url", "https://example.com")
+            addProperty("selector", "#button")
+        }
+        assertThat(tool.validateArgs(args)).isNull()
+    }
+
+    @Test
+    fun `valid fill args pass validation`() {
+        val args = JsonObject().apply {
+            addProperty("action", "fill")
+            addProperty("url", "https://example.com")
+            addProperty("selector", "#input")
+            addProperty("value", "hello")
+        }
+        assertThat(tool.validateArgs(args)).isNull()
+    }
 }

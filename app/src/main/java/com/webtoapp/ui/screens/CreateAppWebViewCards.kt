@@ -3749,7 +3749,7 @@ fun SpecialSettingsCard(
                                         onValueChange = {
                                             onConfigChange(config.copy(ratingTriggerDays = it.toInt().coerceIn(1, 30)))
                                         },
-                                         valueLabel = Strings.ratingDaysLabel(config.ratingTriggerDays),
+                                     valueLabel = Strings.ratingDaysLabel(config.ratingTriggerDays),
                                         valueRange = 1f..30f
                                     )
                                     WtaSliderRow(
@@ -3758,7 +3758,7 @@ fun SpecialSettingsCard(
                                         onValueChange = {
                                             onConfigChange(config.copy(ratingTriggerLaunches = it.toInt().coerceIn(1, 20)))
                                         },
-                                         valueLabel = Strings.ratingLaunchesLabel(config.ratingTriggerLaunches),
+                                     valueLabel = Strings.ratingLaunchesLabel(config.ratingTriggerLaunches),
                                         valueRange = 1f..20f
                                     )
                                 }
