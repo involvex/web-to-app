@@ -302,12 +302,12 @@ to **94 `@JavascriptInterface` methods** across 6 bridge classes:
    ConfigureErrorPagesTool (§15.5).
 
 ### 5.1 App Screenshot Tool
-**Status:** ✅ Implemented. `WebsiteScreenshotService.kt` captures WebView
-  screenshots; displayed in the host `HomeScreen.kt` with caching.
-  `ViewImageTool` / `ListImagesTool` in the imagery tools set provide
-  agent-level image viewing.
-- **Implementation:** Uses `EngineManager.createEngine()` →
-  `BrowserEngine.captureToBitmap()` path in `WebViewActivity.kt`.
+**Status:** ✅ ✅ Fully agent-accessible. `ScreenshotApp` agent tool wraps
+  `WebsiteScreenshotService.kt` to capture a screenshot of an app's start URL
+  and return the file path, with `forceRefresh` support. Screenshots also
+  displayed in the host `HomeScreen.kt` with caching via
+  `EngineManager.createEngine()` → `BrowserEngine.captureToBitmap()` in
+  `WebViewActivity.kt`.
 
 ### 5.2 Network Inspection Tool
 **Status:** ❌ Not implemented. (No web-request interceptor tool exists.)
@@ -355,7 +355,7 @@ to **94 `@JavascriptInterface` methods** across 6 bridge classes:
   still missing.
 
 ### 5.13 Agent Tool Inventory (🆕)
-The 55 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
+The 60 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
 
 | Domain | Tools | Count |
 |--------|-------|-------|
@@ -367,10 +367,11 @@ The 55 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
 | Hosts & runtime | GetAdBlockStatusTool, ManageHostsRulesTool, GetRuntimeStatusTool, InstallRuntimeTool, ClearRuntimeCacheTool | 5 |
 | Modules | ListModulesTool, GetModuleTool, CreateModuleTool, UpdateModuleTool | 4 |
 | Stats & apps | GetUsageStatsTool, CheckAppHealthTool, ListInstalledAppsTool, CloneAppTool, BatchImportAppsTool | 5 |
+| Screenshot | ScreenshotAppTool | 1 |
 | Build env | GetBuildEnvStatusTool, InitializeBuildEnvTool, CheckPlayPolicyTool | 3 |
 | Plan | EnterPlanModeTool, ExitPlanModeTool | 2 |
 | Interaction | AskUserTool, TodoWriteTool, TodoUpdateTool | 3 |
-| **Total** | | **55** |
+| **Total** | | **60** |
 
 ---
 
@@ -983,12 +984,10 @@ These items have existing infrastructure that makes implementation small-moderat
 effort with clear user value. Each includes the specific code paths to modify.
 
 ### 20.1 App Screenshot Agent Tool
-**Status:** ⚠️ Infrastructure exists.
-- **Files to add:** `core/agent/tool/builtin/ScreenshotTool.kt`
-- **Registration:** Add `ScreenshotTool()` to `ToolRegistryFactory.baseTools()`.
-- **Implementation:** `execute()` calls
-  `WebsiteScreenshotService.captureScreenshot(appId, url)` → returns
-  base64 via `ViewImageTool` display pipeline.
+**Status:** ✅ Implemented. `ScreenshotApp` agent tool wraps
+  `WebsiteScreenshotService.captureScreenshot(appId, url)` and returns
+  the file path. Registered in `ToolRegistryFactory.baseTools()`.
+  Read-only (no confirmation prompt needed).
 
 ### 20.2 DNS Leak Test
 **Status:** ❌ No infrastructure, trivial to add.

@@ -47,6 +47,7 @@ import com.webtoapp.core.agent.tool.builtin.ReadFileTool
 import com.webtoapp.core.agent.tool.builtin.ReadAppFileTool
 import com.webtoapp.core.agent.tool.builtin.ScanPortsTool
 import com.webtoapp.core.agent.tool.builtin.ScrapeWebsiteTool
+import com.webtoapp.core.agent.tool.builtin.ScreenshotTool
 import com.webtoapp.core.agent.tool.builtin.GetScrapedSitesTool
 import com.webtoapp.core.agent.tool.builtin.DeleteScrapedSiteTool
 import com.webtoapp.core.agent.tool.builtin.ConfigureErrorPagesTool
@@ -129,6 +130,8 @@ class ToolRegistryFactory(
         ScrapeWebsiteTool(),
         GetScrapedSitesTool(),
         DeleteScrapedSiteTool(),
+        // Screenshot
+        ScreenshotTool(),
         // Error pages
         ConfigureErrorPagesTool(),
         // Stats, modifier & import
