@@ -9,7 +9,7 @@ runtime chain required by the project conventions.
 
 > **Codebase evolution note:** Since this file was last updated, the project
 > has grown from a web-to-APK builder into a full mobile app development
-> platform. The agent system now supports 55 tools across 6 LLM providers,
+> platform. The agent system now supports 59 tools across 6 LLM providers,
 > Chrome extensions, GeckoView engine, AAB export, app cloning, embedded
 > servers (Node/PHP/Python/Go/WordPress), and much more. Sections 15–21
 > document these new areas. Run `python3 scripts/check_config_field_drift.py`
@@ -111,9 +111,20 @@ to **94 `@JavascriptInterface` methods** across 6 bridge classes:
   runtime gate in each bridge class.
 
 ### 1.8 Picture-in-Picture Support
-🆕 A built-in `StreamingPipModule` (`core/extension/BuiltInModules.kt:830`)
-injects `requestPictureInPicture()` / `exitPictureInPicture()` JS APIs and
-handles the PiP activity transition.
+✅ **Two layers of PiP support are now implemented:**
+
+1. **HTML5 PiP** (existing): A built-in `StreamingPipModule`
+   (`core/extension/BuiltInModules.kt:830`) injects `requestPictureInPicture()`
+   / `exitPictureInPicture()` JS APIs and handles the PiP activity transition.
+
+2. **Native PiP bridge** (new): `NativeBridge.enterPiP()`, `exitPiP()`,
+   `isPiPActive()` provide programmatic Android PiP (API 26+ with
+   `FEATURE_PICTURE_IN_PICTURE`) for pages without native HTML5 PiP support.
+   - Config: `pictureInPictureEnabled` + `nativeBridgeCapabilities.pip` wired
+     through `ApkConfig` → `ApkConfigJsonFactory` → `ShellModeManager` →
+     `ShellWebViewConfig`.
+   - Agent tool: `SetPictureInPictureTool` enables/disables the capability.
+   - Editor UI: `FullscreenModeCard` companion card in `CreateAppScreen.kt`.
 
 ---
 
@@ -280,13 +291,15 @@ handles the PiP activity transition.
 
 ---
 
-## 5. Agent Tool System (55 tools)
+## 5. Agent Tool System (59 tools)
 
 **Paths:** `core/agent/tool/builtin/`, `core/agent/tool/ToolRegistryFactory.kt`
-**Status:** 🔄 Significantly expanded. The agent system now has **55 tools**
-  (up from 54), with 6 LLM providers, plan mode, image generation, file
-  management, and session export capabilities. Many suggested tools are now
-  implemented; see §15 (AI & Agent System) for the full infrastructure.
+**Status:** 🔄 Significantly expanded. The agent system now has **59 tools**
+   (up from 54), with 6 LLM providers, plan mode, image generation, file
+   management, and session export capabilities. Many suggested tools are now
+   implemented; see §15 (AI & Agent System) for the full infrastructure.
+   Recent additions include SetPictureInPictureTool (§15.5) and
+   ConfigureErrorPagesTool (§15.5).
 
 ### 5.1 App Screenshot Tool
 **Status:** ✅ Implemented. `WebsiteScreenshotService.kt` captures WebView
@@ -752,7 +765,7 @@ The 55 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
   - **Tests:** `ConfigRoundTripSentinelTest.kt` (sentinel field injection),
     `BackButtonBehaviorExportWiringTest.kt`,
     `StaticAssetPackExportWiringTest.kt`,
-    `ErrorPageApkRoundTripTest.kt`,
+    `ErrorPageApkRoundTripTest.kt` + agent-level `ConfigureErrorPagesTool` (§15.5),
     `EncryptionConfigTest.kt`, `EncryptionConfigExtendedTest.kt`.
 
 ### 14.3 Agent Tool Schema Alignment Tests
@@ -819,6 +832,22 @@ The 55 registered tools (in `ToolRegistryFactory.kt`), grouped by domain:
 **Status:** ✅ Implemented. `GenerateImageTool`, `ViewImageTool`,
 `ListImagesTool` with Gemini and OpenAI backends.
   - `DefaultImageGenerators.kt` factory, `ImageGeneratorRegistry`.
+
+### 15.5 Agent Tools for Native Features (🆕)
+**Paths:** `core/agent/tool/builtin/`
+**Status:** ✅ Implemented. Agent tools that expose host-side service classes
+to the LLM, enabling programmatic configuration of features that also
+affect the generated APK:
+  - `SetPictureInPictureTool`: enables PiP mode (sets `pictureInPictureEnabled`
+    + `nativeBridgeCapabilities.pip`) — see §10.9 below.
+  - `ConfigureErrorPagesTool`: full `ErrorPageConfig` editor (mode, styles,
+    mini-game, custom HTML, per-error-type toggles). All 14 fields exposed
+    via structured JSON schema with partial-patch semantics.
+  - `GetRuntimeStatusTool` / `InstallRuntimeTool` / `ClearRuntimeCacheTool`:
+    PHP/WordPress/Node/Python/Go runtime lifecycle.
+  - `GetAdBlockStatusTool` / `ManageHostsRulesTool`: ad-blocker host management.
+  - `BuildApkTool` / `ExportAabTool` / `ExportAppTool`: export pipeline.
+  - `ClearAppCacheTool`: clears build cache + WebView storage for an app.
 
 ---
 
