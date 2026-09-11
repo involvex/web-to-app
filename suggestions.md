@@ -9,7 +9,7 @@ runtime chain required by the project conventions.
 
 > **Codebase evolution note:** Since this file was last updated, the project
 > has grown from a web-to-APK builder into a full mobile app development
-> platform. The agent system now supports 59 tools across 6 LLM providers,
+> platform. The agent system now supports 61 tools across 6 LLM providers,
 > Chrome extensions, GeckoView engine, AAB export, app cloning, embedded
 > servers (Node/PHP/Python/Go/WordPress), and much more. Sections 15–21
 > document these new areas. Run `python3 scripts/check_config_field_drift.py`
@@ -1006,7 +1006,10 @@ effort with clear user value. Each includes the specific code paths to modify.
   `ratingTriggerLaunches` (default 5) to `WebViewConfig`, fully wired through
   the export chain (ApkConfig → ApkConfigJsonFactory → WebViewShellConfig →
   NativeBridge constructor in ShellActivity / ShellWebViewConfig /
-  FloatingWindowService). Tests: `WebViewConfigBooleanCoverageTest`.
+  FloatingWindowService). Editor UI card added in `CreateAppWebViewCards.kt`
+  with rating capability filter chip + trigger days/launches sliders.
+  Tests: `WebViewConfigBooleanCoverageTest` (ratingEnabled + nativeBridgeRating
+  round-trip coverage), `AgentToolSchemaAlignmentTest`.
 
 ### 20.4 Certificate Transparency Monitoring
 **Status:** ⚠️ `CustomCaTrustStore.kt` exists; CT verification missing.
@@ -1100,16 +1103,20 @@ effort with clear user value. Each includes the specific code paths to modify.
 - **Implementation:** Download/upload test against configurable endpoint.
 
 ### 20.16 Web-based Tool Agent (Built-in Browser)
-**Status:** ❌ No infrastructure.
-- **Files to add:** `core/agent/tool/builtin/WebBrowseTool.kt`.
-- **What:** An agent tool that launches a headless/interactive WebView with
-  `capture` + `setElement` + `click` + `getElement` + `evaluateJS` +
-  `getConsoleLogs` + `navigate` + `waitForLoad` + `screenshot` methods.
-  Enables the agent to interact with web pages, extract data, fill forms,
-  take full-page screenshots, and scrape content via JavaScript execution.
-- **Implementation:** Reuse the existing `SystemWebViewEngine` /
-  `GeckoViewEngine` from `EngineManager.createEngine()`; inject a
-  capture/control bridge via `WebViewManager`.
+**Status:** ✅ Implemented. `WebBrowseTool.kt` provides 4 actions:
+  `navigate`, `js`, `click`, `fill` — all operating on an off-screen
+  `BrowserEngine` instance created via `EngineManager.createEngine()`.
+  Supports session reuse via `sessionId` parameter (10-min TTL with
+  auto-cleanup), JS result JSON-encoding, and live progress reporting.
+  Registered in `ToolRegistryFactory` as `WebBrowse` (read-only).
+  Tests: `WebBrowseToolTest.kt` (6 schema/registration tests).
+- **Files:** `core/agent/tool/builtin/WebBrowseTool.kt`,
+  `agent/tool/builtin/WebBrowseToolTest.kt`.
+- **Implementation:** Reuses `SystemWebViewEngine` / `GeckoViewEngine` from
+  `EngineManager.createEngine()` with `KoinJavaComponent.get<AdBlocker>` for
+  ad-blocking support. Page-load coordination via `CompletableDeferred` +
+  `withTimeoutOrNull` on `Dispatchers.Main`, matching the proven pattern in
+  `WebsiteScreenshotService`.
 
 ---
 

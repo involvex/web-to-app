@@ -60,7 +60,7 @@ class AgentToolSchemaAlignmentTest {
         val names = registry.all.map { it.name }
         assertThat(names).doesNotContain(null)
         assertThat(names).hasSize(names.distinct().size)
-        assertThat(names).hasSize(61)
+        assertThat(names).hasSize(62)
     }
 
     @Test

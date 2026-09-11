@@ -48,6 +48,7 @@ import com.webtoapp.core.agent.tool.builtin.ReadAppFileTool
 import com.webtoapp.core.agent.tool.builtin.ScanPortsTool
 import com.webtoapp.core.agent.tool.builtin.ScrapeWebsiteTool
 import com.webtoapp.core.agent.tool.builtin.ScreenshotTool
+import com.webtoapp.core.agent.tool.builtin.WebBrowseTool
 import com.webtoapp.core.agent.tool.builtin.CertificateInspectTool
 import com.webtoapp.core.agent.tool.builtin.GetScrapedSitesTool
 import com.webtoapp.core.agent.tool.builtin.DeleteScrapedSiteTool
@@ -133,6 +134,8 @@ class ToolRegistryFactory(
         DeleteScrapedSiteTool(),
         // Screenshot
         ScreenshotTool(),
+        // Web browsing / interaction
+        WebBrowseTool(),
         // Certificate inspection
         CertificateInspectTool(),
         // Error pages

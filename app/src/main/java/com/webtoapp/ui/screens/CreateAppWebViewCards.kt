@@ -3714,6 +3714,54 @@ fun SpecialSettingsCard(
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(pip = !caps.pip))) },
                                     label = { Text(Strings.nativeBridgeCapsPip) }
                                 )
+                                FilterChip(
+                                    selected = caps.rating,
+                                    onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(rating = !caps.rating))) },
+                                    label = { Text(Strings.nativeBridgeCapsRating) }
+                                )
+                            }
+                        }
+
+                        if (config.nativeBridgeCapabilities.rating) {
+                            WtaSettingCard {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(
+                                            horizontal = WtaSpacing.RowHorizontal,
+                                            vertical = WtaSpacing.ContentGap
+                                        ),
+                                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+                                ) {
+                                    Text(
+                                        text = Strings.ratingConfigTitle,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Text(
+                                        text = Strings.ratingConfigDesc,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    WtaSliderRow(
+                                        title = Strings.ratingTriggerDays,
+                                        value = config.ratingTriggerDays.toFloat(),
+                                        onValueChange = {
+                                            onConfigChange(config.copy(ratingTriggerDays = it.toInt().coerceIn(1, 30)))
+                                        },
+                                        valueLabel = "${config.ratingTriggerDays} days",
+                                        valueRange = 1f..30f
+                                    )
+                                    WtaSliderRow(
+                                        title = Strings.ratingTriggerLaunches,
+                                        value = config.ratingTriggerLaunches.toFloat(),
+                                        onValueChange = {
+                                            onConfigChange(config.copy(ratingTriggerLaunches = it.toInt().coerceIn(1, 20)))
+                                        },
+                                        valueLabel = "${config.ratingTriggerLaunches} launches",
+                                        valueRange = 1f..20f
+                                    )
+                                }
                             }
                         }
 
