@@ -1384,6 +1384,18 @@ data class WebViewShellConfig(
      @SerializedName("nativeBridgePip")
      val nativeBridgePip: Boolean = false,
 
+     @SerializedName("nativeBridgeRating")
+     val nativeBridgeRating: Boolean = false,
+
+     @SerializedName("ratingEnabled")
+     val ratingEnabled: Boolean = false,
+
+     @SerializedName("ratingTriggerDays")
+     val ratingTriggerDays: Int = 7,
+
+     @SerializedName("ratingTriggerLaunches")
+     val ratingTriggerLaunches: Int = 5,
+
      @SerializedName("pictureInPictureEnabled")
      val pictureInPictureEnabled: Boolean = false,
 

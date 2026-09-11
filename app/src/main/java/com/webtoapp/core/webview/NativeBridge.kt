@@ -434,7 +434,19 @@ if (NativeBridge.isPiPActive()) {
     // 当前是画中画模式
 }
 ```
-### 屏幕截图（WebView 内容）
+### 应用评分 (Rating)
+
+#### rateApp()
+向 Google Play 商店发送应用评分意图（仅在真机 Play 商店环境生效；
+Host 调试版本会直接打开 Play 商店应用页面）。
+- 返回: boolean - 是否成功启动评分流程
+```javascript
+if (NativeBridge.rateApp()) {
+    console.log('已打开评分页面');
+} else {
+    console.log('评分功能不可用或未启用');
+}
+```
 
 #### captureScreen(quality?)`
 捕获当前 WebView 内容为 base64 编码的 JPEG 图片（同步返回，无需系统权限）
@@ -1945,6 +1957,26 @@ NativeBridge.stopDeviceCapture();
             activity?.isInPictureInPictureMode ?: false
         } catch (e: Exception) {
             AppLogger.e("NativeBridge", "Failed to check PiP state", e)
+            false
+        }
+    }
+
+    @JavascriptInterface
+    fun rateApp(): Boolean {
+        if (!capabilities.rating) return false
+        return try {
+            val activity = context as? Activity ?: return false
+            val uri = Uri.parse("market://details?id=${activity.packageName}")
+            val intent = Intent(Intent.ACTION_VIEW, uri)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            activity.startActivity(intent)
+            AppLogger.d("NativeBridge", "Opened Play Store rating for ${activity.packageName}")
+            true
+        } catch (e: android.content.ActivityNotFoundException) {
+            AppLogger.w("NativeBridge", "Play Store not found; rateApp ignored")
+            false
+        } catch (e: Exception) {
+            AppLogger.e("NativeBridge", "Failed to launch rateApp", e)
             false
         }
     }

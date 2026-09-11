@@ -443,7 +443,11 @@ data class WebViewConfig(
     val antiCapture: Boolean = false,
 
     val dnsMode: String = "SYSTEM",
-    val dnsConfig: DnsConfig = DnsConfig()
+    val dnsConfig: DnsConfig = DnsConfig(),
+
+    val ratingEnabled: Boolean = false,
+    val ratingTriggerDays: Int = 7,
+    val ratingTriggerLaunches: Int = 5,
 )
 
 data class HostMappingEntry(
@@ -1554,6 +1558,7 @@ data class NativeBridgeCapabilities(
     val print: Boolean = true,
     val screenCapture: Boolean = true,
     val pip: Boolean = true,
+    val rating: Boolean = false,
 )
 
 enum class GeolocationAccuracy {

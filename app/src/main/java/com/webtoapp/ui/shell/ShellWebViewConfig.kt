@@ -145,6 +145,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             print = config.webViewConfig.nativeBridgePrint,
             screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
             pip = config.webViewConfig.nativeBridgePip,
+            rating = config.webViewConfig.nativeBridgeRating,
         ),
         javaScriptCanOpenWindows = config.webViewConfig.javaScriptCanOpenWindows,
         jsOpenWindowsPolicy = try {

@@ -599,8 +599,10 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 orientation = config.webViewConfig.nativeBridgeOrientation,
                                 fullscreen = config.webViewConfig.nativeBridgeFullscreen,
                                 print = config.webViewConfig.nativeBridgePrint,
-                                screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
-                            )
+                                  screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
+                                  pip = config.webViewConfig.nativeBridgePip,
+                                  rating = config.webViewConfig.nativeBridgeRating,
+                              )
                             val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                                 context = this@ShellActivity,
                                 scope = lifecycleScope,
