@@ -1,7 +1,6 @@
 package com.webtoapp.core.agent.tool.builtin
 
-import android.webkit.WebView
-import android.webkit.WebViewClient
+import android.net.Uri
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.webtoapp.core.agent.tool.Tool
@@ -18,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.java.KoinJavaComponent
+import java.util.concurrent.TimeUnit
 
 class WebBrowseTool : Tool {
     override val name = "WebBrowse"
@@ -72,7 +72,13 @@ class WebBrowseTool : Tool {
         val action = args.get("action")?.asString?.takeIf { it.isNotEmpty() }
             ?: return@withContext ToolResult.error("WebBrowse: missing `action`.")
 
-        val url = args.get("url")?.asString?.takeIf { it.isNotBlank() }
+        val url = args.get("url")?.asString?.takeIf { it.isNotBlank() }?.let {
+            val scheme = Uri.parse(it)?.scheme?.lowercase()
+            if (scheme != "http" && scheme != "https") {
+                return@withContext ToolResult.error("WebBrowse: only http/https URLs are allowed.")
+            }
+            it
+        }
         val sessionId = args.get("sessionId")?.asString
         val selector = args.get("selector")?.asString
         val value = args.get("value")?.asString
@@ -244,7 +250,13 @@ class WebBrowseTool : Tool {
     private fun cleanupExpiredSessions() {
         val now = System.currentTimeMillis()
         sessions.entries.removeIf { (_, session) ->
-            !session.isDestroyed && (now - session.lastUsed) > SESSION_TIMEOUT_MS
+            val expired = !session.isDestroyed && (now - session.lastUsed) > SESSION_TIMEOUT_MS
+            if (expired) {
+                session.destroy()
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -310,7 +322,7 @@ private class WebBrowseSession(
             currentUrl = url
             engine?.loadUrl(url)
 
-            val result = withTimeoutOrNull(timeoutSec.toLong() * 1000L) {
+            val result = withTimeoutOrNull(TimeUnit.SECONDS.toMillis(timeoutSec.toLong())) {
                 freshCallback.await()
             }
             lastUsed = System.currentTimeMillis()
