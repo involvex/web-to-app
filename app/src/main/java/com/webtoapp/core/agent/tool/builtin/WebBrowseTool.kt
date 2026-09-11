@@ -17,6 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.java.KoinJavaComponent
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 class WebBrowseTool : Tool {
@@ -66,7 +67,7 @@ class WebBrowseTool : Tool {
         private const val SESSION_TIMEOUT_MS = 10 * 60 * 1000L
     }
 
-    private val sessions = HashMap<String, WebBrowseSession>()
+    private val sessions = ConcurrentHashMap<String, WebBrowseSession>()
 
     override suspend fun execute(args: JsonObject, ctx: ToolContext): ToolResult = withContext(Dispatchers.IO) {
         val action = args.get("action")?.asString?.takeIf { it.isNotEmpty() }
