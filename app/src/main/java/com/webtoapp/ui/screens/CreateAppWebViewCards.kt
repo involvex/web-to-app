@@ -3710,8 +3710,9 @@ fun SpecialSettingsCard(
                         }
 
                         if (config.nativeBridgeCapabilities.googleSignIn) {
+                            val caps2 = config.nativeBridgeCapabilities
                             AnimatedVisibility(
-                                visible = caps.googleSignIn,
+                                visible = caps2.googleSignIn,
                                 enter = CardExpandTransition,
                                 exit = CardCollapseTransition
                             ) {
@@ -3722,8 +3723,8 @@ fun SpecialSettingsCard(
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     PremiumTextField(
-                                        value = caps.googleSignInClientId,
-                                        onValueChange = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(googleSignInClientId = it))) },
+                                        value = caps2.googleSignInClientId,
+                                        onValueChange = { onConfigChange(config.copy(nativeBridgeCapabilities = caps2.copy(googleSignInClientId = it))) },
                                         label = { Text(Strings.googleSignInClientIdLabel) },
                                         placeholder = { Text(Strings.googleSignInClientIdPlaceholder) },
                                         modifier = Modifier.fillMaxWidth(),
