@@ -24,6 +24,7 @@ const t = {
       urlWebpage: "URL / Webpage",
       activation: "Activation Code",
       hideToolbar: "Hide Browser Toolbar",
+      browserToolbar: "Browser Toolbar",
       fullscreen: "Fullscreen Mode",
       orientation: "Screen Orientation",
       keepScreenOn: "Keep Screen On",
@@ -145,6 +146,7 @@ const t = {
       urlWebpage: "网址/网页",
       activation: "激活码验证",
       hideToolbar: "隐藏浏览器工具栏",
+      browserToolbar: "浏览器工具栏",
       fullscreen: "全屏模式",
       orientation: "屏幕方向",
       keepScreenOn: "保持屏幕常亮",
@@ -398,6 +400,10 @@ function sidebar(lang: Lang, prefix: string) {
               {
                 text: s.cc.hideToolbar,
                 link: `${prefix}/guide/app-actions/edit-common-config/hide-toolbar`,
+              },
+              {
+                text: s.cc.browserToolbar,
+                link: `${prefix}/guide/app-actions/edit-common-config/browser-toolbar`,
               },
               {
                 text: s.cc.fullscreen,

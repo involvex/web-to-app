@@ -68,7 +68,7 @@ See [Config Field Drift](/developer/config-drift).
 
 ```bash
 ./gradlew :shell:assembleRelease :app:syncShellTemplateApk --no-configuration-cache
-./gradlew :app:compileDebugKotlin -x syncCloneHostDex --no-configuration-cache
+./gradlew :app:compileStandardDebugKotlin -x syncCloneHostDex --no-configuration-cache
 ./gradlew :app:checkConfigFieldDrift --no-configuration-cache
 python3 scripts/check_config_field_drift.py
 ```

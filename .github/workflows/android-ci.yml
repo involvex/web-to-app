@@ -11,8 +11,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: android-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Group per ref AND event type: routine pushes to the same branch still cancel
+  # their superseded check runs, but a workflow_dispatch packaging run is never
+  # cancelled by a merge push landing on the same ref mid-build.
+  group: android-ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
   check:

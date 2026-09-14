@@ -6,8 +6,10 @@ import com.webtoapp.core.download.DependencyDownloadEngine
 import com.webtoapp.core.download.DependencyDownloadNotification
 import com.webtoapp.core.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -136,55 +138,72 @@ object WordPressDependencyManager {
     }
 
     suspend fun downloadAllDependencies(context: Context): Boolean = withContext(Dispatchers.IO) {
-        try {
-            _downloadState.value = DownloadState.Idle
-
-            DependencyDownloadNotification.getInstance(context)
-            DependencyDownloadEngine.reset()
-            val mirror = getMirrorConfig()
-
-            if (!isPhpReady(context)) {
-                val success = downloadPhp(context, mirror)
-                if (!success) return@withContext false
+        coroutineScope {
+            // Bridge engine progress into _downloadState for the whole call —
+            // callers' UI otherwise sits on Idle for the entire download since
+            // syncEngineState only ran once at the end.
+            val syncJob = launch {
+                DependencyDownloadEngine.state.collect { syncEngineState() }
             }
+            try {
+                _downloadState.value = DownloadState.Idle
 
-            if (!isWordPressReady(context)) {
-                val success = downloadWordPress(context, mirror)
-                if (!success) return@withContext false
+                DependencyDownloadNotification.getInstance(context)
+                DependencyDownloadEngine.reset()
+                val mirror = getMirrorConfig()
+
+                if (!isPhpReady(context)) {
+                    val success = downloadPhp(context, mirror)
+                    if (!success) return@coroutineScope false
+                }
+
+                if (!isWordPressReady(context)) {
+                    val success = downloadWordPress(context, mirror)
+                    if (!success) return@coroutineScope false
+                }
+
+                if (!isSqlitePluginReady(context)) {
+                    val success = downloadSqlitePlugin(context, mirror)
+                    if (!success) return@coroutineScope false
+                }
+
+                markComplete()
+                AppLogger.i(TAG, "All WordPress dependencies downloaded")
+                true
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to download dependency", e)
+                markError(e.message ?: "未知错误")
+                false
+            } finally {
+                syncJob.cancel()
             }
-
-            if (!isSqlitePluginReady(context)) {
-                val success = downloadSqlitePlugin(context, mirror)
-                if (!success) return@withContext false
-            }
-
-            markComplete()
-            AppLogger.i(TAG, "All WordPress dependencies downloaded")
-            true
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Failed to download dependency", e)
-            markError(e.message ?: "未知错误")
-            false
         }
     }
 
     suspend fun downloadPhpDependency(context: Context): Boolean = withContext(Dispatchers.IO) {
-        try {
-            if (isPhpReady(context)) {
-                DependencyDownloadNotification.getInstance(context)
-                markComplete()
-                return@withContext true
+        coroutineScope {
+            val syncJob = launch {
+                DependencyDownloadEngine.state.collect { syncEngineState() }
             }
-            DependencyDownloadNotification.getInstance(context)
-            DependencyDownloadEngine.reset()
-            val mirror = getMirrorConfig()
-            val ok = downloadPhp(context, mirror)
-            if (ok) markComplete()
-            return@withContext ok
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Failed to download PHP dependency", e)
-            markError(e.message ?: "未知错误")
-            false
+            try {
+                if (isPhpReady(context)) {
+                    DependencyDownloadNotification.getInstance(context)
+                    markComplete()
+                    return@coroutineScope true
+                }
+                DependencyDownloadNotification.getInstance(context)
+                DependencyDownloadEngine.reset()
+                val mirror = getMirrorConfig()
+                val ok = downloadPhp(context, mirror)
+                if (ok) markComplete()
+                ok
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Failed to download PHP dependency", e)
+                markError(e.message ?: "未知错误")
+                false
+            } finally {
+                syncJob.cancel()
+            }
         }
     }
 
@@ -449,19 +468,24 @@ object WordPressDependencyManager {
     private fun extractTarGzWithCommons(archiveFile: File, destDir: File) {
         val gzIn = java.util.zip.GZIPInputStream(archiveFile.inputStream().buffered())
         val tarIn = org.apache.commons.compress.archivers.tar.TarArchiveInputStream(gzIn)
+        val guard = com.webtoapp.util.SafeZip.EntryGuard()
 
         var entry = tarIn.nextEntry
         while (entry != null) {
-            val outFile = File(destDir, entry.name)
+            guard.onEntry()
+            val outFile = com.webtoapp.util.SafeZip.safeChild(destDir, entry.name) ?: run {
+                entry = tarIn.nextEntry
+                continue
+            }
             if (entry.isDirectory) {
                 outFile.mkdirs()
             } else {
                 outFile.parentFile?.mkdirs()
                 FileOutputStream(outFile).use { fos ->
-                    tarIn.copyTo(fos)
+                    guard.copyTo(tarIn, fos)
                 }
 
-                if (entry.mode and 0b001_000_000 != 0) {
+                if (com.webtoapp.util.SafeZip.hasOwnerExecBit(entry.mode.toLong())) {
                     outFile.setExecutable(true, false)
                 }
             }
@@ -472,15 +496,21 @@ object WordPressDependencyManager {
 
     private fun extractZip(zipFile: File, destDir: File) {
         val zipInputStream = java.util.zip.ZipInputStream(zipFile.inputStream().buffered())
+        val guard = com.webtoapp.util.SafeZip.EntryGuard()
         var entry = zipInputStream.nextEntry
         while (entry != null) {
-            val outFile = File(destDir, entry.name)
+            guard.onEntry()
+            val outFile = com.webtoapp.util.SafeZip.safeChild(destDir, entry.name) ?: run {
+                zipInputStream.closeEntry()
+                entry = zipInputStream.nextEntry
+                continue
+            }
             if (entry.isDirectory) {
                 outFile.mkdirs()
             } else {
                 outFile.parentFile?.mkdirs()
                 FileOutputStream(outFile).use { fos ->
-                    zipInputStream.copyTo(fos)
+                    guard.copyTo(zipInputStream, fos)
                 }
             }
             zipInputStream.closeEntry()

@@ -6,15 +6,19 @@ import com.webtoapp.core.logging.AppLogger
 import java.io.BufferedReader
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 object UpdateChecker {
 
     private const val TAG = "UpdateChecker"
 
-    private const val MIRROR_PREFIX = "https://gh-proxy.org/"
     private const val OWNER = "shiaho777"
     private const val REPO = "web-to-app"
     private const val LATEST_RELEASE_API =
@@ -22,7 +26,21 @@ object UpdateChecker {
     private const val ALL_RELEASES_API =
         "https://api.github.com/repos/$OWNER/$REPO/releases?per_page=100"
 
-    private const val TIMEOUT_MS = 12000
+    private const val CONNECT_TIMEOUT_MS = 6000
+    private const val READ_TIMEOUT_MS = 10000
+
+    /**
+     * Hard cap on one raced JSON fetch: the first valid response wins long before
+     * this, the cap only bounds the "every route hangs" case.
+     */
+    private const val RACE_TIMEOUT_MS = 12000L
+
+    /**
+     * Losing race requests are launched here rather than in the caller's scope,
+     * so the winner returns immediately instead of waiting for every candidate
+     * to finish or time out.
+     */
+    private val raceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /**
      * Invisible boundary that separates the English and Chinese halves of a GitHub release body
@@ -105,9 +123,6 @@ object UpdateChecker {
         data class Failed(val message: String, val throwable: Throwable? = null) : Result()
     }
 
-    fun withMirror(url: String): String =
-        if (url.startsWith(MIRROR_PREFIX)) url else MIRROR_PREFIX + url
-
     suspend fun check(currentVersionName: String): Result = withContext(Dispatchers.IO) {
         val current = Version.parse(currentVersionName)
             ?: return@withContext Result.Failed("Cannot parse current version: $currentVersionName")
@@ -135,7 +150,10 @@ object UpdateChecker {
 
             val info = ReleaseInfo(
                 version = latest.toString(),
-                downloadUrl = withMirror(rawUrl),
+                // Raw asset URL: ApkUpdateInstaller expands the measured mirror
+                // candidates itself and retries, so a single stale prefix can
+                // no longer sink the download.
+                downloadUrl = rawUrl,
                 sizeBytes = asset.optLong("size", 0L),
                 sha256 = asset.optString("digest").takeIf { it.isNotBlank() }
                     ?.substringAfter("sha256:", "")?.takeIf { it.isNotBlank() },
@@ -158,8 +176,10 @@ object UpdateChecker {
      */
     suspend fun fetchAllReleases(): List<ReleaseSummary> = withContext(Dispatchers.IO) {
         try {
+            // Null means every candidate failed — surface it as an error so the
+            // history UI shows a failure state instead of an empty list.
             val json = fetchAllReleasesJson()
-                ?: return@withContext emptyList()
+                ?: throw IllegalStateException("Empty response from release API")
             val arr = org.json.JSONArray(json)
             val out = ArrayList<ReleaseSummary>(arr.length())
             for (i in 0 until arr.length()) {
@@ -175,7 +195,7 @@ object UpdateChecker {
                         name = release.optString("name").trim(),
                         publishedAt = release.optString("published_at").trim(),
                         body = localizeReleaseBody(release.optString("body")),
-                        downloadUrl = rawUrl?.let { withMirror(it) },
+                        downloadUrl = rawUrl,
                         sizeBytes = asset?.optLong("size", 0L) ?: 0L,
                         sha256 = asset?.optString("digest").takeIf { !it.isNullOrBlank() }
                             ?.substringAfter("sha256:", "")?.takeIf { it.isNotBlank() }
@@ -188,6 +208,90 @@ object UpdateChecker {
             AppLogger.e(TAG, "Fetch all releases failed", e)
             throw e
         }
+    }
+
+    /**
+     * A public repository owned by the app author, as shown by the About page's
+     * "more projects" section. Forks and this app itself are filtered out.
+     */
+    data class RepoSummary(
+        val name: String,
+        val description: String,
+        val stars: Long,
+        val forks: Long,
+        val language: String?,
+        val pushedAt: String,
+        val url: String
+    )
+
+    private const val AUTHOR_REPOS_API =
+        "https://api.github.com/users/$OWNER/repos?per_page=100&type=owner"
+
+    /**
+     * Pre-generated repo list on the `author-repos-data` branch, refreshed by
+     * the Update Author Repos workflow. Serving it through raw.githubusercontent.com
+     * matters: the proxy pool is whitelisted for repo file paths (releases/raw),
+     * while `api.github.com` is rate-limited per egress IP and most shared
+     * proxy IPs are exhausted — the API alone leaves CN users with no route.
+     */
+    private const val AUTHOR_REPOS_RAW =
+        "https://raw.githubusercontent.com/$OWNER/$REPO/author-repos-data/repos.json"
+
+    /**
+     * Fetches the author's public repos for the About page. Client-side sorting
+     * covers both "by stars" and "latest" so the sort toggle never refetches.
+     */
+    suspend fun fetchAuthorRepos(context: android.content.Context): List<RepoSummary> =
+        withContext(Dispatchers.IO) {
+            try {
+                val json = fetchJsonRaced(authorReposCandidates()) { it.trimStart().startsWith("[") }
+                    ?: throw IllegalStateException("Empty response from repos API")
+                AuthorReposCache.write(context, json)
+                parseAuthorRepos(json)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Fetch author repos failed", e)
+                throw e
+            }
+        }
+
+    /**
+     * Race candidates for the repo list: the raw data file through every proxy
+     * channel plus direct, then the REST API through the same — first response
+     * that parses as a JSON array wins.
+     */
+    private fun authorReposCandidates(): List<String> {
+        val channels = com.webtoapp.core.network.CnMirrorProbe.peekChannels()
+        return (channels.map { it.rewrite(AUTHOR_REPOS_RAW) } +
+            AUTHOR_REPOS_RAW +
+            channels.map { it.rewrite(AUTHOR_REPOS_API) } +
+            AUTHOR_REPOS_API).distinct()
+    }
+
+    internal fun parseAuthorRepos(json: String): List<RepoSummary> {
+        val arr = org.json.JSONArray(json)
+        val out = ArrayList<RepoSummary>(arr.length())
+        for (i in 0 until arr.length()) {
+            val repo = arr.optJSONObject(i) ?: continue
+            if (repo.optBoolean("fork", false)) continue
+            val name = repo.optString("name").trim()
+            if (name.isBlank() || name.equals(REPO, ignoreCase = true)) continue
+            // optString("description") returns the literal "null" when the field
+            // is JSON null — check the raw value instead.
+            val rawDesc = repo.opt("description")
+            val rawLang = repo.opt("language")
+            out.add(
+                RepoSummary(
+                    name = name,
+                    description = if (rawDesc == null || rawDesc == JSONObject.NULL) "" else rawDesc.toString().trim(),
+                    stars = repo.optLong("stargazers_count", 0L),
+                    forks = repo.optLong("forks_count", 0L),
+                    language = if (rawLang == null || rawLang == JSONObject.NULL) null else rawLang.toString(),
+                    pushedAt = repo.optString("pushed_at").trim(),
+                    url = repo.optString("html_url").trim()
+                )
+            )
+        }
+        return out
     }
 
     private fun pickBestApkAsset(release: JSONObject): JSONObject? {
@@ -208,34 +312,57 @@ object UpdateChecker {
         return best
     }
 
-    private fun fetchLatestReleaseJson(): String? {
-        val candidates = listOf(withMirror(LATEST_RELEASE_API), LATEST_RELEASE_API)
-        var lastError: Exception? = null
-        for (endpoint in candidates) {
-            try {
-                return httpGet(endpoint)
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "Release API failed via $endpoint: ${e.message}")
-                lastError = e
-            }
-        }
-        lastError?.let { throw it }
-        return null
+    private suspend fun fetchLatestReleaseJson(): String? =
+        // A proxy can answer 200 with a plain-text error ("Suspent",
+        // "404 not found") — not every mirror actually proxies
+        // api.github.com. Only a JSON object counts as a hit.
+        fetchJsonRaced(LATEST_RELEASE_API) { it.trimStart().startsWith("{") }
+
+    private suspend fun fetchAllReleasesJson(): String? =
+        // The all-releases endpoint answers with an array, not an object.
+        fetchJsonRaced(ALL_RELEASES_API) { it.trimStart().startsWith("[") }
+
+    /**
+     * Fires one GET per mirror candidate concurrently and returns the first body
+     * accepted by [accept]. Candidate order comes from
+     * [CnMirrorProbe.peekChannels] — never blocking — so a cold probe cannot
+     * delay the first request; losing requests keep running detached until
+     * their own socket timeout (tiny payloads, bounded by the timeouts below).
+     */
+    private suspend fun fetchJsonRaced(apiUrl: String, accept: (String) -> Boolean): String? {
+        val urls = (com.webtoapp.core.network.CnMirrorProbe.peekChannels()
+            .map { it.rewrite(apiUrl) } + apiUrl).distinct()
+        return fetchJsonRaced(urls, accept)
     }
 
-    private fun fetchAllReleasesJson(): String? {
-        val candidates = listOf(withMirror(ALL_RELEASES_API), ALL_RELEASES_API)
-        var lastError: Exception? = null
-        for (endpoint in candidates) {
-            try {
-                return httpGet(endpoint)
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "All-releases API failed via $endpoint: ${e.message}")
-                lastError = e
+    private suspend fun fetchJsonRaced(urls: List<String>, accept: (String) -> Boolean): String? {
+        val results = Channel<Pair<String, String?>>(urls.size)
+        val jobs = urls.map { endpoint ->
+            raceScope.launch {
+                val body = runCatching { httpGet(endpoint) }
+                    .onFailure {
+                        AppLogger.w(TAG, "API request failed via $endpoint: ${it.message}")
+                    }
+                    .getOrNull()
+                results.send(endpoint to body)
             }
         }
-        lastError?.let { throw it }
-        return null
+        var winner: String? = null
+        var remaining = urls.size
+        withTimeoutOrNull(RACE_TIMEOUT_MS) {
+            while (remaining > 0 && winner == null) {
+                remaining--
+                val (endpoint, body) = results.receive()
+                if (body != null && accept(body)) {
+                    AppLogger.d(TAG, "API request won via $endpoint")
+                    winner = body
+                } else if (body != null) {
+                    AppLogger.w(TAG, "API returned non-JSON via $endpoint: ${body.take(80)}")
+                }
+            }
+        }
+        jobs.forEach { it.cancel() }
+        return winner
     }
 
     private fun httpGet(endpoint: String): String {
@@ -244,8 +371,8 @@ object UpdateChecker {
             connection = (URL(endpoint).openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 instanceFollowRedirects = true
-                connectTimeout = TIMEOUT_MS
-                readTimeout = TIMEOUT_MS
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
                 setRequestProperty("Accept", "application/vnd.github+json")
                 setRequestProperty("User-Agent", "WebToApp-UpdateChecker")
             }

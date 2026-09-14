@@ -116,38 +116,22 @@ fun EditState.withRuntimePermissionsSyncedFromFeatures(): EditState {
 
 
 /**
- * Applies the "hide browser toolbar" toggle to a [WebViewConfig].
+ * Applies the "browser toolbar" master toggle to a [WebViewConfig] (#654 redesign).
  *
- * Enabling the toggle for the first time enters a customized slim-toolbar mode: it
- * clears every toolbar-content flag and marks the toolbar as customized so the user
- * picks which items to show. Disabling the toggle returns to the normal full toolbar:
- * it restores every toolbar-content flag to `true` and clears the customized marker.
- *
- * The restore on disable is what keeps the "hide toolbar" toggle from leaving a
- * normal-mode app with every toolbar button hidden (a state where only the console
- * button — if it were unconditionally rendered — would survive).
+ * Turning the toolbar on flips every item flag on — the user then trims individual
+ * buttons from the all-on slate. Turning it off flips them all off: "off" means no
+ * toolbar at all, so a re-enable must not resurrect stale per-item choices.
  */
-fun WebViewConfig.withHideBrowserToolbar(enabled: Boolean): WebViewConfig = when {
-    enabled && !browserToolbarCustomized -> copy(
-        hideBrowserToolbar = true,
-        toolbarShowTitle = false,
-        toolbarShowUrl = false,
-        toolbarShowBack = false,
-        toolbarShowForward = false,
-        toolbarShowRefresh = false,
-        browserToolbarCustomized = true
-    )
-    !enabled -> copy(
-        hideBrowserToolbar = false,
-        toolbarShowTitle = true,
-        toolbarShowUrl = true,
-        toolbarShowBack = true,
-        toolbarShowForward = true,
-        toolbarShowRefresh = true,
-        browserToolbarCustomized = false
-    )
-    else -> copy(hideBrowserToolbar = enabled)
-}
+fun WebViewConfig.withBrowserToolbarEnabled(enabled: Boolean): WebViewConfig = copy(
+    browserToolbarEnabled = enabled,
+    toolbarShowTitle = enabled,
+    toolbarShowUrl = enabled,
+    toolbarShowBack = enabled,
+    toolbarShowForward = enabled,
+    toolbarShowRefresh = enabled,
+    toolbarShowConsole = enabled,
+    toolbarShowFind = enabled
+)
 
 fun EditState.hasPreviewableContent(): Boolean = when (appType) {
     AppType.WEB -> url.isNotBlank()

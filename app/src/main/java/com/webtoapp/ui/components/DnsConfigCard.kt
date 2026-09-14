@@ -54,7 +54,6 @@ fun DnsConfigCard(
     onDnsModeChange: (String) -> Unit,
     onDnsConfigChange: (DnsConfig) -> Unit,
     engineType: String = "SYSTEM_WEBVIEW",
-    onEngineTypeChange: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val enabled = dnsMode != "SYSTEM"
@@ -65,8 +64,10 @@ fun DnsConfigCard(
             onDnsConfigChange(dnsConfig.copy(echEnabled = false))
             return
         }
+        // ECH works on both engines now: GeckoView via TRR + its own ECH prefs, the
+        // system engine via the MITM bridge's Cronet upstream (Chromium fetches HTTPS
+        // records and encrypts the ClientHello SNI itself). DoH is still preferred.
         if (dnsMode == "SYSTEM") onDnsModeChange("DOH")
-        if (!isGecko) onEngineTypeChange("GECKOVIEW")
         onDnsConfigChange(dnsConfig.copy(echEnabled = true))
     }
 
@@ -116,7 +117,7 @@ fun DnsConfigCard(
                     Text(
                         text = Strings.advancedOptions,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(horizontal = WtaSpacing.Tiny)
                     )
 
@@ -227,7 +228,7 @@ private fun DnsProviderSection(
         Text(
             text = Strings.dnsProviderLabel,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.primary
         )
         DnsProvider.entries.chunked(3).forEach { row ->
             Row(
@@ -260,7 +261,7 @@ private fun DohModeSection(
         Text(
             text = Strings.dohModeLabel,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.primary
         )
         Row(
             modifier = Modifier.fillMaxWidth(),

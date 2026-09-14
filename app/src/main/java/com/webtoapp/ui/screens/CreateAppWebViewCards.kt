@@ -112,19 +112,12 @@ fun LongPressMenuCard(
                     ) {
                         styleOptions.forEach { option ->
                             val isSelected = option.style == style
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = isSelected,
                                 onClick = { onStyleChange(option.style) },
-                                label = { Text(option.name) },
-                                leadingIcon = {
-                                    Icon(
-                                        option.icon,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(18.dp),
-                                        tint = if (isSelected) option.accentColor
-                                               else MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                label = option.name,
+                                leadingIcon = option.icon,
+                                showSelectedCheck = false
                             )
                         }
                     }
@@ -462,10 +455,7 @@ fun AdBlockCard(
     val validSubscriptions = subscriptions.filter { url -> downloadedSources.any { it.url == url } }
 
     EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -518,10 +508,11 @@ fun AdBlockCard(
 
             AnimatedVisibility(
                 visible = enabled,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = CardExpandTransition,
+                exit = CardCollapseTransition
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Spacer(Modifier.height(14.dp))
                     if (validSubscriptions.isEmpty()) {
                         com.webtoapp.ui.design.WtaCard(
                             tone = com.webtoapp.ui.design.WtaCardTone.Surface,
@@ -568,7 +559,7 @@ fun AdBlockCard(
                             Text(
                                 text = Strings.adBlockEnabledSourcesLabel,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.primary
                             )
                             IconButton(
                                 onClick = {
@@ -627,15 +618,13 @@ fun AdBlockCard(
                     }
 
                     if (downloadedSources.isNotEmpty()) {
-                        com.webtoapp.ui.components.PremiumButton(
+                        WtaButton(
                             onClick = { showSubscriptionDialog = true },
+                            leadingIcon = Icons.Outlined.Add,
+                            text = if (validSubscriptions.isEmpty()) Strings.adBlockSelectSubscriptions
+                                else Strings.adBlockAddMoreSources,
                             modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Icon(Icons.Outlined.Add, null, Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(if (validSubscriptions.isEmpty()) Strings.adBlockSelectSubscriptions
-                                else Strings.adBlockAddMoreSources)
-                        }
+                        )
                     }
 
                     com.webtoapp.ui.design.WtaDivider()
@@ -858,7 +847,7 @@ private fun CustomRulesSection(
             Text(
                 text = Strings.customBlockRules,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.primary
             )
             if (rulesCount > 0) {
                 WtaBadge(
@@ -1003,6 +992,30 @@ fun BrowserAdvancedConfigCard(
                                 onCheckedChange = { onConfigChange(config.copy(zoomEnabled = it)) }
                             )
                             WtaSectionDivider()
+                            // Per-app page zoom (#654): transferred from the runtime hidden
+                            // toolbar into Advanced Settings — this is THE zoom for the app,
+                            // applied via initialScale (whole page) on every run. Same Chrome-style presets.
+                            var pageZoomDialogOpen by remember { mutableStateOf(false) }
+                            WtaChoiceRow(
+                                title = Strings.pageZoomSettingLabel,
+                                subtitle = Strings.pageZoomSettingHint,
+                                value = "${if (config.pageZoomPercent <= 0) 100 else config.pageZoomPercent}%",
+                                onClick = { pageZoomDialogOpen = true }
+                            )
+                            if (pageZoomDialogOpen) {
+                                com.webtoapp.ui.components.ZoomPresetsDialog(
+                                    currentZoom = config.pageZoomPercent,
+                                    onSelect = { percent ->
+                                        onConfigChange(config.copy(
+                                            // 0 means "reset" in the presets dialog; the editor
+                                            // stores the concrete default (100) instead.
+                                            pageZoomPercent = if (percent > 0) percent else 100
+                                        ))
+                                    },
+                                    onDismiss = { pageZoomDialogOpen = false }
+                                )
+                            }
+                            WtaSectionDivider()
                             WtaToggleRow(
                                 title = Strings.fullscreenVideoSetting,
                                 subtitle = Strings.fullscreenVideoSettingHint,
@@ -1125,15 +1138,17 @@ fun BrowserAdvancedConfigCard(
                                     ),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                FilterChip(
+                                WtaChip(
                                     selected = config.backButtonBehavior == "GO_BACK",
                                     onClick = { onConfigChange(config.copy(backButtonBehavior = "GO_BACK")) },
-                                    label = { Text(Strings.backButtonGoBack) }
+                                    label = Strings.backButtonGoBack,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = config.backButtonBehavior == "EXIT",
                                     onClick = { onConfigChange(config.copy(backButtonBehavior = "EXIT")) },
-                                    label = { Text(Strings.backButtonExitApp) }
+                                    label = Strings.backButtonExitApp,
+                                    showSelectedCheck = false
                                 )
                             }
                         }
@@ -1173,10 +1188,11 @@ fun BrowserAdvancedConfigCard(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         listOf(30, 60, 120, 300).forEach { sec ->
-                                            FilterChip(
+                                            WtaChip(
                                                 selected = config.autoRefreshIntervalSec == sec,
                                                 onClick = { onConfigChange(config.copy(autoRefreshIntervalSec = sec)) },
-                                                label = { Text(Strings.autoRefreshIntervalValue(sec)) }
+                                                label = Strings.autoRefreshIntervalValue(sec),
+                                                showSelectedCheck = false
                                             )
                                         }
                                     }
@@ -1374,17 +1390,11 @@ fun BrowserAdvancedConfigCard(
                                         "PAC" to Strings.proxyModePac
                                     )
                                     proxyModes.forEach { (mode, label) ->
-                                        FilterChip(
+                                        WtaChip(
                                             selected = config.proxyMode == mode,
                                             onClick = { onConfigChange(config.copy(proxyMode = mode)) },
-                                            label = { Text(label, style = MaterialTheme.typography.bodySmall) },
-                                            leadingIcon = if (config.proxyMode == mode) {{
-                                                Icon(
-                                                    Icons.Filled.Check,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp)
-                                                )
-                                            }} else null
+                                            label = label,
+                                            showSelectedCheck = false
                                         )
                                     }
                                 }
@@ -1414,10 +1424,11 @@ fun BrowserAdvancedConfigCard(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         listOf("HTTP", "HTTPS", "SOCKS5").forEach { type ->
-                                            FilterChip(
+                                            WtaChip(
                                                 selected = config.proxyType == type,
                                                 onClick = { onConfigChange(config.copy(proxyType = type)) },
-                                                label = { Text(type, style = MaterialTheme.typography.bodySmall) }
+                                                label = type,
+                                                showSelectedCheck = false
                                             )
                                         }
                                     }
@@ -1681,17 +1692,11 @@ fun BrowserAdvancedConfigCard(
                                             "CUSTOM" to "Custom"
                                         )
                                         templates.forEach { (id, label) ->
-                                            FilterChip(
+                                            WtaChip(
                                                 selected = config.tlsFingerprintTemplate == id,
                                                 onClick = { onConfigChange(config.copy(tlsFingerprintTemplate = id)) },
-                                                label = { Text(label, style = MaterialTheme.typography.bodySmall) },
-                                                leadingIcon = if (config.tlsFingerprintTemplate == id) {{
-                                                    Icon(
-                                                        Icons.Filled.Check,
-                                                        contentDescription = null,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }} else null
+                                                label = label,
+                                                showSelectedCheck = false
                                             )
                                         }
                                     }
@@ -1732,6 +1737,26 @@ fun BrowserAdvancedConfigCard(
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.tertiary
                                     )
+
+                                    WtaToggleRow(
+                                        title = Strings.forceHttp3Title,
+                                        subtitle = Strings.forceHttp3Description,
+                                        icon = Icons.Outlined.Bolt,
+                                        checked = config.forceHttp3,
+                                        onCheckedChange = { onConfigChange(config.copy(forceHttp3 = it)) }
+                                    )
+
+                                    AnimatedVisibility(
+                                        visible = config.forceHttp3,
+                                        enter = CardExpandTransition,
+                                        exit = CardCollapseTransition
+                                    ) {
+                                        Text(
+                                            text = Strings.forceHttp3Note,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
 
                                     if (config.proxyMode == "STATIC" &&
                                         (config.proxyType == "SOCKS5" || config.proxyType == "SOCKS")) {
@@ -1899,12 +1924,17 @@ private fun ViewportModeSelector(
         enter = CardExpandTransition,
         exit = CardCollapseTransition
     ) {
-        Column(modifier = Modifier.padding(start = 8.dp, top = 4.dp, bottom = 4.dp)) {
+        Column(
+            modifier = Modifier.padding(
+                horizontal = WtaSpacing.RowHorizontal,
+                vertical = WtaSpacing.ContentGap
+            ),
+            verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+        ) {
             Text(
                 text = Strings.viewportModeDescription,
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = 12.dp)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             val viewportOptions = listOf(
@@ -1916,106 +1946,69 @@ private fun ViewportModeSelector(
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
             ) {
                 viewportOptions.forEach { (mode, pair) ->
                     val (label, icon) = pair
                     val selected = config.viewportMode == mode
-                    FilterChip(
+                    WtaChip(
                         selected = selected,
                         onClick = { onConfigChange(config.copy(viewportMode = mode)) },
-                        label = {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        leadingIcon = if (selected) {
-                            {
-                                Icon(
-                                    icon,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        } else null,
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
+                        label = label,
+                        leadingIcon = if (selected) icon else null,
+                        showSelectedCheck = false
                     )
                 }
             }
 
-            if (config.viewportMode == ViewportMode.CUSTOM) {
-                Spacer(modifier = Modifier.height(12.dp))
+            AnimatedVisibility(
+                visible = config.viewportMode == ViewportMode.CUSTOM,
+                enter = CardExpandTransition,
+                exit = CardCollapseTransition
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)) {
+                    Text(
+                        text = Strings.viewportCustomWidthPresets,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
-                Text(
-                    text = Strings.viewportCustomWidthPresets,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
+                    val presets = listOf(
+                        320 to "Mobile S",
+                        375 to "Mobile",
+                        414 to "Mobile L",
+                        768 to "Tablet",
+                        1024 to "iPad Pro",
+                        1280 to "Laptop",
+                        1920 to "Desktop"
+                    )
+                    val currentWidth = config.customViewportWidth.coerceIn(0, 3840)
+                    val displayWidth = if (currentWidth == 0) 0 else currentWidth
 
-                val presets = listOf(
-                    320 to "Mobile S",
-                    375 to "Mobile",
-                    414 to "Mobile L",
-                    768 to "Tablet",
-                    1024 to "iPad Pro",
-                    1280 to "Laptop",
-                    1920 to "Desktop"
-                )
-                val currentWidth = config.customViewportWidth.coerceIn(0, 3840)
-                val displayWidth = if (currentWidth == 0) 0 else currentWidth
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    presets.forEach { (px, label) ->
-                        val isSelected = displayWidth == px
-                        SuggestionChip(
-                            onClick = {
-                                onConfigChange(config.copy(customViewportWidth = px))
-                            },
-                            label = {
-                                Text(
-                                    text = "$label ($px)",
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            modifier = Modifier.height(28.dp),
-                            colors = SuggestionChipDefaults.suggestionChipColors(
-                                containerColor = if (isSelected)
-                                    MaterialTheme.colorScheme.primaryContainer
-                                else
-                                    MaterialTheme.colorScheme.surfaceVariant,
-                                labelColor = if (isSelected)
-                                    MaterialTheme.colorScheme.onPrimaryContainer
-                                else
-                                    MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            border = if (isSelected) BorderStroke(
-                                1.dp,
-                                MaterialTheme.colorScheme.primary
-                            ) else null
-                        )
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Tiny),
+                        verticalArrangement = Arrangement.spacedBy(WtaSpacing.Tiny)
+                    ) {
+                        presets.forEach { (px, label) ->
+                            val isSelected = displayWidth == px
+                            WtaChip(
+                                selected = isSelected,
+                                onClick = {
+                                    onConfigChange(config.copy(customViewportWidth = px))
+                                },
+                                label = "$label ($px)",
+                                showSelectedCheck = false
+                            )
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
+                    ) {
                     OutlinedTextField(
                         value = if (displayWidth == 0) "" else displayWidth.toString(),
                         onValueChange = { input ->
@@ -2049,6 +2042,7 @@ private fun ViewportModeSelector(
     }
 }
 
+}
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun UserAgentCard(
@@ -2056,188 +2050,158 @@ fun UserAgentCard(
     onConfigChange: (WebViewConfig) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val isEnabled = config.userAgentMode != UserAgentMode.DEFAULT
+    val isCustom = config.userAgentMode == UserAgentMode.CUSTOM
+    val flavor = config.kernelFlavor
+    val isEnabled = isCustom || flavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT
 
-    EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+    val currentUa = when {
+        isCustom -> config.customUserAgent
+        flavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT -> flavor.profile.userAgent
+        else -> null
+    }
+
+    // Picking a flavor is the entire identity decision. It has to clear the custom mode (or a
+    // leftover UA string would keep winning) and switch the kernel disguise on, because the
+    // anti-detection JS that accompanies a flavor is gated behind that flag.
+    fun selectFlavor(choice: com.webtoapp.core.kernel.KernelFlavor) {
+        onConfigChange(
+            config.copy(
+                kernelFlavor = choice,
+                userAgentMode = UserAgentMode.DEFAULT,
+                enableKernelDisguise = if (choice == com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT) {
+                    config.enableKernelDisguise
+                } else {
+                    true
+                }
+            )
+        )
+    }
+
+    WtaSettingCard {
+        Column {
+            WtaChoiceRow(
+                title = Strings.userAgentMode,
+                subtitle = when {
+                    isCustom -> Strings.userAgentCustom
+                    flavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT -> flavor.displayName
+                    else -> Strings.userAgentDefault
+                },
+                icon = Icons.Outlined.Language,
+                value = "",
+                isExpanded = expanded,
+                onClick = { expanded = !expanded }
+            )
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = CardExpandTransition,
+                exit = CardCollapseTransition
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (isEnabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Outlined.Language,
-                            null,
-                            tint = if (isEnabled) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = Strings.userAgentMode,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                        Text(
-                            text = if (isEnabled) config.userAgentMode.displayName else Strings.userAgentDefault,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-                Icon(
-                    if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = null
-                )
-            }
-
-            AnimatedVisibility(visible = expanded) {
-                Column(modifier = Modifier.padding(top = 12.dp)) {
-                Surface(
-                    color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f),
-                    shape = RoundedCornerShape(8.dp)
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Outlined.Info,
-                            null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = Strings.bypassWebViewDetection,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSecondaryContainer
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = Strings.mobileVersion,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        UserAgentMode.DEFAULT to Strings.userAgentDefault,
-                        UserAgentMode.CHROME_MOBILE to "Chrome",
-                        UserAgentMode.SAFARI_MOBILE to "Safari",
-                        UserAgentMode.FIREFOX_MOBILE to "Firefox",
-                        UserAgentMode.EDGE_MOBILE to "Edge"
-                    ).forEach { (mode, name) ->
-                        PremiumFilterChip(
-                            selected = config.userAgentMode == mode,
-                            onClick = { onConfigChange(config.copy(userAgentMode = mode)) },
-                            label = { Text(name) },
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = Strings.desktopVersion,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.tertiary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        UserAgentMode.CHROME_DESKTOP to "Chrome",
-                        UserAgentMode.SAFARI_DESKTOP to "Safari",
-                        UserAgentMode.FIREFOX_DESKTOP to "Firefox",
-                        UserAgentMode.EDGE_DESKTOP to "Edge"
-                    ).forEach { (mode, name) ->
-                        PremiumFilterChip(
-                            selected = config.userAgentMode == mode,
-                            onClick = { onConfigChange(config.copy(userAgentMode = mode)) },
-                            label = { Text(name) },
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                PremiumFilterChip(
-                    selected = config.userAgentMode == UserAgentMode.CUSTOM,
-                    onClick = { onConfigChange(config.copy(userAgentMode = UserAgentMode.CUSTOM)) },
-                    label = { Text(Strings.userAgentCustom) },
-                    leadingIcon = {
-                        Icon(
-                            Icons.Outlined.Edit,
-                            null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    },
-                )
-
-                if (config.userAgentMode == UserAgentMode.CUSTOM) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    PremiumTextField(
-                        value = config.customUserAgent ?: "",
-                        onValueChange = { onConfigChange(config.copy(customUserAgent = it.ifBlank { null })) },
-                        label = { Text("User-Agent") },
-                        placeholder = { Text(Strings.userAgentCustomHint) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = false,
-                        minLines = 2,
-                        maxLines = 4
+                    WtaStatusBanner(
+                        message = Strings.bypassWebViewDetection,
+                        tone = WtaStatusTone.Info
                     )
-                }
 
-                    if (config.userAgentMode != UserAgentMode.DEFAULT && config.userAgentMode != UserAgentMode.CUSTOM) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Surface(
-                            color = MaterialTheme.colorScheme.surfaceVariant,
-                            shape = RoundedCornerShape(8.dp)
+                    Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+                        Text(
+                            text = Strings.mobileVersion,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                Text(
-                                    text = Strings.currentUserAgent,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = config.userAgentMode.userAgentString ?: "",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis
+                            listOf(
+                                com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT to Strings.userAgentDefault,
+                                com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME to "Chrome",
+                                com.webtoapp.core.kernel.KernelFlavor.BLINK_EDGE to "Edge",
+                                com.webtoapp.core.kernel.KernelFlavor.BLINK_SAMSUNG to "Samsung",
+                                com.webtoapp.core.kernel.KernelFlavor.GECKO_FIREFOX to "Firefox",
+                                com.webtoapp.core.kernel.KernelFlavor.WEBKIT_SAFARI to "Safari"
+                            ).forEach { (candidate, name) ->
+                                WtaChip(
+                                    selected = !isCustom && flavor == candidate,
+                                    onClick = { selectFlavor(candidate) },
+                                    label = name,
+                                    showSelectedCheck = false
                                 )
                             }
                         }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+                        Text(
+                            text = Strings.desktopVersion,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
+                        ) {
+                            listOf(
+                                com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME_DESKTOP to "Chrome",
+                                com.webtoapp.core.kernel.KernelFlavor.BLINK_EDGE_DESKTOP to "Edge",
+                                com.webtoapp.core.kernel.KernelFlavor.GECKO_FIREFOX_DESKTOP to "Firefox",
+                                com.webtoapp.core.kernel.KernelFlavor.WEBKIT_SAFARI_DESKTOP to "Safari"
+                            ).forEach { (candidate, name) ->
+                                WtaChip(
+                                    selected = !isCustom && flavor == candidate,
+                                    onClick = { selectFlavor(candidate) },
+                                    label = name,
+                                    showSelectedCheck = false
+                                )
+                            }
+                        }
+                    }
+
+                    WtaChip(
+                        selected = isCustom,
+                        onClick = { onConfigChange(config.copy(userAgentMode = UserAgentMode.CUSTOM)) },
+                        label = Strings.userAgentCustom,
+                        leadingIcon = Icons.Outlined.Edit,
+                        showSelectedCheck = false
+                    )
+
+                    AnimatedVisibility(
+                        visible = isCustom,
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
+                    ) {
+                        PremiumTextField(
+                            value = config.customUserAgent ?: "",
+                            onValueChange = { onConfigChange(config.copy(customUserAgent = it.ifBlank { null })) },
+                            label = { Text("User-Agent") },
+                            placeholder = { Text(Strings.userAgentCustomHint) },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = false,
+                            minLines = 2,
+                            maxLines = 4
+                        )
+                    }
+
+                    AnimatedVisibility(
+                        visible = isEnabled && !isCustom,
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
+                    ) {
+                        WtaStatusBanner(
+                            title = Strings.currentUserAgent,
+                            message = currentUa ?: "",
+                            tone = WtaStatusTone.Info
+                        )
                     }
                 }
             }
@@ -2246,18 +2210,16 @@ fun UserAgentCard(
 }
 
 @Composable
-fun HideBrowserToolbarCard(
+fun BrowserToolbarCard(
     enabled: Boolean,
     webViewConfig: WebViewConfig = WebViewConfig(),
     onEnabledChange: (Boolean) -> Unit,
     onWebViewConfigChange: (WebViewConfig) -> Unit = {}
 ) {
-    var toolbarContentExpanded by remember { mutableStateOf(false) }
-
     WtaSettingCard {
         WtaToggleRow(
             icon = Icons.Outlined.WebAsset,
-            title = Strings.hideBrowserToolbarLabel,
+            title = Strings.browserToolbarLabel,
             checked = enabled,
             onCheckedChange = onEnabledChange
         )
@@ -2269,113 +2231,63 @@ fun HideBrowserToolbarCard(
         ) {
             Column {
                 WtaSectionDivider()
-                WtaChoiceRow(
-                    title = Strings.toolbarContentOptionsLabel,
-                    subtitle = Strings.toolbarContentOptionsHint,
-                    icon = Icons.Outlined.Tune,
-                    value = if (toolbarContentExpanded) Strings.collapse else Strings.expand,
-                    isExpanded = toolbarContentExpanded,
-                    onClick = { toolbarContentExpanded = !toolbarContentExpanded }
-                )
-
-                AnimatedVisibility(
-                    visible = toolbarContentExpanded,
-                    enter = CardExpandTransition,
-                    exit = CardCollapseTransition
-                ) {
-                    Column {
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowTitleLabel,
-                            subtitle = Strings.toolbarShowTitleHint,
-                            checked = webViewConfig.toolbarShowTitle,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowTitle = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowUrlLabel,
-                            subtitle = Strings.toolbarShowUrlHint,
-                            checked = webViewConfig.toolbarShowUrl,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowUrl = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowBackLabel,
-                            checked = webViewConfig.toolbarShowBack,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowBack = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowForwardLabel,
-                            checked = webViewConfig.toolbarShowForward,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowForward = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowRefreshLabel,
-                            checked = webViewConfig.toolbarShowRefresh,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowRefresh = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowConsoleLabel,
-                            checked = webViewConfig.toolbarShowConsole,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowConsole = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowZoomLabel,
-                            checked = webViewConfig.toolbarShowZoom,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowZoom = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.toolbarShowFindLabel,
-                            checked = webViewConfig.toolbarShowFind,
-                            onCheckedChange = {
-                                onWebViewConfigChange(webViewConfig.copy(
-                                    toolbarShowFind = it,
-                                    browserToolbarCustomized = true
-                                ))
-                            }
-                        )
+                WtaToggleRow(
+                    title = Strings.toolbarShowTitleLabel,
+                    subtitle = Strings.toolbarShowTitleHint,
+                    checked = webViewConfig.toolbarShowTitle,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowTitle = it))
                     }
-                }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowUrlLabel,
+                    subtitle = Strings.toolbarShowUrlHint,
+                    checked = webViewConfig.toolbarShowUrl,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowUrl = it))
+                    }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowBackLabel,
+                    checked = webViewConfig.toolbarShowBack,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowBack = it))
+                    }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowForwardLabel,
+                    checked = webViewConfig.toolbarShowForward,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowForward = it))
+                    }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowRefreshLabel,
+                    checked = webViewConfig.toolbarShowRefresh,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowRefresh = it))
+                    }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowConsoleLabel,
+                    checked = webViewConfig.toolbarShowConsole,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowConsole = it))
+                    }
+                )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.toolbarShowFindLabel,
+                    checked = webViewConfig.toolbarShowFind,
+                    onCheckedChange = {
+                        onWebViewConfigChange(webViewConfig.copy(toolbarShowFind = it))
+                    }
+                )
             }
         }
     }
@@ -2395,6 +2307,7 @@ fun FullscreenModeCard(
     onWebViewConfigChange: (WebViewConfig) -> Unit = {}
 ) {
     var statusBarConfigExpanded by remember { mutableStateOf(false) }
+    var statusBarModeTab by remember { mutableStateOf(0) }
 
     WtaSettingCard {
         WtaToggleRow(
@@ -2436,76 +2349,91 @@ fun FullscreenModeCard(
                         )
                     },
                     valueLabel = "${webViewConfig.fullscreenContentPaddingDp}dp",
-                    valueRange = 0f..48f
+                    valueRange = 0f..48f,
+                    presets = listOf("0dp" to 0f, "8dp" to 8f, "16dp" to 16f, "24dp" to 24f)
                 )
 
-                if (showStatusBar) {
-                    WtaSectionDivider()
+                AnimatedVisibility(
+                    visible = showStatusBar,
+                    enter = CardExpandTransition,
+                    exit = CardCollapseTransition
+                ) {
+                    Column {
+                        WtaSectionDivider()
 
-                    WtaChoiceRow(
-                        title = Strings.statusBarStyleConfigLabel,
-                        icon = Icons.Outlined.Tune,
-                        value = if (statusBarConfigExpanded) Strings.collapse else Strings.expand,
-                        onClick = { statusBarConfigExpanded = !statusBarConfigExpanded }
-                    )
+                        WtaChoiceRow(
+                            title = Strings.statusBarCustomizeLabel,
+                            icon = Icons.Outlined.Tune,
+                            value = if (statusBarConfigExpanded) Strings.collapse else Strings.expand,
+                            isExpanded = statusBarConfigExpanded,
+                            onClick = { statusBarConfigExpanded = !statusBarConfigExpanded }
+                        )
 
-                    AnimatedVisibility(
-                        visible = statusBarConfigExpanded,
-                        enter = CardExpandTransition,
-                        exit = CardCollapseTransition
-                    ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            var statusBarModeTab by remember { mutableStateOf(0) }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.Center
+                        AnimatedVisibility(
+                            visible = statusBarConfigExpanded,
+                            enter = CardExpandTransition,
+                            exit = CardCollapseTransition
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(
+                                    horizontal = WtaSpacing.RowHorizontal,
+                                    vertical = WtaSpacing.ContentGap
+                                ),
+                                verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)
                             ) {
-                                FilterChip(
-                                    selected = statusBarModeTab == 0,
-                                    onClick = { statusBarModeTab = 0 },
-                                    label = { Text(Strings.statusBarLightModeLabel) }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                FilterChip(
-                                    selected = statusBarModeTab == 1,
-                                    onClick = { statusBarModeTab = 1 },
-                                    label = { Text(Strings.statusBarDarkModeLabel) }
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(8.dp))
-                            if (statusBarModeTab == 0) {
-                                StatusBarConfigCard(
-                                    config = webViewConfig,
-                                    onConfigChange = onWebViewConfigChange
-                                )
-                            } else {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
+                                ) {
+                                    WtaChip(
+                                        selected = statusBarModeTab == 0,
+                                        onClick = { statusBarModeTab = 0 },
+                                        label = Strings.statusBarLightModeLabel,
+                                        modifier = Modifier.weight(1f),
+                                        showSelectedCheck = false
+                                    )
+                                    WtaChip(
+                                        selected = statusBarModeTab == 1,
+                                        onClick = { statusBarModeTab = 1 },
+                                        label = Strings.statusBarDarkModeLabel,
+                                        modifier = Modifier.weight(1f),
+                                        showSelectedCheck = false
+                                    )
+                                }
+                                if (statusBarModeTab == 0) {
+                                    StatusBarConfigCard(
+                                        config = webViewConfig,
+                                        onConfigChange = onWebViewConfigChange
+                                    )
+                                } else {
 
-                                StatusBarConfigCard(
-                                    config = webViewConfig.copy(
-                                        statusBarColorMode = webViewConfig.statusBarColorModeDark,
-                                        statusBarColor = webViewConfig.statusBarColorDark,
-                                        statusBarDarkIcons = webViewConfig.statusBarDarkIconsDark,
-                                        statusBarBackgroundType = webViewConfig.statusBarBackgroundTypeDark,
-                                        statusBarBackgroundImage = webViewConfig.statusBarBackgroundImageDark,
-                                        statusBarBackgroundAlpha = webViewConfig.statusBarBackgroundAlphaDark
-                                    ),
-                                    onConfigChange = { newConfig ->
-                                        onWebViewConfigChange(
-                                            webViewConfig.copy(
-                                                statusBarColorModeDark = newConfig.statusBarColorMode,
-                                                statusBarColorDark = newConfig.statusBarColor,
-                                                statusBarDarkIconsDark = newConfig.statusBarDarkIcons ?: false,
-                                                statusBarBackgroundTypeDark = newConfig.statusBarBackgroundType,
-                                                statusBarBackgroundImageDark = newConfig.statusBarBackgroundImage,
-                                                statusBarBackgroundAlphaDark = newConfig.statusBarBackgroundAlpha
+                                    StatusBarConfigCard(
+                                        config = webViewConfig.copy(
+                                            statusBarColorMode = webViewConfig.statusBarColorModeDark,
+                                            statusBarColor = webViewConfig.statusBarColorDark,
+                                            statusBarDarkIcons = webViewConfig.statusBarDarkIconsDark,
+                                            statusBarBackgroundType = webViewConfig.statusBarBackgroundTypeDark,
+                                            statusBarBackgroundImage = webViewConfig.statusBarBackgroundImageDark,
+                                            statusBarBackgroundAlpha = webViewConfig.statusBarBackgroundAlphaDark
+                                        ),
+                                        onConfigChange = { newConfig ->
+                                            onWebViewConfigChange(
+                                                webViewConfig.copy(
+                                                    statusBarColorModeDark = newConfig.statusBarColorMode,
+                                                    statusBarColorDark = newConfig.statusBarColor,
+                                                    statusBarDarkIconsDark = newConfig.statusBarDarkIcons,
+                                                    statusBarBackgroundTypeDark = newConfig.statusBarBackgroundType,
+                                                    statusBarBackgroundImageDark = newConfig.statusBarBackgroundImage,
+                                                    statusBarBackgroundAlphaDark = newConfig.statusBarBackgroundAlpha,
+                                                    // statusBarHeightDp is a shared (non-per-theme)
+                                                    // field: the dark tab edits it in place, so it
+                                                    // must be written back like the light tab does.
+                                                    statusBarHeightDp = newConfig.statusBarHeightDp
+                                                )
                                             )
-                                        )
-                                    }
-                                )
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
@@ -2825,8 +2753,8 @@ fun KeepScreenOnCard(
 
                     AnimatedVisibility(
                         visible = screenAwakeMode == com.webtoapp.data.model.ScreenAwakeMode.TIMED,
-                        enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(300)),
-                        exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(300))
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
                     ) {
                         Column {
                             WtaSectionDivider()
@@ -2841,20 +2769,19 @@ fun KeepScreenOnCard(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .horizontalScroll(rememberScrollState()),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    .horizontalScroll(rememberScrollState())
+                                    .padding(
+                                        horizontal = WtaSpacing.RowHorizontal,
+                                        vertical = WtaSpacing.ContentGap
+                                    ),
+                                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                             ) {
                                 listOf(10, 30, 60, 120).forEach { minutes ->
-                                    val isPresetSelected = screenAwakeTimeoutMinutes == minutes
-                                    FilterChip(
-                                        selected = isPresetSelected,
+                                    WtaChip(
+                                        selected = screenAwakeTimeoutMinutes == minutes,
                                         onClick = { onScreenAwakeTimeoutChange(minutes) },
-                                        label = {
-                                            Text(
-                                                text = Strings.screenAwakeTimeoutValue(minutes),
-                                                style = MaterialTheme.typography.labelSmall
-                                            )
-                                        }
+                                        label = Strings.screenAwakeTimeoutValue(minutes),
+                                        showSelectedCheck = false
                                     )
                                 }
                             }
@@ -2878,47 +2805,37 @@ fun KeepScreenOnCard(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            .horizontalScroll(rememberScrollState())
+                            .padding(
+                                horizontal = WtaSpacing.RowHorizontal,
+                                vertical = WtaSpacing.ContentGap
+                            ),
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                     ) {
                         val isAuto = screenBrightness < 0
-                        FilterChip(
+                        WtaChip(
                             selected = isAuto,
                             onClick = { onScreenBrightnessChange(-1) },
-                            label = { Text(Strings.screenBrightnessAuto) },
-                            leadingIcon = if (isAuto) {
-                                {
-                                    Icon(
-                                        Icons.Filled.CheckCircle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null
+                            label = Strings.screenBrightnessAuto,
+                            showSelectedCheck = false
                         )
-                        FilterChip(
+                        WtaChip(
                             selected = !isAuto,
                             onClick = { if (isAuto) onScreenBrightnessChange(80) },
-                            label = { Text(Strings.screenBrightnessManual) },
-                            leadingIcon = if (!isAuto) {
-                                {
-                                    Icon(
-                                        Icons.Filled.CheckCircle,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            } else null
+                            label = Strings.screenBrightnessManual,
+                            showSelectedCheck = false
                         )
                     }
 
                     AnimatedVisibility(
                         visible = screenBrightness >= 0,
-                        enter = fadeIn(animationSpec = tween(200)) + expandVertically(animationSpec = tween(300)),
-                        exit = fadeOut(animationSpec = tween(200)) + shrinkVertically(animationSpec = tween(300))
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = WtaSpacing.RowHorizontal),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
@@ -3000,32 +2917,23 @@ fun KeyboardAdjustModeCard(
 
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
             ) {
                 modes.forEach { (m, label) ->
-                    PremiumFilterChip(
+                    WtaChip(
                         selected = mode == m,
                         onClick = { onModeChange(m) },
-                        label = { Text(label) }
+                        label = label,
+                        showSelectedCheck = false
                     )
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Outlined.Info,
-                    null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = hintText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            WtaStatusBanner(
+                message = hintText,
+                tone = WtaStatusTone.Info
+            )
         }
     }
 }
@@ -3061,21 +2969,19 @@ fun ErrorPageConfigCard(
                 modifier = Modifier.padding(
                     horizontal = WtaSpacing.RowHorizontal,
                     vertical = WtaSpacing.ContentGap
-                )
+                ),
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)
             ) {
                     Text(
                         text = Strings.errorPageSubtitle,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(bottom = 4.dp)
+                        color = MaterialTheme.colorScheme.primary
                     )
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                        verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                     ) {
                         val modes = listOf(
                             com.webtoapp.core.errorpage.ErrorPageMode.BUILTIN_STYLE to Strings.errorPageModeBuiltIn,
@@ -3084,10 +2990,11 @@ fun ErrorPageConfigCard(
                             com.webtoapp.core.errorpage.ErrorPageMode.SUPPRESSED to Strings.errorPageModeSuppressed
                         )
                         modes.forEach { (mode, label) ->
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = config.mode == mode,
                                 onClick = { onConfigChange(config.copy(mode = mode)) },
-                                label = { Text(label) }
+                                label = label,
+                                showSelectedCheck = false
                             )
                         }
                     }
@@ -3097,21 +3004,17 @@ fun ErrorPageConfigCard(
                         enter = CardExpandTransition,
                         exit = CardCollapseTransition
                     ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(12.dp))
-
+                        Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)) {
                             Text(
                                 text = Strings.errorPageStyleLabel,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
                             )
-
-                            Spacer(modifier = Modifier.height(8.dp))
 
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                                verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                             ) {
                                 val styles = listOf(
                                     com.webtoapp.core.errorpage.ErrorPageStyle.MATERIAL to Strings.errorPageStyleMaterial,
@@ -3122,15 +3025,14 @@ fun ErrorPageConfigCard(
                                     com.webtoapp.core.errorpage.ErrorPageStyle.NEON to Strings.errorPageStyleNeon
                                 )
                                 styles.forEach { (style, label) ->
-                                    PremiumFilterChip(
+                                    WtaChip(
                                         selected = config.builtInStyle == style,
                                         onClick = { onConfigChange(config.copy(builtInStyle = style)) },
-                                        label = { Text(label) }
+                                        label = label,
+                                        showSelectedCheck = false
                                     )
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(12.dp))
 
                             WtaToggleRow(
                                 title = Strings.errorPageMiniGameLabel,
@@ -3144,13 +3046,11 @@ fun ErrorPageConfigCard(
                                 enter = CardExpandTransition,
                                 exit = CardCollapseTransition
                             ) {
-                                Column {
-                                    Spacer(modifier = Modifier.height(8.dp))
-
+                                Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
                                     FlowRow(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                                        verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                                     ) {
                                         val games = listOf(
                                             com.webtoapp.core.errorpage.MiniGameType.RANDOM to Strings.errorPageGameRandom,
@@ -3160,10 +3060,11 @@ fun ErrorPageConfigCard(
                                             com.webtoapp.core.errorpage.MiniGameType.INK_ZEN to Strings.errorPageGameInkZen
                                         )
                                         games.forEach { (type, label) ->
-                                            PremiumFilterChip(
+                                            WtaChip(
                                                 selected = config.miniGameType == type,
                                                 onClick = { onConfigChange(config.copy(miniGameType = type)) },
-                                                label = { Text(label) }
+                                                label = label,
+                                                showSelectedCheck = false
                                             )
                                         }
                                     }
@@ -3177,13 +3078,10 @@ fun ErrorPageConfigCard(
                         enter = CardExpandTransition,
                         exit = CardCollapseTransition
                     ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            CustomHtmlEditorRow(
-                                customHtml = config.customHtml,
-                                onCustomHtmlChange = { onConfigChange(config.copy(customHtml = it)) }
-                            )
-                        }
+                        CustomHtmlEditorRow(
+                            customHtml = config.customHtml,
+                            onCustomHtmlChange = { onConfigChange(config.copy(customHtml = it)) }
+                        )
                     }
 
                     AnimatedVisibility(
@@ -3191,16 +3089,11 @@ fun ErrorPageConfigCard(
                         enter = CardExpandTransition,
                         exit = CardCollapseTransition
                     ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            CustomMediaPickerRow(
-                                customMediaPath = config.customMediaPath,
-                                onCustomMediaPathChange = { onConfigChange(config.copy(customMediaPath = it)) }
-                            )
-                        }
+                        CustomMediaPickerRow(
+                            customMediaPath = config.customMediaPath,
+                            onCustomMediaPathChange = { onConfigChange(config.copy(customMediaPath = it)) }
+                        )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
 
                     WtaToggleRow(
                         title = Strings.errorPageAutoRetryLabel,
@@ -3218,9 +3111,7 @@ fun ErrorPageConfigCard(
                         enter = CardExpandTransition,
                         exit = CardCollapseTransition
                     ) {
-                        Column {
-                            Spacer(modifier = Modifier.height(8.dp))
-
+                        Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Tiny)) {
                             Text(
                                 text = "${config.autoRetrySeconds}${Strings.seconds}",
                                 style = MaterialTheme.typography.labelLarge,
@@ -3233,11 +3124,7 @@ fun ErrorPageConfigCard(
                                     onConfigChange(config.copy(autoRetrySeconds = it.toInt()))
                                 },
                                 valueRange = 5f..60f,
-                                steps = 10,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary
-                                )
+                                steps = 10
                             )
                         }
                     }
@@ -3391,6 +3278,66 @@ fun SpecialSettingsCard(
                                 checked = config.antiCapture,
                                 onCheckedChange = { onConfigChange(config.copy(antiCapture = it)) }
                             )
+                            WtaSectionDivider()
+                            WtaToggleRow(
+                                title = Strings.hideStatusBarInVideoFullscreenTitle,
+                                subtitle = Strings.hideStatusBarInVideoFullscreenDesc,
+                                icon = Icons.Outlined.HideImage,
+                                checked = config.hideStatusBarInVideoFullscreen,
+                                onCheckedChange = { onConfigChange(config.copy(hideStatusBarInVideoFullscreen = it)) }
+                            )
+
+                            WtaSectionDivider()
+                            WtaToggleRow(
+                                title = Strings.appReturnTitle,
+                                subtitle = Strings.appReturnDesc,
+                                icon = Icons.Outlined.Link,
+                                checked = config.enableAppReturn,
+                                onCheckedChange = { onConfigChange(config.copy(enableAppReturn = it)) }
+                            )
+
+                            AnimatedVisibility(
+                                visible = config.enableAppReturn,
+                                enter = CardExpandTransition,
+                                exit = CardCollapseTransition
+                            ) {
+                                var customSchemesText by remember(config.customAppReturnSchemes) {
+                                    mutableStateOf(config.customAppReturnSchemes.joinToString("\n"))
+                                }
+                                Column(
+                                    modifier = Modifier.padding(
+                                        horizontal = WtaSpacing.RowHorizontal,
+                                        vertical = WtaSpacing.ContentGap
+                                    )
+                                ) {
+                                    Text(
+                                        text = Strings.appReturnCustomSchemesLabel,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                    Text(
+                                        text = Strings.appReturnCustomSchemesHint,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(bottom = 4.dp)
+                                    )
+                                    PremiumTextField(
+                                        value = customSchemesText,
+                                        onValueChange = { newText ->
+                                            customSchemesText = newText
+                                            val schemes = newText.split("\n", ",", " ")
+                                                .map { it.trim() }
+                                                .filter { it.isNotBlank() }
+                                            onConfigChange(config.copy(customAppReturnSchemes = schemes))
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = false,
+                                        minLines = 2,
+                                        maxLines = 4
+                                    )
+                                }
+                            }
                         }
                     }
 
@@ -3462,37 +3409,6 @@ fun SpecialSettingsCard(
                                 ),
                                 selected = config.kernelDisguiseLevel,
                                 onSelect = { onConfigChange(config.copy(kernelDisguiseLevel = it)) }
-                            )
-                        }
-
-                        SpecialAdvancedRow(
-                            title = Strings.kernelFlavorTitle,
-                            subtitle = Strings.kernelFlavorDesc,
-                            icon = Icons.Outlined.Public,
-                            checked = config.kernelFlavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT,
-                            onCheckedChange = { enabled ->
-                                onConfigChange(
-                                    config.copy(
-                                        kernelFlavor = if (enabled) {
-                                            com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME
-                                        } else {
-                                            com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT
-                                        }
-                                    )
-                                )
-                            }
-                        ) {
-                            ChoiceChipRow(
-                                label = Strings.kernelFlavorLabel,
-                                options = listOf(
-                                    com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME to Strings.kernelFlavorChrome,
-                                    com.webtoapp.core.kernel.KernelFlavor.BLINK_EDGE to Strings.kernelFlavorEdge,
-                                    com.webtoapp.core.kernel.KernelFlavor.BLINK_SAMSUNG to Strings.kernelFlavorSamsung,
-                                    com.webtoapp.core.kernel.KernelFlavor.GECKO_FIREFOX to Strings.kernelFlavorFirefox,
-                                    com.webtoapp.core.kernel.KernelFlavor.WEBKIT_SAFARI to Strings.kernelFlavorSafari
-                                ),
-                                selected = config.kernelFlavor,
-                                onSelect = { onConfigChange(config.copy(kernelFlavor = it)) }
                             )
                         }
 
@@ -3595,129 +3511,157 @@ fun SpecialSettingsCard(
                             Text(
                                 text = Strings.nativeBridgeCapabilitiesTitle,
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+                                color = MaterialTheme.colorScheme.primary
                             )
 
                             FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                                verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                             ) {
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.clipboard,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(clipboard = !caps.clipboard))) },
-                                    label = { Text(Strings.nativeBridgeCapsClipboard) }
+                                    label = Strings.nativeBridgeCapsClipboard,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.vibration,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(vibration = !caps.vibration))) },
-                                    label = { Text(Strings.nativeBridgeCapsVibration) }
+                                    label = Strings.nativeBridgeCapsVibration,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.geolocation,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(geolocation = !caps.geolocation))) },
-                                    label = { Text(Strings.nativeBridgeCapsGeolocation) }
+                                    label = Strings.nativeBridgeCapsGeolocation,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.brightness,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(brightness = !caps.brightness))) },
-                                    label = { Text(Strings.nativeBridgeCapsBrightness) }
+                                    label = Strings.nativeBridgeCapsBrightness,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.notification,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(notification = !caps.notification))) },
-                                    label = { Text(Strings.nativeBridgeCapsNotification) }
+                                    label = Strings.nativeBridgeCapsNotification,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.notificationScheduled,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(notificationScheduled = !caps.notificationScheduled))) },
-                                    label = { Text(Strings.nativeBridgeCapsNotificationScheduled) }
+                                    label = Strings.nativeBridgeCapsNotificationScheduled,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.notificationPersistent,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(notificationPersistent = !caps.notificationPersistent))) },
-                                    label = { Text(Strings.nativeBridgeCapsNotificationPersistent) }
+                                    label = Strings.nativeBridgeCapsNotificationPersistent,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.download,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(download = !caps.download))) },
-                                    label = { Text(Strings.nativeBridgeCapsDownload) }
+                                    label = Strings.nativeBridgeCapsDownload,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.privateNetwork,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(privateNetwork = !caps.privateNetwork))) },
-                                    label = { Text(Strings.nativeBridgeCapsPrivateNetwork) }
+                                    label = Strings.nativeBridgeCapsPrivateNetwork,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.screenWake,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(screenWake = !caps.screenWake))) },
-                                    label = { Text(Strings.nativeBridgeCapsScreenWake) }
+                                    label = Strings.nativeBridgeCapsScreenWake,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.openExternal,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(openExternal = !caps.openExternal))) },
-                                    label = { Text(Strings.nativeBridgeCapsOpenExternal) }
+                                    label = Strings.nativeBridgeCapsOpenExternal,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.deviceInfo,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(deviceInfo = !caps.deviceInfo))) },
-                                    label = { Text(Strings.nativeBridgeCapsDeviceInfo) }
+                                    label = Strings.nativeBridgeCapsDeviceInfo,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.securityInfo,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(securityInfo = !caps.securityInfo))) },
-                                    label = { Text(Strings.nativeBridgeCapsSecurityInfo) }
+                                    label = Strings.nativeBridgeCapsSecurityInfo,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.networkInfo,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(networkInfo = !caps.networkInfo))) },
-                                    label = { Text(Strings.nativeBridgeCapsNetworkInfo) }
+                                    label = Strings.nativeBridgeCapsNetworkInfo,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.toast,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(toast = !caps.toast))) },
-                                    label = { Text(Strings.nativeBridgeCapsToast) }
+                                    label = Strings.nativeBridgeCapsToast,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.logging,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(logging = !caps.logging))) },
-                                    label = { Text(Strings.nativeBridgeCapsLogging) }
+                                    label = Strings.nativeBridgeCapsLogging,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.findInPage,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(findInPage = !caps.findInPage))) },
-                                    label = { Text(Strings.nativeBridgeCapsFindInPage) }
+                                    label = Strings.nativeBridgeCapsFindInPage,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.orientation,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(orientation = !caps.orientation))) },
-                                    label = { Text(Strings.nativeBridgeCapsOrientation) }
+                                    label = Strings.nativeBridgeCapsOrientation,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.fullscreen,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(fullscreen = !caps.fullscreen))) },
-                                    label = { Text(Strings.nativeBridgeCapsFullscreen) }
+                                    label = Strings.nativeBridgeCapsFullscreen,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.print,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(print = !caps.print))) },
-                                    label = { Text(Strings.nativeBridgeCapsPrint) }
+                                    label = Strings.nativeBridgeCapsPrint,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.screenCapture,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(screenCapture = !caps.screenCapture))) },
-                                    label = { Text(Strings.nativeBridgeCapsScreenCapture) }
+                                    label = Strings.nativeBridgeCapsScreenCapture,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.pip,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(pip = !caps.pip))) },
-                                    label = { Text(Strings.nativeBridgeCapsPip) }
+                                    label = Strings.nativeBridgeCapsPip,
+                                    showSelectedCheck = false
                                 )
-                                FilterChip(
+                                WtaChip(
                                     selected = caps.rating,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(rating = !caps.rating))) },
-                                    label = { Text(Strings.nativeBridgeCapsRating) }
+                                    label = Strings.nativeBridgeCapsRating,
+                                    showSelectedCheck = false
+                                )
+                                WtaChip(
+                                    selected = caps.googleSignIn,
+                                    onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(googleSignIn = !caps.googleSignIn))) },
+                                    label = Strings.nativeBridgeCapsGoogleSignIn,
+                                    showSelectedCheck = false
                                 )
                             }
                         }
@@ -3749,7 +3693,7 @@ fun SpecialSettingsCard(
                                         onValueChange = {
                                             onConfigChange(config.copy(ratingTriggerDays = it.toInt().coerceIn(1, 30)))
                                         },
-                                     valueLabel = Strings.ratingDaysLabel(config.ratingTriggerDays),
+                                        valueLabel = Strings.ratingDaysLabel(config.ratingTriggerDays),
                                         valueRange = 1f..30f
                                     )
                                     WtaSliderRow(
@@ -3758,8 +3702,32 @@ fun SpecialSettingsCard(
                                         onValueChange = {
                                             onConfigChange(config.copy(ratingTriggerLaunches = it.toInt().coerceIn(1, 20)))
                                         },
-                                     valueLabel = Strings.ratingLaunchesLabel(config.ratingTriggerLaunches),
+                                        valueLabel = Strings.ratingLaunchesLabel(config.ratingTriggerLaunches),
                                         valueRange = 1f..20f
+                                    )
+                                }
+                            }
+                        }
+
+                        if (config.nativeBridgeCapabilities.googleSignIn) {
+                            AnimatedVisibility(
+                                visible = caps.googleSignIn,
+                                enter = CardExpandTransition,
+                                exit = CardCollapseTransition
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+                                    Text(
+                                        text = Strings.googleSignInHint,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    PremiumTextField(
+                                        value = caps.googleSignInClientId,
+                                        onValueChange = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(googleSignInClientId = it))) },
+                                        label = { Text(Strings.googleSignInClientIdLabel) },
+                                        placeholder = { Text(Strings.googleSignInClientIdPlaceholder) },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        singleLine = true
                                     )
                                 }
                             }
@@ -3996,6 +3964,14 @@ fun SpecialSettingsCard(
                             )
                             WtaSectionDivider()
                             WtaToggleRow(
+                                title = Strings.ignoreSslErrorsTitle,
+                                subtitle = Strings.ignoreSslErrorsDesc,
+                                icon = Icons.Outlined.GppBad,
+                                checked = config.errorPageConfig.ignoreSslErrors,
+                                onCheckedChange = { onConfigChange(config.copy(errorPageConfig = config.errorPageConfig.copy(ignoreSslErrors = it))) }
+                            )
+                            WtaSectionDivider()
+                            WtaToggleRow(
                                 title = Strings.showRenderCrashErrorUiTitle,
                                 subtitle = Strings.showRenderCrashErrorUiDesc,
                                 icon = Icons.Outlined.BrokenImage,
@@ -4036,12 +4012,10 @@ private fun SpecialAdvancedRow(
             ) {
                 Column(
                     modifier = Modifier.padding(
-                        start = WtaSpacing.RowHorizontal,
-                        end = WtaSpacing.RowHorizontal,
-                        top = 4.dp,
-                        bottom = 12.dp
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
                     ),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap),
                     content = content
                 )
             }
@@ -4057,22 +4031,23 @@ private fun <T> ChoiceChipRow(
     selected: T,
     onSelect: (T) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.primary
         )
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
         ) {
             options.forEach { (value, text) ->
-                FilterChip(
+                WtaChip(
                     selected = selected == value,
                     onClick = { onSelect(value) },
-                    label = { Text(text) }
+                    label = text,
+                    showSelectedCheck = false
                 )
             }
         }
@@ -4121,8 +4096,7 @@ private fun FailoverAdvancedRow(
         Text(
             text = Strings.failoverUrlsLabel,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+            color = MaterialTheme.colorScheme.primary
         )
 
         com.webtoapp.ui.components.WtaReorderableUrlList(
@@ -4133,52 +4107,56 @@ private fun FailoverAdvancedRow(
             addButtonText = Strings.failoverAddUrl,
         )
 
-        Spacer(Modifier.height(12.dp))
-
         Text(
             text = Strings.failoverTriggersLabel,
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(bottom = 4.dp)
+            color = MaterialTheme.colorScheme.primary
         )
         FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
         ) {
             val triggers = config.failoverTriggers
-            FilterChip(
+            WtaChip(
                 selected = triggers.networkError,
                 onClick = {
                     onConfigChange(config.copy(failoverTriggers = triggers.copy(networkError = !triggers.networkError)))
                 },
-                label = { Text(Strings.failoverTriggerNetworkError) }
+                label = Strings.failoverTriggerNetworkError,
+                showSelectedCheck = false
             )
-            FilterChip(
+            WtaChip(
                 selected = triggers.http5xx,
                 onClick = {
                     onConfigChange(config.copy(failoverTriggers = triggers.copy(http5xx = !triggers.http5xx)))
                 },
-                label = { Text(Strings.failoverTriggerHttp5xx) }
+                label = Strings.failoverTriggerHttp5xx,
+                showSelectedCheck = false
             )
-            FilterChip(
+            WtaChip(
                 selected = triggers.http4xx,
                 onClick = {
                     onConfigChange(config.copy(failoverTriggers = triggers.copy(http4xx = !triggers.http4xx)))
                 },
-                label = { Text(Strings.failoverTriggerHttp4xx) }
+                label = Strings.failoverTriggerHttp4xx,
+                showSelectedCheck = false
             )
-            FilterChip(
+            WtaChip(
                 selected = triggers.timeout,
                 onClick = {
                     onConfigChange(config.copy(failoverTriggers = triggers.copy(timeout = !triggers.timeout)))
                 },
-                label = { Text(Strings.failoverTriggerTimeout) }
+                label = Strings.failoverTriggerTimeout,
+                showSelectedCheck = false
             )
         }
 
-        if (config.failoverTriggers.timeout) {
-            Spacer(Modifier.height(8.dp))
+        AnimatedVisibility(
+            visible = config.failoverTriggers.timeout,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
+        ) {
             IntegerField(
                 label = Strings.failoverTimeoutSecondsLabel,
                 value = config.failoverTimeoutSeconds,

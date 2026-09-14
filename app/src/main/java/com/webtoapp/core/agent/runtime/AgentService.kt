@@ -97,7 +97,23 @@ class AgentService : Service() {
     }
 
     fun start(request: AgentRequest) {
-        turnJob?.cancel()
+        // A still-running previous turn gets preempted here: finalize it exactly like
+        // cancel() would (drop/finalize the draft, no orphaned running tool cards) —
+        // turnJob.cancel() alone skips the aborted-turn finalization entirely.
+        if (turnJob?.isActive == true) {
+            abortController?.abort()
+            val prevJob = turnJob
+            val prevSessionId = currentSessionId
+            val prevStore = currentStore
+            val prevAcc = currentAccumulator
+            scope.launch {
+                kotlinx.coroutines.withTimeoutOrNull(ABORT_PERSIST_GRACE_MS) { prevJob?.join() }
+                prevJob?.cancel()
+                if (prevStore != null && prevSessionId != null && prevAcc != null) {
+                    runCatching { persistAbortedTurn(prevStore, prevSessionId, prevAcc) }
+                }
+            }
+        }
         promoteToForeground(Strings.agentNotifRunning)
         acquireWakeLock()
         _isRunning.value = true
@@ -107,6 +123,9 @@ class AgentService : Service() {
         val store = request.sessionStore
         val sessionId = request.sessionId
         val accumulator = TurnAccumulator(sessionId)
+        currentSessionId = sessionId
+        currentStore = store
+        currentAccumulator = accumulator
 
         _activeTurn.value = TurnSnapshot(
             sessionId = sessionId,
@@ -153,18 +172,31 @@ class AgentService : Service() {
                     }
                 }
             } catch (t: Throwable) {
+                if (t is kotlinx.coroutines.CancellationException) {
+                    // Normal cancellation (user cancel / turn preemption): the abort
+                    // paths persist the turn; broadcasting Failed would reset a live
+                    // successor turn's UI state in the ViewModel.
+                    throw t
+                }
                 val ev = AgentEvent.Failed(t.message ?: "service crashed")
                 _events.emit(ev)
                 if (store != null) {
                     runCatching { persistEvent(store, sessionId, accumulator, ev) }
                 }
             } finally {
-                _isRunning.value = false
+                // Only clear state if THIS turn is still the active one — a cancelled
+                // turn's finally can run after a new start() installed its snapshot,
+                // and blindly flipping isRunning would corrupt the new turn's state.
+                if (currentSessionId == sessionId) {
+                    _isRunning.value = false
+                }
+                if (currentSessionId == sessionId && _activeTurn.value?.sessionId == sessionId) {
+                    _activeTurn.value = _activeTurn.value?.copy(isRunning = false)
+                }
                 releaseWakeLock()
-                abortController = null
-                // Keep the final snapshot briefly so a UI that rebinds right at the
-                // boundary can still observe the finished draft; clear the running flag.
-                _activeTurn.value = _activeTurn.value?.copy(isRunning = false)
+                if (abortController == null || currentSessionId == sessionId) {
+                    abortController = null
+                }
             }
         }
     }
@@ -282,17 +314,67 @@ class AgentService : Service() {
                 _activeTurn.value = null
             }
             is AgentEvent.PermissionDenied, is AgentEvent.Usage, is AgentEvent.Notice,
-            is AgentEvent.ApkBuilt,
+            is AgentEvent.ApkBuilt, is AgentEvent.AppChanged,
             AgentEvent.Started -> {
                 // No persistence impact.
             }
         }
     }
 
+    private var currentSessionId: String? = null
+    private var currentStore: SessionStore? = null
+    private var currentAccumulator: TurnAccumulator? = null
+
     fun cancel() {
+        // Signal abort FIRST so the engine's own abort checkpoints (AgentEvent.Aborted)
+        // fire while the flow is still alive and the collector can persist the turn.
         abortController?.abort()
-        turnJob?.cancel()
+        val job = turnJob
+        val sessionId = currentSessionId
+        val store = currentStore
+        val acc = currentAccumulator
+        if (job != null) {
+            // Give the engine a short window to emit Aborted (and let this collector
+            // persist it) before the job is killed outright.
+            scope.launch {
+                kotlinx.coroutines.withTimeoutOrNull(ABORT_PERSIST_GRACE_MS) { job.join() }
+                job.cancel()
+            }
+        }
+        if (store != null && sessionId != null && acc != null) {
+            // Belt-and-braces persistence in case the engine was suspended somewhere
+            // that never observes the abort flag: finalize (or drop) the draft here so
+            // no orphaned "running" draft with phantom tool entries survives.
+            scope.launch {
+                kotlinx.coroutines.withTimeoutOrNull(ABORT_PERSIST_GRACE_MS) {
+                    runCatching { persistAbortedTurn(store, sessionId, acc) }
+                }
+            }
+        }
         _isRunning.value = false
+    }
+
+    /**
+     * Fallback finalization for an aborted turn, mirroring the engine's Aborted branch:
+     * finalize the draft as aborted, or drop it when nothing substantive accumulated.
+     * Safe to race with the engine's own Aborted handling — both paths produce the same
+     * final message for the same draftId, and finalizeDraft is an upsert.
+     */
+    private suspend fun persistAbortedTurn(store: SessionStore, sessionId: String, acc: TurnAccumulator) {
+        acc.finishRunningToolsAsAborted()
+        val msg = acc.buildFinalMessage(
+            summaryFallback = null,
+            isError = true,
+            errorSuffix = null,
+            aborted = true
+        )
+        if (msg != null) {
+            store.finalizeDraft(sessionId, msg)
+            _activeTurn.value = null
+        } else {
+            acc.draftId?.let { store.dropDraft(sessionId, it) }
+            _activeTurn.value = null
+        }
     }
 
     override fun onDestroy() {
@@ -304,28 +386,33 @@ class AgentService : Service() {
     }
 
     private fun ensureChannel() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (nm.getNotificationChannel(CHANNEL_ID) == null) {
-            nm.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, Strings.agentTitle, NotificationManager.IMPORTANCE_LOW)
-            )
-        }
+        com.webtoapp.util.SafeNotificationChannels.ensure(
+            context = this,
+            id = CHANNEL_ID,
+            name = Strings.agentTitle,
+            importance = android.app.NotificationManager.IMPORTANCE_LOW
+        )
     }
 
     private fun promoteToForeground(text: String) {
         if (inForeground) return
         val notification = buildNotification(text)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC
+                )
+            } else {
+                startForeground(NOTIFICATION_ID, notification)
+            }
+            inForeground = true
+        } catch (e: Exception) {
+            // Background FGS starts are throttled from Android 12 on; failing to promote
+            // must not crash the agent loop — keep running un-promoted instead.
+            com.webtoapp.core.logging.AppLogger.w("AgentService", "startForeground failed: ${e.message}")
         }
-        inForeground = true
     }
 
     private fun buildNotification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
@@ -383,6 +470,7 @@ class AgentService : Service() {
 
     companion object {
         private const val TAG = "AgentService"
+        private const val ABORT_PERSIST_GRACE_MS = 2000L
         private const val CHANNEL_ID = "aicoding_agent_v3"
         private const val NOTIFICATION_ID = 1201
         private const val WAKE_LOCK_TIMEOUT_MS = 20L * 60 * 1000
@@ -394,7 +482,7 @@ class AgentService : Service() {
  * persisted as a draft (and finalized) independently of any UI scope. Mirrors the
  * ViewModel's in-memory buffers but is purely data-oriented and persistence-driven.
  */
-private class TurnAccumulator(private val sessionId: String) {
+internal class TurnAccumulator(private val sessionId: String) {
     private val text = StringBuilder()
     private val thinkingSegments = mutableListOf<ThinkingSegment>()
     private val tools = LinkedHashMap<String, RecordedToolCall>()
@@ -486,6 +574,24 @@ private class TurnAccumulator(private val sessionId: String) {
     }
 
     /**
+     * Marks tools still showing the running sentinel as failed/aborted so a cancelled
+     * turn doesn't persist phantom "running" tool entries in the session history.
+     */
+    fun finishRunningToolsAsAborted() {
+        val keys = tools.keys.toList()
+        keys.forEach { id ->
+            val t = tools[id] ?: return@forEach
+            if (t.resultPreview == RecordedToolCall.RUNNING_SENTINEL) {
+                tools[id] = t.copy(
+                    resultPreview = Strings.agentAbortedHint,
+                    ok = false
+                )
+            }
+        }
+        toolArgs.clear()
+    }
+
+    /**
      * Throttled draft upsert. Writes at most once per [FLUSH_INTERVAL_MS], unless
      * [force] is set (used for tool-finish boundaries and other durable events).
      */
@@ -529,8 +635,15 @@ private class TurnAccumulator(private val sessionId: String) {
         val raw = text.toString().trim()
         val joined = joinedThinking()
         val segs = buildThinkingSegmentData()
-        val hasSubstance = stripAllMarkers(raw).isNotBlank() || !joined.isNullOrBlank() || tools.isNotEmpty()
-        if (!hasSubstance) return null
+        val fallbackText = stripAllMarkers(summaryFallback.orEmpty()).trim()
+        // A turn that produced no streamed substance still owes a durable record when
+        // it ended abnormally (errorSuffix) or completed with an explicit summary
+        // (the engine's empty-response notice): returning null here is what made a
+        // fast request failure look like a silent empty response. Only a substance-less
+        // ABORT may still be dropped — the user cancelled deliberately.
+        val hasSubstance = stripAllMarkers(raw).isNotBlank() || !joined.isNullOrBlank() ||
+            tools.isNotEmpty() || fallbackText.isNotBlank()
+        if (!hasSubstance && errorSuffix == null) return null
 
         val baseText = if (stripAllMarkers(raw).isNotBlank()) raw
                        else stripAllMarkers(summaryFallback.orEmpty()).trim()
@@ -593,7 +706,10 @@ private class TurnAccumulator(private val sessionId: String) {
     }
 
     companion object {
-        private const val FLUSH_INTERVAL_MS = 200L
+        // Draft persistence cadence: each flush rewrites the whole sessions blob in
+        // DataStore, so this trades crash-recovery granularity against streaming-time
+        // serialization cost (500ms keeps at most ~1s of output at risk).
+        private const val FLUSH_INTERVAL_MS = 500L
         private const val PREVIEW_CAP = 2000
     }
 }

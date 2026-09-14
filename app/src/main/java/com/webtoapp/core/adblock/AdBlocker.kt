@@ -4,13 +4,19 @@ import android.content.Context
 import android.net.Uri
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 class AdBlocker {
 
@@ -38,7 +44,7 @@ class AdBlocker {
 
     private data class NetworkFilter(
         val pattern: String,
-        val regex: Regex?,
+        val regexSource: String?,
         val isException: Boolean,
         val matchCase: Boolean,
 
@@ -54,7 +60,28 @@ class AdBlocker {
         val anchorDomain: String?,
 
         val rawRule: String = ""
-    )
+    ) {
+        // Compiled on first MATCH, not at import: a 100k-rule list (AdGuard Base
+        // is 6.4MB) would otherwise pin ~100MB+ of Pattern objects and OOM
+        // 256MB-heap devices on import — and twice that at export, which builds
+        // a second engine. Most rules never match a given device's traffic.
+        // Body property: excluded from equals/hashCode/copy.
+        @Volatile
+        private var compiledRegex: Regex? = null
+        @Volatile
+        private var compileAttempted: Boolean = false
+
+        fun regex(): Regex? {
+            if (compileAttempted) return compiledRegex
+            synchronized(this) {
+                if (!compileAttempted) {
+                    compiledRegex = regexSource?.let { compileTranslatedRegex(it, matchCase) }
+                    compileAttempted = true
+                }
+                return compiledRegex
+            }
+        }
+    }
 
     data class CosmeticFilter(
         val selector: String,
@@ -62,7 +89,16 @@ class AdBlocker {
         val domains: Set<String>,
         val excludedDomains: Set<String>,
 
-        val rawRule: String = ""
+        val rawRule: String = "",
+        /** Body of a uBO `:style(...)` pseudo: restyle matches instead of hiding them. */
+        val styleOverride: String? = null,
+        /** AdGuard `#$#` payload: a complete CSS rule injected for the anchor domains. */
+        val injectedCss: String? = null,
+        /** Procedural pseudo-class chain (`t:text`, `u:arg`, `r`) evaluated in page JS;
+         *  [selector] then holds only the plain-CSS base part. */
+        val proceduralOps: List<String>? = null,
+        /** Full selector text including procedural pseudos, for exception matching. */
+        val proceduralRaw: String? = null
     )
 
     companion object {
@@ -70,6 +106,50 @@ class AdBlocker {
         private val HOST_EXTRACT_REGEX = Regex("^(?:https?://)?([^/:]+)")
         private val WHITESPACE_REGEX = Regex("\\s+")
         private val ABP_SEPARATOR_REGEX = Regex("[^\\w%.\\-]")
+
+        private const val STYLE_PSEUDO = ":style("
+
+        /** uBO-only procedural pseudo-classes. They are not valid CSS and have no
+         *  DOM-equivalent here, so rules using them are dropped at parse time instead
+         *  of reaching the injected stylesheet, where one invalid selector would
+         *  invalidate the whole comma-joined batch it lands in (#823). */
+        private val PROCEDURAL_PSEUDO_CLASSES = listOf(
+            ":has-text(", ":not-text(", ":matches-css(", ":matches-css-before(", ":matches-css-after(",
+            ":matches-attr(", ":matches-media(", ":matches-path(", ":matches-prop(",
+            ":xpath(", ":remove(", ":remove-attr(", ":watch-attr(", ":watch-attrs(",
+            ":upward(", ":downward(", ":nth-ancestor(", ":min-text-length(",
+            ":others(", ":lcs(", ":lcss(", ":pattern("
+        )
+
+        private val LIST_TITLE_REGEX = Regex("(?i)^!\\s*Title\\s*:\\s*(.+)$")
+
+        private val EXPIRES_REGEX = Regex("(?i)^!\\s*Expires\\s*:\\s*(\\d+)\\s*(days?|hours?|d|h)\\b")
+
+        const val MIN_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000L
+        const val MAX_REFRESH_INTERVAL_MS = 14 * 24 * 60 * 60 * 1000L
+        const val DEFAULT_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        private const val REFRESH_FAILURE_BACKOFF_MS = 60 * 60 * 1000L
+
+        /** Refresh interval from an ABP `! Expires: N days|hours` header, clamped so a
+         *  hostile or typo'd header cannot hot-loop or pin a subscription. */
+        fun expiresIntervalMs(content: String): Long =
+            content.lineSequence().take(25)
+                .firstNotNullOfOrNull { line ->
+                    EXPIRES_REGEX.matchEntire(line.trim())?.let { m ->
+                        val n = m.groupValues[1].toLongOrNull() ?: return@let null
+                        val hours = if (m.groupValues[2].lowercase().startsWith("d")) n * 24 else n
+                        hours * 60 * 60 * 1000L
+                    }
+                }
+                ?.coerceIn(MIN_REFRESH_INTERVAL_MS, MAX_REFRESH_INTERVAL_MS)
+                ?: DEFAULT_REFRESH_INTERVAL_MS
+
+        /** Display title from an ABP/uBO list header (`! Title: ...`), if present. */
+        private fun extractListTitle(content: String): String? =
+            content.lineSequence().take(25)
+                .firstNotNullOfOrNull { LIST_TITLE_REGEX.matchEntire(it.trim())?.groupValues?.get(1)?.trim() }
+                ?.takeIf { it.isNotEmpty() }
+                ?.take(120)
 
         private val SAFELIST_HOSTS = setOf(
 
@@ -661,9 +741,6 @@ class AdBlocker {
         val BLOCKED_JS_BYTES = "/* blocked */".toByteArray()
         val BLOCKED_CSS_BYTES = "/* blocked */".toByteArray()
         val BLOCKED_JSON_BYTES = "{}".toByteArray()
-
-        private const val MAX_ABP_PATTERN_LEN = 1024
-        private val MAX_CONSECUTIVE_STARS_REGEX = Regex("\\*{2,}(?:\\^\\*{2,})?")
     }
 
     private val exactHosts = mutableSetOf<String>()
@@ -677,6 +754,23 @@ class AdBlocker {
      *  sources resolve their names from [getPopularHostsSources] instead. */
     private val customSourceNames = mutableMapOf<String, String>()
 
+    /** Subscription freshness metadata (registry v3 columns): epoch ms of the last
+     *  successful download and the per-list refresh interval derived from `! Expires:`. */
+    private val sourceLastRefresh = mutableMapOf<String, Long>()
+    private val sourceIntervals = mutableMapOf<String, Long>()
+
+    /** In-memory failure backoff so a dead list URL is not re-fetched on every page load. */
+    private val sourceRefreshFailures = mutableMapOf<String, Long>()
+
+    private val engineMutex = Mutex()
+    private val refreshRunning = AtomicBoolean(false)
+    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /** Parameters of the last [prepareRuntimeFilters] call, so a background refresh can
+     *  rebuild the exact same rule universe after re-downloading due sources. */
+    private var lastPrepSelected: List<String> = emptyList()
+    private var lastPrepCustomRules: List<String> = emptyList()
+
     private val networkBlockFilters = mutableListOf<NetworkFilter>()
     private val networkExceptionFilters = mutableListOf<NetworkFilter>()
 
@@ -684,9 +778,45 @@ class AdBlocker {
 
     private val exceptionAnchorDomainIndex = HashMap<String, MutableList<Int>>()
 
+    /**
+     * Indices of filters without an [NetworkFilter.anchorDomain] per filter list, so
+     * [matchesAnyNetworkFilter] walks only the un-indexed remainder instead of scanning
+     * the whole list (including anchored rules) on every request.
+     */
+    private val unanchoredFilterIndex = HashMap<List<NetworkFilter>, List<Int>>()
+
+    private fun rebuildUnanchoredIndex() {
+        unanchoredFilterIndex[networkBlockFilters] = networkBlockFilters
+            .withIndex().filter { it.value.anchorDomain == null }.map { it.index }
+        unanchoredFilterIndex[networkExceptionFilters] = networkExceptionFilters
+            .withIndex().filter { it.value.anchorDomain == null }.map { it.index }
+    }
+
     @Suppress("serial")
-    private val blockResultCache = object : LinkedHashMap<Int, Boolean>(256, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, Boolean>?): Boolean = size > 512
+    private val blockResultCache = object : LinkedHashMap<Int, Boolean>(512, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<Int, Boolean>?): Boolean = size > 2048
+    }
+
+    // Memoized per-host CSS/scriptlets. Building them scans every cosmetic rule
+    // on every page load; rules only change via initialize()/setEnabled()/
+    // subscription edits (all funnel through invalidateCache()), so a version
+    // counter keeps this correct without per-navigation rebuilds.
+    @Volatile
+    private var cosmeticVersion = 0
+    private data class CosmeticEntry(
+        val version: Int,
+        val css: String,
+        val script: String,
+        val hideBatches: List<String>,
+        val proceduralJs: String
+    )
+    private val cosmeticCache = object : LinkedHashMap<String, CosmeticEntry>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, CosmeticEntry>?): Boolean = size > 128
+    }
+
+    private fun bumpCosmeticVersion() {
+        cosmeticVersion++
+        synchronized(cosmeticCache) { cosmeticCache.clear() }
     }
 
     private val cosmeticBlockFilters = mutableListOf<CosmeticFilter>()
@@ -703,6 +833,7 @@ class AdBlocker {
         enabled = enable
         if (!enable) blockedCount = 0L
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
     fun isEnabled(): Boolean = enabled
 
@@ -711,6 +842,7 @@ class AdBlocker {
 
     fun invalidateCache() {
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
 
     fun initialize(customRules: List<String> = emptyList(), useDefaultRules: Boolean = false) {
@@ -733,6 +865,8 @@ class AdBlocker {
         }
 
         customRules.forEach { parseAndAddRule(it) }
+        rebuildUnanchoredIndex()
+        bumpCosmeticVersion()
     }
 
     fun shouldBlock(
@@ -757,7 +891,14 @@ class AdBlocker {
 
         if (ESSENTIAL_RESOURCE_REGEX.containsMatchIn(lowerUrl)) return false
 
-        val cacheKey = lowerUrl.hashCode() xor (if (isThirdParty) 0x9e3779b9.toInt() else 0)
+        // Cache key must include pageHost + resource type: exception rules like
+        // @@||ads.com$domain=example.com give different results per page.
+        // Including them makes the cache correct across navigations, so callers
+        // must NOT clear it on every page load (only on rule changes).
+        var cacheKey = url.hashCode()
+        cacheKey = cacheKey * 31 + (pageHost?.hashCode() ?: 0)
+        cacheKey = cacheKey * 31 + resType.ordinal
+        cacheKey = cacheKey * 31 + (if (isThirdParty) 1 else 0)
         synchronized(blockResultCache) {
             val cached = blockResultCache[cacheKey]
             if (cached != null) {
@@ -847,14 +988,79 @@ class AdBlocker {
 
     fun getCosmeticFilterCss(pageHost: String): String {
         if (!enabled) return ""
+        return cosmeticEntry(pageHost).css
+    }
 
-        val exceptionSelectors = cosmeticExceptionFilters
+    private fun cosmeticEntry(pageHost: String): CosmeticEntry {
+        val v = cosmeticVersion
+        synchronized(cosmeticCache) {
+            val hit = cosmeticCache[pageHost]
+            if (hit != null && hit.version == v) return hit
+        }
+        val (css, hideBatches) = buildCosmeticRules(pageHost)
+        val entry = CosmeticEntry(v, css, buildAntiAdblockScript(pageHost), hideBatches, buildProceduralJs(pageHost))
+        synchronized(cosmeticCache) { cosmeticCache[pageHost] = entry }
+        return entry
+    }
+
+    /**
+     * Page-side JS literal for procedural cosmetic rules (`:has-text()`, `:upward()`,
+     * `:remove()`): `[{"b":baseSelector,"o":["t:text","u:2","r"],"a":removeFlag}]`,
+     * evaluated by the observer script injected in WebViewManager.
+     */
+    fun getCosmeticProceduralRulesJs(pageHost: String): String {
+        if (!enabled) return "[]"
+        return cosmeticEntry(pageHost).proceduralJs
+    }
+
+    private fun buildProceduralJs(pageHost: String): String {
+        val exceptionRaws = cosmeticExceptionFilters
             .filter { matchesCosmeticDomain(it, pageHost) }
+            .mapNotNull { it.proceduralRaw }
+            .toSet()
+        val rules = cosmeticBlockFilters.filter {
+            it.proceduralOps != null && matchesCosmeticDomain(it, pageHost) && it.proceduralRaw !in exceptionRaws
+        }
+        if (rules.isEmpty()) return "[]"
+        return rules.joinToString(",", "[", "]") { f ->
+            val ops = f.proceduralOps.orEmpty()
+            val remove = if (ops.any { it == "r" }) 1 else 0
+            """{"b":${jsonString(f.selector)},"o":[${ops.joinToString(",") { jsonString(it) }}],"a":$remove}"""
+        }
+    }
+
+    private fun jsonString(value: String): String =
+        '"' + value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t") + '"'
+
+    /**
+     * Comma-joined selector batches backing the hide rules of [getCosmeticFilterCss],
+     * one entry per generated CSS rule. The DOM observer queries per batch so a single
+     * invalid selector list cannot skip hiding for the remaining batches (#823).
+     */
+    fun getCosmeticHideBatches(pageHost: String): List<String> {
+        if (!enabled) return emptyList()
+        return cosmeticEntry(pageHost).hideBatches
+    }
+
+    private fun buildCosmeticRules(pageHost: String): Pair<String, List<String>> {
+
+        // Procedural exceptions cancel by full raw selector (see buildProceduralJs),
+        // not by base selector, so they must not leak into the plain-hide exception set.
+        val exceptionSelectors = cosmeticExceptionFilters
+            .filter { it.proceduralOps == null && matchesCosmeticDomain(it, pageHost) }
             .map { it.selector }
             .toSet()
 
         val selectors = cosmeticBlockFilters
-            .filter { matchesCosmeticDomain(it, pageHost) && it.selector !in exceptionSelectors }
+            .filter {
+                it.styleOverride == null && it.proceduralOps == null &&
+                    matchesCosmeticDomain(it, pageHost) && it.selector !in exceptionSelectors
+            }
             .map { it.selector }
             .distinct()
             .toMutableList()
@@ -902,16 +1108,40 @@ class AdBlocker {
             }
         }
 
-        if (selectors.isEmpty()) return ""
+        // Style overrides ship as standalone rules: they restyle elements, and mixing
+        // them into a hide batch would hide what the list only wants recolored.
+        val styleRules = cosmeticBlockFilters
+            .filter { it.styleOverride != null && matchesCosmeticDomain(it, pageHost) && it.selector !in exceptionSelectors }
+            .map { "${it.selector} { ${it.styleOverride} }" }
+
+        // AdGuard `#$#` payloads are complete CSS rules of their own.
+        val exceptionCss = cosmeticExceptionFilters
+            .filter { matchesCosmeticDomain(it, pageHost) }
+            .mapNotNull { it.injectedCss }
+            .toSet()
+        val injectedRules = cosmeticBlockFilters
+            .filter { it.injectedCss != null && matchesCosmeticDomain(it, pageHost) && it.injectedCss !in exceptionCss }
+            .map { it.injectedCss!! }
 
         val batchSize = 50
-        return selectors.chunked(batchSize).joinToString("\n") { batch ->
-            batch.joinToString(",\n") + " { display: none !important; visibility: hidden !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important; }"
-        }
+        val hideBatches = selectors.chunked(batchSize).map { it.joinToString(",\n") }
+        val css = buildString {
+            hideBatches.forEach { batch ->
+                append(batch)
+                append(" { display: none !important; visibility: hidden !important; height: 0 !important; min-height: 0 !important; overflow: hidden !important; }\n")
+            }
+            styleRules.forEach { append(it).append('\n') }
+            injectedRules.forEach { append(it).append('\n') }
+        }.trimEnd()
+        return css to hideBatches
     }
 
     fun getAntiAdblockScript(pageHost: String): String {
         if (!enabled) return ""
+        return cosmeticEntry(pageHost).script
+    }
+
+    private fun buildAntiAdblockScript(pageHost: String): String {
 
         val applicableScriptlets = scriptletRules.filter { (domains, _) ->
             domains.isEmpty() || domains.any { d ->
@@ -1016,6 +1246,7 @@ class AdBlocker {
             val count = parseFilterContent(content)
             sourceRuleCounts[sourceKey] = count
         }
+        rebuildUnanchoredIndex()
     }
 
     fun getStats(): Map<String, Int> = mapOf(
@@ -1038,7 +1269,9 @@ class AdBlocker {
         cosmeticBlockFilters.clear()
         cosmeticExceptionFilters.clear()
         scriptletRules.clear()
+        unanchoredFilterIndex.clear()
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
 
     private fun ingestFilterContent(sourceKey: String, content: String): Int {
@@ -1062,29 +1295,126 @@ class AdBlocker {
         enabled: Boolean,
         customRules: List<String> = emptyList(),
         subscriptionUrls: List<String> = emptyList()
-    ) {
+    ) = engineMutex.withLock {
         if (!enabled) {
             setEnabled(false)
-            return
+            return@withLock
         }
         val selected = subscriptionUrls.map { it.trim() }.filter { it.isNotEmpty() }
+        lastPrepSelected = selected
+        lastPrepCustomRules = customRules
         if (selected.isEmpty()) {
             loadHostsRules(context)
             customRules.forEach { parseAndAddRule(it) }
             setEnabled(true)
-            return
+            kickSourceRefresh(context, refreshableKeys(selected))
+            return@withLock
         }
-        resetEngineRules()
-        for (sourceKey in selected) {
-            val content = loadSourceContent(context, sourceKey)
-            if (content != null) {
-                ingestFilterContent(sourceKey, content)
-            } else if (sourceKey.startsWith("http://") || sourceKey.startsWith("https://")) {
-                importHostsFromUrl(sourceKey, context)
+        reingestSelected(context, selected, customRules)
+        setEnabled(true)
+        kickSourceRefresh(context, refreshableKeys(selected))
+    }
+
+    /** http(s) sources eligible for background refresh: this app's subscriptions plus
+     *  whatever Hosts Blocking has enabled, since both feed the compiled rule set. */
+    private fun refreshableKeys(selected: List<String>): List<String> =
+        (selected + enabledHostsSources)
+            .filter { it.startsWith("http://") || it.startsWith("https://") }
+            .distinct()
+
+    private fun kickSourceRefresh(context: Context, keys: List<String>) {
+        if (keys.isEmpty() || !refreshRunning.compareAndSet(false, true)) return
+        refreshScope.launch {
+            try {
+                refreshDueSources(context, keys)
+            } catch (e: Exception) {
+                com.webtoapp.core.logging.AppLogger.e("AdBlocker", "Background subscription refresh failed", e)
+            } finally {
+                refreshRunning.set(false)
             }
         }
+    }
+
+    /**
+     * Re-downloads every source whose `! Expires:` interval has elapsed and rebuilds the
+     * engine from the fresh on-disk content. Fail-soft per source: a failed download
+     * backs off for an hour and keeps the previously ingested content. Safe to call from
+     * the background [kickSourceRefresh] coroutine — the rebuild phase takes the engine
+     * mutex so it never races a concurrent [prepareRuntimeFilters].
+     *
+     * @param forceNetwork bypass the 24h URL cache; tests pass false to serve updates
+     *   from the cache instead of the network.
+     * @return true when at least one source's content changed and the engine was rebuilt.
+     */
+    suspend fun refreshDueSources(
+        context: Context,
+        keys: List<String>,
+        forceNetwork: Boolean = true
+    ): Boolean = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        var changed = false
+        for (key in keys) {
+            val interval = sourceIntervals[key] ?: DEFAULT_REFRESH_INTERVAL_MS
+            val last = sourceLastRefresh[key] ?: 0L
+            if (now - last < interval) continue
+            val failedAt = sourceRefreshFailures[key]
+            if (failedAt != null && now - failedAt < REFRESH_FAILURE_BACKOFF_MS) continue
+
+            val before = loadSourceContent(context, key)
+            val result = importHostsFromUrl(key, context, forceNetwork = forceNetwork)
+            if (result.isSuccess) {
+                if (loadSourceContent(context, key) != before) changed = true
+            } else {
+                sourceRefreshFailures[key] = now
+                com.webtoapp.core.logging.AppLogger.w(
+                    "AdBlocker",
+                    "Subscription refresh failed for $key: ${result.exceptionOrNull()?.message}"
+                )
+            }
+        }
+        if (changed) {
+            engineMutex.withLock {
+                rebuildEngine(context)
+            }
+        }
+        changed
+    }
+
+    private suspend fun reingestSelected(context: Context, selected: List<String>, customRules: List<String>) {
+        resetEngineRules()
+        for (sourceKey in selected) {
+            ingestSourceKey(context, sourceKey)
+        }
         customRules.forEach { parseAndAddRule(it) }
-        setEnabled(true)
+        rebuildUnanchoredIndex()
+    }
+
+    /** Rebuild after a refresh: same rule universe as the last [prepareRuntimeFilters]. */
+    private suspend fun rebuildEngine(context: Context) {
+        resetEngineRules()
+        if (lastPrepSelected.isEmpty()) {
+            val legacy = File(context.filesDir, "adblock_hosts.txt")
+            if (legacy.exists()) hostsFileHosts.addAll(legacy.readLines().filter { it.isNotBlank() })
+            for (key in enabledHostsSources.toList()) {
+                ingestSourceKey(context, key)
+            }
+        } else {
+            for (key in lastPrepSelected) {
+                ingestSourceKey(context, key)
+            }
+        }
+        lastPrepCustomRules.forEach { parseAndAddRule(it) }
+        rebuildUnanchoredIndex()
+        saveCompiledStateToCache(context)
+    }
+
+    private suspend fun ingestSourceKey(context: Context, sourceKey: String) {
+        val content = loadSourceContent(context, sourceKey)
+        if (content != null) {
+            ingestFilterContent(sourceKey, content)
+        } else if (sourceKey.startsWith("http://") || sourceKey.startsWith("https://")) {
+            importHostsFromUrl(sourceKey, context)
+        }
     }
 
     suspend fun compileRulesText(
@@ -1121,7 +1451,9 @@ class AdBlocker {
 
     fun addRule(rule: String) {
         parseAndAddRule(rule)
+        rebuildUnanchoredIndex()
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
 
     fun removeRule(rule: String) {
@@ -1130,7 +1462,9 @@ class AdBlocker {
         networkExceptionFilters.removeAll { it.rawRule == rule }
         cosmeticBlockFilters.removeAll { it.rawRule == rule }
         cosmeticExceptionFilters.removeAll { it.rawRule == rule }
+        rebuildUnanchoredIndex()
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
 
     fun clearRules() {
@@ -1143,6 +1477,7 @@ class AdBlocker {
         cosmeticExceptionFilters.clear()
         scriptletRules.clear()
         blockResultCache.clear()
+        bumpCosmeticVersion()
     }
 
     fun clearHostsFileRules() {
@@ -1151,6 +1486,7 @@ class AdBlocker {
         disabledHostsSources.clear()
         sourceRuleCounts.clear()
         synchronized(blockResultCache) { blockResultCache.clear() }
+        bumpCosmeticVersion()
     }
 
     fun getEnabledHostsSources(): Set<String> = enabledHostsSources.toSet()
@@ -1199,39 +1535,77 @@ class AdBlocker {
         return decoded.ifBlank { null }
     }
 
+    /** Cosmetic / injection delimiters, longest first so `#@?#` wins over `#@`-prefixed
+     *  shorter matches when scanning. */
+    private val RULE_DELIMITERS = listOf("#@$#", "#$#", "#@?#", "#?#", "#@#", "##")
+
     private fun parseAndAddRule(rawRule: String) {
         val rule = rawRule.trim()
         if (rule.isEmpty() || rule.startsWith("!") || rule.startsWith("[")) return
 
-        val cosmeticExIdx = rule.indexOf("#@#")
-        val cosmeticIdx = if (cosmeticExIdx < 0) rule.indexOf("##") else -1
-
-        if (cosmeticExIdx >= 0) {
-            parseCosmeticFilter(rule, cosmeticExIdx, "#@#", isException = true)
-            return
-        }
-        if (cosmeticIdx >= 0 && !rule.startsWith("||")) {
-            parseCosmeticFilter(rule, cosmeticIdx, "##", isException = false)
-            return
-        }
-
-        if (rule.contains("#%#//scriptlet(")) {
+        // Scriptlets first: `##+js(...)` and `#%#//scriptlet(...)` also contain cosmetic
+        // delimiters, and parsing them as selectors yielded invalid CSS that poisoned
+        // hide batches while the scriptlet parsers below were unreachable dead code.
+        if (rule.contains("##+js(") || rule.contains("#%#//scriptlet(")) {
             parseScriptletRule(rule)
             return
         }
+        // Scriptlet exceptions are unsupported; drop them instead of letting the
+        // `+js(...)` payload reach the stylesheet as an invalid selector.
+        if (rule.contains("#@#+js(") || rule.contains("#@#//scriptlet(")) return
 
-        if (rule.contains("##+js(")) {
-            parseScriptletRule(rule)
+        if (rule.startsWith("||")) {
+            parseNetworkFilter(rule)
             return
         }
 
-        parseNetworkFilter(rule)
+        val (idx, delim) = RULE_DELIMITERS
+            .map { d -> rule.indexOf(d) to d }
+            .filter { it.first >= 0 }
+            .minByOrNull { it.first }
+            ?: run {
+                parseNetworkFilter(rule)
+                return
+            }
+
+        when (delim) {
+            "#$#", "#@$#" -> parseCssInjection(rule, idx, delim, isException = delim == "#@$#")
+            else -> parseCosmeticFilter(rule, idx, delim, isException = delim.startsWith("#@"))
+        }
     }
 
     private fun parseCosmeticFilter(rule: String, idx: Int, delimiter: String, isException: Boolean) {
         val domainPart = rule.substring(0, idx)
-        val selector = rule.substring(idx + delimiter.length).trim()
+        var selector = rule.substring(idx + delimiter.length).trim()
         if (selector.isEmpty()) return
+
+        // uBO style override (`##sel:style(decl)`): restyle matches instead of hiding
+        // them. The pseudo is not valid CSS, so it must never reach the stylesheet raw.
+        var styleOverride: String? = null
+        val styleIdx = selector.lastIndexOf(STYLE_PSEUDO)
+        if (styleIdx >= 0 && selector.endsWith(")")) {
+            val body = selector.substring(styleIdx + STYLE_PSEUDO.length, selector.length - 1)
+            selector = selector.substring(0, styleIdx).trim()
+            // Braces in the body would terminate the generated CSS rule early.
+            val normalizedBody = body.replace("{", "").replace("}", "").trim()
+            styleOverride = if (normalizedBody.endsWith(";")) normalizedBody else "$normalizedBody;"
+            if (selector.isEmpty() || styleOverride.isEmpty()) return
+        }
+
+        var proceduralOps: List<String>? = null
+        var proceduralRaw: String? = null
+        val proc = parseProceduralSelector(selector)
+        if (proc != null) {
+            proceduralOps = proc.ops
+            proceduralRaw = selector
+            selector = proc.base
+        } else if (PROCEDURAL_PSEUDO_CLASSES.any { selector.contains(it) } ||
+            SUPPORTED_PROCEDURAL_PSEUDOS.any { selector.contains(it) }
+        ) {
+            // Unsupported or nested procedural syntax is not valid CSS; ingesting it
+            // raw would invalidate the whole comma-joined batch it lands in (#823).
+            return
+        }
 
         val (domains, excludedDomains) = parseDomainList(domainPart)
 
@@ -1240,7 +1614,91 @@ class AdBlocker {
             isException = isException,
             domains = domains,
             excludedDomains = excludedDomains,
-            rawRule = rule
+            rawRule = rule,
+            styleOverride = styleOverride,
+            proceduralOps = proceduralOps,
+            proceduralRaw = proceduralRaw
+        )
+
+        if (isException) cosmeticExceptionFilters.add(filter)
+        else cosmeticBlockFilters.add(filter)
+    }
+
+    /** Procedural pseudo-classes implemented by the page-side observer script. */
+    private val SUPPORTED_PROCEDURAL_PSEUDOS = listOf(":has-text(", ":upward(", ":remove(")
+
+    private data class ProceduralParse(val base: String, val ops: List<String>)
+
+    /**
+     * Splits a selector into its plain-CSS base and a chain of top-level procedural
+     * pseudo-classes (`:has-text()`, `:upward()`, `:remove()`), encoded as `t:text`,
+     * `u:arg` and `r` ops. Returns null — i.e. "drop the rule" — when the syntax is
+     * unsupported: pseudos nested inside another pseudo (e.g. `:has(span:has-text(x))`),
+     * text between pseudos, unbalanced parens, or an empty base selector.
+     */
+    private fun parseProceduralSelector(selector: String): ProceduralParse? {
+        var depth = 0
+        var nested = false
+        val tops = mutableListOf<Pair<Int, String>>()
+        for (i in selector.indices) {
+            when {
+                selector[i] == '(' -> depth++
+                selector[i] == ')' -> depth--
+                else -> SUPPORTED_PROCEDURAL_PSEUDOS.firstOrNull { selector.startsWith(it, i) }?.let { name ->
+                    if (depth == 0) tops.add(i to name) else nested = true
+                }
+            }
+        }
+        if (nested || tops.isEmpty()) return null
+
+        val base = selector.substring(0, tops.first().first).trim()
+        if (base.isEmpty()) return null
+
+        val ops = mutableListOf<String>()
+        var cursor = tops.first().first
+        for ((idx, name) in tops) {
+            if (idx != cursor) return null
+            val open = idx + name.length - 1
+            var d = 0
+            var j = open
+            while (j < selector.length) {
+                if (selector[j] == '(') d++
+                else if (selector[j] == ')') {
+                    d--
+                    if (d == 0) break
+                }
+                j++
+            }
+            if (j >= selector.length) return null
+            val arg = selector.substring(open + 1, j).trim()
+            ops.add(
+                when (name) {
+                    ":has-text(" -> "t:$arg"
+                    ":upward(" -> "u:$arg"
+                    else -> "r"
+                }
+            )
+            cursor = j + 1
+        }
+        if (cursor != selector.length) return null
+        return ProceduralParse(base, ops)
+    }
+
+    /** AdGuard CSS-injection rule (`domain#$#rule`, cancelled by `domain#@$#rule`). */
+    private fun parseCssInjection(rule: String, idx: Int, delimiter: String, isException: Boolean) {
+        val domainPart = rule.substring(0, idx)
+        val css = rule.substring(idx + delimiter.length).trim()
+        if (css.isEmpty() || !css.contains("{") || !css.contains("}")) return
+
+        val (domains, excludedDomains) = parseDomainList(domainPart)
+
+        val filter = CosmeticFilter(
+            selector = "",
+            isException = isException,
+            domains = domains,
+            excludedDomains = excludedDomains,
+            rawRule = rule,
+            injectedCss = css
         )
 
         if (isException) cosmeticExceptionFilters.add(filter)
@@ -1273,7 +1731,7 @@ class AdBlocker {
         if (dollarIdx > 0) {
 
             val beforeDollar = raw.substring(0, dollarIdx)
-            if (!beforeDollar.contains('/') || beforeDollar.count { it == '/' } % 2 == 0) {
+            if (isValidModifierPart(raw.substring(dollarIdx + 1))) {
                 patternPart = beforeDollar
                 modifierPart = raw.substring(dollarIdx + 1)
             }
@@ -1326,11 +1784,11 @@ class AdBlocker {
             return
         }
 
-        val regex = compileAbpPattern(patternPart, matchCase)
+        val regexSource = translateAbpPattern(patternPart)
 
         val filter = NetworkFilter(
             pattern = patternPart,
-            regex = regex,
+            regexSource = regexSource,
             isException = isException,
             matchCase = matchCase,
             domains = domainConstraints,
@@ -1343,60 +1801,50 @@ class AdBlocker {
             rawRule = rule
         )
 
+        if (anchorDomain != null && !anchorDomain.contains('*')) {
+            if (isException) {
+                val idx = networkExceptionFilters.size
+                networkExceptionFilters.add(filter)
+                exceptionAnchorDomainIndex.getOrPut(anchorDomain) { mutableListOf() }.add(idx)
+            } else {
+                val idx = networkBlockFilters.size
+                networkBlockFilters.add(filter)
+                anchorDomainIndex.getOrPut(anchorDomain) { mutableListOf() }.add(idx)
+            }
+            return
+        }
+
         if (isException) {
             val idx = networkExceptionFilters.size
             networkExceptionFilters.add(filter)
-
-            if (anchorDomain != null && !anchorDomain.contains('*')) {
-                exceptionAnchorDomainIndex.getOrPut(anchorDomain) { mutableListOf() }.add(idx)
-            }
+            unanchoredFilterIndex[networkExceptionFilters] =
+                (unanchoredFilterIndex[networkExceptionFilters] ?: emptyList()) + idx
         } else {
             val idx = networkBlockFilters.size
             networkBlockFilters.add(filter)
-
-            if (anchorDomain != null && !anchorDomain.contains('*')) {
-                anchorDomainIndex.getOrPut(anchorDomain) { mutableListOf() }.add(idx)
-            }
+            unanchoredFilterIndex[networkBlockFilters] =
+                (unanchoredFilterIndex[networkBlockFilters] ?: emptyList()) + idx
         }
     }
 
-    private fun compileAbpPattern(pattern: String, matchCase: Boolean): Regex? {
-        if (pattern.isEmpty()) return null
-        if (pattern.length > MAX_ABP_PATTERN_LEN) return null
-        if (MAX_CONSECUTIVE_STARS_REGEX.containsMatchIn(pattern)) return null
-        return try {
-            var p = pattern
-
-            if (p.startsWith("/") && p.endsWith("/") && p.length > 2) {
-                val options = if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE)
-                return Regex(p.substring(1, p.length - 1), options)
-            }
-
-            p = p.replace("\\", "\\\\")
-                .replace(".", "\\.")
-                .replace("+", "\\+")
-                .replace("?", "\\?")
-                .replace("{", "\\{")
-                .replace("}", "\\}")
-                .replace("(", "\\(")
-                .replace(")", "\\)")
-                .replace("[", "\\[")
-                .replace("]", "\\]")
-
-            p = p.replace("||", "^(?:https?|wss?)://(?:[^/]*\\.)?")
-
-            if (p.startsWith("|")) p = "^" + p.removePrefix("|")
-
-            if (p.endsWith("|")) p = p.removeSuffix("|") + "$"
-
-            p = p.replace("^", "[^\\w%.\\-]")
-
-            p = p.replace("*", ".*")
-
-            val options = if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE)
-            Regex(p, options)
-        } catch (e: Throwable) {
-            null
+    /**
+     * Decides whether the text after the last '$' is an option list ($script,
+     * $third-party, $domain=…) rather than part of the pattern. The old heuristic
+     * ("don't split when the pattern has an odd number of slashes", meant to protect
+     * /regex/ rules) misfired on ordinary one-slash paths — ||host/path$script kept
+     * the $ in the pattern, where it compiled to a dead end-anchor regex.
+     * A modifier part must be a comma list of known options; anything else
+     * (empty option, /regex/ leftovers like ^w+$) stays in the pattern.
+     */
+    private fun isValidModifierPart(part: String): Boolean {
+        if (part.isBlank()) return false
+        return part.split(",").all { option ->
+            val o = option.trim().lowercase()
+            o == "third-party" || o == "3p" || o == "~third-party" || o == "first-party" ||
+                o == "1p" || o == "match-case" || o == "important" ||
+                o.startsWith("domain=") ||
+                (o.startsWith("~") && TYPE_MODIFIERS.containsKey(o.removePrefix("~"))) ||
+                TYPE_MODIFIERS.containsKey(o)
         }
     }
 
@@ -1446,10 +1894,24 @@ class AdBlocker {
             }
         }
 
-        for (filter in filters) {
-            if (filter.anchorDomain != null && domainIndex != null) continue
-            if (matchesNetworkFilter(filter, url, urlHost, pageHost, resType, isThirdParty)) {
-                return true
+        if (domainIndex != null) {
+            // With an anchor index in place, every rule carrying an anchorDomain was
+            // already consulted above; walk only the un-indexed remainder instead of
+            // re-scanning the full list and skipping them one by one.
+            val fallback = unanchoredFilterIndex[filters]
+            if (fallback != null) {
+                for (idx in fallback) {
+                    val filter = filters[idx]
+                    if (matchesNetworkFilter(filter, url, urlHost, pageHost, resType, isThirdParty)) {
+                        return true
+                    }
+                }
+            }
+        } else {
+            for (filter in filters) {
+                if (matchesNetworkFilter(filter, url, urlHost, pageHost, resType, isThirdParty)) {
+                    return true
+                }
             }
         }
         return false
@@ -1477,7 +1939,7 @@ class AdBlocker {
             if (filter.excludedDomains.any { pageHost == it || pageHost.endsWith(".$it") }) return false
         }
 
-        val regex = filter.regex ?: return false
+        val regex = filter.regex() ?: return false
         return regex.containsMatchIn(url)
     }
 
@@ -1739,12 +2201,13 @@ class AdBlocker {
         url: String,
         context: Context? = null,
         displayName: String? = null,
+        forceNetwork: Boolean = false,
         onProgress: ((DownloadProgress) -> Unit)? = null
     ): Result<Int> = withContext(Dispatchers.IO) {
         try {
 
             var content: String? = null
-            if (context != null) {
+            if (context != null && !forceNetwork) {
                 content = AdBlockFilterCache.getCachedUrlContent(context, url)
             }
 
@@ -1767,20 +2230,27 @@ class AdBlocker {
                     val buffer = ByteArray(8192)
                     val builder = StringBuilder()
                     var downloaded = 0L
+                    // Progress fires per 8KB chunk (~800 callbacks for AdGuard Base);
+                    // throttle UI updates to 6/sec, always emit the final one below.
+                    var lastProgressAt = 0L
                     while (true) {
                         ensureActive()
                         val read = stream.read(buffer)
                         if (read <= 0) break
                         downloaded += read
-                        builder.append(String(buffer, 0, read))
+                        builder.append(String(buffer, 0, read, Charsets.UTF_8))
                         if (onProgress != null) {
-                            onProgress(
-                                DownloadProgress(
-                                    downloadedBytes = downloaded,
-                                    totalBytes = totalBytes,
-                                    elapsedMillis = System.currentTimeMillis() - startTime
+                            val now = System.currentTimeMillis()
+                            if (now - lastProgressAt >= 150) {
+                                lastProgressAt = now
+                                onProgress(
+                                    DownloadProgress(
+                                        downloadedBytes = downloaded,
+                                        totalBytes = totalBytes,
+                                        elapsedMillis = now - startTime
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                     builder.toString()
@@ -1808,7 +2278,14 @@ class AdBlocker {
             sourceRuleCounts[url] = 0
             if (!displayName.isNullOrBlank()) {
                 customSourceNames[url] = displayName
+            } else {
+                // ABP metadata header beats the URL-derived fallback so custom
+                // subscriptions list under their real name (#823).
+                extractListTitle(content)?.let { customSourceNames[url] = it }
             }
+            sourceLastRefresh[url] = System.currentTimeMillis()
+            sourceIntervals[url] = expiresIntervalMs(content)
+            sourceRefreshFailures.remove(url)
             if (context != null) {
                 saveSourcesRegistry(context)
             }
@@ -1912,18 +2389,21 @@ class AdBlocker {
         }
     }
 
+    private fun registryLine(url: String, enabled: Boolean): String {
+        val count = sourceRuleCounts[url] ?: 0
+        val flag = if (enabled) 1 else 0
+        val name = customSourceNames[url] ?: ""
+        val lastRefresh = sourceLastRefresh[url] ?: 0
+        val interval = sourceIntervals[url] ?: 0
+        return "$url\t$count\t$flag\t$name\t$lastRefresh\t$interval"
+    }
+
     private fun saveSourcesRegistry(context: Context) {
         val sourcesFile = File(context.filesDir, "adblock_hosts_sources.txt")
         sourcesFile.writeText(
             buildString {
-                enabledHostsSources.forEach { url ->
-                    val count = sourceRuleCounts[url] ?: 0
-                    appendLine("$url\t$count\t1\t${customSourceNames[url] ?: ""}")
-                }
-                disabledHostsSources.forEach { url ->
-                    val count = sourceRuleCounts[url] ?: 0
-                    appendLine("$url\t$count\t0\t${customSourceNames[url] ?: ""}")
-                }
+                enabledHostsSources.forEach { url -> appendLine(registryLine(url, enabled = true)) }
+                disabledHostsSources.forEach { url -> appendLine(registryLine(url, enabled = false)) }
             }.trimEnd()
         )
     }
@@ -1982,6 +2462,9 @@ class AdBlocker {
                 sourceRuleCounts[url] = count
                 // Optional 4th column (registry v2): display name for custom sources.
                 parts.getOrNull(3)?.takeIf { it.isNotBlank() }?.let { customSourceNames[url] = it }
+                // Optional 5th/6th columns (registry v3): refresh timestamp and interval.
+                parts.getOrNull(4)?.toLongOrNull()?.let { sourceLastRefresh[url] = it }
+                parts.getOrNull(5)?.toLongOrNull()?.takeIf { it > 0 }?.let { sourceIntervals[url] = it }
             }
     }
 
@@ -2017,6 +2500,7 @@ class AdBlocker {
         cosmeticExceptionFilters.clear()
         scriptletRules.clear()
         blockResultCache.clear()
+        bumpCosmeticVersion()
 
         exactHosts.addAll(state.exactHosts)
         hostsFileHosts.addAll(state.hostsFileHosts)
@@ -2042,6 +2526,7 @@ class AdBlocker {
         cosmeticBlockFilters.addAll(state.cosmeticBlockFilters)
         cosmeticExceptionFilters.addAll(state.cosmeticExceptionFilters)
         scriptletRules.addAll(state.scriptletRules)
+        rebuildUnanchoredIndex()
     }
 
     private fun NetworkFilter.toSerializable() = AdBlockFilterCache.SerializableNetworkFilter(
@@ -2059,7 +2544,7 @@ class AdBlocker {
 
     private fun AdBlockFilterCache.SerializableNetworkFilter.toNetworkFilter() = NetworkFilter(
         pattern = pattern,
-        regex = compileAbpPattern(pattern, matchCase),
+        regexSource = translateAbpPattern(pattern),
         isException = isException,
         matchCase = matchCase,
         domains = domains,
@@ -2074,6 +2559,62 @@ class AdBlocker {
         firstPartyOnly = firstPartyOnly,
         anchorDomain = anchorDomain
     )
+}
+
+private const val MAX_ABP_PATTERN_LEN = 1024
+private val MAX_CONSECUTIVE_STARS_REGEX = Regex("\\*{2,}(?:\\^\\*{2,})?")
+
+/**
+ * Cheap half of rule compilation: ABP syntax -> regex source string.
+ * Runs at import for every rule; the expensive [compileTranslatedRegex] step
+ * is deferred to first match (see NetworkFilter.regex).
+ */
+private fun translateAbpPattern(pattern: String): String? {
+    if (pattern.isEmpty()) return null
+    if (pattern.length > MAX_ABP_PATTERN_LEN) return null
+    if (MAX_CONSECUTIVE_STARS_REGEX.containsMatchIn(pattern)) return null
+
+    var p = pattern
+
+    if (p.startsWith("/") && p.endsWith("/") && p.length > 2) {
+        return p.substring(1, p.length - 1)
+    }
+
+    p = p.replace("\\", "\\\\")
+        .replace(".", "\\.")
+        .replace("+", "\\+")
+        .replace("?", "\\?")
+        .replace("{", "\\{")
+        .replace("}", "\\}")
+        .replace("(", "\\(")
+        .replace(")", "\\)")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+
+    // Order matters: the '^' separator must be converted to its character class
+    // BEFORE the '||'/'|' anchors insert their own regex (which contain '^' inside
+    // [^/]). Doing it afterwards corrupts the inserted [^/] class, so every
+    // '||host/path' regex rule failed to match.
+    p = p.replace("^", "[^\\w%.\\-]")
+
+    p = p.replace("||", "^(?:https?|wss?)://(?:[^/]*\\.)?")
+
+    if (p.startsWith("|")) p = "^" + p.removePrefix("|")
+
+    if (p.endsWith("|")) p = p.removeSuffix("|") + "$"
+
+    p = p.replace("*", ".*")
+    return p
+}
+
+/** Expensive half: regex source -> compiled Pattern. Runs at most once per rule. */
+private fun compileTranslatedRegex(translated: String, matchCase: Boolean): Regex? {
+    return try {
+        val options = if (matchCase) emptySet() else setOf(RegexOption.IGNORE_CASE)
+        Regex(translated, options)
+    } catch (e: Throwable) {
+        null
+    }
 }
 
 private val TRANSPARENT_GIF = byteArrayOf(

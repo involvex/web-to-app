@@ -1,6 +1,8 @@
 package com.webtoapp.ui.components
 
 import com.webtoapp.core.logging.AppLogger
+import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 import android.content.Context
 import android.media.MediaPlayer
@@ -91,19 +93,24 @@ fun BgmSelectorDialog(
     var showLrcEditorDialog by remember { mutableStateOf(false) }
     var lrcEditorBgm by remember { mutableStateOf<BgmItem?>(null) }
 
-    var draggedItemIndex by remember { mutableIntStateOf(-1) }
-    var draggedOverItemIndex by remember { mutableIntStateOf(-1) }
-
     val snackbarHostState = remember { SnackbarHostState() }
 
-    val refreshBgmList: () -> Unit = {
+    // Rescan the library after uploads/downloads and reconcile the selected playlist.
+    // Config-only fields (lyrics/tags saved before a sidecar existed) win over the fresh
+    // scan, so a refresh can never wipe data the library file does not carry yet.
+    val refreshLibrary: () -> Unit = {
         scope.launch {
-            withContext(Dispatchers.IO) {
-                availableBgm = BgmStorage.scanAllBgm(context)
+            val scanned = withContext(Dispatchers.IO) {
+                BgmStorage.scanAllBgm(context)
             }
-
+            availableBgm = scanned
             selectedPlaylist = selectedPlaylist.map { selected ->
-                availableBgm.find { it.path == selected.path } ?: selected
+                scanned.find { it.path == selected.path }?.let { fresh ->
+                    selected.copy(
+                        tags = fresh.tags.ifEmpty { selected.tags },
+                        lrcData = fresh.lrcData ?: selected.lrcData
+                    )
+                } ?: selected
             }
         }
     }
@@ -138,6 +145,7 @@ fun BgmSelectorDialog(
                     } else {
                         setDataSource(bgm.path)
                     }
+                    setVolume(volume, volume)
                     setOnCompletionListener {
                         previewingBgm = null
                     }
@@ -168,12 +176,18 @@ fun BgmSelectorDialog(
                 Column(modifier = Modifier.fillMaxSize().systemBarsPadding()) {
 
                     TopAppBar(
-                    title = { Text(Strings.selectBgm) },
-                    navigationIcon = {
-                        IconButton(onClick = onDismiss) {
-                            Icon(Icons.Default.Close, Strings.close)
-                        }
-                    },
+                        title = { Text(Strings.selectBgm) },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        navigationIcon = {
+                            IconButton(onClick = onDismiss) {
+                                Icon(Icons.Default.Close, Strings.close)
+                            }
+                        },
                     actions = {
                         TextButton(
                             onClick = {
@@ -304,23 +318,25 @@ fun BgmSelectorDialog(
                     }
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         item {
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = selectedTagFilter == null,
                                 onClick = { selectedTagFilter = null },
-                                label = { Text(Strings.allTag) }
+                                label = Strings.allTag,
+                                showSelectedCheck = false
                             )
                         }
                         items(BgmTag.entries.take(10)) { tag ->
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = selectedTagFilter == tag,
                                 onClick = {
                                     selectedTagFilter = if (selectedTagFilter == tag) null else tag
                                 },
-                                label = { Text(tag.displayName) }
+                                label = tag.displayName,
+                                showSelectedCheck = false
                             )
                         }
                     }
@@ -439,21 +455,24 @@ fun BgmSelectorDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(Strings.playMode, style = MaterialTheme.typography.bodyMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            PremiumFilterChip(
+                        Row(horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+                            WtaChip(
                                 selected = playMode == BgmPlayMode.LOOP,
                                 onClick = { playMode = BgmPlayMode.LOOP },
-                                label = { Text(Strings.loopMode, style = MaterialTheme.typography.labelSmall) }
+                                label = Strings.loopMode,
+                                showSelectedCheck = false
                             )
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = playMode == BgmPlayMode.SEQUENTIAL,
                                 onClick = { playMode = BgmPlayMode.SEQUENTIAL },
-                                label = { Text(Strings.sequentialMode, style = MaterialTheme.typography.labelSmall) }
+                                label = Strings.sequentialMode,
+                                showSelectedCheck = false
                             )
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = playMode == BgmPlayMode.SHUFFLE,
                                 onClick = { playMode = BgmPlayMode.SHUFFLE },
-                                label = { Text(Strings.shuffleMode, style = MaterialTheme.typography.labelSmall) }
+                                label = Strings.shuffleMode,
+                                showSelectedCheck = false
                             )
                         }
                     }
@@ -541,12 +560,8 @@ fun BgmSelectorDialog(
     if (showUploadDialog) {
         UploadBgmDialog(
             onDismiss = { showUploadDialog = false },
-            onUploaded = { newBgm ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        availableBgm = BgmStorage.scanAllBgm(context)
-                    }
-                }
+            onUploaded = { _ ->
+                refreshLibrary()
                 showUploadDialog = false
             }
         )
@@ -555,12 +570,8 @@ fun BgmSelectorDialog(
     if (showOnlineMusicDialog) {
         OnlineMusicSearchDialog(
             onDismiss = { showOnlineMusicDialog = false },
-            onMusicDownloaded = { bgmItem ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        availableBgm = BgmStorage.scanAllBgm(context)
-                    }
-                }
+            onMusicDownloaded = { _ ->
+                refreshLibrary()
             }
         )
     }
@@ -570,6 +581,11 @@ fun BgmSelectorDialog(
             bgm = bgm,
             onDismiss = { editingTagsBgm = null },
             onConfirm = { updatedBgm ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        BgmStorage.saveTagsForBgm(context, updatedBgm, updatedBgm.tags)
+                    }
+                }
                 availableBgm = availableBgm.map {
                     if (it.path == updatedBgm.path) updatedBgm else it
                 }
@@ -618,8 +634,12 @@ fun BgmSelectorDialog(
                 manualAlignerBgm = null
             },
             onSave = { newLrcData ->
-
                 val updatedBgm = manualAlignerBgm!!.copy(lrcData = newLrcData)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        BgmStorage.saveLrc(context, updatedBgm.path, newLrcData)
+                    }
+                }
                 availableBgm = availableBgm.map {
                     if (it.path == updatedBgm.path) updatedBgm else it
                 }
@@ -648,8 +668,12 @@ fun BgmSelectorDialog(
                 lrcEditorBgm = null
             },
             onSave = { newLrcData ->
-
                 val updatedBgm = lrcEditorBgm!!.copy(lrcData = newLrcData)
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        BgmStorage.saveLrc(context, updatedBgm.path, newLrcData)
+                    }
+                }
                 availableBgm = availableBgm.map {
                     if (it.path == updatedBgm.path) updatedBgm else it
                 }
@@ -1181,11 +1205,11 @@ private fun EditTagsDialog(
 
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                 ) {
                     BgmTag.entries.forEach { tag ->
-                        PremiumFilterChip(
+                        WtaChip(
                             selected = tag in selectedTags,
                             onClick = {
                                 selectedTags = if (tag in selectedTags) {
@@ -1194,7 +1218,7 @@ private fun EditTagsDialog(
                                     selectedTags + tag
                                 }
                             },
-                            label = { Text(tag.displayName) }
+                            label = tag.displayName
                         )
                     }
                 }

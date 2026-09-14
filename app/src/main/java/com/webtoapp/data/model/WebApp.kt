@@ -42,6 +42,14 @@ enum class AppType {
             GO_APP,
             WORDPRESS
         )
+
+        /**
+         * Parse a persisted app-type string (e.g. [MultiWebSite.appType]) into an [AppType],
+         * null for unknown values. The multi-web site type is stored as a raw string, so
+         * gating helpers need this bridge to reuse [requiresProcessExec].
+         */
+        fun fromPersistedName(name: String?): AppType? =
+            entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
     }
 }
 
@@ -255,7 +263,31 @@ enum class UserAgentMode(
         "Custom",
         "Use custom User-Agent string",
         null
-    )
+    );
+
+    /**
+     * Maps a legacy UA-mode selection onto the equivalent [KernelFlavor].
+     *
+     * UA mode and kernel flavor used to be two independent settings that both fed the request
+     * User-Agent: the mode chose the string, the flavor chose the client-hint metadata. Setting
+     * them inconsistently produced a UA that contradicted `Sec-CH-UA`, which anti-bot systems
+     * read as a spoofing tell. Kernel flavor is now the single identity selector; persisted mode
+     * values are migrated through this mapping so existing apps keep their disguise.
+     *
+     * [CUSTOM] maps to [KernelFlavor.SYSTEM_DEFAULT] because a custom UA string is applied
+     * separately, with metadata derived from the string itself.
+     */
+    fun toKernelFlavor(): com.webtoapp.core.kernel.KernelFlavor = when (this) {
+        DEFAULT, CUSTOM -> com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT
+        CHROME_MOBILE -> com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME
+        CHROME_DESKTOP -> com.webtoapp.core.kernel.KernelFlavor.BLINK_CHROME_DESKTOP
+        SAFARI_MOBILE -> com.webtoapp.core.kernel.KernelFlavor.WEBKIT_SAFARI
+        SAFARI_DESKTOP -> com.webtoapp.core.kernel.KernelFlavor.WEBKIT_SAFARI_DESKTOP
+        FIREFOX_MOBILE -> com.webtoapp.core.kernel.KernelFlavor.GECKO_FIREFOX
+        FIREFOX_DESKTOP -> com.webtoapp.core.kernel.KernelFlavor.GECKO_FIREFOX_DESKTOP
+        EDGE_MOBILE -> com.webtoapp.core.kernel.KernelFlavor.BLINK_EDGE
+        EDGE_DESKTOP -> com.webtoapp.core.kernel.KernelFlavor.BLINK_EDGE_DESKTOP
+    }
 }
 
 object UserAgentVersions {
@@ -288,18 +320,22 @@ data class WebViewConfig(
     val downloadLocationMode: DownloadLocationMode = DownloadLocationMode.SYSTEM_DOWNLOAD,
     val customDownloadDirUri: String = "",
     val openExternalLinks: Boolean = false,
-    val hideBrowserToolbar: Boolean = false,
+    // "Browser toolbar" master switch (#654 redesign): off (default) renders no toolbar
+    // at all — the page behaves fullscreen-like; on shows the toolbar with every item
+    // flag on, and the user trims individual buttons from there.
+    val browserToolbarEnabled: Boolean = false,
     val toolbarShowTitle: Boolean = true,
     val toolbarShowUrl: Boolean = true,
     val toolbarShowBack: Boolean = true,
     val toolbarShowForward: Boolean = true,
     val toolbarShowRefresh: Boolean = true,
     val toolbarShowConsole: Boolean = true,
-    val toolbarShowZoom: Boolean = true,
     val toolbarShowFind: Boolean = true,
-    val browserToolbarCustomized: Boolean = false,
     val hideToolbar: Boolean = false,
     val showStatusBarInFullscreen: Boolean = false,
+    // Issue #711: when video goes HTML5-fullscreen (onShowCustomView), force-hide the
+    // status bar even if showStatusBarInFullscreen is on; restore it on exit fullscreen.
+    val hideStatusBarInVideoFullscreen: Boolean = true,
     val showNavigationBarInFullscreen: Boolean = false,
     val showToolbarInFullscreen: Boolean = false,
     val fullscreenContentPaddingDp: Int = 0,
@@ -317,7 +353,7 @@ data class WebViewConfig(
 
     val statusBarColorModeDark: StatusBarColorMode = StatusBarColorMode.THEME,
     val statusBarColorDark: String? = null,
-    val statusBarDarkIconsDark: Boolean = false,
+    val statusBarDarkIconsDark: Boolean? = null,
     val statusBarBackgroundTypeDark: StatusBarBackgroundType = StatusBarBackgroundType.COLOR,
     val statusBarBackgroundImageDark: String? = null,
     val statusBarBackgroundAlphaDark: Float = 1.0f,
@@ -329,25 +365,55 @@ data class WebViewConfig(
     val popupBlockerToggleEnabled: Boolean = false,
 
     val initialScale: Int = 0,
+    // Build-time per-app page zoom in percent (100 = default), applied via initialScale
+    // (whole-page scaling: text AND layout/images) on every run (#654). This is THE page
+    // zoom for the app — the tool was transferred from the runtime hidden toolbar into
+    // the editor's Advanced Settings, so there is no runtime override layer anymore.
+    // 0 (legacy data) is treated as 100.
+    val pageZoomPercent: Int = 100,
     val viewportMode: ViewportMode = ViewportMode.DEFAULT,
     val customViewportWidth: Int = 0,
     val newWindowBehavior: NewWindowBehavior = NewWindowBehavior.SAME_WINDOW,
     val enablePaymentSchemes: Boolean = true,
+
+    /**
+     * Let third-party apps hand control **back** to this app after an app-to-app hop — the
+     * return leg of an OAuth / SSO login or an app-authorised action.
+     *
+     * Without it the page can still *open* the provider app (any non-http scheme is handed to
+     * the system), but nothing is registered to receive the callback, so the provider has
+     * nowhere to return to and the system reports that no app can handle the link.
+     *
+     * Only *return* channels are declared, never launcher schemes: claiming e.g. `weixin`
+     * would make this app compete with the real WeChat for its own links.
+     */
+    val enableAppReturn: Boolean = true,
+
+    /**
+     * Extra return schemes, for providers whose callback scheme is bound to the site's own
+     * registered app id (so it cannot be shipped as a general-purpose default).
+     */
+    val customAppReturnSchemes: List<String> = emptyList(),
     val enableShareBridge: Boolean = true,
     val enableZoomPolyfill: Boolean = true,
     val enableCrossOriginIsolation: Boolean = false,
     val hideUrlPreview: Boolean = false,
 
-    val decodeBase64DeepLinks: Boolean = false,
+    // Features below default to ON: each one is opt-in-free, fails soft, and does not
+    // affect the normal run of the overwhelming majority of pages. Users can still turn
+    // any of them off per app in the editor's advanced settings. Only affects newly
+    // created apps — saved configs keep their stored values (Room converter preserves
+    // existing JSON fields).
+    val decodeBase64DeepLinks: Boolean = true,
     val decodeBase64Mode: Base64DeepLinkMode = Base64DeepLinkMode.GESTURE_ONLY,
-    val javaScriptCanOpenWindows: Boolean = false,
+    val javaScriptCanOpenWindows: Boolean = true,
     val jsOpenWindowsPolicy: JsOpenWindowsPolicy = JsOpenWindowsPolicy.ALLOW,
 
     val mediaAutoplayEnabled: Boolean = false,
     val mediaAutoplayScope: MediaAutoplayScope = MediaAutoplayScope.VIDEO_ONLY,
-    val enableImageRepair: Boolean = false,
-    val enableScrollMemory: Boolean = false,
-    val enableBackStatePreservation: Boolean = false,
+    val enableImageRepair: Boolean = true,
+    val enableScrollMemory: Boolean = true,
+    val enableBackStatePreservation: Boolean = true,
 
     val enableKernelDisguise: Boolean = false,
     val kernelDisguiseLevel: KernelDisguiseLevel = KernelDisguiseLevel.STANDARD,
@@ -356,7 +422,7 @@ data class WebViewConfig(
     val cloudflareCompatMode: CloudflareCompatMode = CloudflareCompatMode.AUTO_DETECT,
     val allowMixedContent: Boolean = false,
     val mixedContentMode: MixedContentMode = MixedContentMode.COMPATIBILITY,
-    val enablePrivateNetworkBridge: Boolean = false,
+    val enablePrivateNetworkBridge: Boolean = true,
     val privateNetworkScope: PrivateNetworkScope = PrivateNetworkScope.LOCAL_ONLY,
     val enableCorsBypass: Boolean = true,
 
@@ -365,15 +431,21 @@ data class WebViewConfig(
     val databaseEnabled: Boolean = true,
     val enableCookiePersistence: Boolean = true,
 
-    val enableClipboardPolyfill: Boolean = false,
+    val enableClipboardPolyfill: Boolean = true,
+    // Notification polyfill stays default-OFF: enabling it makes every exported app
+    // request POST_NOTIFICATIONS on first launch (RuntimePermissionSync), a visible
+    // permission prompt most pages never earn.
     val enableNotificationPolyfill: Boolean = false,
-    val enableOrientationPolyfill: Boolean = false,
-    val enableCompatPolyfills: Boolean = false,
+    val enableOrientationPolyfill: Boolean = true,
+    val enableCompatPolyfills: Boolean = true,
 
-     val enableNativeBridge: Boolean = false,
-     val nativeBridgeCapabilities: NativeBridgeCapabilities = NativeBridgeCapabilities(),
-     val pictureInPictureEnabled: Boolean = false,
+    val enableNativeBridge: Boolean = true,
+    val nativeBridgeCapabilities: NativeBridgeCapabilities = NativeBridgeCapabilities(),
+    val pictureInPictureEnabled: Boolean = false,
 
+    // Geolocation stays default-OFF: enabling it makes every exported app declare and
+    // request location permission (RuntimePermissionSync), a heavy default with
+    // antivirus-reputation cost.
     val geolocationEnabled: Boolean = false,
     val geolocationAccuracy: GeolocationAccuracy = GeolocationAccuracy.FINE,
     val geolocationPolicy: GeolocationPolicy = GeolocationPolicy.ALWAYS_ASK,
@@ -383,9 +455,9 @@ data class WebViewConfig(
 
     val enablePrintBridge: Boolean = true,
 
-    val enableMediaSession: Boolean = false,
+    val enableMediaSession: Boolean = true,
 
-    val primeUserActivation: Boolean = false,
+    val primeUserActivation: Boolean = true,
     val primeUserActivationMode: PrimeUserActivationMode = PrimeUserActivationMode.SYNTHETIC_TAP,
     val primeUserActivationTiming: PrimeUserActivationTiming = PrimeUserActivationTiming.ON_PAGE_FINISHED,
 
@@ -439,6 +511,12 @@ data class WebViewConfig(
     val tlsFingerprintEnabled: Boolean = false,
     val tlsFingerprintTemplate: String = "CHROME_131",
     val tlsFingerprintCustomCiphers: List<String> = emptyList(),
+
+    // Issue #721: forward bridged requests through Chromium's own network stack with a
+    // QUIC hint per host, so HTTP/3 is attempted from the first request. Pairs with TLS
+    // fingerprint spoofing (the h3 upstream IS genuine Chromium); inert when a SOCKS
+    // upstream proxy is configured.
+    val forceHttp3: Boolean = false,
 
     val antiCapture: Boolean = false,
 
@@ -1384,7 +1462,12 @@ data class RemoteActivationConfig(
     val offlinePolicy: RemoteActivationOfflinePolicy = RemoteActivationOfflinePolicy.ALLOW_CACHED,
     val deliverUrl: Boolean = false,
     val encryptUrl: Boolean = false,
-    val aesKeyBase64: String = ""
+    val aesKeyBase64: String = "",
+    // When true, the verification request carries deviceBound=true so the server can
+    // enforce per-device seats (maxDevices, default 1 = one-time / single-device code).
+    // Requires a remote verifier; purely local activation cannot bind devices because
+    // there is no shared state between devices.
+    val deviceBound: Boolean = false
 )
 
 data class AutoStartConfig(
@@ -1559,6 +1642,12 @@ data class NativeBridgeCapabilities(
     val screenCapture: Boolean = true,
     val pip: Boolean = true,
     val rating: Boolean = false,
+    // Native Google sign-in via the Credential Manager. Off by default: it reads the
+    // device's Google accounts (after an explicit system UI prompt) and requires the app
+    // owner to register the generated package name + signing SHA-1 with a Google Cloud
+    // project and provide its Web client ID.
+    val googleSignIn: Boolean = false,
+    val googleSignInClientId: String = "",
 )
 
 enum class GeolocationAccuracy {

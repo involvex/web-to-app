@@ -21,17 +21,41 @@ import kotlinx.coroutines.withContext
 import java.io.*
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.CancellationException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import kotlin.coroutines.coroutineContext
+
+/**
+ * Time-based gate for high-frequency progress callbacks. A thousand-file backup
+ * must not recompose the progress UI a thousand times; milestones (0/50/60/100)
+ * bypass the gate and always emit. Pure logic, unit-tested on plain JVM.
+ */
+internal class ProgressThrottle(
+    private val minIntervalMs: Long = 150,
+    private val clockMs: () -> Long = System::currentTimeMillis
+) {
+    private var lastEmitMs: Long = -minIntervalMs
+
+    fun shouldEmit(force: Boolean = false): Boolean {
+        if (force) {
+            lastEmitMs = clockMs()
+            return true
+        }
+        val now = clockMs()
+        if (now - lastEmitMs < minIntervalMs) return false
+        lastEmitMs = now
+        return true
+    }
+}
 
 class DataBackupManager(private val context: Context) {
 
     companion object {
         private const val TAG = "DataBackupManager"
 
-        private const val BACKUP_VERSION = 4
+        private const val BACKUP_VERSION = 5
         private const val APPS_JSON = "apps.json"
         private const val RESOURCES_DIR = "resources/"
         private const val ICONS_DIR = "resources/icons/"
@@ -52,6 +76,8 @@ class DataBackupManager(private val context: Context) {
         private const val LOCAL_EXTERNAL_FILES_DIR = "local/external_files/"
         private const val DATASTORE_DIR = "local/datastore/"
         private const val SHARED_PREFS_DIR = "local/shared_prefs/"
+        private const val KEYSTORE_DIR = "local/keystores/"
+        private const val ADBLOCK_DIR = "local/adblock/"
 
         private val MANAGED_FILES_DIRS = listOf(
 
@@ -67,7 +93,14 @@ class DataBackupManager(private val context: Context) {
             "php_projects",
             "python_projects",
             "go_projects",
-            "wordpress_projects"
+            "wordpress_projects",
+
+            // Added as the app grew: frontend build sandboxes, offline-pack
+            // docs output, website-scraper output. All user content with no
+            // other backup path (regenerable caches stay excluded below).
+            "frontend_builds",
+            "docs_projects",
+            "scraped_sites"
         )
 
         private val MANAGED_FILES_EXCLUDED_SEGMENTS = setOf(
@@ -86,6 +119,8 @@ class DataBackupManager(private val context: Context) {
             "language_settings",
             "theme_settings",
             "announcement",
+            "activation",
+            "ai_config",
             "aicoding_sessions_v1",
             "aicoding_prefs"
         )
@@ -97,14 +132,46 @@ class DataBackupManager(private val context: Context) {
             "floating_window_prefs",
             "isolation_prefs",
             "chrome_extension_storage",
-            "chrome_extension_content_scripts"
+            "chrome_extension_content_scripts",
+            "gallery_positions"
         )
+
+        /**
+         * Signing identity lives as loose files in filesDir root (JarSigner):
+         * losing them means published apps can never be updated again.
+         * Restored verbatim by exact file name (no traversal possible).
+         *
+         * NOTE: the password sidecars (custom_keystore_password.txt,
+         * custom_keystore_keypass.txt, .ks_credential) are deliberately NOT backed up:
+         * a user-shared backup zip would carry the private key AND its plaintext
+         * password together. Restore keeps the keystores; passwords are re-entered
+         * the next time a build signs with them.
+         */
+        private val KEYSTORE_FILES = listOf(
+            "webtoapp_keystore.p12",
+            "custom_keystore.p12",
+            "custom_keystore_alias.txt",
+            "signing_scheme_options.json"
+        )
+
+        /** Live adblock lists (custom rules + subscription registry). */
+        private val ADBLOCK_FILES = listOf(
+            "adblock_hosts.txt",
+            "adblock_hosts_sources.txt"
+        )
+
+        // NOTE: "_rt_prot" (DEX CRC anti-tamper evidence) is deliberately NEVER
+        // backed up: restoring it onto a different install would trip tamper
+        // detection against itself. It regenerates on first launch.
 
         private val SAFE_SHARED_PREF_PREFIXES = listOf(
             "gm_storage_"
         )
 
         private const val BUFFER_SIZE = 8192
+
+        /** Hard cap for apps.json / extension JSON entries read fully into memory. */
+        private const val MAX_JSON_ENTRY_BYTES = 64L * 1024 * 1024
 
         private val backupDateFormat = threadLocalCompat {
             SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
@@ -122,7 +189,10 @@ class DataBackupManager(private val context: Context) {
         val apps: List<WebApp> = emptyList(),
         val categories: List<AppCategory> = emptyList(),
 
-        val usageStats: List<AppUsageStats> = emptyList()
+        val usageStats: List<AppUsageStats> = emptyList(),
+
+        /** Added in backup v5; absent (empty) in older backups. */
+        val healthRecords: List<com.webtoapp.core.stats.AppHealthRecord> = emptyList()
     )
 
     suspend fun exportAllData(
@@ -135,10 +205,8 @@ class DataBackupManager(private val context: Context) {
             coroutineContext.ensureActive()
 
             val apps = repository.allWebApps.first()
-            if (apps.isEmpty()) {
-                return@withContext Result.failure(Exception("没有可导出的应用数据"))
-            }
-
+            // Zero apps is valid: settings, extensions, keystores and prefs
+            // still deserve a backup.
             AppLogger.i(TAG, "准备导出 ${apps.size} 个应用")
 
             val categories = AppDatabase.getInstance(context).appCategoryDao().getAllCategories().first()
@@ -148,12 +216,21 @@ class DataBackupManager(private val context: Context) {
                 AppLogger.w(TAG, "读取使用统计失败，本次备份不含统计数据", it)
                 emptyList()
             }
+            val healthRecords = runCatching {
+                AppDatabase.getInstance(context).appUsageStatsDao().getAllHealthRecords()
+            }.getOrElse {
+                AppLogger.w(TAG, "读取健康记录失败，本次备份不含健康数据", it)
+                emptyList<com.webtoapp.core.stats.AppHealthRecord>()
+            }
 
             val resourceFiles = mutableMapOf<String, String>()
+            val collectThrottle = ProgressThrottle()
 
             apps.forEachIndexed { index, app ->
                 coroutineContext.ensureActive()
-                onProgress(10 + (index * 30 / apps.size), 100, Strings.backupCollectingResources.format(app.name))
+                if (collectThrottle.shouldEmit()) {
+                    onProgress(10 + (index * 30 / apps.size), 100, Strings.backupCollectingResources.format(app.name))
+                }
                 collectAppResources(app, resourceFiles)
             }
 
@@ -169,7 +246,8 @@ class DataBackupManager(private val context: Context) {
                 appCount = apps.size,
                 apps = appsWithRelativePaths,
                 categories = categories,
-                usageStats = usageStats
+                usageStats = usageStats,
+                healthRecords = healthRecords
             )
             val localFiles = collectLocalBackupFiles()
 
@@ -187,6 +265,7 @@ class DataBackupManager(private val context: Context) {
                     val totalFileCount = resourceFiles.size + localFiles.size
                     val writtenZipPaths = HashSet<String>(totalFileCount * 2)
                     var processedFiles = 0
+                    val packThrottle = ProgressThrottle()
 
                     fun writeZipFile(zipPath: String, file: File) {
 
@@ -201,6 +280,7 @@ class DataBackupManager(private val context: Context) {
 
                     fun reportPackaging() {
                         processedFiles++
+                        if (!packThrottle.shouldEmit()) return
                         val pct = if (totalFileCount > 0) {
                             50 + (processedFiles * 45 / totalFileCount)
                         } else 95
@@ -236,6 +316,8 @@ class DataBackupManager(private val context: Context) {
                 resourceCount = resourceFiles.size + localFiles.size
             ))
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.e(TAG, "Export failed", e)
             Result.failure(e)
@@ -257,41 +339,49 @@ class DataBackupManager(private val context: Context) {
             val extractedResources = mutableMapOf<String, String>()
             var modulesJsonBytes: ByteArray? = null
             var builtInStatesJsonBytes: ByteArray? = null
+            val pendingLocalEntries = mutableListOf<PendingLocalEntry>()
 
             context.contentResolver.openInputStream(inputUri)?.use { inputStream ->
                 ZipInputStream(BufferedInputStream(inputStream, BUFFER_SIZE)).use { zipIn ->
                     var entry = zipIn.nextEntry
                     var totalEntries = 0
+                    // User-picked backup archive: cap entries + extracted size so a
+                    // crafted "backup" cannot fill app storage.
+                    val entryGuard = com.webtoapp.util.SafeZip.EntryGuard()
+                    val extractThrottle = ProgressThrottle()
 
                     while (entry != null) {
                         coroutineContext.ensureActive()
                         totalEntries++
-                        onProgress(10 + (totalEntries % 40), 100, Strings.backupExtracting.format(entry.name))
+                        entryGuard.onEntry()
+                        if (extractThrottle.shouldEmit()) {
+                            onProgress(10 + (totalEntries % 40), 100, Strings.backupExtracting.format(entry.name))
+                        }
 
                         when {
                             entry.name == APPS_JSON -> {
 
-                                val jsonBytes = zipIn.readBytes()
+                                val jsonBytes = readJsonEntry(zipIn, entryGuard)
                                 val jsonStr = String(jsonBytes, Charsets.UTF_8)
                                 backupData = parseBackupData(jsonStr)
                                 AppLogger.i(TAG, "读取到 ${backupData?.appCount} 个应用")
                             }
                             entry.name == EXTENSION_MODULES_FILE -> {
-                                modulesJsonBytes = zipIn.readBytes()
+                                modulesJsonBytes = readJsonEntry(zipIn, entryGuard)
                             }
                             entry.name == EXTENSION_BUILTIN_STATES_FILE -> {
-                                builtInStatesJsonBytes = zipIn.readBytes()
+                                builtInStatesJsonBytes = readJsonEntry(zipIn, entryGuard)
                             }
                             entry.name.startsWith(RESOURCES_DIR) && !entry.isDirectory -> {
 
-                                val extractedPath = extractResourceFile(entry.name, zipIn)
+                                val extractedPath = extractResourceFile(entry.name, zipIn, entryGuard)
                                 if (extractedPath != null) {
                                     extractedResources[entry.name] = extractedPath
                                     extractedFiles.add(File(extractedPath))
                                 }
                             }
                             isLocalBackupEntry(entry.name) && !entry.isDirectory -> {
-                                restoreLocalBackupEntry(entry.name, zipIn)
+                                stageLocalBackupEntry(entry.name, zipIn, entryGuard)?.let { pendingLocalEntries.add(it) }
                             }
                         }
 
@@ -299,34 +389,58 @@ class DataBackupManager(private val context: Context) {
                         entry = zipIn.nextEntry
                     }
                 }
-            } ?: return@withContext Result.failure(Exception("无法读取备份文件"))
+            } ?: run {
+                discardPendingLocalEntries(pendingLocalEntries)
+                return@withContext Result.failure(Exception("无法读取备份文件"))
+            }
 
             val data = backupData
             if (data == null) {
                 cleanupExtractedFiles(extractedFiles)
+                discardPendingLocalEntries(pendingLocalEntries)
                 return@withContext Result.failure(Exception("备份文件格式无效"))
             }
+
+            // The backup has validated — only now overwrite live local config files.
+            // Restart is only needed when local files actually changed: Room writes
+            // take effect immediately, so an apps-only restore stays put.
+            val localsRestored = commitPendingLocalEntries(pendingLocalEntries)
 
             onProgress(60, 100, Strings.backupImportingData)
             coroutineContext.ensureActive()
 
             var importedCount = 0
             var skippedCount = 0
+            var duplicateCount = 0
             val categoryIdMap = restoreCategories(data.categories)
 
+            // Dedup against what's already installed so re-importing the same
+            // backup (or a backup overlapping it) doesn't double the library.
+            val existingAppKeys = repository.allWebApps.first()
+                .mapTo(HashSet()) { backupDedupKey(it) }
+
             val appIdMap = mutableMapOf<Long, Long>()
+            val importThrottle = ProgressThrottle()
 
             data.apps.forEachIndexed { index, app ->
                 coroutineContext.ensureActive()
-                onProgress(
-                    60 + (index * 35 / data.apps.size),
-                    100,
-                    Strings.backupImportingApp.format(app.name)
-                )
+                if (importThrottle.shouldEmit()) {
+                    onProgress(
+                        60 + (index * 35 / data.apps.size),
+                        100,
+                        Strings.backupImportingApp.format(app.name)
+                    )
+                }
 
                 try {
 
                     val appWithLocalPaths = updateAppPathsToLocal(app, extractedResources)
+
+                    if (!existingAppKeys.add(backupDedupKey(appWithLocalPaths))) {
+                        AppLogger.i(TAG, "跳过重复应用: ${app.name}")
+                        duplicateCount++
+                        return@forEachIndexed
+                    }
 
                     val newApp = appWithLocalPaths.copy(
                         id = 0,
@@ -348,6 +462,8 @@ class DataBackupManager(private val context: Context) {
 
             restoreUsageStats(data.usageStats, appIdMap)
 
+            restoreHealthRecords(data.healthRecords, appIdMap)
+
             restoreExtensionFiles(modulesJsonBytes, builtInStatesJsonBytes)
 
             onProgress(100, 100, Strings.backupImportComplete)
@@ -355,9 +471,13 @@ class DataBackupManager(private val context: Context) {
             Result.success(ImportResult(
                 totalCount = data.appCount,
                 importedCount = importedCount,
-                skippedCount = skippedCount
+                skippedCount = skippedCount,
+                duplicateCount = duplicateCount,
+                localFilesRestored = localsRestored
             ))
 
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.e(TAG, "导入失败", e)
             cleanupExtractedFiles(extractedFiles)
@@ -365,7 +485,42 @@ class DataBackupManager(private val context: Context) {
         }
     }
 
-    private fun parseBackupData(jsonStr: String): BackupData {
+    /**
+     * Reads a JSON entry fully, bounded by the shared zip-bomb guard and a hard
+     * per-entry cap — a corrupt archive must not OOM the importer mid-read.
+     */
+    private fun readJsonEntry(
+        zipIn: ZipInputStream,
+        guard: com.webtoapp.util.SafeZip.EntryGuard
+    ): ByteArray {
+        val out = ByteArrayOutputStream()
+        guard.copyTo(zipIn, out)
+        if (out.size() > MAX_JSON_ENTRY_BYTES) {
+            throw com.webtoapp.util.SafeZip.ZipBombException(
+                com.webtoapp.util.SafeZip.ZipBombException.Kind.TOTAL_SIZE,
+                "JSON entry exceeds ${MAX_JSON_ENTRY_BYTES / 1024 / 1024} MB"
+            )
+        }
+        return out.toByteArray()
+    }
+
+    /**
+     * Identity used to skip re-imported duplicates. Remote apps dedup on
+     * type+name+normalized URL; local-content apps (HTML/media/multi-web) have
+     * no stable URL across export — resource paths get rewritten to
+     * resources/... and back — so they dedup on type+name.
+     */
+    internal fun backupDedupKey(app: WebApp): String {
+        val url = app.url.trim()
+        val urlKey = if (url.startsWith("http://", ignoreCase = true) ||
+            url.startsWith("https://", ignoreCase = true)) {
+            url.lowercase().removeSuffix("/")
+        } else ""
+        return "${app.appType.name}|${app.name.trim().lowercase()}|$urlKey"
+    }
+
+    /** Visible for unit tests (backward-compat parsing). */
+    internal fun parseBackupData(jsonStr: String): BackupData {
         val root = JsonParser.parseString(jsonStr).asJsonObject
         val version = root.get("version")?.asInt ?: 1
         val exportTime = root.get("exportTime")?.asLong ?: System.currentTimeMillis()
@@ -399,24 +554,49 @@ class DataBackupManager(private val context: Context) {
             }
         } ?: emptyList()
 
+        // v5+: absent in older backups -> empty, restore skips silently.
+        val healthRecords = root.getAsJsonArray("healthRecords")?.mapNotNull { element ->
+            runCatching {
+                gson.fromJson(element, com.webtoapp.core.stats.AppHealthRecord::class.java)
+            }.getOrElse {
+                AppLogger.w(TAG, "解析健康记录失败，已跳过一项", it)
+                null
+            }
+        } ?: emptyList()
+
         return BackupData(
             version = version,
             exportTime = exportTime,
             appCount = if (appCount > 0) appCount else apps.size,
             apps = apps,
             categories = categories,
-            usageStats = usageStats
+            usageStats = usageStats,
+            healthRecords = healthRecords
         )
     }
 
     private suspend fun restoreCategories(categories: List<AppCategory>): Map<Long, Long> {
         if (categories.isEmpty()) return emptyMap()
         val dao = AppDatabase.getInstance(context).appCategoryDao()
+        // Same-name categories are reused instead of re-created: re-importing a
+        // backup must not double the category list. New inserts are tracked too
+        // so duplicate names inside the backup itself collapse to one row.
+        val idByName = HashMap<String, Long>()
+        dao.getAllCategories().first().forEach {
+            idByName[it.name.trim().lowercase()] = it.id
+        }
         val idMap = mutableMapOf<Long, Long>()
         categories.forEach { category ->
+            val nameKey = category.name.trim().lowercase()
+            val existingId = idByName[nameKey]
+            if (existingId != null) {
+                idMap[category.id] = existingId
+                return@forEach
+            }
             runCatching {
                 val newId = dao.insert(category.copy(id = 0))
                 idMap[category.id] = newId
+                idByName[nameKey] = newId
             }.onFailure { e ->
                 AppLogger.w(TAG, "导入分类失败: ${category.name}", e)
             }
@@ -448,6 +628,25 @@ class DataBackupManager(private val context: Context) {
         AppLogger.i(TAG, "恢复使用统计 $restored/${usageStats.size} 项")
     }
 
+    private suspend fun restoreHealthRecords(
+        healthRecords: List<com.webtoapp.core.stats.AppHealthRecord>,
+        appIdMap: Map<Long, Long>
+    ) {
+        if (healthRecords.isEmpty() || appIdMap.isEmpty()) return
+        val dao = AppDatabase.getInstance(context).appUsageStatsDao()
+        var restored = 0
+        healthRecords.forEach { record ->
+            val newAppId = appIdMap[record.appId] ?: return@forEach
+            runCatching {
+                dao.insertHealthRecord(record.copy(id = 0, appId = newAppId))
+                restored++
+            }.onFailure { e ->
+                AppLogger.w(TAG, "恢复健康记录失败: appId=${record.appId}", e)
+            }
+        }
+        AppLogger.i(TAG, "恢复健康记录 $restored/${healthRecords.size} 项")
+    }
+
     private fun parseWebAppWithDefaults(appObject: JsonObject): WebApp {
         val defaults = gson.toJsonTree(WebApp(name = "", url = ""))
         val merged = Converters.mergeMissingDefaults(defaults, appObject)
@@ -458,13 +657,18 @@ class DataBackupManager(private val context: Context) {
 
     private fun restoreExtensionFiles(modulesJsonBytes: ByteArray?, builtInStatesJsonBytes: ByteArray?) {
         runCatching {
+            // Release before writing the restored bytes, not after: release() cancels the
+            // outgoing instance's startup load, and cancelling it only helps if it happens
+            // before the restored file lands. With the old order the load could still be
+            // mid-migration and rewrite modules.json on top of the bytes just restored.
+            com.webtoapp.core.extension.ExtensionManager.release()
+
             if (modulesJsonBytes != null || builtInStatesJsonBytes != null) {
                 val extensionDir = File(context.filesDir, "extension_modules").apply { mkdirs() }
                 modulesJsonBytes?.let { File(extensionDir, "modules.json").writeBytes(it) }
                 builtInStatesJsonBytes?.let { File(extensionDir, "builtin_states.json").writeBytes(it) }
             }
 
-            com.webtoapp.core.extension.ExtensionManager.release()
             com.webtoapp.core.extension.ExtensionManager.getInstance(context)
             AppLogger.i(TAG, "扩展模块配置已恢复并重新加载")
         }.onFailure { e ->
@@ -652,6 +856,16 @@ class DataBackupManager(private val context: Context) {
             }
         }
 
+        // Signing identity + adblock lists live as loose files in filesDir root.
+        // Exact names only: nothing else in the root is user state worth copying.
+        (KEYSTORE_FILES.map { it to KEYSTORE_DIR } + ADBLOCK_FILES.map { it to ADBLOCK_DIR })
+            .forEach { (name, zipDir) ->
+                val file = File(context.filesDir, name)
+                if (file.exists() && file.isFile && file.canRead()) {
+                    files["$zipDir$name"] = file
+                }
+            }
+
         val sharedPrefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
         SAFE_SHARED_PREF_NAMES.forEach { name ->
             val file = File(sharedPrefsDir, "$name.xml")
@@ -826,7 +1040,11 @@ class DataBackupManager(private val context: Context) {
         )
     }
 
-    private fun extractResourceFile(zipPath: String, zipIn: ZipInputStream): String? {
+    private fun extractResourceFile(
+        zipPath: String,
+        zipIn: ZipInputStream,
+        guard: com.webtoapp.util.SafeZip.EntryGuard? = null
+    ): String? {
         return try {
             val (targetDir, prefix) = when {
                 zipPath.startsWith(ICONS_DIR) -> File(context.filesDir, "backup_icons") to ICONS_DIR
@@ -850,10 +1068,12 @@ class DataBackupManager(private val context: Context) {
             targetFile.parentFile?.mkdirs()
 
             FileOutputStream(targetFile).use { output ->
-                zipIn.copyTo(output)
+                if (guard != null) guard.copyTo(zipIn, output) else zipIn.copyTo(output)
             }
 
             targetFile.absolutePath
+        } catch (e: com.webtoapp.util.SafeZip.ZipBombException) {
+            throw e
         } catch (e: Exception) {
             AppLogger.w(TAG, "解压资源文件失败: $zipPath", e)
             null
@@ -864,47 +1084,122 @@ class DataBackupManager(private val context: Context) {
         return zipPath.startsWith(LOCAL_FILES_DIR) ||
             zipPath.startsWith(LOCAL_EXTERNAL_FILES_DIR) ||
             zipPath.startsWith(DATASTORE_DIR) ||
-            zipPath.startsWith(SHARED_PREFS_DIR)
+            zipPath.startsWith(SHARED_PREFS_DIR) ||
+            zipPath.startsWith(KEYSTORE_DIR) ||
+            zipPath.startsWith(ADBLOCK_DIR)
     }
 
-    private fun restoreLocalBackupEntry(zipPath: String, zipIn: ZipInputStream) {
+    /**
+     * Pends a local entry (files/shared_prefs/datastore) for deferred restore instead of
+     * writing it during zip streaming. Writing live config files before apps.json is parsed
+     * meant a corrupt/truncated backup aborted with "格式无效" AFTER already overwriting
+     * presets, extension storage and theme prefs — with no rollback. Entries are buffered
+     * to temp files first and only swapped in after the backup validates.
+     */
+    internal data class PendingLocalEntry(
+        val zipPath: String,
+        val targetFile: File,
+        val tempFile: File
+    )
+
+    /** Visible for unit tests (zip-slip staging rules). */
+    internal fun stageLocalBackupEntry(
+        zipPath: String,
+        zipIn: ZipInputStream,
+        guard: com.webtoapp.util.SafeZip.EntryGuard? = null
+    ): PendingLocalEntry? {
         val targetFile = when {
             zipPath.startsWith(LOCAL_FILES_DIR) -> {
                 val relativePath = zipPath.removePrefix(LOCAL_FILES_DIR)
                 resolveSafeChild(context.filesDir, relativePath)
             }
             zipPath.startsWith(LOCAL_EXTERNAL_FILES_DIR) -> {
-                val externalFilesDir = context.getExternalFilesDir(null) ?: return
+                val externalFilesDir = context.getExternalFilesDir(null) ?: return null
                 val relativePath = zipPath.removePrefix(LOCAL_EXTERNAL_FILES_DIR)
                 resolveSafeChild(externalFilesDir, relativePath)
             }
             zipPath.startsWith(DATASTORE_DIR) -> {
                 val fileName = zipPath.removePrefix(DATASTORE_DIR)
                 val allowed = SAFE_DATASTORE_NAMES.map { "$it.preferences_pb" }.contains(fileName)
-                if (allowed) File(context.filesDir, "datastore/$fileName") else null
+                if (allowed) {
+                    resolveSafeChild(File(context.filesDir, "datastore"), fileName)
+                } else null
             }
             zipPath.startsWith(SHARED_PREFS_DIR) -> {
                 val fileName = zipPath.removePrefix(SHARED_PREFS_DIR)
                 val allowed = SAFE_SHARED_PREF_NAMES.map { "$it.xml" }.contains(fileName) ||
                     (fileName.endsWith(".xml") &&
                         SAFE_SHARED_PREF_PREFIXES.any { fileName.startsWith(it) })
-                if (allowed) File(File(context.applicationInfo.dataDir, "shared_prefs"), fileName) else null
+                // resolveSafeChild is load-bearing here: a crafted name like
+                // "gm_storage_/../evil.xml" passes the prefix/suffix checks but
+                // must never escape shared_prefs.
+                if (allowed) {
+                    resolveSafeChild(File(context.applicationInfo.dataDir, "shared_prefs"), fileName)
+                } else null
+            }
+            zipPath.startsWith(KEYSTORE_DIR) -> {
+                val fileName = zipPath.removePrefix(KEYSTORE_DIR)
+                if (KEYSTORE_FILES.contains(fileName)) {
+                    resolveSafeChild(context.filesDir, fileName)
+                } else null
+            }
+            zipPath.startsWith(ADBLOCK_DIR) -> {
+                val fileName = zipPath.removePrefix(ADBLOCK_DIR)
+                if (ADBLOCK_FILES.contains(fileName)) {
+                    resolveSafeChild(context.filesDir, fileName)
+                } else null
             }
             else -> null
-        } ?: return
+        } ?: return null
 
-        runCatching {
-            targetFile.parentFile?.mkdirs()
-            FileOutputStream(targetFile).use { output ->
-                zipIn.copyTo(output, BUFFER_SIZE)
+        val tempFile = File.createTempFile("wta_backup_", ".part", context.cacheDir)
+        return try {
+            FileOutputStream(tempFile).use { output ->
+                if (guard != null) guard.copyTo(zipIn, output) else zipIn.copyTo(output, BUFFER_SIZE)
             }
-        }.onFailure { e ->
-            AppLogger.w(TAG, "恢复本地数据失败: $zipPath", e)
+            PendingLocalEntry(zipPath, targetFile, tempFile)
+        } catch (e: com.webtoapp.util.SafeZip.ZipBombException) {
+            throw e
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "暂存本地备份数据失败: $zipPath", e)
+            tempFile.delete()
+            null
         }
     }
 
-    private fun resolveSafeChild(baseDir: File, relativePath: String): File? {
-        val targetFile = File(baseDir, relativePath)
+    /** Visible for unit tests (commit accounting). */
+    internal fun commitPendingLocalEntries(pending: List<PendingLocalEntry>): Boolean {
+        var committed = false
+        pending.forEach { entry ->
+            runCatching {
+                entry.targetFile.parentFile?.mkdirs()
+                entry.tempFile.copyTo(entry.targetFile, overwrite = true)
+                committed = true
+            }.onFailure { e ->
+                AppLogger.w(TAG, "恢复本地数据失败: ${entry.zipPath}", e)
+            }
+            entry.tempFile.delete()
+        }
+        return committed
+    }
+
+    private fun discardPendingLocalEntries(pending: List<PendingLocalEntry>) {
+        pending.forEach { it.tempFile.delete() }
+    }
+
+    /** Visible for unit tests (traversal rules). */
+    internal fun resolveSafeChild(baseDir: File, relativePath: String): File? {
+        // Lexical rejection first: deterministic on every runtime (backup unit
+        // tests run under Robolectric, whose File resolution must not weaken
+        // this). Legitimate entries come from relativeTo() walks and fixed
+        // names — they never contain ".." segments or absolute paths.
+        if (relativePath.isBlank()) return null
+        val normalized = relativePath.replace('\\', '/')
+        if (normalized.startsWith("/") || normalized.split('/').any { it == ".." }) {
+            AppLogger.w(TAG, "跳过不安全的备份路径: $relativePath")
+            return null
+        }
+        val targetFile = File(baseDir, normalized)
         val baseCanonical = baseDir.canonicalFile
         val targetCanonical = targetFile.canonicalFile
         return if (targetCanonical.path.startsWith(baseCanonical.path + File.separator)) {
@@ -918,6 +1213,38 @@ class DataBackupManager(private val context: Context) {
     fun generateBackupFileName(): String {
         return "WebToApp_Backup_${backupDateFormat.get()!!.format(Date())}.zip"
     }
+
+    /**
+     * Restarts the host process so restored files actually take effect.
+     *
+     * DataStore and SharedPreferences both cache state in memory: files swapped
+     * in by import would otherwise be ignored until restart — and worse, the
+     * next write from stale memory would clobber the restored values. Call
+     * after a successful import (the UI shows its success toast first).
+     */
+    fun scheduleAppRestart(delayMs: Long = 800) {
+        try {
+            val launchIntent = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or
+                        android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                } ?: return
+            val pending = android.app.PendingIntent.getActivity(
+                context, 0, launchIntent,
+                android.app.PendingIntent.FLAG_ONE_SHOT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarm = context.getSystemService(android.content.Context.ALARM_SERVICE)
+                as android.app.AlarmManager
+            // set(), not setExact(): no exact-alarm permission needed for a sub-second
+            // nudge. RTC_WAKEUP so a dozing device still restarts promptly.
+            alarm.set(android.app.AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs, pending)
+            AppLogger.i(TAG, "应用将在 ${delayMs}ms 后重启以应用恢复的数据")
+            kotlin.system.exitProcess(0)
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "计划重启失败，请手动重启应用", e)
+        }
+    }
 }
 
 data class ExportResult(
@@ -928,5 +1255,9 @@ data class ExportResult(
 data class ImportResult(
     val totalCount: Int,
     val importedCount: Int,
-    val skippedCount: Int
+    val skippedCount: Int,
+    /** Backup apps already installed (same type+name+URL), skipped not duplicated. */
+    val duplicateCount: Int = 0,
+    /** True when any local (prefs/datastore/shared/file) entry was committed. */
+    val localFilesRestored: Boolean = false
 )

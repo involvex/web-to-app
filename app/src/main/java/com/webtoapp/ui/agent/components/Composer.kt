@@ -5,6 +5,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,7 +32,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Shield
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.Terminal
@@ -58,9 +59,6 @@ import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.agent.AgentUiState
 import com.webtoapp.ui.agent.SlashCommand
 import com.webtoapp.ui.design.WtaAlpha
-import com.webtoapp.ui.design.WtaButton
-import com.webtoapp.ui.design.WtaButtonSize
-import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaIconButton
@@ -87,6 +85,9 @@ fun Composer(
     onAttachFile: () -> Unit,
     onAttachFolder: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
+    // Resolves a pending attachment's sandbox-relative path to the file Coil should
+    // load — java.io.File(att.path) resolves against the process CWD and never exists.
+    resolveAttachmentPreview: (UserAttachment) -> Any?,
 
     onOpenContextPicker: () -> Unit,
 
@@ -112,50 +113,24 @@ fun Composer(
                 onDismiss = onDismissMention
             )
         }
-        if (state.pendingAttachments.isNotEmpty()) {
-            PendingAttachmentsRow(
-                attachments = state.pendingAttachments,
-                onRemove = onRemoveAttachment
-            )
-        }
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    horizontal = WtaSpacing.ScreenHorizontal,
-                    vertical = WtaSpacing.Small
-                ),
-            verticalAlignment = Alignment.Bottom
-        ) {
-            AttachButton(
-                onAttachImage = onAttachImage,
-                onAttachFile = onAttachFile,
-                onAttachFolder = onAttachFolder
-            )
-            Spacer(Modifier.width(WtaSpacing.Small))
-            ComposerPillField(
-                value = state.composerText,
-                onValueChange = onTextChange,
-                placeholder = composerPlaceholder(state),
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(max = 220.dp)
-            )
-            Spacer(Modifier.width(WtaSpacing.Small))
-            SendButton(
-                working = state.isWorking,
-                enabled = state.canSend &&
-                    (state.composerText.isNotBlank() || state.pendingAttachments.isNotEmpty()),
-                onSend = onSend,
-                onCancel = onCancel
-            )
-        }
+        ComposerCard(
+            state = state,
+            onTextChange = onTextChange,
+            onSend = onSend,
+            onCancel = onCancel,
+            onAttachImage = onAttachImage,
+            onAttachFile = onAttachFile,
+            onAttachFolder = onAttachFolder,
+            onRemoveAttachment = onRemoveAttachment,
+            resolveAttachmentPreview = resolveAttachmentPreview
+        )
 
         ModeChipRow(
             autoApprove = state.autoApprove,
             onToggleAuto = onToggleAutoApprove,
             onTriggerSlash = onTriggerSlash,
             currentModelLabel = state.currentModelLabel,
+            modelMissing = state.modelMissing,
             onOpenModelPicker = onOpenModelPicker,
             estimatedTokens = state.estimatedContextTokens,
             contextCapacity = state.contextCapacity,
@@ -168,52 +143,106 @@ fun Composer(
 }
 
 /**
- * Composer input matching the trailing send button: same 10dp corner radius
- * ([WtaRadius.Button]) and the same resting height ([WtaSize.ButtonHeightMedium]).
- * Built on foundation [BasicTextField] inside a Surface — an M3 TextField would
- * enforce its own 56dp minimum, so height parity with the button is impossible
- * there; BasicTextField also keeps focus chrome invisible by construction.
+ * Unified chat composer (ChatGPT/Claude-style): a single elevated card holding
+ * the attachment strip, the growing text field, and a bottom action row with
+ * the attach menu and an embedded circular send/stop button. Keeps the legacy
+ * height behaviour (44dp resting, 220dp cap) that only BasicTextField allows —
+ * an M3 TextField enforces a 56dp minimum.
  */
 @Composable
-private fun ComposerPillField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-    modifier: Modifier = Modifier
+private fun ComposerCard(
+    state: AgentUiState,
+    onTextChange: (String) -> Unit,
+    onSend: () -> Unit,
+    onCancel: () -> Unit,
+    onAttachImage: () -> Unit,
+    onAttachFile: () -> Unit,
+    onAttachFolder: () -> Unit,
+    onRemoveAttachment: (String) -> Unit,
+    resolveAttachmentPreview: (UserAttachment) -> Any?
 ) {
-    Surface(
-        shape = RoundedCornerShape(WtaRadius.Button),
-        color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        modifier = modifier
+    WtaCard(
+        tone = WtaCardTone.Elevated,
+        shape = RoundedCornerShape(WtaRadius.Card + 8.dp),
+        contentPadding = PaddingValues(vertical = WtaSpacing.Small),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = WtaSpacing.ScreenHorizontal,
+                vertical = WtaSpacing.Small
+            )
     ) {
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
+        if (state.pendingAttachments.isNotEmpty()) {
+            PendingAttachmentsRow(
+                attachments = state.pendingAttachments,
+                onRemove = onRemoveAttachment,
+                resolveAttachmentPreview = resolveAttachmentPreview
+            )
+        }
+        ComposerField(
+            value = state.composerText,
+            onValueChange = onTextChange,
+            placeholder = composerPlaceholder(state)
+        )
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = WtaSize.ButtonHeightMedium),
-            textStyle = MaterialTheme.typography.bodyLarge.copy(
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-            decorationBox = { innerField ->
-                Box(
-                    modifier = Modifier.padding(horizontal = 14.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (value.isEmpty()) {
-                        Text(
-                            text = placeholder,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                    innerField()
-                }
-            }
-        )
+                .padding(horizontal = WtaSpacing.Small, vertical = WtaSpacing.Tiny),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AttachButton(
+                onAttachImage = onAttachImage,
+                onAttachFile = onAttachFile,
+                onAttachFolder = onAttachFolder
+            )
+            Spacer(Modifier.weight(1f))
+            SendButton(
+                working = state.isWorking,
+                enabled = state.canSend &&
+                    (state.composerText.isNotBlank() || state.pendingAttachments.isNotEmpty()),
+                onSend = onSend,
+                onCancel = onCancel
+            )
+        }
     }
+}
+
+/**
+ * The growing text field inside [ComposerCard]. Built on foundation
+ * [BasicTextField] — an M3 TextField would enforce its own 56dp minimum and
+ * add focus chrome we do not want inside the unified card.
+ */
+@Composable
+private fun ComposerField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 36.dp, max = 220.dp)
+            .padding(horizontal = WtaSpacing.RowHorizontal, vertical = WtaSpacing.Tiny),
+        textStyle = MaterialTheme.typography.bodyLarge.copy(
+            color = MaterialTheme.colorScheme.onSurface
+        ),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        decorationBox = { innerField ->
+            Box(contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
+                    )
+                }
+                innerField()
+            }
+        }
+    )
 }
 
 @Composable
@@ -252,51 +281,107 @@ private fun AttachButton(
 @Composable
 private fun PendingAttachmentsRow(
     attachments: List<UserAttachment>,
-    onRemove: (String) -> Unit
+    onRemove: (String) -> Unit,
+    resolveAttachmentPreview: (UserAttachment) -> Any?
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .horizontalScroll(rememberScrollState())
-            .padding(horizontal = WtaSpacing.ScreenHorizontal, vertical = WtaSpacing.Tiny),
+            .padding(horizontal = WtaSpacing.RowHorizontal, vertical = WtaSpacing.Tiny),
         horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
     ) {
         attachments.forEach { att ->
-            Surface(
-                shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.secondaryContainer
-            ) {
-                Row(
-                    modifier = Modifier.padding(
-                        horizontal = WtaSpacing.Small,
-                        vertical = WtaSpacing.Tiny
-                    ),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = if (att.isImage) Icons.Outlined.Image else Icons.Outlined.AttachFile,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.size(WtaSize.IconSmall)
-                    )
-                    Spacer(Modifier.width(WtaSpacing.Tiny))
-                    Text(
-                        text = att.displayName,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        maxLines = 1
-                    )
-                    Spacer(Modifier.width(WtaSpacing.Tiny))
-                    Icon(
-                        imageVector = Icons.Outlined.Close,
-                        contentDescription = Strings.btnDelete,
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier
-                            .size(WtaSize.IconSmall)
-                            .clickable { onRemove(att.path) }
-                    )
-                }
+            if (att.isImage) {
+                ImageAttachmentChip(att, onRemove, resolveAttachmentPreview(att))
+            } else {
+                FileAttachmentChip(att, onRemove)
             }
+        }
+    }
+}
+
+/** Image attachment with a real thumbnail (Coil) instead of a bare text chip. */
+@Composable
+private fun ImageAttachmentChip(att: UserAttachment, onRemove: (String) -> Unit, previewModel: Any?) {
+    Box {
+        Surface(
+            shape = RoundedCornerShape(WtaRadius.Control),
+            color = MaterialTheme.colorScheme.surfaceContainerHighest
+        ) {
+            coil.compose.AsyncImage(
+                model = previewModel,
+                contentDescription = att.displayName,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.size(56.dp)
+            )
+        }
+        AttachmentRemoveBadge(
+            onClick = { onRemove(att.path) },
+            modifier = Modifier.align(Alignment.TopEnd)
+        )
+    }
+}
+
+@Composable
+private fun FileAttachmentChip(att: UserAttachment, onRemove: (String) -> Unit) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer
+    ) {
+        Row(
+            modifier = Modifier.padding(
+                start = WtaSpacing.Small,
+                end = WtaSpacing.Tiny,
+                top = WtaSpacing.Tiny,
+                bottom = WtaSpacing.Tiny
+            ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (att.path.endsWith("/")) Icons.Outlined.Folder else Icons.Outlined.AttachFile,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier.size(WtaSize.IconSmall)
+            )
+            Spacer(Modifier.width(WtaSpacing.Tiny))
+            Text(
+                text = att.displayName,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                maxLines = 1,
+                modifier = Modifier.widthIn(max = 140.dp),
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = Strings.btnDelete,
+                tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                modifier = Modifier
+                    .size(WtaSize.IconSmall)
+                    .clickable { onRemove(att.path) }
+            )
+        }
+    }
+}
+
+/** Small circular "×" badge overlaid on an image thumbnail. */
+@Composable
+private fun AttachmentRemoveBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(WtaRadius.Pill),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+        modifier = modifier
+            .size(20.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Outlined.Close,
+                contentDescription = Strings.btnDelete,
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(12.dp)
+            )
         }
     }
 }
@@ -313,31 +398,29 @@ private fun SendButton(
     onSend: () -> Unit,
     onCancel: () -> Unit
 ) {
-    if (working) {
-        WtaButton(
-            onClick = onCancel,
-            variant = WtaButtonVariant.Destructive,
-            size = WtaButtonSize.Medium,
-            shape = RoundedCornerShape(WtaRadius.Pill)
-        ) {
+    val container = when {
+        working -> MaterialTheme.colorScheme.errorContainer
+        enabled -> MaterialTheme.colorScheme.primary
+        else -> MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+    val content = when {
+        working -> MaterialTheme.colorScheme.onErrorContainer
+        enabled -> MaterialTheme.colorScheme.onPrimary
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        onClick = if (working) onCancel else onSend,
+        enabled = working || enabled,
+        shape = RoundedCornerShape(WtaRadius.Pill),
+        color = container,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
             Icon(
-                Icons.Outlined.Stop,
-                contentDescription = Strings.agentStopTooltip,
-                modifier = Modifier.size(WtaSize.Icon)
-            )
-        }
-    } else {
-        WtaButton(
-            onClick = onSend,
-            variant = WtaButtonVariant.Primary,
-            size = WtaButtonSize.Medium,
-            enabled = enabled,
-            shape = RoundedCornerShape(WtaRadius.Pill)
-        ) {
-            Icon(
-                Icons.AutoMirrored.Outlined.Send,
-                contentDescription = Strings.agentSendTooltip,
-                modifier = Modifier.size(WtaSize.Icon)
+                imageVector = if (working) Icons.Outlined.Stop else Icons.AutoMirrored.Outlined.Send,
+                contentDescription = if (working) Strings.agentStopTooltip else Strings.agentSendTooltip,
+                tint = content,
+                modifier = Modifier.size(18.dp)
             )
         }
     }
@@ -491,6 +574,7 @@ private fun ModeChipRow(
     onToggleAuto: () -> Unit,
     onTriggerSlash: () -> Unit,
     currentModelLabel: String,
+    modelMissing: Boolean,
     onOpenModelPicker: () -> Unit,
     estimatedTokens: Int,
     contextCapacity: Int,
@@ -501,9 +585,11 @@ private fun ModeChipRow(
 ) {
     var showCompactMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
+    // Chips can outgrow narrow screens — scroll instead of clipping the model chip.
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(
                 horizontal = WtaSpacing.ScreenHorizontal,
                 vertical = WtaSpacing.Tiny + 2.dp
@@ -514,7 +600,7 @@ private fun ModeChipRow(
         ModeChip(
             label = if (autoApprove) Strings.agentAutoModeLabel
             else Strings.agentManualModeLabel,
-            icon = if (autoApprove) Icons.Outlined.Bolt else Icons.Outlined.Lock,
+            icon = if (autoApprove) Icons.Outlined.Bolt else Icons.Outlined.Shield,
             primary = autoApprove,
             onClick = onToggleAuto
         )
@@ -539,36 +625,37 @@ private fun ModeChipRow(
             val usageLabel = formatTokenUsage(estimatedTokens, contextCapacity)
             val usageRatio = if (contextCapacity > 0) estimatedTokens.toFloat() / contextCapacity else 0f
             val usageHigh = usageRatio >= 0.75f
-            ContextChip(
-                label = usageLabel,
-                warning = usageHigh,
-                compacting = compacting,
-                onClick = { showCompactMenu = true }
-            )
+            // Box anchors the compact-context menu to this chip — emitted as a row
+            // sibling it would anchor to the column's top-start corner instead.
+            Box {
+                ContextChip(
+                    label = usageLabel,
+                    warning = usageHigh,
+                    compacting = compacting,
+                    onClick = { showCompactMenu = true }
+                )
+                androidx.compose.material3.DropdownMenu(
+                    expanded = showCompactMenu,
+                    onDismissRequest = { showCompactMenu = false }
+                ) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(Strings.agentCompactNow) },
+                        onClick = {
+                            showCompactMenu = false
+                            onCompactContext()
+                        },
+                        enabled = !compacting
+                    )
+                }
+            }
         }
-
-        Spacer(Modifier.weight(1f))
 
         ModelChip(
-            label = currentModelLabel.ifBlank { Strings.agentModelChipLabel },
+            label = if (modelMissing) Strings.selectModel
+                else currentModelLabel.ifBlank { Strings.agentModelChipLabel },
+            missing = modelMissing,
             onClick = onOpenModelPicker
         )
-    }
-
-    if (showCompactMenu) {
-        androidx.compose.material3.DropdownMenu(
-            expanded = true,
-            onDismissRequest = { showCompactMenu = false }
-        ) {
-            androidx.compose.material3.DropdownMenuItem(
-                text = { Text(Strings.agentCompactNow) },
-                onClick = {
-                    showCompactMenu = false
-                    onCompactContext()
-                },
-                enabled = !compacting
-            )
-        }
     }
 }
 
@@ -587,21 +674,27 @@ private fun formatTokenUsage(used: Int, capacity: Int): String {
 @Composable
 private fun ModelChip(
     label: String,
+    missing: Boolean,
     onClick: () -> Unit
 ) {
-    com.webtoapp.ui.design.WtaCard(
+    // No usable model is a blocking state: flag it instead of looking normal
+    // and failing only after the user hits send.
+    val tone = if (missing) WtaCardTone.Critical else WtaCardTone.Highlighted
+    val onTone = if (missing) MaterialTheme.colorScheme.onErrorContainer
+        else MaterialTheme.colorScheme.onPrimaryContainer
+    WtaCard(
         onClick = onClick,
-        tone = com.webtoapp.ui.design.WtaCardTone.Highlighted,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
+        tone = tone,
+        contentPadding = PaddingValues(
             horizontal = WtaSpacing.Small + 2.dp,
             vertical = WtaSpacing.Tiny + 2.dp
         )
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Outlined.SmartToy,
+                imageVector = if (missing) Icons.Outlined.Warning else Icons.Outlined.SmartToy,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                tint = onTone,
                 modifier = Modifier.size(WtaSize.IconSmall - 2.dp)
             )
             Spacer(Modifier.width(WtaSpacing.Tiny + 2.dp))
@@ -614,7 +707,7 @@ private fun ModelChip(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    color = onTone,
                     maxLines = 1,
                     softWrap = false
                 )

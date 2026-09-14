@@ -224,6 +224,12 @@ fun ManualLrcAlignerDialog(
                             else -> com.webtoapp.core.i18n.Strings.previewConfirm
                         })
                     },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     navigationIcon = {
                         if (currentStep == 1) {
 

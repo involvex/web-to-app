@@ -5,7 +5,7 @@ A hosts-rule ad blocker with cosmetic filtering. Open it from [⋮ → Hosts Ad 
 ## Features
 
 - **Active rules count** — see how many blocking rules are loaded.
-- **Sources** — manage filter subscriptions: download, import from a file or URL, or delete a source.
+- **Sources** — manage filter subscriptions: download, import from a file or URL, or delete a source. Custom imports get a display name and render as their own cards with enable/disable/delete.
 - **Built-in lists** — 20 community filter lists (EasyList, uBlock Origin, AdGuard, AdAway, plus 8 language-specific lists).
 - **Search** — find specific rules.
 - **Clear** — remove all loaded rules (with confirmation).
@@ -17,4 +17,4 @@ Beyond host blocking, a MutationObserver-based cosmetic filter hides elements ma
 ## Notes
 
 - Ad blocking is wired for both preview and export: the host blocker serves preview, and the compiled rule set ships inside the generated APK.
-- Configure ad blocking per app under [Privacy](/guide/config/privacy).
+- Configure ad blocking per app under [Privacy](/guide/config/privacy) — the per-app subscription selector offers the built-in lists **and your imported custom sources**.

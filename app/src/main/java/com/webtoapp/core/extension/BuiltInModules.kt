@@ -137,7 +137,7 @@ object BuiltInModules {
         icon = "block",
         category = ModuleCategory.CONTENT_FILTER,
         tags = listOf(Strings.tagBlock, Strings.tagAd, Strings.tagElement),
-        version = ModuleVersion(4, "4.0.0", Strings.versionV4Ui),
+        version = ModuleVersion(5, "4.1.0", Strings.versionV4Ui),
         author = ModuleAuthor("WebToApp"),
         builtIn = true,
         enabled = false,
@@ -1559,6 +1559,8 @@ object BuiltInModules {
             selectElement: '选择要屏蔽的元素',
             blockedCount: '已屏蔽 {0} 个元素',
             delete: '删除',
+            copyRule: '复制规则',
+            ruleCopied: '屏蔽规则已复制，可粘贴到去广告自定义规则',
             clearAll: '清除所有屏蔽',
             clickToSelect: '点击上方按钮选择要屏蔽的元素'
         },
@@ -1573,6 +1575,8 @@ object BuiltInModules {
             selectElement: 'Select element to block',
             blockedCount: '{0} elements blocked',
             delete: 'Delete',
+            copyRule: 'Copy rule',
+            ruleCopied: 'Block rule copied; paste it into ad-block custom rules',
             clearAll: 'Clear all blocks',
             clickToSelect: 'Click the button above to select elements'
         },
@@ -1587,6 +1591,8 @@ object BuiltInModules {
             selectElement: 'حدد العنصر للحظر',
             blockedCount: 'تم حظر {0} عنصر',
             delete: 'حذف',
+            copyRule: 'نسخ القاعدة',
+            ruleCopied: 'تم نسخ قاعدة الحظر؛ الصقها في القواعد المخصصة لمنع الإعلانات',
             clearAll: 'مسح جميع الحظر',
             clickToSelect: 'انقر على الزر أعلاه لتحديد العناصر'
         }
@@ -1663,6 +1669,46 @@ object BuiltInModules {
         blockedSelectors.push(selector);
         saveRules();
         __WTA_MODULE_UI__.toast(T.blocked);
+    }
+
+    // Copy屏蔽规则到剪贴板 (issue #765)：拼成“域名##选择器”的去广告
+    // 自定义规则格式，粘贴即用。navigator.clipboard 在非安全上下文不可用
+    // （如 http 页面），此时回退到 textarea + execCommand。
+    function copySelector(index) {
+        const selector = blockedSelectors[index];
+        if (!selector) return;
+        let rule = selector;
+        try {
+            const host = window.location.hostname;
+            if (host) rule = host + '##' + selector;
+        } catch (e) { /* file/blob 页面无 hostname，用裸选择器 */ }
+        function done(ok) {
+            __WTA_MODULE_UI__.toast(ok ? T.ruleCopied : selector);
+        }
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(rule).then(function() { done(true); }, function() { legacyCopy(rule, done); });
+            } else {
+                legacyCopy(rule, done);
+            }
+        } catch (e) {
+            legacyCopy(rule, done);
+        }
+    }
+
+    function legacyCopy(text, done) {
+        try {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+            document.body.appendChild(ta);
+            ta.select();
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            done(!!ok);
+        } catch (e) {
+            done(false);
+        }
     }
 
     // Cancel屏蔽
@@ -1766,6 +1812,7 @@ object BuiltInModules {
             blockedSelectors.forEach(function(selector, i) {
                 html += '<div class="wta-blocker-item">' +
                     '<span class="wta-blocker-item-selector">' + selector.replace(/</g, '&lt;') + '</span>' +
+                    '<button class="wta-blocker-item-btn" data-wta-action="copySelector" data-wta-arg="' + i + '" title="' + T.copyRule + '">⧉</button>' +
                     '<button class="wta-blocker-item-btn" data-wta-action="unblock" data-wta-arg="' + i + '">✕</button></div>';
             });
             html += '</div>';
@@ -1779,6 +1826,7 @@ object BuiltInModules {
 
     window.__wta_module_action_enterSelectMode = enterSelectMode;
     window.__wta_module_action_unblock = function(i) { unblockElement(parseInt(i)); };
+    window.__wta_module_action_copySelector = function(i) { copySelector(parseInt(i)); };
     window.__wta_module_action_clearAllBlocks = clearAll;
 
     function register() {

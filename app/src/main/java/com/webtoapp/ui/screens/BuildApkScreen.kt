@@ -1,13 +1,8 @@
 package com.webtoapp.ui.screens
 
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -17,18 +12,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Cached
-import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.GetApp
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.SystemUpdateAlt
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -50,7 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -73,15 +69,19 @@ import com.webtoapp.data.model.withRuntimePermissionsSyncedFromFeatures
 import com.webtoapp.ui.components.ApkExportPreflightPanel
 import com.webtoapp.ui.components.BackgroundRunConfigCard
 import com.webtoapp.ui.components.EncryptionConfigCard
-import com.webtoapp.ui.components.IconSwitchCard
 import com.webtoapp.ui.components.IsolationConfigCard
 import com.webtoapp.ui.components.NotificationConfigCard
 import com.webtoapp.ui.components.PremiumButton
 import com.webtoapp.ui.components.PremiumOutlinedButton
-import com.webtoapp.ui.components.SettingsSection
+import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaBadge
+import com.webtoapp.ui.design.WtaCard
+import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaLoadingState
 import com.webtoapp.ui.design.WtaRadius
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaSectionDivider
+import com.webtoapp.ui.design.WtaToggleRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -109,9 +109,7 @@ fun BuildApkScreen(
             title = Strings.buildDialogTitle,
             onBack = onBack
         ) { _ ->
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
-            }
+            WtaLoadingState()
         }
         return
     }
@@ -155,6 +153,10 @@ private fun BuildApkContent(
     var preflightReport by remember(webApp.id) { mutableStateOf<ApkExportPreflightReport?>(null) }
     var isEnsuringRuntime by remember(webApp.id) { mutableStateOf(false) }
     var ensureRuntimeText by remember(webApp.id) { mutableStateOf<String?>(null) }
+    // Runtime downloads under the ensure step report through the shared engine;
+    // surface them so "preparing" shows real progress instead of a bare spinner.
+    val depDownloadState by com.webtoapp.core.download.DependencyDownloadEngine.state
+        .collectAsStateWithLifecycle()
     var forceFullRebuild by remember(webApp.id) { mutableStateOf(false) }
     var lastBuildMode by remember(webApp.id) { mutableStateOf<String?>(null) }
     var lastBuildReason by remember(webApp.id) { mutableStateOf<String?>(null) }
@@ -185,20 +187,19 @@ private fun BuildApkContent(
     var selectedEngineType by remember(webApp.id) {
         mutableStateOf(webApp.apkExportConfig?.engineType ?: "SYSTEM_WEBVIEW")
     }
-    val updatePackageName = webApp.apkExportConfig?.customPackageName
-        ?.takeIf { it.isNotBlank() && it.matches(com.webtoapp.util.AppConstants.PACKAGE_NAME_REGEX) }
+    // Resolve the package exactly the way the builder does. That rule used to
+    // live inside ApkBuilder, so the screen could not reproduce a derived
+    // package name, never found the installed app, and never bumped the version.
+    val resolvedPackageName = com.webtoapp.core.apkbuilder.ApkBuilder.resolvePackageName(webApp)
     val baseVersionCode = webApp.apkExportConfig?.customVersionCode ?: 1
-    var installedVersionCode by remember(updatePackageName) { mutableStateOf<Long?>(null) }
-    LaunchedEffect(updatePackageName, uiReady) {
-        if (!uiReady || updatePackageName == null) return@LaunchedEffect
-        installedVersionCode = withContext(Dispatchers.IO) {
-            findInstalledVersionCode(context, updatePackageName)
-        }
+    var suggestedVersion by remember(resolvedPackageName) {
+        mutableStateOf<Pair<Int, String>?>(null)
     }
-    val suggestedUpdateVersionCode = if (updatePackageName != null) {
-        (maxOf(baseVersionCode.toLong(), installedVersionCode ?: 0L) + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    } else {
-        baseVersionCode
+    LaunchedEffect(resolvedPackageName, baseVersionCode, uiReady) {
+        if (!uiReady) return@LaunchedEffect
+        suggestedVersion = withContext(Dispatchers.IO) {
+            com.webtoapp.core.apkbuilder.ApkBuilder.suggestedVersionForInstall(context, webApp)
+        }
     }
     val engineFileManager = remember { com.webtoapp.core.engine.download.EngineFileManager(context) }
     var isGeckoDownloaded by remember { mutableStateOf(false) }
@@ -223,8 +224,12 @@ private fun BuildApkContent(
                 notificationConfig = notificationConfig,
                 engineType = selectedEngineType
             ).let { exportConfig ->
-                if (updatePackageName != null && (exportConfig.customVersionCode ?: 1) < suggestedUpdateVersionCode) {
-                    exportConfig.copy(customVersionCode = suggestedUpdateVersionCode)
+                val suggested = suggestedVersion
+                if (suggested != null && (exportConfig.customVersionCode ?: 1) < suggested.first) {
+                    exportConfig.copy(
+                        customVersionCode = suggested.first,
+                        customVersionName = suggested.second
+                    )
                 } else {
                     exportConfig
                 }
@@ -255,9 +260,15 @@ private fun BuildApkContent(
             }
             val ensureOk = ExportRuntimeEnsure.ensure(
                 context,
-                webAppWithConfig.appType
+                webAppWithConfig.appType,
+                webAppWithConfig.webViewConfig.forceHttp3 ||
+                    webAppWithConfig.webViewConfig.dnsConfig.echEffective,
+                neededAbis = webAppWithConfig.apkExportConfig?.architecture?.abiFilters
             )
             if (!ensureOk) {
+                // Abort here: buildApk runs the same ensure again, so falling
+                // through would burn a second full runtime download attempt
+                // before the build fails on the same missing dependency.
                 progressText = when (webAppWithConfig.appType) {
                     AppType.PYTHON_APP -> Strings.pythonRuntimeDownloadFailed
                     AppType.NODEJS_APP -> Strings.njsDownloadFailed
@@ -265,6 +276,8 @@ private fun BuildApkContent(
                     AppType.WORDPRESS -> Strings.wpDownloadFailed
                     else -> Strings.preparing
                 }
+                isBuilding = false
+                return@launch
             }
             val nextPreflight = ApkExportPreflight.check(context, webAppWithConfig)
             preflightReport = nextPreflight
@@ -312,7 +325,14 @@ private fun BuildApkContent(
     ) {
         if (!uiReady) return@LaunchedEffect
         val config = currentBuildConfig()
-        if (ExportRuntimeEnsure.needsEnsure(context, config.appType)) {
+        val needsCronet = config.webViewConfig.forceHttp3 || config.webViewConfig.dnsConfig.echEffective
+        if (ExportRuntimeEnsure.needsEnsure(
+                context,
+                config.appType,
+                needsCronet,
+                neededAbis = webApp.apkExportConfig?.architecture?.abiFilters
+            )
+        ) {
             isEnsuringRuntime = true
             ensureRuntimeText = when (config.appType) {
                 AppType.PYTHON_APP -> Strings.preparingPythonEnv
@@ -321,7 +341,12 @@ private fun BuildApkContent(
                 AppType.WORDPRESS -> Strings.preparing
                 else -> Strings.preparing
             }
-            val ensureOk = ExportRuntimeEnsure.ensure(context, config.appType)
+            val ensureOk = ExportRuntimeEnsure.ensure(
+                context,
+                config.appType,
+                needsCronet,
+                neededAbis = webApp.apkExportConfig?.architecture?.abiFilters
+            )
             if (!ensureOk) {
                 ensureRuntimeText = when (config.appType) {
                     AppType.PYTHON_APP -> Strings.pythonRuntimeDownloadFailed
@@ -382,36 +407,16 @@ private fun BuildApkContent(
                             Text("AAB", maxLines = 1)
                         }
                         Spacer(Modifier.width(8.dp))
-                        PremiumOutlinedButton(
-                            onClick = onBack,
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Icon(
-                                Icons.Outlined.Close,
-                                null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (analysisReport != null) Strings.close else Strings.btnCancel, maxLines = 1)
-                        }
-                        Spacer(Modifier.width(8.dp))
                         PremiumButton(
                             onClick = {
                                 if (builtApk != null) {
                                     val installStarted = apkBuilderState?.installApk(builtApk) ?: false
-                                    if (installStarted) {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "正在启动安装...",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        android.widget.Toast.makeText(
-                                            context,
-                                            "无法自动启动安装",
-                                            android.widget.Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        if (installStarted) Strings.fileManagerInstallStarted
+                                        else Strings.fileManagerInstallFailed,
+                                        android.widget.Toast.LENGTH_SHORT
+                                    ).show()
                                 } else {
                                     launchBuild()
                                 }
@@ -459,11 +464,12 @@ private fun BuildApkContent(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item {
+                WtaCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     val iconPath = webApp.iconPath
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(44.dp)
                             .clip(RoundedCornerShape(WtaRadius.IconPlate)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -488,15 +494,20 @@ private fun BuildApkContent(
                                 Icon(
                                     Icons.Filled.Android,
                                     null,
-                                    modifier = Modifier.size(20.dp),
+                                    modifier = Modifier.size(24.dp),
                                     tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
                         }
                     }
                     Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text(webApp.name, style = MaterialTheme.typography.titleSmall)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            webApp.name,
+                            style = MaterialTheme.typography.titleSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         Text(
                             when (webApp.appType) {
                                 AppType.IMAGE -> {
@@ -515,11 +526,18 @@ private fun BuildApkContent(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Text(
+                            resolvedPackageName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
+                }
             }
-
-            item { HorizontalDivider() }
 
             item {
                 EncryptionConfigCard(
@@ -555,48 +573,58 @@ private fun BuildApkContent(
 
             if (webApp.appType == AppType.WEB) {
                 item {
-                    EngineSelectionCard(
-                        selectedEngine = selectedEngineType,
-                        isGeckoDownloaded = isGeckoDownloaded,
-                        onEngineSelected = { selectedEngineType = it }
-                    )
+                    WtaCard {
+                        EngineSelectionCard(
+                            selectedEngine = selectedEngineType,
+                            isGeckoDownloaded = isGeckoDownloaded,
+                            onEngineSelected = { selectedEngineType = it }
+                        )
+                    }
                 }
             }
 
-            item { HorizontalDivider() }
-
             if (analysisReport == null && !isBuilding) {
                 item {
-                    SettingsSection(title = Strings.clearIncrementalCache) {
-                        IconSwitchCard(
+                    WtaCard(contentPadding = PaddingValues(vertical = 4.dp)) {
+                        WtaToggleRow(
+                            icon = Icons.Outlined.Cached,
                             title = Strings.forceFullRebuild,
                             subtitle = Strings.forceFullRebuildDesc,
-                            iconPainter = rememberVectorPainter(Icons.Outlined.Cached),
                             checked = forceFullRebuild,
                             onCheckedChange = { forceFullRebuild = it }
                         )
-                        PremiumOutlinedButton(
-                            onClick = {
-                                apkBuilderState?.clearIncrementalCache(currentBuildConfig())
-                                cacheMessage = Strings.incrementalCacheCleared
-                            },
+                        WtaSectionDivider()
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Icon(
-                                Icons.Outlined.DeleteSweep,
-                                null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(Strings.clearIncrementalCache, maxLines = 1)
-                        }
-                        cacheMessage?.let { msg ->
-                            Text(
-                                msg,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            TextButton(
+                                onClick = {
+                                    apkBuilderState?.clearIncrementalCache(currentBuildConfig())
+                                    cacheMessage = Strings.incrementalCacheCleared
+                                },
+                                contentPadding = PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Outlined.DeleteSweep,
+                                    null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    Strings.clearIncrementalCache,
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                            cacheMessage?.let { msg ->
+                                WtaBadge(
+                                    text = msg,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         }
                     }
                 }
@@ -604,40 +632,56 @@ private fun BuildApkContent(
 
             if (analysisReport == null) {
                 item {
-                    Text(
-                        Strings.buildApkForApp.replace("%s", webApp.name),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-
-                    Text(
-                        Strings.buildCompleteInstallHint,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    if (updatePackageName != null) {
-                        Surface(
-                            shape = RoundedCornerShape(WtaRadius.Control),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        ) {
+                    WtaCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 Icon(
-                                    Icons.Outlined.SystemUpdateAlt,
+                                    Icons.Outlined.Info,
                                     null,
                                     modifier = Modifier.size(18.dp),
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    Strings.updateApkGuide.replace("%s", updatePackageName)
-                                        .replace("%d", suggestedUpdateVersionCode.toString()),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    Strings.buildApkForApp.replace("%s", webApp.name),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium
                                 )
+                            }
+
+                            Text(
+                                Strings.buildCompleteInstallHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            if (suggestedVersion != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(WtaRadius.Control),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Outlined.SystemUpdateAlt,
+                                            null,
+                                            modifier = Modifier.size(18.dp),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                        Text(
+                                            Strings.updateApkGuide.replace("%s", resolvedPackageName)
+                                                .replace("%d", (suggestedVersion?.first ?: baseVersionCode).toString()),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -646,13 +690,9 @@ private fun BuildApkContent(
 
             if (isEnsuringRuntime || ensureRuntimeText != null) {
                 item {
-                    Surface(
-                        shape = RoundedCornerShape(WtaRadius.Control),
-                        color = if (isEnsuringRuntime) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        } else {
-                            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.55f)
-                        }
+                    WtaCard(
+                        tone = if (isEnsuringRuntime) WtaCardTone.Highlighted else WtaCardTone.Critical,
+                        contentPadding = PaddingValues(12.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -660,8 +700,19 @@ private fun BuildApkContent(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
+                            val downloading =
+                                (depDownloadState as? com.webtoapp.core.download.DependencyDownloadEngine.State.Downloading)
+                                    ?.takeIf { isEnsuringRuntime }
                             Text(
-                                text = ensureRuntimeText ?: Strings.preparing,
+                                text = if (downloading != null) {
+                                    "$ensureRuntimeText — ${downloading.displayName} " +
+                                        "${downloading.bytesDownloaded / 1024 / 1024}MB" +
+                                        (downloading.totalBytes.takeIf { it > 0 }
+                                            ?.let { " / ${it / 1024 / 1024}MB" } ?: "") +
+                                        " · ${com.webtoapp.core.download.DependencyDownloadEngine.formatSpeed(downloading.speedBytesPerSec)}/s"
+                                } else {
+                                    ensureRuntimeText ?: Strings.preparing
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (isEnsuringRuntime) {
                                     MaterialTheme.colorScheme.onPrimaryContainer
@@ -670,7 +721,14 @@ private fun BuildApkContent(
                                 }
                             )
                             if (isEnsuringRuntime) {
-                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                if (downloading != null && downloading.totalBytes > 0) {
+                                    LinearProgressIndicator(
+                                        progress = { downloading.progress },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                } else {
+                                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                }
                             }
                         }
                     }
@@ -687,7 +745,7 @@ private fun BuildApkContent(
 
             if (isBuilding) {
                 item {
-                    Spacer(Modifier.height(12.dp))
+                    WtaCard(tone = WtaCardTone.Highlighted) {
 
                     val animatedProgress by animateFloatAsState(
                         targetValue = progress / 100f,
@@ -696,21 +754,6 @@ private fun BuildApkContent(
                             stiffness = Spring.StiffnessMediumLow
                         ),
                         label = "buildProgress"
-                    )
-
-                    val pulseAlpha by rememberInfiniteTransition(label = "buildPulse").animateFloat(
-                        initialValue = 0.6f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(1000),
-                            repeatMode = RepeatMode.Reverse
-                        ),
-                        label = "buildPulseAlpha"
-                    )
-                    val animPulse by animateFloatAsState(
-                        targetValue = pulseAlpha,
-                        animationSpec = tween(800),
-                        label = "pulseAlpha"
                     )
 
                     Row(
@@ -722,8 +765,7 @@ private fun BuildApkContent(
                                 progress = { animatedProgress },
                                 modifier = Modifier.size(48.dp),
                                 strokeWidth = 4.dp,
-                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = animPulse)
+                                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                             )
                             Text(
                                 "${progress}%",
@@ -746,25 +788,28 @@ private fun BuildApkContent(
                             )
                         }
                     }
+                    }
                 }
             }
 
             analysisReport?.let { report ->
-                item { HorizontalDivider() }
+                item {
+                    WtaCard {
+                        BuildSummaryCard(
+                            webApp = webApp,
+                            apkFile = report.apkFile,
+                            totalSizeFormatted = report.totalSizeFormatted,
+                            versionName = currentBuildConfig().apkExportConfig
+                                ?.customVersionName?.takeIf { it.isNotBlank() } ?: "1.0.0",
+                            versionCode = currentBuildConfig().apkExportConfig?.customVersionCode ?: 1,
+                            buildMode = lastBuildMode,
+                            buildReason = lastBuildReason
+                        )
+                    }
+                }
 
                 item {
-                    BuildSummaryCard(
-                        webApp = webApp,
-                        apkFile = report.apkFile,
-                        totalSizeFormatted = report.totalSizeFormatted,
-                        versionName = currentBuildConfig().apkExportConfig
-                            ?.customVersionName?.takeIf { it.isNotBlank() } ?: "1.0.0",
-                        versionCode = currentBuildConfig().apkExportConfig?.customVersionCode ?: 1,
-                        buildMode = lastBuildMode,
-                        buildReason = lastBuildReason
-                    )
-
-                    TextButton(
+                    PremiumOutlinedButton(
                         onClick = {
                             analysisReport = null
                             lastBuildMode = null
@@ -772,71 +817,100 @@ private fun BuildApkContent(
                             buildFailureReport = null
                             cacheMessage = null
                         },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(Strings.buildAgain)
-                    }
-
-                    HorizontalDivider()
-
-                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text(
-                            "APK Analysis",
-                            style = MaterialTheme.typography.titleSmall,
-                            color = MaterialTheme.colorScheme.primary
+                        Icon(
+                            Icons.Outlined.Autorenew,
+                            null,
+                            modifier = Modifier.size(18.dp)
                         )
-                        Text(
-                            report.totalSizeFormatted,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(Strings.buildAgain, maxLines = 1)
                     }
+                }
 
-                    Spacer(Modifier.height(4.dp))
+                item {
+                    WtaCard {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.PieChart,
+                                        null,
+                                        modifier = Modifier.size(18.dp),
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        Strings.apkAnalysisTitle,
+                                        style = MaterialTheme.typography.titleSmall
+                                    )
+                                }
+                                WtaBadge(
+                                    text = report.totalSizeFormatted,
+                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
 
-                    report.categories.forEach { cat ->
-                        val catColor = try {
-                            Color(android.graphics.Color.parseColor(cat.category.color))
-                        } catch (_: Exception) {
-                            MaterialTheme.colorScheme.primary
-                        }
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
+                            Row(
                                 modifier = Modifier
-                                    .size(8.dp)
-                                    .background(catColor, RoundedCornerShape(WtaRadius.Button))
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                cat.category.displayName,
-                                style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.weight(weight = 1f, fill = true)
-                            )
-                            Text(
-                                String.format("%.1f%%", cat.percentage),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(WtaRadius.Button))
+                            ) {
+                                report.categories.forEach { cat ->
+                                    val segColor = try {
+                                        Color(android.graphics.Color.parseColor(cat.category.color))
+                                    } catch (_: Exception) {
+                                        MaterialTheme.colorScheme.primary
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(cat.percentage.coerceAtLeast(0.01f))
+                                            .fillMaxHeight()
+                                            .background(segColor)
+                                    )
+                                }
+                            }
 
-                        LinearProgressIndicator(
-                            progress = { (cat.percentage / 100f).coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .padding(start = 14.dp)
-                                .clip(RoundedCornerShape(WtaRadius.Button)),
-                            color = catColor,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-                        Spacer(Modifier.height(2.dp))
+                            report.categories.forEach { cat ->
+                                val catColor = try {
+                                    Color(android.graphics.Color.parseColor(cat.category.color))
+                                } catch (_: Exception) {
+                                    MaterialTheme.colorScheme.primary
+                                }
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .background(catColor, RoundedCornerShape(WtaRadius.Button))
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text(
+                                        cat.category.displayName,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        modifier = Modifier.weight(weight = 1f, fill = true)
+                                    )
+                                    Text(
+                                        "${com.webtoapp.core.download.DependencyDownloadEngine.formatSize(cat.totalCompressedSize)} · " +
+                                            String.format("%.1f%%", cat.percentage),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -844,11 +918,11 @@ private fun BuildApkContent(
     }
 
     if (showExportAabConfirm) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = { showExportAabConfirm = false },
-            icon = { Icon(Icons.Outlined.PlayCircleOutline, null) },
-            title = { Text(Strings.playStoreExportAabConfirmTitle) },
-            text = { Text(Strings.playStoreExportAabConfirmBody) },
+            icon = Icons.Outlined.PlayCircleOutline,
+            title = Strings.playStoreExportAabConfirmTitle,
+            text = Strings.playStoreExportAabConfirmBody,
             confirmButton = {
                 TextButton(onClick = {
                     showExportAabConfirm = false
@@ -877,27 +951,6 @@ private fun resolveBuildIsolationDefault(
     return config ?: com.webtoapp.core.privacy.IsolationConfig.DISABLED
 }
 
-private fun findInstalledVersionCode(context: android.content.Context, packageName: String): Long? {
-    return try {
-        val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
-            context.packageManager.getPackageInfo(
-                packageName,
-                android.content.pm.PackageManager.PackageInfoFlags.of(0)
-            )
-        } else {
-            @Suppress("DEPRECATION")
-            context.packageManager.getPackageInfo(packageName, 0)
-        }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            @Suppress("DEPRECATION")
-            packageInfo.versionCode.toLong()
-        }
-    } catch (_: Exception) {
-        null
-    }
-}
 
 @Composable
 private fun BuildSummaryCard(
@@ -1073,10 +1126,27 @@ fun EngineSelectionCard(
     onEngineSelected: (String) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            Strings.engineSelectTitle,
-            style = MaterialTheme.typography.titleSmall
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(WtaRadius.Control))
+                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Outlined.Language,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Text(
+                Strings.engineSelectTitle,
+                style = MaterialTheme.typography.titleSmall
+            )
+        }
         Text(
             Strings.engineSelectDesc,
             style = MaterialTheme.typography.bodySmall,
@@ -1179,18 +1249,32 @@ internal data class BuildFailureReport(
 
 internal fun readBuildLogTail(path: String?, maxChars: Int = 20000): String {
     return try {
-        path
+        val file = path
             ?.takeIf { it.isNotBlank() }
             ?.let { java.io.File(it) }
             ?.takeIf { it.exists() && it.isFile }
-            ?.readText()
-            ?.let { content ->
-                if (content.length <= maxChars) content else content.takeLast(maxChars)
+            ?: return "<build log unavailable>"
+        // Build logs can reach multiple MB; read only the tail instead of loading the
+        // whole file into memory just to drop all but the last 20k chars.
+        val length = file.length()
+        if (length <= maxChars) {
+            file.readText()
+        } else {
+            val start = length - maxChars
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                raf.seek(start)
+                val buffer = ByteArray(maxChars)
+                raf.readFully(buffer)
+                val tail = String(buffer, Charsets.UTF_8)
+                // Cut to the first newline so the report starts at a clean line.
+                val firstNl = tail.indexOf('\n')
+                if (firstNl >= 0 && firstNl < tail.length - 1) tail.substring(firstNl + 1) else tail
             }
+        }
     } catch (e: Exception) {
         AppLogger.e("BuildApkScreen", "读取 APK 构建日志失败", e)
         Strings.readBuildLogFailed.format(e.message ?: "Unknown error")
-    } ?: "<build log unavailable>"
+    }
 }
 
 internal fun buildActionFailureReport(
@@ -1269,24 +1353,24 @@ internal fun BuildFailureReportDialog(
 ) {
     val clipboardManager = LocalClipboardManager.current
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(report.title)
-                Text(
-                    report.summary,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        },
-        text = {
-            com.webtoapp.ui.components.EnhancedElevatedCard(
+        icon = Icons.Outlined.Build,
+        iconTint = MaterialTheme.colorScheme.error,
+        title = report.title,
+        content = {
+            Text(
+                report.summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(8.dp))
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 420.dp),
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
+                shape = RoundedCornerShape(WtaRadius.Control),
+                color = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.55f)
             ) {
                 Box(modifier = Modifier.fillMaxWidth()) {
                     Text(
@@ -1296,7 +1380,8 @@ internal fun BuildFailureReportDialog(
                             .padding(14.dp)
                             .padding(bottom = 48.dp)
                             .verticalScroll(androidx.compose.foundation.rememberScrollState()),
-                        style = MaterialTheme.typography.bodySmall
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
 
                     androidx.compose.material3.FilledTonalButton(

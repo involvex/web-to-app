@@ -36,6 +36,10 @@ import com.webtoapp.core.wordpress.WordPressDependencyManager
 import com.webtoapp.ui.components.TypedSampleProjectsCard
 import com.webtoapp.data.model.PhpAppConfig
 import com.webtoapp.ui.components.*
+import com.webtoapp.ui.animation.CardCollapseTransition
+import com.webtoapp.ui.animation.CardExpandTransition
+import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
 import com.webtoapp.ui.screens.create.WtaCreateFlowSection
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +48,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import java.io.File
 import java.util.zip.ZipInputStream
+
+// User-picked PHP project zips: same extraction caps as ZipProjectImporter so the
+// shared localized limit strings stay truthful.
+private const val MAX_ZIP_ENTRY_COUNT = 10_000
+private const val MAX_ZIP_TOTAL_BYTES = 1024L * 1024 * 1024
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -299,20 +308,18 @@ fun CreatePhpAppScreen(
 
                         context.contentResolver.openInputStream(zipUri)?.use { inputStream ->
                             ZipInputStream(inputStream).use { zis ->
-                                var entry = zis.nextEntry
-                                while (entry != null) {
-
-                                    val name = entry.name
-                                    if (!entry.isDirectory && !name.startsWith("__MACOSX/") && !name.substringAfterLast("/").startsWith("._")) {
-                                        val outFile = File(extractDir, name)
-                                        outFile.parentFile?.mkdirs()
-                                        outFile.outputStream().use { out ->
-                                            zis.copyTo(out)
-                                        }
+                                // User-picked zip: entries are untrusted — safeChild rejects
+                                // traversal and the caps stop zip-bombs from filling storage.
+                                com.webtoapp.util.SafeZip.extractAll(
+                                    zis,
+                                    extractDir,
+                                    maxEntries = MAX_ZIP_ENTRY_COUNT,
+                                    maxTotalBytes = MAX_ZIP_TOTAL_BYTES,
+                                    filter = { name ->
+                                        !name.startsWith("__MACOSX/") &&
+                                            !name.substringAfterLast("/").startsWith("._")
                                     }
-                                    zis.closeEntry()
-                                    entry = zis.nextEntry
-                                }
+                                )
                             }
                         } ?: run {
                             errorMessage = Strings.phpZipExtractFailed
@@ -340,6 +347,14 @@ fun CreatePhpAppScreen(
 
                         extractDir.deleteRecursively()
                     }
+                } catch (e: com.webtoapp.util.SafeZip.ZipBombException) {
+                    errorMessage = when (e.kind) {
+                        com.webtoapp.util.SafeZip.ZipBombException.Kind.ENTRY_COUNT ->
+                            Strings.zipTooManyEntries.format(MAX_ZIP_ENTRY_COUNT)
+                        com.webtoapp.util.SafeZip.ZipBombException.Kind.TOTAL_SIZE ->
+                            Strings.zipSizeExceeded.format((MAX_ZIP_TOTAL_BYTES / 1024 / 1024).toInt())
+                    }
+                    errorThrowable = e
                 } catch (e: Exception) {
                     errorMessage = e.message ?: Strings.phpZipExtractFailed
                     errorThrowable = e
@@ -789,42 +804,39 @@ private fun PhpDocRootCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             if (detectedWebDirs.isNotEmpty()) {
-                Text(Strings.phpDetectedDirs, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(modifier = Modifier.height(8.dp))
+                Text(Strings.phpDetectedDirs, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Spacer(modifier = Modifier.height(WtaSpacing.Small))
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                 ) {
-                    PremiumFilterChip(
+                    WtaChip(
                         selected = currentDocRoot.isBlank() && !useCustom,
                         onClick = { onSelectDir("") },
-                        label = { Text("/ (${Strings.phpProjectRoot})") },
-                        leadingIcon = if (currentDocRoot.isBlank() && !useCustom) {
-                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                        } else null
+                        label = "/ (${Strings.phpProjectRoot})"
                     )
                     detectedWebDirs.forEach { dir ->
-                        PremiumFilterChip(
+                        WtaChip(
                             selected = currentDocRoot == dir && !useCustom,
                             onClick = { onSelectDir(dir) },
-                            label = { Text("$dir/") },
-                            leadingIcon = if (currentDocRoot == dir && !useCustom) {
-                                { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                            } else null
+                            label = "$dir/"
                         )
                     }
-                    PremiumFilterChip(
+                    WtaChip(
                         selected = useCustom,
                         onClick = { onToggleCustom(true) },
-                        label = { Text(Strings.phpCustomPath) },
-                        leadingIcon = if (useCustom) {
-                            { Icon(Icons.Default.Edit, null, modifier = Modifier.size(16.dp)) }
-                        } else null
+                        label = Strings.phpCustomPath,
+                        leadingIcon = Icons.Default.Edit,
+                        showSelectedCheck = false
                     )
                 }
             }
 
-            AnimatedVisibility(visible = useCustom || detectedWebDirs.isEmpty()) {
+            AnimatedVisibility(
+                visible = useCustom || detectedWebDirs.isEmpty(),
+                enter = CardExpandTransition,
+                exit = CardCollapseTransition
+            ) {
                 Column {
                     Spacer(modifier = Modifier.height(8.dp))
                     PremiumTextField(
@@ -875,18 +887,16 @@ private fun PhpExtensionsCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
             ) {
                 extensions.forEach { (ext, enabled) ->
-                    PremiumFilterChip(
+                    WtaChip(
                         selected = enabled,
-                        onClick = { onToggle(ext, !enabled) },
-                        label = { Text(ext, fontFamily = FontFamily.Monospace) },
-                        leadingIcon = if (enabled) {
-                            { Icon(Icons.Default.Check, null, modifier = Modifier.size(16.dp)) }
-                        } else null
-                    )
+                        onClick = { onToggle(ext, !enabled) }
+                    ) {
+                        Text(ext, fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
 

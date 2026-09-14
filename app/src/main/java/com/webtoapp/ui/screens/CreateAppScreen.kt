@@ -52,7 +52,7 @@ import com.webtoapp.ui.components.BgmCard
 import com.webtoapp.ui.components.*
 import com.webtoapp.ui.viewmodel.EditState
 import com.webtoapp.ui.viewmodel.hasPreviewableContent
-import com.webtoapp.ui.viewmodel.withHideBrowserToolbar
+import com.webtoapp.ui.viewmodel.withBrowserToolbarEnabled
 import com.webtoapp.ui.viewmodel.MainViewModel
 import com.webtoapp.ui.viewmodel.UiState
 import androidx.compose.ui.platform.LocalContext
@@ -223,12 +223,12 @@ fun CreateAppScreen(
             }
 
             item {
-                HideBrowserToolbarCard(
-                    enabled = editState.webViewConfig.hideBrowserToolbar,
+                BrowserToolbarCard(
+                    enabled = editState.webViewConfig.browserToolbarEnabled,
                     webViewConfig = editState.webViewConfig,
                     onEnabledChange = { enabled ->
                         viewModel.updateEditState {
-                            copy(webViewConfig = webViewConfig.withHideBrowserToolbar(enabled))
+                            copy(webViewConfig = webViewConfig.withBrowserToolbarEnabled(enabled))
                         }
                     },
                     onWebViewConfigChange = { newConfig ->
@@ -245,7 +245,7 @@ fun CreateAppScreen(
                     showStatusBar = editState.webViewConfig.showStatusBarInFullscreen,
                     showNavigationBar = editState.webViewConfig.showNavigationBarInFullscreen,
                     hideBrowserToolbarInFullscreen =
-                        editState.webViewConfig.hideBrowserToolbar ||
+                        !editState.webViewConfig.browserToolbarEnabled ||
                             !editState.webViewConfig.showToolbarInFullscreen,
                     webViewConfig = editState.webViewConfig,
                     onEnabledChange = {
@@ -494,12 +494,7 @@ fun CreateAppScreen(
                             copy(webViewConfig = webViewConfig.copy(dnsConfig = config))
                         }
                     },
-                    engineType = editState.apkExportConfig.engineType,
-                    onEngineTypeChange = { type ->
-                        viewModel.updateEditState {
-                            copy(apkExportConfig = apkExportConfig.copy(engineType = type))
-                        }
-                    }
+                    engineType = editState.apkExportConfig.engineType
                 )
             }
 
@@ -947,7 +942,7 @@ fun PwaAnalysisSection(
         }
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column {
 
         val isAnalyzing = pwaState is PwaAnalysisState.Analyzing
 
@@ -979,12 +974,15 @@ fun PwaAnalysisSection(
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
-            val error = (pwaState as? PwaAnalysisState.Error)?.message ?: ""
-            WtaStatusBanner(
-                title = Strings.pwaAnalysisFailed,
-                message = error,
-                tone = WtaStatusTone.Error
-            )
+            Column {
+                Spacer(Modifier.height(8.dp))
+                val error = (pwaState as? PwaAnalysisState.Error)?.message ?: ""
+                WtaStatusBanner(
+                    title = Strings.pwaAnalysisFailed,
+                    message = error,
+                    tone = WtaStatusTone.Error
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -992,20 +990,23 @@ fun PwaAnalysisSection(
             enter = CardExpandTransition,
             exit = CardCollapseTransition
         ) {
-            val result = (pwaState as? PwaAnalysisState.Success)?.result
-            if (result != null) {
-                PwaResultCard(
-                    result = result,
-                    onApply = {
-                        viewModel.applyPwaResult(result)
-                        showResultCard = false
-                        viewModel.resetPwaState()
-                    },
-                    onDismiss = {
-                        showResultCard = false
-                        viewModel.resetPwaState()
-                    }
-                )
+            Column {
+                Spacer(Modifier.height(8.dp))
+                val result = (pwaState as? PwaAnalysisState.Success)?.result
+                if (result != null) {
+                    PwaResultCard(
+                        result = result,
+                        onApply = {
+                            viewModel.applyPwaResult(result)
+                            showResultCard = false
+                            viewModel.resetPwaState()
+                        },
+                        onDismiss = {
+                            showResultCard = false
+                            viewModel.resetPwaState()
+                        }
+                    )
+                }
             }
         }
     }
@@ -1276,10 +1277,7 @@ fun TranslateCard(
     val engineOptions = TranslateEngine.entries.toList()
 
     EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1324,6 +1322,7 @@ fun TranslateCard(
                 exit = CardCollapseTransition
             ) {
               Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Spacer(Modifier.height(12.dp))
                 Text(
                     text = Strings.autoTranslateHint,
                     style = MaterialTheme.typography.bodySmall,

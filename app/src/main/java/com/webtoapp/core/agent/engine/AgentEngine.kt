@@ -16,15 +16,16 @@ import com.webtoapp.core.agent.tool.ToolRegistry
 import com.webtoapp.core.agent.tool.ToolResult
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.concurrent.atomic.AtomicLong
+import kotlinx.coroutines.flow.produceIn
+import kotlinx.coroutines.withTimeoutOrNull
 
 class AgentEngine(
     private val gateway: LlmGateway,
@@ -77,6 +78,17 @@ class AgentEngine(
 
                 val turnThinking = StringBuilder()
                 val pending = LinkedHashMap<String, Pair<String, StringBuilder>>()
+                // Index in accText where this attempt's output begins; a recoverable-error
+                // retry rewrites from here instead of appending a duplicate attempt.
+                // RETRY-PATH ONLY: inside the event handlers accText is append-only —
+                // rebuilding per event truncated the accumulated buffer to the turn start
+                // and left `accumulated` holding just the newest fragment (#749 regression).
+                var attemptStartedIndex = accText.length
+                fun rebuildAccFromPrefix() {
+                    if (accText.length > attemptStartedIndex) {
+                        accText.setLength(attemptStartedIndex)
+                    }
+                }
                 var finishReason = FinishReason.STOP
                 var hardError: String? = null
                 var continuationCount = 0
@@ -99,6 +111,11 @@ class AgentEngine(
                     val requestMessages = if (supportsVision) baseMessages
                         else baseMessages.map { if (it.images.isEmpty()) it else it.copy(images = emptyList()) }
 
+                    // Collect the stream exactly once per request attempt. The gateway
+                    // flows are cold callbackFlows: re-collecting them re-runs the
+                    // producer block, i.e. fires a brand-new HTTP request per event,
+                    // while the previous request's response events are dropped — the
+                    // turn then hangs forever on "thinking" (the #742 regression).
                     gateway.chatStream(
                         ChatRequest(
                             apiKey = input.toolContext.textApiKey,
@@ -116,6 +133,12 @@ class AgentEngine(
                         when (ev) {
                             is LlmEvent.Started -> Unit
                             is LlmEvent.TextDelta -> {
+                                // Append-only within an attempt. Calling rebuildAccFromPrefix()
+                                // here (as #749 briefly did) truncated accText back to the
+                                // turn start on EVERY delta, so `accumulated` held only the
+                                // newest fragment: the live timeline rendered the body in
+                                // replacing chunks and the persisted message ended up as the
+                                // last delta alone.
                                 turnText.append(ev.delta)
                                 accText.append(ev.delta)
                                 send(AgentEvent.TextDelta(ev.delta, accText.toString()))
@@ -127,7 +150,7 @@ class AgentEngine(
                                 // prose/tools in the order they actually occurred.
                                 if (turnThinking.isEmpty()) {
                                     val segmentId = "th-turn-$turn"
-                                    val marker = "\u2063TH:$segmentId\u2063"
+                                    val marker = "⁣TH:$segmentId⁣"
                                     accText.append(marker)
                                     send(AgentEvent.TextDelta(marker, accText.toString()))
                                 }
@@ -137,7 +160,7 @@ class AgentEngine(
                             is LlmEvent.ToolCallBegin -> {
                                 pending[ev.id] = ev.name to StringBuilder()
 
-                                val marker = "\u2063TC:${ev.id}\u2063"
+                                val marker = "⁣TC:${ev.id}⁣"
                                 accText.append(marker)
                                 send(AgentEvent.TextDelta(marker, accText.toString()))
                                 send(AgentEvent.ToolCallStarted(ev.id, ev.name))
@@ -168,6 +191,19 @@ class AgentEngine(
                         rateLimitRetries++
                         val backoff = retryAfterMs ?: (1000L shl (rateLimitRetries - 1).coerceAtMost(4))
                         send(AgentEvent.Notice(Strings.agentRateLimitRetry(rateLimitRetries, MAX_RATE_LIMIT_RETRIES, backoff)))
+
+                        // The retry regenerates this attempt from scratch: clear the
+                        // attempt-local accumulators (text, thinking, pending tool calls)
+                        // and rebuild the global accumulated text WITHOUT the attempt-1
+                        // partial output, otherwise the retry duplicates everything in the
+                        // UI timeline, the persisted message, and can resurrect phantom
+                        // tool calls from the aborted attempt.
+                        rebuildAccFromPrefix()
+                        turnText.setLength(0)
+                        turnThinking.setLength(0)
+                        pending.clear()
+                        finishReason = FinishReason.STOP
+
                         delay(backoff)
                         retryableError = null
                         retryAfterMs = null
@@ -208,8 +244,14 @@ class AgentEngine(
                 )
 
                 if (assistantToolCalls.isEmpty()) {
+                    // Zero text and zero tool calls is a real outcome (some gateways
+                    // open the stream, emit Done, and close without any delta). An
+                    // empty summary made the turn LOOK successful while persisting
+                    // nothing — surface a distinct, diagnosable message instead.
                     send(AgentEvent.Completed(
-                        summary = turnText.toString().trim().ifEmpty { accText.toString().trim() },
+                        summary = turnText.toString().trim()
+                            .ifEmpty { accText.toString().trim() }
+                            .ifEmpty { Strings.agentEmptyResponse },
                         toolCallCount = totalToolCalls
                     ))
                     return@channelFlow
@@ -276,6 +318,11 @@ class AgentEngine(
         } catch (e: AgentAbortedException) {
             send(AgentEvent.Aborted)
         } catch (t: Throwable) {
+            if (t is kotlinx.coroutines.CancellationException) {
+                // Cancellation is not an engine failure; rethrow so the collector's
+                // own cancellation handling (and coroutine machinery) works normally.
+                throw t
+            }
             AppLogger.e(TAG, "engine crash: ${t.message}", t)
             send(AgentEvent.Failed(t.message ?: "engine error"))
         }
@@ -288,6 +335,7 @@ class AgentEngine(
     ) {
         out.send(AgentEvent.ToolFinished(call.id, call.name, call.argumentsJson, result))
         result.fileChange?.let { out.send(AgentEvent.FileChanged(it)) }
+        result.appChange?.let { out.send(AgentEvent.AppChanged(it)) }
         result.builtApk?.let { out.send(AgentEvent.ApkBuilt(it)) }
     }
 
@@ -304,7 +352,13 @@ class AgentEngine(
             AgentEvent.ToolExecuting(
                 toolCallId = call.id,
                 name = call.name,
-                activity = tool.activityDescription(parseArgs(call.argumentsJson)) ?: call.name
+                // Guarded: several tools' activityDescription implementations read
+                // args.get("x")?.asString, which throws for a JSON null / wrong type
+                // (Gson never returns null from JsonNull.getAsString, it throws).
+                // The same malformed args inside execute() below degrade to an error
+                // ToolResult — an unguarded throw here instead kills the whole run.
+                activity = runCatching { tool.activityDescription(parseArgs(call.argumentsJson)) }
+                    .getOrNull() ?: call.name
             )
         )
 
@@ -326,7 +380,7 @@ class AgentEngine(
         if (decision == PermissionDecision.Deny) {
 
             val mode = permissionChecker.mode
-            val planFile = input.toolContext.activePlanFile
+            val planFile = input.toolContext.effectivePlanFile()
             val hint = when {
                 mode == com.webtoapp.core.agent.permission.PermissionMode.Plan && planFile != null ->
                     " — in plan mode, only Write/Edit to $planFile is allowed. " +
@@ -360,8 +414,24 @@ class AgentEngine(
             }
         )
 
-        return runCatching { tool.execute(args, callCtx) }
-            .getOrElse { ToolResult.error("${call.name}: ${it.message ?: it::class.simpleName}") }
+        return try {
+            tool.execute(args, callCtx)
+        } catch (ce: CancellationException) {
+            // AgentAbortedException is a CancellationException and must reach the engine's
+            // outer catch (→ Aborted); swallowing real coroutine cancellation here would
+            // keep the loop running inside an already-cancelled coroutine.
+            throw ce
+        } catch (t: Throwable) {
+            // Gson's type getters throw UnsupportedOperationException with a
+            // class-simple-name-only message (e.g. "Read: JsonNull"), which gives the
+            // model nothing actionable — add the offending raw arguments so a wrong-typed
+            // parameter is self-healing on the next turn.
+            val rawHint = rawArgsById[call.id]?.take(200)
+            ToolResult.error(
+                "${call.name}: ${t.message ?: t::class.simpleName}" +
+                    (if (rawHint != null) " (arguments: $rawHint)" else "")
+            )
+        }
     }
 
     private suspend fun runParallel(
@@ -443,42 +513,55 @@ class AgentEngine(
  * Some OpenAI-compatible SSE endpoints open the channel, send a partial response
  * (e.g. the first reasoning chunk), then go silent without ever closing the
  * connection — which would otherwise hang the agent loop for the full OkHttp
- * read timeout (10 minutes). On idle timeout, [onTimeout] is invoked (typically
- * to set a retryable error) and the flow collection is cancelled.
+ * read timeout (10 minutes). On idle timeout, [onTimeout] is invoked and the
+ * collection ends normally so the engine's retry loop can take over.
+ *
+ * The flow is subscribed EXACTLY ONCE: it is turned into a [ReceiveChannel] via
+ * [produceIn], and only the wait for the next element is wrapped in a fresh
+ * [withTimeoutOrNull] window per event. Never re-collect the flow per event —
+ * the provider flows are cold `callbackFlow`s, so each repeated collect re-runs
+ * the producer block (a brand-new HTTP request per event) while the previous
+ * request's response events are dropped into a cancelled channel. That was the
+ * #742 regression: the UI sat on "thinking" forever with zero output while the
+ * client silently spammed the API with duplicate requests.
+ *
+ * Cancelling (idle timeout, abort, or completion of the surrounding scope)
+ * cancels the producer, which propagates into the provider's `awaitClose` and
+ * tears down the underlying HTTP call.
  */
-private suspend fun <T> Flow<T>.collectWithIdleTimeout(
+internal suspend fun <T> Flow<T>.collectWithIdleTimeout(
     idleTimeoutMs: Long,
     onTimeout: () -> Unit,
     action: suspend (T) -> Unit
 ) {
-    val lastEventAt = AtomicLong(System.currentTimeMillis())
+    val timeoutMs = idleTimeoutMs.coerceAtLeast(1L)
     coroutineScope {
-        // Watchdog: poll every second; if no event for idleTimeoutMs, cancel this scope
-        // (which cancels the collector below).
-        val watchdog = launch {
+        val events = produceIn(this)
+        try {
             while (true) {
-                delay(1000)
-                val idle = System.currentTimeMillis() - lastEventAt.get()
-                if (idle >= idleTimeoutMs) {
-                    onTimeout()
-                    throw IdleStreamTimeout
+                val result = withTimeoutOrNull(timeoutMs) { events.receiveCatching() }
+                when {
+                    // A whole window elapsed with no event: the stream stalled. The
+                    // finally below cancels the producer (and the HTTP call with it),
+                    // so the engine's retry loop starts from a clean slate.
+                    result == null -> {
+                        onTimeout()
+                        return@coroutineScope
+                    }
+                    result.isSuccess -> action(result.getOrThrow())
+                    else -> {
+                        // Channel closed: rethrow a producer failure, otherwise the
+                        // stream ended normally.
+                        result.exceptionOrNull()?.let { throw it }
+                        return@coroutineScope
+                    }
                 }
             }
-        }
-        try {
-            collect {
-                lastEventAt.set(System.currentTimeMillis())
-                action(it)
-            }
-        } catch (e: IdleStreamTimeout) {
-            // Expected — onTimeout already set the retryable error.
         } finally {
-            watchdog.cancel()
+            // coroutineScope waits for children on block exit but does NOT cancel
+            // them: a producer parked in awaitClose would hang the exit forever
+            // unless cancelled here.
+            events.cancel(null)
         }
     }
-}
-
-/** Marker exception used to break out of a stalled stream collector. */
-private object IdleStreamTimeout : RuntimeException() {
-    override fun fillInStackTrace(): Throwable = this
 }

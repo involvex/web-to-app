@@ -24,7 +24,6 @@ import com.webtoapp.core.webview.LongPressHandler
 import com.webtoapp.data.model.Announcement
 import com.webtoapp.util.TvUtils
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 /**
@@ -145,6 +144,9 @@ fun ShellScreen(
     }
 
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    var browserSurfaceRef by remember {
+        mutableStateOf<com.webtoapp.core.engine.BrowserSurface?>(null)
+    }
     var statusBarAutoColor by remember { mutableStateOf<String?>(null) }
     var statusBarColorTracker by remember { mutableStateOf<com.webtoapp.core.webview.StatusBarPageColorTracker?>(null) }
 
@@ -171,37 +173,43 @@ fun ShellScreen(
 
         if (config.activationEnabled) {
 
-            if (config.activationRequireEveryTime) {
-                activation.resetActivation(-1L)
-                isActivated = false
-                isActivationChecked = true
-                showActivationDialog = true
+            // One gate for both modes: remote re-verifies the remembered code
+            // (always when "every launch" is on, otherwise only when the cached
+            // result can't carry this launch); local codes re-check the remembered
+            // card against the configured list under "every launch", or just the
+            // persisted grant otherwise. The dialog only shows when this fails.
+            val activated = if (config.activationRemoteEnabled) {
+                activation.resolveRemoteStartup(
+                    -1L,
+                    activation.buildRemoteRequest(
+                        verifyUrl = config.activationRemoteVerifyUrl,
+                        publicKeyBase64 = config.activationRemotePublicKey,
+                        offlinePolicy = parseOfflinePolicy(config.activationRemoteOfflinePolicy),
+                        deliverUrl = config.activationRemoteDeliverUrl,
+                        encryptUrl = config.activationRemoteEncryptUrl,
+                        aesKeyBase64 = config.activationRemoteAesKey,
+                        deviceBound = config.activationRemoteDeviceBound
+                    ),
+                    reverifyEveryLaunch = config.activationRequireEveryTime
+                )
+            } else if (config.activationRequireEveryTime) {
+                activation.resolveRelaunchActivation(
+                    -1L,
+                    config.activationCodes.map { raw ->
+                        com.webtoapp.core.activation.ActivationCode.fromJson(raw)
+                            ?: com.webtoapp.core.activation.ActivationCode.fromLegacyString(raw)
+                    }
+                )
             } else {
-
-                val activated = if (config.activationRemoteEnabled) {
-                    activation.isActivated(-1L).first() &&
-                        activation.isRemoteStartupAllowed(
-                            -1L,
-                            activation.buildRemoteRequest(
-                                verifyUrl = config.activationRemoteVerifyUrl,
-                                publicKeyBase64 = config.activationRemotePublicKey,
-                                offlinePolicy = parseOfflinePolicy(config.activationRemoteOfflinePolicy),
-                                deliverUrl = config.activationRemoteDeliverUrl,
-                                encryptUrl = config.activationRemoteEncryptUrl,
-                                aesKeyBase64 = config.activationRemoteAesKey
-                            )
-                        )
-                } else {
-                    activation.resolveStartupActivation(-1L)
-                }
-                isActivated = activated
-                isActivationChecked = true
-                if (activated && config.activationRemoteEnabled && config.activationRemoteDeliverUrl) {
-                    dynamicUrl = activation.getCachedRemoteUrl(-1L)
-                }
-                if (!activated) {
-                    showActivationDialog = true
-                }
+                activation.resolveStartupActivation(-1L)
+            }
+            isActivated = activated
+            isActivationChecked = true
+            if (activated && config.activationRemoteEnabled && config.activationRemoteDeliverUrl) {
+                dynamicUrl = activation.getCachedRemoteUrl(-1L)
+            }
+            if (!activated) {
+                showActivationDialog = true
             }
         }
 
@@ -413,8 +421,6 @@ fun ShellScreen(
 
     val hideToolbar = config.webViewConfig.hideToolbar
 
-    val hideBrowserToolbar = config.webViewConfig.hideBrowserToolbar
-
     val swipeRefreshEnabled = config.webViewConfig.swipeRefreshEnabled
 
     LaunchedEffect(hideToolbar) {
@@ -464,7 +470,6 @@ fun ShellScreen(
         config = config,
         appType = appType,
         hideToolbar = hideToolbar,
-        hideBrowserToolbar = hideBrowserToolbar,
         isLoading = isLoading,
         loadProgress = loadProgress,
         pageTitle = pageTitle,
@@ -476,6 +481,7 @@ fun ShellScreen(
         canGoForward = canGoForward,
         webViewRecreationKey = webViewRecreationKey,
         webViewRef = webViewRef,
+        browserSurface = browserSurfaceRef,
         webViewConfig = webViewConfig,
         webViewCallbacks = webViewCallbacks,
         webViewManager = webViewManager,
@@ -485,7 +491,10 @@ fun ShellScreen(
         isRefreshing = isRefreshing,
         onRefresh = { isRefreshing = true },
         onWebViewCreated = handleWebViewCreated,
-        onBrowserSurfaceCreated = onBrowserSurfaceCreated,
+        onBrowserSurfaceCreated = { surface ->
+            browserSurfaceRef = surface
+            onBrowserSurfaceCreated(surface)
+        },
         onWebViewRefUpdated = { webViewRef = it },
         onShowActivationDialog = { showActivationDialog = true },
         onErrorDismiss = { errorMessage = null },
@@ -497,7 +506,11 @@ fun ShellScreen(
         showFindBar = showFindBar,
         onToggleFindBar = { showFindBar = !showFindBar },
         onRunScript = { script ->
-            webViewRef?.evaluateJavascript(script) { result ->
+            // Surface-first so the console also evaluates on the GeckoView kernel
+            // (webViewRef stays null there; Gecko cannot return the eval result, so
+            // the entry shows "=> null" but the script does run in the page).
+            val surface = browserSurfaceRef
+            val appendResult: (String?) -> Unit = { result ->
                 consoleMessages = consoleMessages + ConsoleLogEntry(
                     level = ConsoleLevel.LOG,
                     message = "=> $result",
@@ -505,6 +518,11 @@ fun ShellScreen(
                     lineNumber = 0,
                     timestamp = System.currentTimeMillis()
                 )
+            }
+            if (surface != null) {
+                surface.evaluateJavascript(script, appendResult)
+            } else {
+                webViewRef?.evaluateJavascript(script, appendResult)
             }
         },
         statusBarHeightDp = statusBarHeightDp
@@ -580,10 +598,15 @@ fun ShellScreen(
     val effectiveBgColor = resolveStatusBarOverlayColor(isDarkTheme)
     val effectiveBgImage = if (isDarkTheme) statusBarBackgroundImageDark else statusBarBackgroundImage
     val effectiveBgAlpha = if (isDarkTheme) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
-    val showOverlay = (hideToolbar && config.webViewConfig.showStatusBarInFullscreen) ||
+    // On the classic pre-API-30 resize path nothing draws behind the status bar and the bar
+    // itself is chrome-owned, so a Compose overlay would only paint a floating band over the
+    // web content (issue #683). Reserve space is already handled by the content padding; the
+    // window-level bar color comes from WindowHelper.
+    val classicSystemBars = com.webtoapp.ui.shared.WindowHelper.isClassicSystemBarsWindow(activity)
+    val showOverlay = !classicSystemBars && ((hideToolbar && config.webViewConfig.showStatusBarInFullscreen) ||
             (!hideToolbar && (effectiveBgType != "COLOR" ||
                 effectiveColorMode == com.webtoapp.data.model.StatusBarColorMode.CUSTOM.name ||
-                effectiveColorMode == com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP.name))
+                effectiveColorMode == com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP.name)))
     if (showOverlay) {
         com.webtoapp.ui.components.StatusBarOverlay(
             show = true,

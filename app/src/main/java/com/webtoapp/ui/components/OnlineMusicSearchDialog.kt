@@ -43,6 +43,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.webtoapp.core.bgm.ChannelStatus
 import com.webtoapp.core.bgm.MusicChannel
+import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.core.bgm.OnlineMusicApi
 import com.webtoapp.core.bgm.OnlineMusicDownloader
 import com.webtoapp.core.bgm.OnlineMusicTrack
@@ -389,6 +390,12 @@ fun OnlineMusicSearchDialog(
                 topBar = {
                     TopAppBar(
                         title = { Text(Strings.onlineMusic) },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = Color.Transparent,
+                            navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface,
+                            actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                        ),
                         navigationIcon = {
                             IconButton(onClick = {
                                 mediaPlayer?.release()
@@ -725,37 +732,11 @@ private fun ChannelChip(
 
     val isRecommended = channel.id == "netease_official"
 
-    PremiumFilterChip(
+    WtaChip(
         selected = isSelected,
         onClick = onClick,
-        label = {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(channel.displayName, fontSize = 13.sp)
-                    if (isRecommended) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Surface(
-                            shape = RoundedCornerShape(4.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 2.dp)
-                        ) {
-                            Text(
-                                Strings.recommendedLabel,
-                                fontSize = 8.sp,
-                                color = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                }
-                Text(
-                    statusText,
-                    fontSize = 10.sp,
-                    color = statusColor
-                )
-            }
-        },
-        leadingIcon = if (isTesting) {
+        showSelectedCheck = false,
+        leadingContent = if (isTesting) {
             {
                 CircularProgressIndicator(
                     modifier = Modifier.size(14.dp),
@@ -772,7 +753,33 @@ private fun ChannelChip(
                 )
             }
         }
-    )
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(channel.displayName, fontSize = 13.sp)
+                if (isRecommended) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(start = 2.dp)
+                    ) {
+                        Text(
+                            Strings.recommendedLabel,
+                            fontSize = 8.sp,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
+            Text(
+                statusText,
+                fontSize = 10.sp,
+                color = statusColor
+            )
+        }
+    }
 }
 
 @Composable

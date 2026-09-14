@@ -154,6 +154,12 @@ fun LrcEditorDialog(
 
                 TopAppBar(
                     title = { Text(Strings.editLrc) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurface
+                    ),
                     navigationIcon = {
                         IconButton(onClick = {
                             mediaPlayer?.release()

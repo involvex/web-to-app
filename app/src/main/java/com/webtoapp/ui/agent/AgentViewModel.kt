@@ -170,7 +170,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 val label = model?.alias?.takeIf { it.isNotBlank() }
                     ?: model?.model?.name
                     ?: Strings.agentModelChipLabel
-                _ui.update { it.copy(currentModelLabel = label) }
+                _ui.update { it.copy(currentModelLabel = label, modelMissing = model == null) }
             }
         }
     }
@@ -242,6 +242,14 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
     fun toggleChangesReview() {
         _ui.update { it.copy(changesReviewExpanded = !it.changesReviewExpanded) }
+    }
+
+    fun toggleAppChangesReview() {
+        _ui.update { it.copy(appChangesExpanded = !it.appChangesExpanded) }
+    }
+
+    fun clearAppChanges() {
+        _ui.update { it.copy(pendingAppChanges = emptyList(), appChangesExpanded = false) }
     }
 
     fun clearChangesReview() {
@@ -605,6 +613,68 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { sessionStore.pin(id, pinned) }
     }
 
+    fun renameSession(id: String, newTitle: String) {
+        val title = newTitle.trim()
+        if (title.isEmpty()) return
+        viewModelScope.launch { sessionStore.rename(id, title) }
+    }
+
+    /** Export a session as a Markdown transcript and open the system share sheet. */
+    fun exportSession(id: String) {
+        viewModelScope.launch {
+            val session = sessionStore.get(id) ?: return@launch
+            // Rendering + writing the transcript is proportional to session size —
+            // keep it off the main thread (viewModelScope defaults to Main).
+            runCatching {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    val markdown = com.webtoapp.ui.agent.components.SessionTranscript.render(
+                        session, Strings.agentCopyThinkingHeader
+                    )
+                    val dir = java.io.File(ctx.cacheDir, "agent_exports").apply { mkdirs() }
+                    val safe = session.title.ifBlank { session.id }
+                        .replace(Regex("[^\\p{L}\\p{N}_-]+"), "_").take(40).trim('_')
+                        .ifBlank { "session" }
+                    val file = java.io.File(dir, "$safe.md")
+                    file.writeText(markdown)
+                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                        ctx, ctx.packageName + ".fileprovider", file
+                    )
+                    val intent = Intent(Intent.ACTION_SEND).apply {
+                        type = "text/markdown"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_TITLE, file.name)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    ctx.startActivity(
+                        Intent.createChooser(intent, Strings.agentSessionExport)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }.onFailure { e ->
+                AppLogger.w("AgentViewModel", "exportSession failed: ${e.message}")
+                _ui.update { it.copy(info = Strings.agentFileOpenFailed) }
+            }
+        }
+    }
+
+    /** Delete a project file inside the current session sandbox, after drawer confirmation. */
+    fun deleteSessionFile(relativePath: String) {
+        val sid = _ui.value.currentSession?.id ?: return
+        // Never allow deleting the built-APK virtual entries through this path.
+        if (relativePath.startsWith("apk:")) return
+        viewModelScope.launch {
+            val deleted = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                files.delete(sid, relativePath)
+            }
+            if (deleted) {
+                refreshFiles(sid)
+            } else {
+                _ui.update { it.copy(info = Strings.agentFileNotFound) }
+            }
+        }
+    }
+
     fun selectFile(path: String) {
         // "apk:<name>" is a virtual path for a built APK artifact — no file content
         // to read, just surface the path so PreviewPane renders an info card.
@@ -619,14 +689,28 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val sid = _ui.value.currentSession?.id ?: return
-        val text = files.readText(sid, path)
-        _ui.update {
-            it.copy(
-                selectedFilePath = path,
-                selectedFileContent = text,
-                previewFilePath = path
-            )
+        viewModelScope.launch {
+            val text = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                files.readText(sid, path)
+            }
+            _ui.update {
+                it.copy(
+                    selectedFilePath = path,
+                    selectedFileContent = text,
+                    previewFilePath = path
+                )
+            }
         }
+    }
+
+    /**
+     * Sandbox-absolute file backing a pending image attachment, for Coil previews.
+     * UserAttachment.path is session-sandbox-relative; java.io.File(path) would
+     * resolve it against the process CWD and never load.
+     */
+    fun attachmentPreviewFile(att: com.webtoapp.core.agent.session.UserAttachment): java.io.File? {
+        val sid = _ui.value.currentSession?.id ?: return null
+        return files.resolveSafe(sid, att.path)
     }
 
     fun setPreviewFile(path: String?) {
@@ -709,7 +793,12 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 currentActivity = null,
                 streamingText = "",
                 streamingThinkingSegments = emptyList(),
-                pendingToolCalls = emptyList()
+                pendingToolCalls = emptyList(),
+                // A permission/choice dialog still open when the turn was cancelled
+                // would otherwise stay visible, and answering it sends into a channel
+                // nobody reads anymore.
+                pendingPermission = null,
+                pendingChoice = null
             )
         }
         streamingSessionId = null
@@ -782,37 +871,59 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        // Flip the phase synchronously, BEFORE any suspend call: ensureActiveSession /
+        // appendMessage give a second fast tap a window in which the guard above
+        // still sees Idle — duplicating the user message and starting two turns
+        // (the second AgentService.start() cancels the first without finalizing it,
+        // leaving its tool cards stuck in a running state in the session history).
+        // Every failure path below must reset to Idle.
+        _ui.update { it.copy(phase = AgentUiState.Phase.Connecting) }
+
         viewModelScope.launch {
-            val session = ensureActiveSession() ?: return@launch
-            val pending = current.pendingAttachments
-            val mentionedPaths = extractMentionPaths(rawMessage, session.id)
+            try {
+                val session = ensureActiveSession() ?: run {
+                    resetTurnUiState(); return@launch
+                }
+                val pending = current.pendingAttachments
+                val mentionedPaths = extractMentionPaths(rawMessage, session.id)
 
-            val editingId = _ui.value.editingMessageId
-            val baseSession = if (editingId != null) {
-                sessionStore.truncateAt(session.id, editingId, keep = false) ?: session
-            } else session
+                val editingId = _ui.value.editingMessageId
+                val baseSession = if (editingId != null) {
+                    sessionStore.truncateAt(session.id, editingId, keep = false) ?: session
+                } else session
 
-            val userMsg = AgentMessage(
-                role = AgentMessage.Role.USER,
-                content = rawMessage,
-                mentionedFiles = mentionedPaths,
-                userAttachments = pending
-            )
-            val updated = sessionStore.appendMessage(baseSession.id, userMsg) ?: return@launch
-
-            _ui.update {
-                it.copy(
-                    composerText = "",
-                    editingMessageId = null,
-                    mentionPickerOpen = false,
-                    mentionQuery = "",
-                    mentionMatches = emptyList(),
-                    pendingAttachments = emptyList()
+                val userMsg = AgentMessage(
+                    role = AgentMessage.Role.USER,
+                    content = rawMessage,
+                    mentionedFiles = mentionedPaths,
+                    userAttachments = pending
                 )
-            }
+                val updated = sessionStore.appendMessage(baseSession.id, userMsg) ?: run {
+                    resetTurnUiState(); return@launch
+                }
 
-            dispatchTurn(updated, rawMessage)
+                _ui.update {
+                    it.copy(
+                        composerText = "",
+                        editingMessageId = null,
+                        mentionPickerOpen = false,
+                        mentionQuery = "",
+                        mentionMatches = emptyList(),
+                        pendingAttachments = emptyList()
+                    )
+                }
+
+                dispatchTurn(updated, rawMessage)
+            } catch (t: Throwable) {
+                resetTurnUiState()
+                throw t
+            }
         }
+    }
+
+    /** Clear the transient turn-phase UI without touching session/persisted state. */
+    private fun resetTurnUiState() {
+        _ui.update { it.copy(phase = AgentUiState.Phase.Idle, error = null, currentActivity = null) }
     }
 
     private fun extractMentionPaths(text: String, sessionId: String): List<String> {
@@ -962,8 +1073,8 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                     availableContextApps = apps,
                     availableContextModules = modules,
                     availableCategories = categories,
-                    contextAppIds = session.config.contextAppIds,
-                    contextModuleIds = session.config.contextModuleIds
+                    contextAppIds = session.config.contextAppIdsSafe,
+                    contextModuleIds = session.config.contextModuleIdsSafe
                 )
             }
         }
@@ -994,26 +1105,26 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun buildSelectedContext(config: SessionConfig): String {
-        if (config.contextAppIds.isEmpty() && config.contextModuleIds.isEmpty()) return ""
+        if (config.contextAppIdsSafe.isEmpty() && config.contextModuleIdsSafe.isEmpty()) return ""
         val sb = StringBuilder()
         sb.appendLine("# Selected apps & modules (current context)")
         sb.appendLine("The user selected these as the working context. Use GetApp/UpdateApp and GetModule/UpdateModule with these ids to inspect or edit them.")
-        if (config.contextAppIds.isNotEmpty()) {
+        if (config.contextAppIdsSafe.isNotEmpty()) {
             sb.appendLine()
             sb.appendLine("## Apps")
-            config.contextAppIds.forEach { id ->
+            config.contextAppIdsSafe.forEach { id ->
                 val app = webAppRepository.getWebApp(id) ?: return@forEach
                 sb.appendLine()
                 sb.appendLine("### App id=${app.id} name=\"${app.name}\" type=${app.appType}")
                 sb.appendLine(app.toManifestJson())
             }
         }
-        if (config.contextModuleIds.isNotEmpty()) {
+        if (config.contextModuleIdsSafe.isNotEmpty()) {
             val mgr = com.webtoapp.core.extension.ExtensionManager.getInstance(ctx)
             mgr.awaitLoaded()
             sb.appendLine()
             sb.appendLine("## Modules")
-            config.contextModuleIds.forEach { id ->
+            config.contextModuleIdsSafe.forEach { id ->
                 val module = mgr.getModuleById(id)?.let { mgr.ensureCodeLoaded(it) } ?: return@forEach
                 sb.appendLine()
                 sb.appendLine("### Module id=${module.id} name=\"${module.name}\" type=${module.sourceType}")
@@ -1047,16 +1158,31 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     fun regenerate(messageId: String) {
         val sid = _ui.value.currentSession?.id ?: return
         if (!_ui.value.canSend) return
+        // Flip synchronously like send(): truncateAt/get give a double-tap the same
+        // TOCTOU window that duplicated turns before.
+        _ui.update { it.copy(phase = AgentUiState.Phase.Connecting) }
         viewModelScope.launch {
+            try {
+                val s0 = sessionStore.get(sid) ?: run {
+                    resetTurnUiState(); return@launch
+                }
+                val idx = s0.messages.indexOfFirst { it.id == messageId }
+                if (idx < 0) {
+                    resetTurnUiState(); return@launch
+                }
+                val precedingUser = s0.messages.subList(0, idx)
+                    .lastOrNull { it.role == AgentMessage.Role.USER } ?: run {
+                    resetTurnUiState(); return@launch
+                }
 
-            val s0 = sessionStore.get(sid) ?: return@launch
-            val idx = s0.messages.indexOfFirst { it.id == messageId }
-            if (idx < 0) return@launch
-            val precedingUser = s0.messages.subList(0, idx)
-                .lastOrNull { it.role == AgentMessage.Role.USER } ?: return@launch
-
-            val truncated = sessionStore.truncateAt(sid, messageId, keep = false) ?: return@launch
-            dispatchTurn(truncated, precedingUser.content)
+                val truncated = sessionStore.truncateAt(sid, messageId, keep = false) ?: run {
+                    resetTurnUiState(); return@launch
+                }
+                dispatchTurn(truncated, precedingUser.content)
+            } catch (t: Throwable) {
+                resetTurnUiState()
+                throw t
+            }
         }
     }
 
@@ -1069,12 +1195,16 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
 
         val textModel = resolveTextModel(models)
         if (textModel == null) {
-            _ui.update { it.copy(error = Strings.agentMissingTextModel) }
+            // send()/regenerate() already flipped the phase to Connecting before
+            // launching — every pre-turn bail-out here must put it back.
+            streamingSessionId = null
+            _ui.update { it.copy(phase = AgentUiState.Phase.Idle, error = Strings.agentMissingTextModel) }
             return
         }
         val textKey = keys.firstOrNull { it.id == textModel.apiKeyId }
         if (textKey == null) {
-            _ui.update { it.copy(error = Strings.agentMissingApiKey) }
+            streamingSessionId = null
+            _ui.update { it.copy(phase = AgentUiState.Phase.Idle, error = Strings.agentMissingApiKey) }
             return
         }
         val imageModel = session.config.imageModelId?.let { id -> models.firstOrNull { it.id == id } }
@@ -1168,7 +1298,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             when (m.role) {
                 AgentMessage.Role.USER -> {
                     val out = mutableListOf<LlmMessage>()
-                    val images = m.userAttachments.filter { it.isImage }.mapNotNull { att ->
+                    val images = m.userAttachmentsSafe.filter { it.isImage }.mapNotNull { att ->
                         val bytes = files.readBytes(workingSession.id, att.path) ?: return@mapNotNull null
                         com.webtoapp.core.agent.tool.ImageAttachment(bytes, att.mimeType, att.path)
                     }
@@ -1299,6 +1429,27 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         lastToolUiPushAt = now
         _ui.update {
             it.copy(pendingToolCalls = streamTools.values.toList())
+        }
+    }
+
+    /**
+     * Text/thinking deltas arrive per token; pushing the whole accumulated
+     * buffer into UI state on every one re-parses and recomposes the entire
+     * timeline each token. Coalesce to ~15fps instead — visually identical,
+     * an order of magnitude less work. Completion paths always replace the
+     * buffers with the persisted message, so nothing is ever lost.
+     */
+    private var lastStreamUiPushAt = 0L
+
+    private fun maybePushStreamUi(force: Boolean = false) {
+        val now = System.currentTimeMillis()
+        if (!force && now - lastStreamUiPushAt < STREAM_UI_THROTTLE_MS) return
+        lastStreamUiPushAt = now
+        _ui.update {
+            it.copy(
+                streamingText = streamText.toString(),
+                streamingThinkingSegments = streamThinkingSegments.toList()
+            )
         }
     }
 
@@ -1469,9 +1620,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
             AgentEvent.Started -> _ui.update { it.copy(phase = AgentUiState.Phase.Streaming) }
             is AgentEvent.TextDelta -> {
                 streamText.setLength(0); streamText.append(ev.accumulated)
-                _ui.update {
-                    it.copy(streamingText = ev.accumulated)
-                }
+                maybePushStreamUi()
             }
             is AgentEvent.ThinkingDelta -> {
                 // Associate by segmentId (stable per turn, mirrors the inline marker).
@@ -1487,9 +1636,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                     streamThinkingSegments[idx] =
                         streamThinkingSegments[idx].copy(content = streamThinkingSegments[idx].content + ev.delta)
                 }
-                _ui.update {
-                    it.copy(streamingThinkingSegments = streamThinkingSegments.toList())
-                }
+                maybePushStreamUi()
             }
             AgentEvent.ThinkingTurnEnded -> {
                 // Freeze any still-live segment so the next turn opens its own live block.
@@ -1598,6 +1745,24 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                     )
                 }
             }
+            is AgentEvent.AppChanged -> {
+                // Same shape as FileChanged but for apps created/updated by tools:
+                // one review-card entry per app, newest first; a later change to the
+                // same app replaces its earlier entry instead of piling up duplicates.
+                _ui.update { state ->
+                    val ch = ev.change
+                    val entry = PendingAppChange(
+                        appId = ch.appId,
+                        appName = ch.appName,
+                        appType = ch.appType,
+                        created = ch.kind == com.webtoapp.core.agent.tool.AppChange.Kind.CREATE,
+                        changedFields = ch.changedFields,
+                        changedAt = System.currentTimeMillis()
+                    )
+                    val rest = state.pendingAppChanges.filterNot { it.appId == ch.appId }
+                    state.copy(pendingAppChanges = listOf(entry) + rest)
+                }
+            }
             is AgentEvent.ApkBuilt -> {
                 _ui.update { state ->
                     // Replace any previous build for the same appId, keep others.
@@ -1608,7 +1773,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 val sid0 = sid
                 viewModelScope.launch {
                     val session = sessionStore.get(sid0) ?: return@launch
-                    val existing = session.config.builtApks.filterNot { it.appId == ev.info.appId }
+                    val existing = session.config.builtApksSafe.filterNot { it.appId == ev.info.appId }
                     val updated = existing + PersistedApk(
                         appId = ev.info.appId,
                         apkName = ev.info.apkName,
@@ -1641,6 +1806,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 streamingSessionId = null
                 streamText.clear(); streamThinkingSegments.clear(); streamTools.clear(); streamToolArgs.clear(); readFilesThisTurn.clear()
                 lastToolUiPushAt = 0L
+                lastStreamUiPushAt = 0L
                 _ui.update {
                     it.copy(
                         phase = AgentUiState.Phase.Idle,
@@ -1686,7 +1852,10 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
             is AgentEvent.Failed -> {
-                // Error message is persisted by AgentService; just reset UI state.
+                // The service persists an error bubble into the session, but a request
+                // that dies before the first delta would otherwise leave NO visible
+                // trace at all (spinner stops, nothing rendered, nothing shown) —
+                // surface the reason here too so every failure is locatable.
                 streamingSessionId = null
                 streamText.clear(); streamThinkingSegments.clear(); streamTools.clear(); streamToolArgs.clear(); readFilesThisTurn.clear()
                 _ui.update {
@@ -1695,7 +1864,8 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                         streamingText = "",
                         streamingThinkingSegments = emptyList(),
                         pendingToolCalls = emptyList(),
-                        currentActivity = null
+                        currentActivity = null,
+                        error = ev.message
                     )
                 }
             }
@@ -1780,7 +1950,7 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun synthesiseReadCallsFor(m: AgentMessage, sessionId: String): List<LlmMessage> {
-        val textUploads = m.userAttachments
+        val textUploads = m.userAttachmentsSafe
             .filter { !it.isImage && isTextUpload(it.mimeType) }
             .map { it.path }
         val pathsToRead = (m.mentionedFiles + textUploads).distinct()
@@ -1879,6 +2049,8 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
                 pendingChanges = if (sessionChanged) emptyList() else it.pendingChanges,
                 builtApks = restoredApks,
                 changesReviewExpanded = if (sessionChanged) false else it.changesReviewExpanded,
+                pendingAppChanges = if (sessionChanged) emptyList() else it.pendingAppChanges,
+                appChangesExpanded = if (sessionChanged) false else it.appChangesExpanded,
 
                 previewFilePath = if (sessionChanged) null else it.previewFilePath,
                 drawerOpen = if (sessionChanged) false else it.drawerOpen
@@ -1907,6 +2079,8 @@ class AgentViewModel(application: Application) : AndroidViewModel(application) {
         private const val MENTION_LINE_LIMIT = 1500
 
         private const val MENTION_TOTAL_CHAR_BUDGET = 60_000
+
+        private const val STREAM_UI_THROTTLE_MS = 66L
 
         private const val STREAM_PREVIEW_CHARS = 4_000
 

@@ -23,8 +23,8 @@ android {
         minSdk = 23
 
         targetSdk = 28
-        versionCode = 60
-        versionName = "2.5.4"
+        versionCode = 65
+        versionName = "2.6.3"
 
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "true")
 
@@ -74,9 +74,13 @@ android {
         getByName("main") {
             manifest.srcFile("src/main/AndroidManifest.xml")
 
-            java.srcDirs("src/main/java", "src/main/java-overrides")
+            // Runtime Kotlin is synced from ../app into build/generated (see
+            // syncShellRuntimeSources below) and ordered via preBuild deps —
+            // never into the source tree, so git stays clean. Plain string
+            // paths here: AGP forbids Provider instances in srcDirs.
+            java.srcDirs("src/main/java-overrides", "build/generated/shellRuntimeSrc")
             res.srcDirs("../app/src/main/res")
-            assets.srcDirs("src/main/assets")
+            assets.srcDirs("src/main/assets", "build/generated/shellRuntimeAssets")
         }
     }
 
@@ -119,6 +123,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            excludes += "assets/omni.ja"
+            excludes += "**/omni.ja"
+            excludes += "**/org/bouncycastle/pqc/**"
         }
         jniLibs {
             useLegacyPackaging = true
@@ -142,6 +149,10 @@ android {
             // Host-preview-only user-mode exec loader; generated APKs
             // (targetSdk 28) always execve directly and never load it.
             excludes += "**/libstatic_exec.so"
+
+            // Cronet natives are injected into exported APKs by ApkBuilder when
+            // 强制 HTTP/3 is enabled; the template never carries them.
+            excludes += "**/libcronet*.so"
         }
     }
     androidResources {
@@ -179,10 +190,7 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
         "**/core/perf/**",
         "**/core/port/**",
         "**/core/extension/**",
-        "**/core/gecko/**",
         "**/core/notification/**",
-        "**/core/backgroundrun/**",
-        "**/core/translate/**",
         "**/core/bgm/**",
         "**/core/engine/**",
         "**/core/scraper/**",
@@ -209,9 +217,6 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
         "**/ui/components/announcement/AnnouncementTemplates.kt",
         "**/ui/components/PremiumComponents.kt",
         "**/ui/components/EnhancedActivationDialog.kt",
-        "**/ui/components/PermissionRationale.kt",
-        "**/ui/components/ThemeSelector.kt",
-        "**/ui/components/StatusBarPreview.kt",
         "**/ui/components/WebSwipeRefreshLayout.kt",
         "**/ui/components/VirtualNavigationBar.kt",
         "**/ui/components/StatusBarBackground.kt",
@@ -232,7 +237,6 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
         "**/core/autostart/BootReceiver.kt",
         "**/core/autostart/ScheduledStartReceiver.kt",
 
-        "**/util/AppUpdateChecker.kt",
         "**/util/FaviconFetcher.kt",
         "**/util/UrlMetadataFetcher.kt",
         "**/util/MediaStorage.kt",
@@ -249,12 +253,12 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
         "**/core/extension/ModulePreset.kt"
     )
 
-    into("src/main/java")
+    into(layout.buildDirectory.dir("generated/shellRuntimeSrc"))
 }
 
-tasks.matching { it.name.startsWith("compile") && it.name.contains("Kotlin") }.configureEach {
-    dependsOn(syncShellRuntimeSources)
-}
+// Explicit wiring (no tasks.matching scan, which breaks configuration cache):
+// generated sources must exist before any compilation.
+tasks.named("preBuild") { dependsOn(syncShellRuntimeSources) }
 
 val syncShellRuntimeAssets by tasks.registering(Copy::class) {
     description = "Mirror runtime-only asset files from app module to shell template (single source of truth: app/src/main/assets)."
@@ -263,19 +267,26 @@ val syncShellRuntimeAssets by tasks.registering(Copy::class) {
     from("../app/src/main/assets") {
 
         include("php_router_server.php")
+
+        // GeckoViewEngine installs this built-in WebExtension from
+        // resource://android/assets/web_extensions/wta_native_bridge/ when the CORS
+        // bypass / private-network bridge is enabled — without the asset in the shell
+        // template, exported Gecko apps silently fail to install it (host-only asset).
+        include("web_extensions/**")
     }
 
-    into("src/main/assets")
+    into(layout.buildDirectory.dir("generated/shellRuntimeAssets"))
 }
 
-tasks.matching { it.name.startsWith("merge") && it.name.contains("Assets") }.configureEach {
-    dependsOn(syncShellRuntimeAssets)
-}
-tasks.matching { it.name == "preBuild" }.configureEach {
-    dependsOn(syncShellRuntimeAssets)
-}
+tasks.named("preBuild") { dependsOn(syncShellRuntimeAssets) }
 
-tasks.matching { it.name.startsWith("merge") && it.name.contains("Assets") }.configureEach {
+// omni.ja arrives via the GeckoView AAR's assets and packaging.resources.excludes
+// does not cover AAR assets, so strip it from the merged dir. Named wiring +
+// execution-time-only access keeps this configuration-cache safe; the merge
+// task stays up-to-date-aware (a skipped merge means outputs already stripped).
+// Lazy exact-name match: the merge task is created after configuration, so
+// named() would fail. The closure touches only task-scoped state.
+tasks.matching { it.name == "mergeReleaseAssets" }.configureEach {
     doLast {
         val mergedAssetsDir = outputs.files.files.firstOrNull { it.isDirectory }
         val omniJa = mergedAssetsDir?.resolve("omni.ja")
@@ -373,10 +384,8 @@ androidComponents {
             dependsOn(nativeBuildTaskName)
         }
 
-        tasks.matching { it.name == "merge${capName}NativeLibs" }.configureEach {
-            dependsOn(syncNodeLauncherTask)
-            dependsOn(syncGoLoaderTask)
-        }
+        // NOTE: no explicit merge${capName}NativeLibs wiring — the
+        // addGeneratedSourceDirectory calls below already infer task deps.
 
         variant.sources.jniLibs?.addGeneratedSourceDirectory(
             syncNodeLauncherTask,
@@ -397,6 +406,11 @@ dependencies {
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
+    // Native Google sign-in through the Jetpack Credential Manager (NativeBridge).
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.activity:activity-compose:1.8.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.6.2")
@@ -411,14 +425,12 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended:1.7.8")
     implementation("androidx.navigation:navigation-compose:2.7.5")
 
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
+    implementation("androidx.room:room-runtime:2.7.2")
+    implementation("androidx.room:room-ktx:2.7.2")
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
     implementation("io.coil-kt:coil-compose:2.5.0")
-    implementation("io.coil-kt:coil-video:2.5.0")
-    implementation("io.coil-kt:coil-gif:2.5.0")
 
     implementation("com.google.code.gson:gson:2.10.1")
 
@@ -444,6 +456,10 @@ dependencies {
     implementation("org.tukaani:xz:1.9")
 
     implementation("org.mozilla.geckoview:geckoview-arm64-v8a:142.0.20250827004350")
+
+    // Forced HTTP/3 upstream (see app/build.gradle.kts): classes only, natives are
+    // injected into exported APKs by ApkBuilder when 强制 HTTP/3 is enabled.
+    implementation("org.chromium.net:cronet-embedded:143.7445.0")
 
     implementation("androidx.browser:browser:1.8.0")
 

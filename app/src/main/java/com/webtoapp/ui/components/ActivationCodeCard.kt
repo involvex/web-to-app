@@ -2,7 +2,11 @@ package com.webtoapp.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
 import com.webtoapp.ui.design.WtaChoiceRow
+import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaButton
+import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaSectionDivider
+import com.webtoapp.ui.design.WtaSize
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.design.WtaToggleRow
@@ -188,7 +192,12 @@ fun ActivationCodeCard(
 
                     WtaSectionDivider()
 
-                    if (!remoteConfig.enabled) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = !remoteConfig.enabled,
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
+                    ) {
+                        Column {
                         WtaChoiceRow(
                             title = Strings.activationSectionCodes,
                             subtitle = if (activationCodes.isNotEmpty())
@@ -213,32 +222,32 @@ fun ActivationCodeCard(
                             ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                                 ) {
-                                    PremiumButton(
+                                    WtaButton(
                                         onClick = { showAddDialog = true },
                                         modifier = Modifier.weight(1f)
                                     ) {
-                                        Icon(Icons.Default.Add, null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Icon(Icons.Default.Add, null, modifier = Modifier.size(WtaSize.IconSmall))
+                                        Spacer(modifier = Modifier.width(WtaSpacing.Tiny))
                                         Text(Strings.addActivationCode, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
-                                    PremiumOutlinedButton(
+                                    WtaButton(
                                         onClick = { showBatchDialog = true },
-                                        shape = RoundedCornerShape(12.dp)
+                                        variant = WtaButtonVariant.Outlined
                                     ) {
-                                        Icon(Icons.Outlined.AutoAwesome, null, modifier = Modifier.size(18.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Icon(Icons.Outlined.AutoAwesome, null, modifier = Modifier.size(WtaSize.IconSmall))
+                                        Spacer(modifier = Modifier.width(WtaSpacing.Tiny))
                                         Text(Strings.batchGenerate, maxLines = 1)
                                     }
                                 }
-                                PremiumOutlinedButton(
+                                WtaButton(
                                     onClick = { showBatchImportDialog = true },
-                                    shape = RoundedCornerShape(12.dp),
+                                    variant = WtaButtonVariant.Outlined,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Icon(Icons.Outlined.PostAdd, null, modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Icon(Icons.Outlined.PostAdd, null, modifier = Modifier.size(WtaSize.IconSmall))
+                                    Spacer(modifier = Modifier.width(WtaSpacing.Tiny))
                                     Text(Strings.batchImport, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 if (activationCodes.isNotEmpty()) {
@@ -285,7 +294,13 @@ fun ActivationCodeCard(
                                 }
                             }
                         }
-                    } else {
+                        }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = remoteConfig.enabled,
+                        enter = CardExpandTransition,
+                        exit = CardCollapseTransition
+                    ) {
                         RemoteActivationSection(
                             remoteConfig = remoteConfig,
                             onRemoteConfigChange = onRemoteConfigChange,
@@ -513,6 +528,13 @@ private fun RemoteActivationSection(
             subtitle = Strings.remoteActivationDeliverUrlHint,
             checked = remoteConfig.deliverUrl,
             onCheckedChange = { onRemoteConfigChange(remoteConfig.copy(deliverUrl = it)) }
+        )
+
+        WtaToggleRow(
+            title = Strings.remoteActivationDeviceBoundTitle,
+            subtitle = Strings.remoteActivationDeviceBoundHint,
+            checked = remoteConfig.deviceBound,
+            onCheckedChange = { onRemoteConfigChange(remoteConfig.copy(deviceBound = it)) }
         )
 
         AnimatedVisibility(
@@ -1047,6 +1069,14 @@ private fun EnhancedActivationCodeItem(
                     }
                 }
 
+                code.expiresAt?.let { expiresAt ->
+                    val formatted = java.text.SimpleDateFormat(
+                        "yyyy-MM-dd",
+                        java.util.Locale.getDefault()
+                    ).format(java.util.Date(expiresAt))
+                    add("📅 ${Strings.activationCodeValidUntil.replace("%s", formatted)}")
+                }
+
                 code.note?.takeIf { it.isNotBlank() }?.let { note ->
                     add("📝 $note")
                 }
@@ -1080,6 +1110,7 @@ private fun AddActivationCodeDialog(
     var codeType by remember { mutableStateOf(ActivationCodeType.PERMANENT) }
     var timeLimitDays by remember { mutableStateOf("7") }
     var usageLimit by remember { mutableStateOf("100") }
+    var expiryDays by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var customCode by remember { mutableStateOf("") }
     var useCustomCode by remember { mutableStateOf(false) }
@@ -1123,18 +1154,14 @@ private fun AddActivationCodeDialog(
                 ) {
                     ActivationCodeType.entries.forEach { type ->
                         val theme = getCodeTypeTheme(type)
-                        FilterChip(
+                        WtaChip(
                             selected = codeType == type,
                             onClick = { codeType = type },
-                            label = { Text(getActivationTypeName(type)) },
-                            leadingIcon = {
-                                Icon(
-                                    theme.icon,
-                                    null,
-                                    modifier = Modifier.size(16.dp),
-                                    tint = if (codeType == type) theme.color else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            label = getActivationTypeName(type),
+                            leadingIcon = theme.icon,
+                            showSelectedCheck = false,
+                            selectedContainerColor = theme.labelBg,
+                            selectedContentColor = theme.color
                         )
                     }
                 }
@@ -1265,6 +1292,25 @@ private fun AddActivationCodeDialog(
                 }
 
                 PremiumTextField(
+                    value = expiryDays,
+                    onValueChange = {
+                        if (it.all { char -> char.isDigit() }) {
+                            expiryDays = it
+                        }
+                    },
+                    label = { Text(Strings.activationCodeExpiryDays) },
+                    placeholder = { Text("365") },
+                    leadingIcon = {
+                        Icon(Icons.Outlined.Event, null, modifier = Modifier.size(18.dp))
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
+
+                PremiumTextField(
                     value = note,
                     onValueChange = { note = it },
                     label = { Text(Strings.noteOptional) },
@@ -1296,6 +1342,12 @@ private fun AddActivationCodeDialog(
                         else -> null
                     }
 
+                    // Counted from generation, not from first activation, so the
+                    // deadline survives a data wipe on the user's device.
+                    val expiresAt = expiryDays.toLongOrNull()
+                        ?.takeIf { it > 0 }
+                        ?.let { System.currentTimeMillis() + TimeUnit.DAYS.toMillis(it) }
+
                     val code = if (useCustomCode && customCode.isNotBlank()) {
                         val trimmed = customCode.trim()
                         if (trimmed.length < com.webtoapp.core.activation.ActivationManager.MIN_CODE_LENGTH) {
@@ -1307,7 +1359,8 @@ private fun AddActivationCodeDialog(
                             type = codeType,
                             timeLimitMs = timeLimitMs,
                             usageLimit = usageLimitInt,
-                            note = note.takeIf { it.isNotBlank() }
+                            note = note.takeIf { it.isNotBlank() },
+                            expiresAt = expiresAt
                         )
                     } else {
                         val activationManager = com.webtoapp.WebToAppApplication.getInstance()
@@ -1317,7 +1370,8 @@ private fun AddActivationCodeDialog(
                             timeLimitMs = timeLimitMs,
                             usageLimit = usageLimitInt,
                             note = note.takeIf { it.isNotBlank() },
-                            length = codeLength.toInt()
+                            length = codeLength.toInt(),
+                            expiresAt = expiresAt
                         )
                     }
 
@@ -1346,6 +1400,7 @@ private fun BatchGenerateDialog(
     var batchCount by remember { mutableStateOf("5") }
     var timeLimitDays by remember { mutableStateOf("7") }
     var usageLimit by remember { mutableStateOf("100") }
+    var expiryDays by remember { mutableStateOf("") }
     var codeLength by remember { mutableStateOf(com.webtoapp.core.activation.ActivationManager.DEFAULT_CODE_LENGTH.toFloat()) }
 
     AlertDialog(
@@ -1398,23 +1453,14 @@ private fun BatchGenerateDialog(
                     ActivationCodeType.values().forEach { type ->
                         val theme = getCodeTypeTheme(type)
                         val isSelected = codeType == type
-                        FilterChip(
+                        WtaChip(
                             selected = isSelected,
                             onClick = { codeType = type },
-                            label = {
-                                Text(
-                                    getActivationTypeName(type),
-                                    style = MaterialTheme.typography.labelSmall
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(theme.icon, null, modifier = Modifier.size(14.dp))
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = theme.labelBg,
-                                selectedLabelColor = theme.color,
-                                selectedLeadingIconColor = theme.color
-                            )
+                            label = getActivationTypeName(type),
+                            leadingIcon = theme.icon,
+                            showSelectedCheck = false,
+                            selectedContainerColor = theme.labelBg,
+                            selectedContentColor = theme.color
                         )
                     }
                 }
@@ -1477,6 +1523,18 @@ private fun BatchGenerateDialog(
                         )
                     )
                 }
+
+                PremiumTextField(
+                    value = expiryDays,
+                    onValueChange = { if (it.all { c -> c.isDigit() }) expiryDays = it },
+                    label = { Text(Strings.activationCodeExpiryDays) },
+                    leadingIcon = { Icon(Icons.Outlined.Event, null, modifier = Modifier.size(18.dp)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                    )
+                )
             }
         },
         confirmButton = {
@@ -1493,6 +1551,9 @@ private fun BatchGenerateDialog(
                             usageLimit.toIntOrNull()
                         else -> null
                     }
+                    val expiresAt = expiryDays.toLongOrNull()
+                        ?.takeIf { it > 0 }
+                        ?.let { System.currentTimeMillis() + TimeUnit.DAYS.toMillis(it) }
 
                     val activationManager = com.webtoapp.WebToAppApplication.getInstance()
                         .activationManager
@@ -1501,7 +1562,8 @@ private fun BatchGenerateDialog(
                         type = codeType,
                         timeLimitMs = timeLimitMs,
                         usageLimit = usageLimitInt,
-                        length = codeLength.toInt()
+                        length = codeLength.toInt(),
+                        expiresAt = expiresAt
                     )
                     onConfirm(codes)
                 }

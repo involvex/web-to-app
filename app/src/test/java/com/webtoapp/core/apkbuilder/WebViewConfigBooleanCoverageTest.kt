@@ -42,10 +42,11 @@ class WebViewConfigBooleanCoverageTest {
             "javaScriptEnabled", "domStorageEnabled", "allowFileAccess", "allowContentAccess",
             "cacheEnabled", "clearBrowsingDataOnLaunch", "clientCertificateAuthEnabled",
             "zoomEnabled", "desktopMode",
-            "hideToolbar", "hideBrowserToolbar", "toolbarShowTitle", "toolbarShowUrl",
+            "browserToolbarEnabled", "hideToolbar", "toolbarShowTitle", "toolbarShowUrl",
             "toolbarShowBack", "toolbarShowForward", "toolbarShowRefresh",
-            "toolbarShowConsole", "toolbarShowZoom", "toolbarShowFind",
-            "browserToolbarCustomized", "showStatusBarInFullscreen",
+            "toolbarShowConsole", "toolbarShowFind",
+            "showStatusBarInFullscreen",
+            "hideStatusBarInVideoFullscreen",
             "showNavigationBarInFullscreen", "showToolbarInFullscreen", "landscapeMode",
             "longPressMenuEnabled", "popupBlockerEnabled", "popupBlockerToggleEnabled",
             "openExternalLinks", "showFloatingBackButton", "swipeRefreshEnabled",
@@ -61,15 +62,17 @@ class WebViewConfigBooleanCoverageTest {
             "enableCloudflareCompat", "enableCookiePersistence",
             "enablePrivateNetworkBridge", "enableNativeBridge",
             "enablePaymentSchemes", "enableShareBridge", "enableZoomPolyfill",
+            "enableAppReturn",
             "enableCrossOriginIsolation", "hideUrlPreview", "decodeBase64DeepLinks",
             "javaScriptCanOpenWindows", "mediaAutoplayEnabled",
             "acceptThirdPartyCookies", "geolocationEnabled", "keepScreenOn",
             "databaseEnabled", "primeUserActivation", "failoverEnabled",
             "hostsMappingEnabled", "autoRefreshEnabled", "autoRefreshShowCountdown",
-    "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
-    "tlsFingerprintEnabled", "statusBarDarkIconsDark",
-    "pictureInPictureEnabled", "ratingEnabled"
-)
+            "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
+            "tlsFingerprintEnabled", "forceHttp3",
+            "statusBarDarkIconsDark",
+            "pictureInPictureEnabled", "ratingEnabled"
+        )
 
         val missing = allBooleanFields - listedFields
         val stale = listedFields - allBooleanFields
@@ -98,7 +101,10 @@ class WebViewConfigBooleanCoverageTest {
         val knownDerivedOrIntentional = setOf(
             "allowFileAccess", "allowFileAccessFromFileURLs",
             "allowUniversalAccessFromFileURLs", "cacheEnabled",
-            "pwaOfflineEnabled", "staticAssetPackIncludeImages", "staticAssetPackIncludeCdn"
+            "pwaOfflineEnabled", "staticAssetPackIncludeImages", "staticAssetPackIncludeCdn",
+            // Export-time input: decides which return schemes are declared and folded into
+            // deepLinkSchemes. The runtime reads that resolved list, never this flag.
+            "enableAppReturn"
         )
 
         val wvBooleanFields = WebViewConfig::class.java.declaredFields
@@ -158,7 +164,10 @@ class WebViewConfigBooleanCoverageTest {
         val knownDerivedOrIntentional = setOf(
             "allowFileAccess", "allowFileAccessFromFileURLs",
             "allowUniversalAccessFromFileURLs", "cacheEnabled",
-            "pwaOfflineEnabled", "staticAssetPackIncludeImages", "staticAssetPackIncludeCdn"
+            "pwaOfflineEnabled", "staticAssetPackIncludeImages", "staticAssetPackIncludeCdn",
+            // Export-time input: decides which return schemes are declared and folded into
+            // deepLinkSchemes. The runtime reads that resolved list, never this flag.
+            "enableAppReturn"
         )
 
         // Shell flattens NativeBridgeCapabilities + FailoverTriggers into top-level Boolean
@@ -170,9 +179,9 @@ class WebViewConfigBooleanCoverageTest {
             "nativeBridgeScreenWake", "nativeBridgeOpenExternal", "nativeBridgeDeviceInfo",
             "nativeBridgeSecurityInfo", "nativeBridgeNetworkInfo", "nativeBridgeToast",
             "nativeBridgeLogging", "nativeBridgeFindInPage", "nativeBridgeOrientation",
-            "nativeBridgeFullscreen", "nativeBridgePrint",             "nativeBridgeScreenCapture",
-            "nativeBridgePip",
-            "nativeBridgeRating",
+            "nativeBridgeFullscreen", "nativeBridgePrint", "nativeBridgeScreenCapture",
+            "nativeBridgePip", "nativeBridgeRating",
+            "nativeBridgeGoogleSignIn",
             "failoverTriggerNetworkError", "failoverTriggerHttp5xx",
             "failoverTriggerHttp4xx", "failoverTriggerTimeout"
         )
@@ -205,7 +214,12 @@ class WebViewConfigBooleanCoverageTest {
                 swipeRefreshZone = com.webtoapp.data.model.SwipeRefreshZone.ANYWHERE,
                 autoRefreshIntervalSec = 120,
                 blobInterceptThresholdMb = 10,
-                screenAwakeTimeoutMinutes = 15
+                screenAwakeTimeoutMinutes = 15,
+                pageZoomPercent = 125,
+                nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    googleSignIn = true,
+                    googleSignInClientId = "test-client-id.apps.googleusercontent.com"
+                )
             )
         )
         val shell = roundTrip(app)
@@ -230,6 +244,28 @@ class WebViewConfigBooleanCoverageTest {
         readShell("autoRefreshIntervalSec", 120)
         readShell("blobInterceptThresholdMb", 10)
         readShell("screenAwakeTimeoutMinutes", 15)
+        readShell("pageZoomPercent", 125)
+        // Native Google sign-in: capability flag + the Web client ID both have to survive
+        // the export, or the generated app silently falls back to the disabled state.
+        readShell("nativeBridgeGoogleSignIn", true)
+        readShell("nativeBridgeGoogleSignInClientId", "test-client-id.apps.googleusercontent.com")
+    }
+
+    @Test
+    fun `nullable statusBarDarkIconsDark round-trips through export`() {
+        fun shellDarkIconsOf(config: WebViewConfig): Any? {
+            val shellWv = shellWvOf(roundTrip(WebApp(name = "t", url = "https://t.example.com", webViewConfig = config)))
+            val field = shellWv.javaClass.declaredFields.associateBy { it.name }["statusBarDarkIconsDark"]
+                ?: throw AssertionError("ShellWebViewConfig missing field 'statusBarDarkIconsDark'")
+            field.isAccessible = true
+            return field.get(shellWv)
+        }
+
+        // Explicit choices survive; the default (auto) stays null instead of
+        // degrading to false, so the runtime keeps its luminance fallback.
+        assertThat(shellDarkIconsOf(WebViewConfig(statusBarDarkIconsDark = true))).isEqualTo(true)
+        assertThat(shellDarkIconsOf(WebViewConfig(statusBarDarkIconsDark = false))).isEqualTo(false)
+        assertThat(shellDarkIconsOf(WebViewConfig())).isNull()
     }
 
     @Test
@@ -428,17 +464,16 @@ class WebViewConfigBooleanCoverageTest {
             zoomEnabled = bool("zoomEnabled"),
             desktopMode = bool("desktopMode"),
             hideToolbar = bool("hideToolbar"),
-            hideBrowserToolbar = bool("hideBrowserToolbar"),
+            browserToolbarEnabled = bool("browserToolbarEnabled"),
             toolbarShowTitle = bool("toolbarShowTitle"),
             toolbarShowUrl = bool("toolbarShowUrl"),
             toolbarShowBack = bool("toolbarShowBack"),
             toolbarShowForward = bool("toolbarShowForward"),
             toolbarShowRefresh = bool("toolbarShowRefresh"),
             toolbarShowConsole = bool("toolbarShowConsole"),
-            toolbarShowZoom = bool("toolbarShowZoom"),
             toolbarShowFind = bool("toolbarShowFind"),
-            browserToolbarCustomized = bool("browserToolbarCustomized"),
             showStatusBarInFullscreen = bool("showStatusBarInFullscreen"),
+            hideStatusBarInVideoFullscreen = bool("hideStatusBarInVideoFullscreen"),
             showNavigationBarInFullscreen = bool("showNavigationBarInFullscreen"),
             showToolbarInFullscreen = bool("showToolbarInFullscreen"),
             landscapeMode = bool("landscapeMode"),
@@ -473,6 +508,8 @@ class WebViewConfigBooleanCoverageTest {
             enablePrivateNetworkBridge = bool("enablePrivateNetworkBridge"),
             enableNativeBridge = bool("enableNativeBridge"),
             enablePaymentSchemes = bool("enablePaymentSchemes"),
+            // Export-time input with no shell counterpart; see knownDerivedOrIntentional.
+            enableAppReturn = bool("enableAppReturn"),
             enableShareBridge = bool("enableShareBridge"),
             enableZoomPolyfill = bool("enableZoomPolyfill"),
             enableCrossOriginIsolation = bool("enableCrossOriginIsolation"),
@@ -493,8 +530,9 @@ class WebViewConfigBooleanCoverageTest {
             allowUniversalAccessFromFileURLs = bool("allowUniversalAccessFromFileURLs"),
             tlsFingerprintEnabled = bool("tlsFingerprintEnabled"),
             statusBarDarkIconsDark = bool("statusBarDarkIconsDark"),
-             pictureInPictureEnabled = bool("pictureInPictureEnabled"),
-             ratingEnabled = bool("ratingEnabled")
-         )
+            pictureInPictureEnabled = bool("pictureInPictureEnabled"),
+            ratingEnabled = bool("ratingEnabled"),
+            forceHttp3 = bool("forceHttp3")
+        )
     }
 }

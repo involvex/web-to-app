@@ -16,6 +16,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicReference
 
 internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Context) : LlmProvider {
     private val gson = GsonProvider.gson
@@ -36,11 +37,19 @@ internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Conte
 
     override fun chatStream(req: ChatRequest): Flow<LlmEvent> = callbackFlow {
         trySend(LlmEvent.Started)
-        executeCall(req, isRetry = false)
-        awaitClose { }
+        // Track the live call across retries so a cancelled/aborted collection
+        // (idle timeout, user abort) tears down the actual HTTP connection instead
+        // of leaving an orphaned request streaming into a closed channel.
+        val inFlight = AtomicReference<Call?>()
+        executeCall(req, isRetry = false, inFlight = inFlight)
+        awaitClose { inFlight.get()?.cancel() }
     }
 
-    private fun kotlinx.coroutines.channels.ProducerScope<LlmEvent>.executeCall(req: ChatRequest, isRetry: Boolean) {
+    private fun kotlinx.coroutines.channels.ProducerScope<LlmEvent>.executeCall(
+        req: ChatRequest,
+        isRetry: Boolean,
+        inFlight: AtomicReference<Call?>
+    ) {
         val url = HttpHelpers.joinUrl(HttpHelpers.baseUrl(req.apiKey), req.apiKey.getEffectiveChatEndpoint())
         val effectiveReq = if (isRetry) req.copy(temperature = 1f) else req
         val body = buildBody(effectiveReq)
@@ -48,14 +57,17 @@ internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Conte
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
         HttpHelpers.applyAuth(builder, req.apiKey)
         val call = client.newCall(builder.build())
+        inFlight.set(call)
         call.enqueue(object : Callback {
             override fun onFailure(call: Call, e: IOException) {
                 if (!isRetry) {
                     AppLogger.w("OpenAiCompatProvider", "Network failure, retrying once: ${e.message}")
                     try { Thread.sleep(1000) } catch (_: InterruptedException) {}
-                    executeCall(req, isRetry = true)
+                    executeCall(req, isRetry = true, inFlight = inFlight)
                 } else {
-                    trySend(LlmEvent.Error(e.message ?: "Network error")); close()
+                    // Include the endpoint so a connection-level failure is
+                    // attributable to a specific base URL, not just "network error".
+                    trySend(LlmEvent.Error("Network error: ${e.message ?: "connection failed"} [$url]")); close()
                 }
             }
             override fun onResponse(call: Call, response: Response) {
@@ -64,7 +76,7 @@ internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Conte
                     response.body?.close()
                     if (!isRetry && response.code == 400 && looksLikeTemperatureConstraint(eb)) {
                         AppLogger.w("OpenAiCompatProvider", "Model rejected temperature=${req.temperature}; retrying with temperature=1")
-                        executeCall(req, isRetry = true)
+                        executeCall(req, isRetry = true, inFlight = inFlight)
                         return
                     }
                     val (msg, rec) = HttpHelpers.classifyHttpError(response.code, eb)
@@ -162,7 +174,7 @@ internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Conte
     private fun buildMsg(msg: LlmMessage) = JsonObject().apply {
         addProperty("role", when(msg.role){LlmMessage.Role.SYSTEM->"system";LlmMessage.Role.USER->"user";LlmMessage.Role.ASSISTANT->"assistant";LlmMessage.Role.TOOL->"tool"})
         if (msg.toolCalls.isNotEmpty()) { add("tool_calls", JsonArray().apply { msg.toolCalls.forEach { tc -> add(JsonObject().apply { addProperty("id",tc.id);addProperty("type","function");add("function",JsonObject().apply{addProperty("name",tc.name);addProperty("arguments",tc.argumentsJson)}) }) } }); if(msg.content.isNotEmpty()) addProperty("content",msg.content) }
-        else if (msg.images.isNotEmpty()) {
+        else if (msg.images.isNotEmpty() && msg.role != LlmMessage.Role.TOOL) {
             add("content", JsonArray().apply {
                 if (msg.content.isNotEmpty()) add(JsonObject().apply { addProperty("type", "text"); addProperty("text", msg.content) })
                 msg.images.forEach { img ->
@@ -176,6 +188,17 @@ internal class OpenAiCompatProvider(@Suppress("UNUSED_PARAMETER") context: Conte
             })
         }
         else addProperty("content", msg.content)
+
+        if (msg.role == LlmMessage.Role.TOOL) {
+            // The OpenAI Chat Completions schema only allows string content on role:"tool"
+            // messages — image content parts are valid solely on user messages. Tool
+            // results that carry images (ViewImage / GenerateImage / image-file reads) must
+            // degrade to a text reference here, otherwise strict endpoints reject the whole
+            // request with 400 and the engine retries the same invalid payload 5 times.
+            if (msg.images.isNotEmpty() && msg.content.isEmpty()) {
+                addProperty("content", "[${msg.images.size} image(s) returned by tool; not displayable in this message role]")
+            }
+        }
 
         if (msg.role == LlmMessage.Role.ASSISTANT) {
             // GLM thinking mode requires reasoning_content on every assistant message

@@ -7,8 +7,18 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -18,14 +28,19 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.shared.AspectRatioSurface
+import com.webtoapp.ui.shared.ZoomableState
+import com.webtoapp.ui.shared.zoomable
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,7 +49,8 @@ import kotlinx.coroutines.withContext
 @Composable
 fun ShellGalleryPlayer(
     galleryConfig: com.webtoapp.core.shell.GalleryShellConfig,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    positionKeySuffix: String? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -75,16 +91,83 @@ fun ShellGalleryPlayer(
     val currentIndex by remember { derivedStateOf { pagerState.settledPage } }
     val currentItem = effectiveItems.getOrNull(currentIndex)
 
+    // rememberPosition: a generated APK hosts a single gallery, so one fixed key
+    // suffices. Items may resolve asynchronously (derived assets fallback), hence
+    // jump-once-loaded instead of initialPage. A restored non-zero position opens
+    // the pager directly; otherwise the overview is the entry.
+    val positionPrefs = remember {
+        context.getSharedPreferences(SHELL_GALLERY_POSITION_PREFS, android.content.Context.MODE_PRIVATE)
+    }
+    // rememberPosition: standalone galleries keep the historical fixed key;
+    // multi-web sites scope it per site so sibling galleries never restore
+    // each other's position (keys are clamped, so this was silent, not a crash).
+    val positionKey = remember(positionKeySuffix) {
+        if (positionKeySuffix.isNullOrBlank()) SHELL_GALLERY_POSITION_KEY
+        else "${SHELL_GALLERY_POSITION_KEY}_$positionKeySuffix"
+    }
+    var positionRestored by remember { mutableStateOf(!galleryConfig.rememberPosition) }
+    var showGrid by remember { mutableStateOf(true) }
+    var enteredInPager by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(enabled = !showGrid && !enteredInPager) {
+        showGrid = true
+    }
+    LaunchedEffect(effectiveItems) {
+        if (!positionRestored && effectiveItems.isNotEmpty()) {
+            positionRestored = true
+            val saved = positionPrefs.getInt(positionKey, 0)
+                .coerceIn(0, effectiveItems.size - 1)
+            if (saved > 0) {
+                pagerState.scrollToPage(saved)
+                showGrid = false
+                enteredInPager = true
+            }
+        }
+    }
+    LaunchedEffect(currentIndex) {
+        if (galleryConfig.rememberPosition && positionRestored && currentIndex in effectiveItems.indices) {
+            positionPrefs.edit().putInt(positionKey, currentIndex).apply()
+        }
+    }
+
+    val bgColor = remember(galleryConfig.backgroundColor) {
+        try {
+            Color(android.graphics.Color.parseColor(galleryConfig.backgroundColor))
+        } catch (e: Exception) {
+            Color.Black
+        }
+    }
+
+        if (showGrid) {
+        ShellGalleryOverview(
+            galleryConfig = galleryConfig,
+            items = effectiveItems,
+            bgColor = bgColor,
+            assetDecryptor = assetDecryptor,
+            onBack = onBack,
+            onItemClick = { index ->
+                scope.launch {
+                    showGrid = false
+                    pagerState.scrollToPage(index.coerceIn(0, effectiveItems.size - 1))
+                }
+            }
+        )
+        return
+    }
+
     var showControls by remember { mutableStateOf(true) }
     var isPlaying by remember { mutableStateOf(galleryConfig.autoPlay) }
 
     LaunchedEffect(currentIndex, isPlaying) {
         if (isPlaying && currentItem?.type == "IMAGE" && !pagerState.isScrollInProgress) {
             kotlinx.coroutines.delay(galleryConfig.imageInterval * 1000L)
-            if (currentIndex < items.size - 1) {
-                pagerState.animateScrollToPage(currentIndex + 1)
-            } else if (galleryConfig.loop) {
-                pagerState.animateScrollToPage(0)
+            // End detection uses the displayed list: config items may be empty with
+            // assets derived as fallback, in which case items.size is 0.
+            val advance = com.webtoapp.ui.shared.galleryAutoAdvanceTarget(
+                currentIndex, effectiveItems.size, galleryConfig.loop, galleryConfig.shuffleOnLoop
+            )
+            if (advance != null) {
+                if (advance.reshuffle) effectiveItems = effectiveItems.shuffled()
+                pagerState.animateScrollToPage(advance.targetIndex)
             } else {
                 isPlaying = false
             }
@@ -95,14 +178,6 @@ fun ShellGalleryPlayer(
         if (showControls) {
             kotlinx.coroutines.delay(3000)
             showControls = false
-        }
-    }
-
-    val bgColor = remember(galleryConfig.backgroundColor) {
-        try {
-            Color(android.graphics.Color.parseColor(galleryConfig.backgroundColor))
-        } catch (e: Exception) {
-            Color.Black
         }
     }
 
@@ -143,10 +218,12 @@ fun ShellGalleryPlayer(
                             onVideoEnded = {
                                 if (galleryConfig.videoAutoNext) {
                                     scope.launch {
-                                        if (currentIndex < effectiveItems.size - 1) {
-                                            pagerState.animateScrollToPage(currentIndex + 1)
-                                        } else if (galleryConfig.loop) {
-                                            pagerState.animateScrollToPage(0)
+                                        val advance = com.webtoapp.ui.shared.galleryAutoAdvanceTarget(
+                                            currentIndex, effectiveItems.size, galleryConfig.loop, galleryConfig.shuffleOnLoop
+                                        )
+                                        if (advance != null) {
+                                            if (advance.reshuffle) effectiveItems = effectiveItems.shuffled()
+                                            pagerState.animateScrollToPage(advance.targetIndex)
                                         }
                                     }
                                 }
@@ -176,7 +253,7 @@ fun ShellGalleryPlayer(
                         .statusBarsPadding(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { if (!enteredInPager) showGrid = true else onBack() }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = Strings.cdBack,
@@ -213,6 +290,24 @@ fun ShellGalleryPlayer(
                         )
                     }
                 }
+            }
+        }
+
+        if (galleryConfig.showThumbnailBar) {
+            AnimatedVisibility(
+                visible = showControls,
+                enter = fadeIn() + slideInVertically(initialOffsetY = { it }),
+                exit = fadeOut() + slideOutVertically(targetOffsetY = { it }),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                ShellThumbnailBar(
+                    items = effectiveItems,
+                    currentIndex = currentIndex,
+                    assetDecryptor = assetDecryptor,
+                    onItemClick = { index ->
+                        scope.launch { pagerState.animateScrollToPage(index) }
+                    }
+                )
             }
         }
 
@@ -298,6 +393,31 @@ fun ShellGalleryPlayer(
     }
 }
 
+/**
+ * An item path is either an APK asset path (exported standalone app or
+ * multi-web site prefix like `multiweb_sites/<id>/gallery/...`) or — for
+ * host-run preview, where no APK was built — an absolute host file path
+ * mapped by buildSiteShellConfig. Absolute paths always win when readable.
+ */
+private fun isLocalMediaAssetPath(path: String) = path.startsWith("/")
+
+private fun loadGalleryAssetBytes(
+    context: android.content.Context,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor,
+    assetPath: String
+): ByteArray {
+    if (isLocalMediaAssetPath(assetPath)) {
+        val file = java.io.File(assetPath)
+        if (file.isFile && file.canRead()) return file.readBytes()
+        AppLogger.w("ShellGallery", "Host media file missing, trying assets: $assetPath")
+    }
+    return try {
+        assetDecryptor.loadAsset(assetPath)
+    } catch (e: Exception) {
+        context.assets.open(assetPath).use { it.readBytes() }
+    }
+}
+
 private fun deriveGalleryItemsFromAssets(
     context: android.content.Context
 ): List<com.webtoapp.core.shell.GalleryShellItem> {
@@ -360,14 +480,8 @@ fun ShellGalleryImageViewer(
     LaunchedEffect(item.assetPath) {
         isLoading = true
         try {
-
-            val imageBytes = try {
-                assetDecryptor.loadAsset(item.assetPath)
-            } catch (e: Exception) {
-
-                context.assets.open(item.assetPath).use { it.readBytes() }
-            }
-            bitmap = android.graphics.BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
+            val imageBytes = loadGalleryAssetBytes(context, assetDecryptor, item.assetPath)
+            bitmap = com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapBytes(imageBytes)
         } catch (e: Exception) {
             AppLogger.e("ShellGallery", "Failed to load image: ${item.assetPath}", e)
         }
@@ -382,12 +496,43 @@ fun ShellGalleryImageViewer(
             CircularProgressIndicator(color = Color.White)
         } else {
             bitmap?.let { bmp ->
-                Image(
-                    bitmap = bmp.asImageBitmap(),
-                    contentDescription = item.name,
+                BoxWithConstraints(
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    val density = LocalDensity.current
+                    // Fresh zoom state per item; pinch/pan/double-tap below.
+                    val zoom = remember(item.assetPath) {
+                        ZoomableState()
+                    }
+                    val viewportPx = with(density) {
+                        Size(
+                            maxWidth.toPx(),
+                            maxHeight.toPx()
+                        )
+                    }
+                    LaunchedEffect(viewportPx, bmp.width, bmp.height) {
+                        zoom.setLayout(
+                            viewportPx,
+                            ZoomableState.fittedContentSize(
+                                bmp.width, bmp.height, viewportPx
+                            )
+                        )
+                    }
+                    Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = item.name,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(item.assetPath) {
+                                detectTapGestures(
+                                    onDoubleTap = { tap -> zoom.toggleZoom(tap) }
+                                )
+                            }
+                            .zoomable(zoom),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                    )
+                }
             }
         }
     }
@@ -446,6 +591,19 @@ fun ShellGalleryVideoPlayer(
                 }
 
                 if (!isEncrypted) {
+                    // Host-run preview points at absolute host files: feed
+                    // them straight to the player instead of APK assets.
+                    val localFile = item.assetPath
+                        .takeIf { isLocalMediaAssetPath(it) }
+                        ?.let { java.io.File(it) }
+                        ?.takeIf { it.isFile && it.canRead() }
+                    if (localFile != null) {
+                        withContext(Dispatchers.Main) {
+                            mediaPlayer.setDataSource(localFile.absolutePath)
+                            mediaPlayer.prepareAsync()
+                        }
+                        return@launch
+                    }
 
                     try {
                         assetFd = context.assets.openFd(item.assetPath)
@@ -680,6 +838,253 @@ fun ShellGalleryVideoPlayer(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShellThumbnailBar(
+    items: List<com.webtoapp.core.shell.GalleryShellItem>,
+    currentIndex: Int,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor,
+    onItemClick: (Int) -> Unit
+) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(currentIndex) {
+        if (currentIndex in items.indices) {
+            listState.animateScrollToItem(
+                index = currentIndex,
+                scrollOffset = -100
+            )
+        }
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = Color.Black.copy(alpha = 0.6f)
+    ) {
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+                .navigationBarsPadding(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp)
+        ) {
+            itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+                val isSelected = index == currentIndex
+
+                Box(
+                    modifier = Modifier
+                        .animateItem()
+                        .size(if (isSelected) 64.dp else 56.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .border(
+                            width = if (isSelected) 2.dp else 0.dp,
+                            color = if (isSelected) Color.White else Color.Transparent,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .clickable { onItemClick(index) }
+                ) {
+                    ShellThumbnailCell(item = item, assetDecryptor = assetDecryptor)
+
+                    if (item.type == "VIDEO") {
+                        Icon(
+                            Icons.Default.PlayCircle,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .align(Alignment.Center),
+                            tint = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShellThumbnailCell(
+    item: com.webtoapp.core.shell.GalleryShellItem,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor
+) {
+    val context = LocalContext.current
+    // Mirror host fallback: use the full image when no dedicated thumbnail was
+    // embedded. Videos without a thumbnail get a placeholder (shell ships no
+    // video-frame decoder).
+    val thumbAssetPath = item.thumbnailPath
+        ?: if (item.type == "IMAGE") item.assetPath else null
+
+    var bitmap by remember(thumbAssetPath) { mutableStateOf<android.graphics.Bitmap?>(null) }
+
+    LaunchedEffect(thumbAssetPath) {
+        bitmap = null
+        if (thumbAssetPath == null) return@LaunchedEffect
+        bitmap = try {
+            val bytes = loadGalleryAssetBytes(context, assetDecryptor, thumbAssetPath)
+            com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapBytes(bytes)
+        } catch (e: Exception) {
+            AppLogger.e("ShellGallery", "Failed to load thumbnail: $thumbAssetPath", e)
+            null
+        }
+    }
+
+    val bmp = bitmap
+    if (bmp != null) {
+        Image(
+            bitmap = bmp.asImageBitmap(),
+            contentDescription = item.name,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+    } else {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.DarkGray),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                if (item.type == "VIDEO") Icons.Outlined.Videocam else Icons.Outlined.Image,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+private const val SHELL_GALLERY_POSITION_PREFS = "shell_gallery"
+private const val SHELL_GALLERY_POSITION_KEY = "last_index"
+
+@Composable
+private fun ShellGalleryOverview(
+    galleryConfig: com.webtoapp.core.shell.GalleryShellConfig,
+    items: List<com.webtoapp.core.shell.GalleryShellItem>,
+    bgColor: Color,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor,
+    onBack: () -> Unit,
+    onItemClick: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bgColor)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color.Black.copy(alpha = 0.6f)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
+                    .statusBarsPadding(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = Strings.cdBack,
+                        tint = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "${items.size}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White
+                )
+            }
+        }
+
+        when (galleryConfig.defaultView.uppercase()) {
+            "LIST" -> ShellGalleryListView(items = items, assetDecryptor = assetDecryptor, onItemClick = onItemClick)
+            // Shell items carry no timestamps, so timeline degrades to a plain
+            // list; host groups by date where available.
+            "TIMELINE" -> ShellGalleryListView(items = items, assetDecryptor = assetDecryptor, onItemClick = onItemClick)
+            else -> ShellGalleryGridView(
+                items = items,
+                columns = galleryConfig.gridColumns.coerceIn(1, 6),
+                assetDecryptor = assetDecryptor,
+                onItemClick = onItemClick
+            )
+        }
+    }
+}
+
+@Composable
+private fun ShellGalleryGridView(
+    items: List<com.webtoapp.core.shell.GalleryShellItem>,
+    columns: Int,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor,
+    onItemClick: (Int) -> Unit
+) {
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        gridItemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+            Box(
+                modifier = Modifier
+                    .aspectRatio(1f)
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onItemClick(index) }
+            ) {
+                ShellThumbnailCell(item = item, assetDecryptor = assetDecryptor)
+                if (item.type == "VIDEO") {
+                    Icon(
+                        Icons.Default.PlayCircle,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .align(Alignment.Center),
+                        tint = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShellGalleryListView(
+    items: List<com.webtoapp.core.shell.GalleryShellItem>,
+    assetDecryptor: com.webtoapp.core.crypto.AssetDecryptor,
+    onItemClick: (Int) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onItemClick(index) }
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(modifier = Modifier.size(56.dp)) {
+                    ShellThumbnailCell(item = item, assetDecryptor = assetDecryptor)
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = item.name.ifBlank { "Media" },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

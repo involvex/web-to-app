@@ -6,62 +6,38 @@ import org.junit.Test
 class ToolbarVisibilityTest {
 
     @Test
-    fun `normal mode always shows the full button set even when toolbar flags are all false`() {
-        // A fresh app in normal mode never has the toolbar flags hit; but a config that
-        // was polluted by toggling "hide toolbar" on then off leaves every flag false.
-        // The renderer must still show the full toolbar in normal (non-hide) mode.
+    fun `enabled toolbar mirrors every item flag`() {
         val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = false,
-            browserToolbarCustomized = true,
-            toolbarShowTitle = false,
-            toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = false,
-            toolbarShowRefresh = false
-        )
-
-        assertThat(visibility.showTitle).isTrue()
-        assertThat(visibility.showUrl).isTrue()
-        assertThat(visibility.showBack).isTrue()
-        assertThat(visibility.showForward).isTrue()
-        assertThat(visibility.showRefresh).isTrue()
-        assertThat(visibility.showConsoleButton).isTrue()
-        assertThat(visibility.showZoom).isTrue()
-    }
-
-    @Test
-    fun `customized slim mode applies the toolbar flags`() {
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = true,
-            browserToolbarCustomized = true,
+            toolbarEnabled = true,
             toolbarShowTitle = true,
             toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = true,
-            toolbarShowRefresh = false
+            toolbarShowBack = true,
+            toolbarShowForward = false,
+            toolbarShowRefresh = true,
+            toolbarShowConsole = false,
+            toolbarShowFind = true
         )
 
         assertThat(visibility.showTitle).isTrue()
         assertThat(visibility.showUrl).isFalse()
-        assertThat(visibility.showBack).isFalse()
-        assertThat(visibility.showForward).isTrue()
-        assertThat(visibility.showRefresh).isFalse()
-        assertThat(visibility.showConsoleButton).isTrue()
-        assertThat(visibility.showZoom).isTrue()
+        assertThat(visibility.showBack).isTrue()
+        assertThat(visibility.showForward).isFalse()
+        assertThat(visibility.showRefresh).isTrue()
+        assertThat(visibility.showConsoleButton).isFalse()
+        assertThat(visibility.showFind).isTrue()
     }
 
     @Test
-    fun `slim mode keeps console and zoom on their own toggles`() {
-        // The five navigation toggles off no longer force console/zoom off — each has
-        // its own switch now.
+    fun `disabled toolbar hides every button regardless of flags`() {
         val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = true,
-            browserToolbarCustomized = true,
-            toolbarShowTitle = false,
-            toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = false,
-            toolbarShowRefresh = false
+            toolbarEnabled = false,
+            toolbarShowTitle = true,
+            toolbarShowUrl = true,
+            toolbarShowBack = true,
+            toolbarShowForward = true,
+            toolbarShowRefresh = true,
+            toolbarShowConsole = true,
+            toolbarShowFind = true
         )
 
         assertThat(visibility.showTitle).isFalse()
@@ -69,128 +45,37 @@ class ToolbarVisibilityTest {
         assertThat(visibility.showBack).isFalse()
         assertThat(visibility.showForward).isFalse()
         assertThat(visibility.showRefresh).isFalse()
-        assertThat(visibility.showConsoleButton).isTrue()
-        assertThat(visibility.showZoom).isTrue()
-    }
-
-    @Test
-    fun `slim mode hides console and zoom when their toggles are off`() {
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = true,
-            browserToolbarCustomized = true,
-            toolbarShowTitle = true,
-            toolbarShowUrl = true,
-            toolbarShowBack = true,
-            toolbarShowForward = true,
-            toolbarShowRefresh = true,
-            toolbarShowConsole = false,
-            toolbarShowZoom = false
-        )
-
         assertThat(visibility.showConsoleButton).isFalse()
-        assertThat(visibility.showZoom).isFalse()
-        assertThat(visibility.showTitle).isTrue()
-    }
-
-    @Test
-    fun `slim mode hides find when its toggle is off`() {
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = true,
-            browserToolbarCustomized = true,
-            toolbarShowTitle = true,
-            toolbarShowUrl = true,
-            toolbarShowBack = true,
-            toolbarShowForward = true,
-            toolbarShowRefresh = true,
-            toolbarShowFind = false
-        )
-
         assertThat(visibility.showFind).isFalse()
     }
 
     @Test
-    fun `normal mode ignores the find toggle`() {
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = false,
-            browserToolbarCustomized = false,
-            toolbarShowTitle = false,
-            toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = false,
-            toolbarShowRefresh = false,
-            toolbarShowFind = false
-        )
-
-        assertThat(visibility.showFind).isTrue()
-    }
-
-    @Test
-    fun `normal mode ignores the console and zoom toggles`() {
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = false,
-            browserToolbarCustomized = false,
-            toolbarShowTitle = false,
-            toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = false,
-            toolbarShowRefresh = false,
-            toolbarShowConsole = false,
-            toolbarShowZoom = false
-        )
-
-        assertThat(visibility.showConsoleButton).isTrue()
-        assertThat(visibility.showZoom).isTrue()
-    }
-
-    @Test
-    fun `hide toolbar on but not customized behaves as normal full toolbar`() {
-        // hideBrowserToolbar = true but browserToolbarCustomized = false: the slim
-        // toolbar is not shown (showSlimToolbar is false), so the full button set wins.
-        val visibility = resolveToolbarButtons(
-            hideBrowserToolbar = true,
-            browserToolbarCustomized = false,
-            toolbarShowTitle = false,
-            toolbarShowUrl = false,
-            toolbarShowBack = false,
-            toolbarShowForward = false,
-            toolbarShowRefresh = false
-        )
-
-        assertThat(visibility.showTitle).isTrue()
-        assertThat(visibility.showBack).isTrue()
-        assertThat(visibility.showRefresh).isTrue()
-        assertThat(visibility.showConsoleButton).isTrue()
-        assertThat(visibility.showZoom).isTrue()
-    }
-
-    @Test
-    fun `slim toolbar with only console and zoom enabled still has content`() {
-        // Regression: the slim-toolbar gate in both the preview and the exported shell
-        // used to count only the five navigation items, so a toolbar customized down
-        // to just the console and zoom buttons rendered as a completely hidden top bar.
-        val hasContent = hasAnySlimToolbarItem(
+    fun `toolbar trimmed down to console only still has content`() {
+        // Regression: the toolbar gate in both the preview and the exported shell used
+        // to count only some items, so a toolbar customized down to a single button
+        // rendered as a completely hidden top bar.
+        val hasContent = hasAnyToolbarItem(
             toolbarShowTitle = false,
             toolbarShowUrl = false,
             toolbarShowBack = false,
             toolbarShowForward = false,
             toolbarShowRefresh = false,
             toolbarShowConsole = true,
-            toolbarShowZoom = true
+            toolbarShowFind = false
         )
 
         assertThat(hasContent).isTrue()
     }
 
     @Test
-    fun `slim toolbar with every item off is empty`() {
-        val hasContent = hasAnySlimToolbarItem(
+    fun `toolbar with every item off is empty`() {
+        val hasContent = hasAnyToolbarItem(
             toolbarShowTitle = false,
             toolbarShowUrl = false,
             toolbarShowBack = false,
             toolbarShowForward = false,
             toolbarShowRefresh = false,
             toolbarShowConsole = false,
-            toolbarShowZoom = false,
             toolbarShowFind = false
         )
 

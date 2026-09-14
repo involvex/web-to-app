@@ -4,7 +4,7 @@ A thematic index of the appearance and UI capabilities. Each is configured by a 
 
 ## Layout & chrome
 
-- [Hide Browser Toolbar](/guide/app-actions/edit-common-config/hide-toolbar) — in-app toolbar visibility and items.
+- [Browser Toolbar](/guide/app-actions/edit-common-config/browser-toolbar) — in-app toolbar visibility and items.
 - [Fullscreen Mode](/guide/app-actions/edit-common-config/fullscreen) — immersive mode, status/navigation bars.
 - [Screen Orientation](/guide/app-actions/edit-common-config/orientation) — portrait/landscape/sensor modes.
 - [Keep Screen On](/guide/app-actions/edit-common-config/keep-screen-on) — awake mode, timeout, brightness.

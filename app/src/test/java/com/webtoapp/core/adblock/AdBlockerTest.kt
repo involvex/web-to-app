@@ -110,4 +110,192 @@ class AdBlockerTest {
         assertThat(adBlocker.shouldBlock("https://s.click.aliexpress.com/e/abc", resourceType = "xmlhttprequest")).isFalse()
     }
 
+    @Test
+    fun `dollar modifier is split from single-slash path rules instead of staying in the pattern`() {
+        adBlocker.addRule("||sumo-test.example/px.gif\$third-party")
+        adBlocker.setEnabled(true)
+
+        // The $ must parse as the third-party option, not become a dead end-anchor in the regex.
+        assertThat(
+            adBlocker.shouldBlock("https://sumo-test.example/px.gif", resourceType = "script", isThirdParty = true)
+        ).isTrue()
+        // Same-origin loads of the same URL are exempt from a third-party-only rule.
+        assertThat(
+            adBlocker.shouldBlock("https://sumo-test.example/px.gif", resourceType = "script", isThirdParty = false)
+        ).isFalse()
+    }
+
+    @Test
+    fun `regex rules with dollar signs are not split into a bogus modifier`() {
+        adBlocker.addRule("/banner\\.js\\$/")
+        adBlocker.setEnabled(true)
+
+        assertThat(adBlocker.shouldBlock("https://cdn.example.com/static/banner.js\$rev=2", resourceType = "script")).isTrue()
+    }
+
+    @Test
+    fun `style override rules restyle matches and stay out of hide batches`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.banner:style(background: #121212 !important)")
+        adBlocker.addRule("example.com##.slot")
+
+        val css = adBlocker.getCosmeticFilterCss("example.com")
+        assertThat(css).contains(".banner { background: #121212 !important; }")
+
+        val hideBatches = adBlocker.getCosmeticHideBatches("example.com")
+        assertThat(hideBatches.any { it.contains(".slot") }).isTrue()
+        assertThat(hideBatches.any { it.contains(".banner") }).isFalse()
+        assertThat(hideBatches.any { it.contains(":style(") }).isFalse()
+    }
+
+    @Test
+    fun `style override rules do not poison the hide batch of sibling selectors`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.keep")
+        adBlocker.addRule("example.com##.recolor:style(color: #d5d5d5 !important)")
+
+        // The raw `:style(...)` selector used to share the comma-joined hide rule and
+        // invalidate the whole batch (#823); hide batches carry only plain selectors.
+        val hideBatch = adBlocker.getCosmeticHideBatches("example.com").first { it.contains(".keep") }
+        assertThat(hideBatch).doesNotContain(":style(")
+        assertThat(adBlocker.getCosmeticFilterCss("example.com"))
+            .contains(".recolor { color: #d5d5d5 !important; }")
+    }
+
+    @Test
+    fun `procedural pseudo-class rules are dropped instead of poisoning hide batches`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.keep")
+        adBlocker.addRule("example.com##.drop:has-text(advert)")
+        adBlocker.addRule("example.com##.gone:remove()")
+
+        val css = adBlocker.getCosmeticFilterCss("example.com")
+        assertThat(css).doesNotContain(":has-text(")
+        assertThat(css).doesNotContain(":remove(")
+        assertThat(adBlocker.getCosmeticHideBatches("example.com").any { it.contains(".keep") }).isTrue()
+    }
+
+    @Test
+    fun `style override exception cancels the matching style rule`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.banner:style(background: #121212 !important)")
+        adBlocker.addRule("example.com#@#.banner:style(background: #121212 !important)")
+
+        assertThat(adBlocker.getCosmeticFilterCss("example.com")).doesNotContain(".banner {")
+    }
+
+    @Test
+    fun `adguard css injection rules are emitted verbatim for anchor domains`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com#$#body { background: #121212 !important; }")
+
+        val css = adBlocker.getCosmeticFilterCss("example.com")
+        assertThat(css).contains("body { background: #121212 !important; }")
+        // Injected rules restyle via their own CSS; they are not hide selectors.
+        assertThat(adBlocker.getCosmeticHideBatches("example.com").any { it.contains("body") }).isFalse()
+        assertThat(adBlocker.getCosmeticFilterCss("other.com")).doesNotContain("#121212")
+    }
+
+    @Test
+    fun `css injection exception cancels the matching injected rule`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com#$#body { background: #121212 !important; }")
+        adBlocker.addRule("example.com#@$#body { background: #121212 !important; }")
+
+        assertThat(adBlocker.getCosmeticFilterCss("example.com")).doesNotContain("#121212")
+    }
+
+    @Test
+    fun `extended hiding delimiter parses like element hiding`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com#?#.promo")
+
+        assertThat(adBlocker.getCosmeticHideBatches("example.com").any { it.contains(".promo") }).isTrue()
+    }
+
+    @Test
+    fun `scriptlet rules are parsed as scriptlets not cosmetic selectors`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##+js(set-constant, adsEnabled, false)")
+
+        // The `+js(...)` payload must never reach the stylesheet as a selector.
+        assertThat(adBlocker.getCosmeticFilterCss("example.com")).doesNotContain("+js(")
+        assertThat(adBlocker.getAntiAdblockScript("example.com")).isNotEmpty()
+    }
+
+    @Test
+    fun `procedural has-text rules are evaluated in page js not css`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.item:has-text(Sponsor)")
+
+        val js = adBlocker.getCosmeticProceduralRulesJs("example.com")
+        assertThat(js).contains("\"b\":\".item\"")
+        assertThat(js).contains("t:Sponsor")
+        // Procedural selectors must not leak into CSS or hide batches.
+        assertThat(adBlocker.getCosmeticFilterCss("example.com")).doesNotContain(":has-text(")
+        assertThat(adBlocker.getCosmeticHideBatches("example.com").any { it.contains(".item") }).isFalse()
+        assertThat(adBlocker.getCosmeticProceduralRulesJs("other.com")).isEqualTo("[]")
+    }
+
+    @Test
+    fun `upward and remove ops encode into the procedural chain`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.cell:has-text(Ad):upward(2)")
+        adBlocker.addRule("example.com##.overlay:remove()")
+
+        val js = adBlocker.getCosmeticProceduralRulesJs("example.com")
+        assertThat(js).contains("u:2")
+        assertThat(js).contains("\"b\":\".overlay\"")
+        // :remove() flips the action flag; the text+upward rule keeps hide semantics.
+        val removeRule = js.substringAfter("\"b\":\".overlay\"")
+        assertThat(removeRule.substring(0, removeRule.indexOf('}'))).contains("\"a\":1")
+        val hideRule = js.substringAfter("\"b\":\".cell\"").substringBefore(",{\"b\":")
+        assertThat(hideRule).contains("\"a\":0")
+    }
+
+    @Test
+    fun `procedural pseudos nested inside other pseudos are dropped`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##div:has(span:has-text(Sponsored))")
+
+        assertThat(adBlocker.getCosmeticProceduralRulesJs("example.com")).isEqualTo("[]")
+        assertThat(adBlocker.getCosmeticFilterCss("example.com")).doesNotContain(":has-text(")
+    }
+
+    @Test
+    fun `procedural exception cancels by full raw selector only`() {
+        adBlocker.initialize(useDefaultRules = false)
+        adBlocker.setEnabled(true)
+
+        adBlocker.addRule("example.com##.item")
+        adBlocker.addRule("example.com##.item:has-text(Sponsor)")
+        adBlocker.addRule("example.com#@#.item:has-text(Sponsor)")
+
+        assertThat(adBlocker.getCosmeticProceduralRulesJs("example.com")).isEqualTo("[]")
+        // The plain hide rule for the same base selector survives the procedural exception.
+        assertThat(adBlocker.getCosmeticHideBatches("example.com").any { it.contains(".item") }).isTrue()
+    }
+
 }

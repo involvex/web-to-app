@@ -16,6 +16,7 @@ build/
 .claude/
 .zcode/
 .workbuddy/
+.workbuddy-ai/
 local.properties
 gradle/config.properties
 gradle/gradle-daemon-jvm.properties
@@ -70,4 +71,5 @@ server/
 admin/
 node_modules/
 __pycache__/
-*.pyc.kotlin/
+*.pyc
+.kotlin/

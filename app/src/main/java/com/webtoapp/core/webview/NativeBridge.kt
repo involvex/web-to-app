@@ -31,6 +31,13 @@ import android.webkit.WebView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.webtoapp.core.background.BackgroundRunService
@@ -71,8 +78,24 @@ class NativeBridge(
     private val downloadLocationMode: com.webtoapp.data.model.DownloadLocationMode =
         com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD,
 
-    private val customDownloadDirUri: String = ""
+    private val customDownloadDirUri: String = "",
+
+    /** The app's configured origin (target URL / local base) for CORS-bypass caller checks. */
+    private val appOriginUrl: String = "",
+
+    /**
+     * Page-URL source for engines without a WebView (GeckoView). Caller gates read the current
+     * page URL from [webViewProvider] on the System WebView path; GeckoView has no WebView
+     * instance, so its engine supplies the live navigation URL here — without it every caller
+     * check sees an empty URL and rejects, killing the CORS-bypass / private-network bridge on
+     * the Gecko engine.
+     */
+    private val callerPageUrlProvider: (() -> String?)? = null
 ) {
+    /** The URL of the page currently calling into the bridge, across both engines. */
+    private fun resolveCallerPageUrl(): String =
+        webViewProvider()?.url ?: callerPageUrlProvider?.invoke().orEmpty()
+
     companion object {
         const val JS_INTERFACE_NAME = "NativeBridge"
         private const val PRIVATE_NETWORK_MAX_RESPONSE_BYTES = 16 * 1024 * 1024
@@ -527,6 +550,25 @@ NativeBridge.startDeviceCapture(70, 'onDeviceFrame', 500);
 ```javascript
 NativeBridge.stopDeviceCapture();
 ```
+
+#### googleSignIn(requestId)
+使用设备上已有的 Google 账户登录（需在 WebToApp 编辑器中启用"Google 原生登录"能力并配置 Web Client ID）
+- `requestId`: string - 页面自定义的请求标识
+- 结果异步回调: `window.NativeBridgeGoogleSignInResult(requestId, payload)`
+- payload: `{ ok: true, idToken, displayName, profilePictureUri, googleUserId }` 或 `{ ok: false, error, message }`
+- 错误码: `DISABLED`(能力未启用), `NO_CLIENT_ID`, `NO_ACTIVITY`(悬浮窗等上下文), `CALLER_NOT_ALLOWED`(非应用自身页面调用), `CANCELLED`(用户取消), `CREDENTIAL_ERROR`(设备无 Google 服务或配置不匹配), `UNAVAILABLE`
+- **idToken 必须由网站后端校验**（audience = 配置的 Web Client ID、签名、有效期）后才可建立会话
+```javascript
+window.NativeBridgeGoogleSignInResult = function(requestId, payload) {
+    if (payload.ok) {
+        // 把 payload.idToken 发给自己的后端验证后建立会话
+        fetch('/auth/google', { method: 'POST', body: JSON.stringify({ idToken: payload.idToken }) });
+    } else {
+        // 回退到网页版 Google 登录
+    }
+};
+NativeBridge.googleSignIn('sign-in-' + Date.now());
+```
     """.trimIndent()
 
         /**
@@ -556,8 +598,22 @@ NativeBridge.stopDeviceCapture();
             if (normalized == "localhost" || normalized == "127.0.0.1" || normalized == "10.0.2.2") {
                 return true
             }
+            // 0.0.0.0 routes to the loopback interface on Linux/Android.
+            if (normalized == "0.0.0.0") return true
             if (normalized == "::1" || normalized == "0:0:0:0:0:0:0:1") return true
             if (normalized.endsWith(".local")) return true
+
+            if (normalized.contains(":")) {
+                // IPv6 literal (HttpUrl yields bracketed IPv6 hosts without brackets).
+                // Cover ULA fc00::/7 (fd00::/8 in practice) and link-local fe80::/10;
+                // the first hextet decides both. A colon only occurs in IPv6 literals,
+                // so a hostname like "a:b" never reaches this branch.
+                val hextet = normalized.substringBefore(":").toIntOrNull(16)
+                return hextet != null && (
+                    hextet in 0xfc00..0xfdff ||   // fc00::/7 unique-local
+                        hextet in 0xfe80..0xfebf    // fe80::/10 link-local
+                    )
+            }
 
             val parts = normalized.split('.')
             if (parts.size != 4) return false
@@ -569,6 +625,8 @@ NativeBridge.stopDeviceCapture();
                 octets[0] == 172 && octets[1] in 16..31 -> true
                 octets[0] == 192 && octets[1] == 168 -> true
                 octets[0] == 127 -> true
+                // Link-local: cloud metadata endpoints (169.254.169.254 et al.).
+                octets[0] == 169 && octets[1] == 254 -> true
                 else -> false
             }
         }
@@ -583,6 +641,19 @@ NativeBridge.stopDeviceCapture();
         internal fun isHttpUrl(url: String): Boolean {
             val scheme = runCatching { URI(url).scheme }.getOrNull()?.lowercase(Locale.ROOT)
             return scheme == "http" || scheme == "https"
+        }
+
+        /**
+         * Whether [pageUrl] belongs to the app's configured origin ([appOriginUrl] — the
+         * target URL, or the local server base for packaged/server app types). Same host
+         * or a subdomain counts; anything else is a foreign page riding the WebView.
+         */
+        internal fun isSameSiteOrSubdomain(pageHost: String, originHost: String): Boolean {
+            if (originHost.isBlank() || pageHost.isBlank()) return false
+            val p = pageHost.trim('[', ']').lowercase(Locale.ROOT).trimEnd('.')
+            val o = originHost.trim('[', ']').lowercase(Locale.ROOT).trimEnd('.')
+            if (p == o) return true
+            return p.endsWith(".$o")
         }
     }
 
@@ -607,6 +678,13 @@ NativeBridge.stopDeviceCapture();
     private var screenCaptureQuality: Int = 80
     private var screenCaptureInterval: Long = 100
     private var screenCaptureCallback: String? = null
+
+    private fun isAppOriginCallerPage(pageUrl: String): Boolean {
+        val origin = appOriginUrl.takeIf { it.isNotBlank() } ?: return false
+        val pageHost = runCatching { URI(pageUrl).host }.getOrNull() ?: return false
+        val originHost = runCatching { URI(origin).host }.getOrNull() ?: return false
+        return isSameSiteOrSubdomain(pageHost, originHost)
+    }
 
     @JavascriptInterface
     fun showToast(message: String, duration: String = "short") {
@@ -1392,26 +1470,79 @@ NativeBridge.stopDeviceCapture();
     @JavascriptInterface
     fun httpRequest(requestJson: String): String {
         if (!capabilities.privateNetwork && !corsBypass) {
-            return privateNetworkBridgeError("disabled", "Native private network capability disabled")
+            return privateNetworkBridgeError(
+                "disabled",
+                "Native private network capability disabled. " +
+                    "Enable the private network (or CORS bypass) capability for the native bridge in the WebToApp editor and rebuild."
+            )
         }
         return try {
             val request = org.json.JSONObject(requestJson)
             val url = request.optString("url").trim()
+            // Redirect policy: set by the caller/target gates below, applied to every
+            // follow-up request by a network interceptor so a redirect chain cannot
+            // cross the private/public boundary the initial URL was classified against.
+            var redirectGate: ((okhttp3.HttpUrl) -> Boolean)? = null
             if (corsBypass) {
                 if (!isHttpUrl(url)) {
                     AppLogger.w("NativeBridge", "Blocked CORS-bypass request to non-HTTP(S) URL: $url")
                     return privateNetworkBridgeError("URL_NOT_ALLOWED", "Only HTTP(S) URLs are allowed")
+                }
+                // The CORS-bypass bridge is a full cross-origin reader — gate it on the
+                // calling page. Local pages (packaged files, local server apps) may reach
+                // anything; the app's own remote origin may bypass CORS for internet APIs
+                // but must not probe the phone's local services; anything else (random
+                // iframes / navigations) is rejected outright.
+                val pageUrl = resolveCallerPageUrl()
+                // about:blank counts as local only for packaged/local-origin apps: a
+                // remote app's window.open("about:blank") popup inherits the opener's
+                // remote origin, so granting it the blank-page classification would hand
+                // the opener private-network reach it was just denied above.
+                val appOriginIsLocal = appOriginUrl.isNotBlank() && (
+                    isPrivateNetworkUrl(appOriginUrl) ||
+                        appOriginUrl.startsWith("file:") ||
+                        appOriginUrl.startsWith("content://")
+                    )
+                val pageIsLocal = isPrivateNetworkUrl(pageUrl) ||
+                    pageUrl.startsWith("file:") ||
+                    pageUrl.startsWith("content://") ||
+                    (pageUrl.startsWith("about:blank") && appOriginIsLocal)
+                val pageIsAppOrigin = isAppOriginCallerPage(pageUrl)
+                if (!pageIsLocal && !pageIsAppOrigin) {
+                    AppLogger.w("NativeBridge", "Blocked CORS-bypass request from non-app page: $pageUrl -> $url")
+                    return privateNetworkBridgeError(
+                        "CALLER_NOT_ALLOWED",
+                        "Only the app's own pages can use the CORS-bypass bridge"
+                    )
+                }
+                if (!pageIsLocal && isPrivateNetworkUrl(url)) {
+                    AppLogger.w("NativeBridge", "Blocked CORS-bypass request to local network from remote page: $pageUrl -> $url")
+                    return privateNetworkBridgeError(
+                        "URL_NOT_ALLOWED",
+                        "CORS-bypass requests to local network addresses require a local page"
+                    )
+                }
+                // The gate above classifies the initial URL only; OkHttp follows redirects
+                // silently, and a public URL 302-ing into 127.0.0.1 (or a private URL
+                // redirecting out) would bypass it. The network interceptor re-applies
+                // the same rule to every follow-up request.
+                if (!pageIsLocal) {
+                    redirectGate = { target -> !isPrivateNetworkUrl(target.toString()) }
                 }
             } else if (!isPrivateNetworkUrl(url)) {
                 AppLogger.w("NativeBridge", "Blocked private-network bridge request to non-private URL: $url")
                 return privateNetworkBridgeError("URL_NOT_ALLOWED", "Only private network HTTP(S) URLs are allowed")
             }
             if (!corsBypass) {
-                val pageUrl = webViewProvider()?.url.orEmpty()
+                val pageUrl = resolveCallerPageUrl()
                 if (!isPrivateNetworkUrl(pageUrl)) {
                     AppLogger.w("NativeBridge", "Blocked private-network bridge request from non-local page: $pageUrl -> $url")
                     return privateNetworkBridgeError("CALLER_NOT_ALLOWED", "Only packaged local pages can use the private network bridge")
                 }
+                // Every hop must stay inside the private network: the bridge exists to
+                // let local server pages reach other local services, never to launder a
+                // private URL into an arbitrary public read.
+                redirectGate = { target -> isPrivateNetworkUrl(target.toString()) }
             }
 
             val method = request.optString("method", "GET").uppercase(Locale.ROOT)
@@ -1448,7 +1579,21 @@ NativeBridge.stopDeviceCapture();
             builder.header("X-WebToApp-Private-Network-Bridge", "1")
             builder.method(method, requestBody)
 
-            privateNetworkHttpClient.newCall(builder.build()).execute().use { response ->
+            val client = redirectGate?.let { gate ->
+                privateNetworkHttpClient.newBuilder()
+                    .addNetworkInterceptor { chain ->
+                        val followUp = chain.request()
+                        if (!gate(followUp.url)) {
+                            throw RedirectBlockedByGateException(
+                                "Blocked redirect to ${followUp.url.host}: target class changed mid-chain"
+                            )
+                        }
+                        chain.proceed(followUp)
+                    }
+                    .build()
+            } ?: privateNetworkHttpClient
+
+            client.newCall(builder.build()).execute().use { response ->
                 val responseBody = response.body
                 val bytes = responseBody?.byteStream()?.use { input ->
                     val out = ByteArrayOutputStream()
@@ -1483,11 +1628,17 @@ NativeBridge.stopDeviceCapture();
                     put("bodyBase64", Base64.encodeToString(bytes, Base64.NO_WRAP))
                 }.toString()
             }
+        } catch (e: RedirectBlockedByGateException) {
+            AppLogger.w("NativeBridge", "Private network bridge redirect blocked", e)
+            privateNetworkBridgeError("REDIRECT_NOT_ALLOWED", e.message ?: "Redirect crossed the private/public boundary")
         } catch (e: Exception) {
             AppLogger.e("NativeBridge", "Private network HTTP bridge request failed", e)
             privateNetworkBridgeError("REQUEST_FAILED", e.message ?: e::class.java.simpleName)
         }
     }
+
+    /** Raised by the per-call redirect gate interceptor: a redirect tried to cross the private/public boundary. */
+    private class RedirectBlockedByGateException(message: String) : java.io.IOException(message)
 
     private fun privateNetworkBridgeError(code: String, message: String): String {
         return org.json.JSONObject().apply {
@@ -1495,6 +1646,168 @@ NativeBridge.stopDeviceCapture();
             put("error", code)
             put("message", message)
         }.toString()
+    }
+
+    /**
+     * Native Google sign-in via the Jetpack Credential Manager: shows the system account
+     * picker with the device's Google accounts and returns a Google-signed ID token.
+     * The page receives the result asynchronously through
+     * `window.NativeBridgeGoogleSignInResult(requestId, payload)`; the ID token must be
+     * validated by the site's backend (audience = the configured Web client ID).
+     *
+     * Fail-soft on every path the feature cannot work on: disabled capability, missing
+     * client ID, non-Activity context (floating window / Gecko bridge), devices without
+     * Google Play Services, and user cancellation — the page always gets a JSON reply.
+     */
+    @JavascriptInterface
+    fun googleSignIn(requestId: String) {
+        if (!capabilities.googleSignIn) {
+            dispatchGoogleSignInResult(requestId, googleSignInError("DISABLED", "Native Google sign-in capability is disabled"))
+            return
+        }
+        if (capabilities.googleSignInClientId.isBlank()) {
+            dispatchGoogleSignInResult(requestId, googleSignInError("NO_CLIENT_ID", "No Google Web client ID configured in WebToApp"))
+            return
+        }
+        val activity = context as? Activity
+        if (activity == null) {
+            dispatchGoogleSignInResult(
+                requestId,
+                googleSignInError("NO_ACTIVITY", "Google sign-in is unavailable in this window context")
+            )
+            return
+        }
+
+        // Same caller-page gate as httpRequest: only the app's own pages (or a
+        // packaged/local origin) may drive the Credential Manager flow — a foreign
+        // iframe embedded in the page must not be able to trigger it.
+        val callerPageUrl = resolveCallerPageUrl()
+        val callerIsLocal = isPrivateNetworkUrl(callerPageUrl) ||
+            callerPageUrl.startsWith("file:") ||
+            callerPageUrl.startsWith("content://")
+        val callerIsAppOrigin = isAppOriginCallerPage(callerPageUrl)
+        if (!callerIsLocal && !callerIsAppOrigin) {
+            dispatchGoogleSignInResult(
+                requestId,
+                googleSignInError("CALLER_NOT_ALLOWED", "Only the app's own pages can start native Google sign-in")
+            )
+            return
+        }
+        // The account picker is async: by the time it returns, the WebView may have
+        // navigated elsewhere. Only deliver into the origin that started the flow
+        // (or another local packaged page).
+        val callerOrigin = runCatching {
+            URI(callerPageUrl).let { u ->
+                "${u.scheme}://${u.host}${if (u.port > 0) ":${u.port}" else ""}"
+            }
+        }.getOrNull()
+
+        scope.launch(Dispatchers.Main) {
+            try {
+                val credentialManager = CredentialManager.create(activity)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(capabilities.googleSignInClientId)
+                    .setAutoSelectEnabled(false)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val response = credentialManager.getCredential(activity, request)
+                val credential = response.credential
+                if (credential is CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val payload = org.json.JSONObject().apply {
+                        put("ok", true)
+                        put("idToken", googleCredential.idToken)
+                        put("displayName", googleCredential.displayName ?: "")
+                        put("profilePictureUri", googleCredential.profilePictureUri?.toString() ?: "")
+                        put("googleUserId", googleCredential.id)
+                    }
+                    dispatchGoogleSignInResult(requestId, payload, callerOrigin)
+                } else {
+                    dispatchGoogleSignInResult(
+                        requestId,
+                        googleSignInError("UNSUPPORTED_CREDENTIAL", "Unexpected credential type: ${credential.type}"),
+                        callerOrigin
+                    )
+                }
+            } catch (e: GetCredentialCancellationException) {
+                dispatchGoogleSignInResult(requestId, googleSignInError("CANCELLED", "The user dismissed the account picker"), callerOrigin)
+            } catch (e: GetCredentialException) {
+                AppLogger.w("NativeBridge", "Google sign-in failed: ${e.type}", e)
+                dispatchGoogleSignInResult(
+                    requestId,
+                    googleSignInError(
+                        "CREDENTIAL_ERROR",
+                        "Google sign-in failed (${e.type}): ${e.message ?: e::class.java.simpleName}"
+                    ),
+                    callerOrigin
+                )
+            } catch (e: Exception) {
+                AppLogger.e("NativeBridge", "Google sign-in failed", e)
+                dispatchGoogleSignInResult(
+                    requestId,
+                    googleSignInError("UNAVAILABLE", e.message ?: e::class.java.simpleName),
+                    callerOrigin
+                )
+            }
+        }
+    }
+
+    private fun googleSignInError(code: String, message: String): org.json.JSONObject =
+        org.json.JSONObject().apply {
+            put("ok", false)
+            put("error", code)
+            put("message", message)
+        }
+
+    private fun dispatchGoogleSignInResult(
+        requestId: String,
+        payload: org.json.JSONObject,
+        callerOrigin: String? = null
+    ) {
+        val quotedRequestId = com.webtoapp.util.JsStrings.quote(requestId)
+        // JSONObject.toString() is a valid JS object literal; the requestId is quoted
+        // so a crafted id cannot break out of the call expression.
+        val js = "window.NativeBridgeGoogleSignInResult && window.NativeBridgeGoogleSignInResult($quotedRequestId, $payload);"
+        scope.launch(Dispatchers.Main) {
+            try {
+                val webView = webViewProvider()
+                if (webView == null || !googleSignInDeliveryAllowed(webView.url, callerOrigin)) {
+                    // The page navigated (possibly to a foreign origin) while the
+                    // account picker was open: handing the ID token to whatever is
+                    // loaded now would leak it cross-origin.
+                    if (payload.optBoolean("ok", false)) {
+                        AppLogger.w("NativeBridge", "Google sign-in result dropped: page origin changed during the flow")
+                    }
+                    return@launch
+                }
+                webView.evaluateJavascript(js, null)
+            } catch (e: Exception) {
+                AppLogger.w("NativeBridge", "Failed to deliver Google sign-in result", e)
+            }
+        }
+    }
+
+    /**
+     * Delivery gate for the async sign-in result: the WebView must still be on the
+     * origin that started the flow (same site or subdomain) or another local
+     * packaged/server page. Blank/absent pages never receive the token.
+     */
+    private fun googleSignInDeliveryAllowed(currentPageUrl: String?, callerOrigin: String?): Boolean {
+        val current = currentPageUrl.orEmpty()
+        if (current.isBlank()) return false
+        if (isPrivateNetworkUrl(current) || current.startsWith("file:") || current.startsWith("content://")) {
+            return true
+        }
+        val caller = callerOrigin ?: return false
+        val currentHost = runCatching { URI(current).host }.getOrNull() ?: return false
+        val callerHost = runCatching { URI(caller).host }.getOrNull() ?: return false
+        return isSameSiteOrSubdomain(currentHost, callerHost)
     }
 
     @Volatile
@@ -2243,14 +2556,16 @@ class PrivateNetworkNativeBridgeAdapter(
     context: Context,
     scope: CoroutineScope,
     webViewProvider: () -> WebView? = { null },
-    corsBypass: Boolean = false
+    corsBypass: Boolean = false,
+    appOriginUrl: String = ""
 ) {
     private val delegate = NativeBridge(
         context = context,
         scope = scope,
         webViewProvider = webViewProvider,
         capabilities = privateNetworkOnlyCapabilities(),
-        corsBypass = corsBypass
+        corsBypass = corsBypass,
+        appOriginUrl = appOriginUrl
     )
 
     @JavascriptInterface

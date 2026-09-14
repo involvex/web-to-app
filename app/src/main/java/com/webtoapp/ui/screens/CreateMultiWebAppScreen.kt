@@ -4,6 +4,7 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,8 @@ import com.webtoapp.data.model.HtmlFileType
 import com.webtoapp.ui.components.EnhancedElevatedCard
 import com.webtoapp.ui.components.PremiumTextField
 import com.webtoapp.ui.components.RuntimeIconPickerCard
+import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
 import com.webtoapp.ui.screens.create.WtaCreateFlowSection
 import java.util.UUID
@@ -63,6 +66,8 @@ fun CreateMultiWebAppScreen(
     }
 
     var refreshInterval by remember { mutableStateOf(30) }
+    var displayMode by remember { mutableStateOf("TABS") }
+    var showSiteIcons by remember { mutableStateOf(true) }
 
     var selectedAppIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var filterType by remember { mutableStateOf<String?>(null) }
@@ -87,6 +92,8 @@ fun CreateMultiWebAppScreen(
                 app.multiWebConfig?.let { config ->
                     sites = config.sites
                     refreshInterval = config.refreshInterval
+                    displayMode = config.displayMode.ifBlank { "TABS" }
+                    showSiteIcons = config.showSiteIcons
                 }
                 injectScripts = app.webViewConfig.injectScripts
             }
@@ -110,9 +117,9 @@ fun CreateMultiWebAppScreen(
                         appName.ifBlank { "Multi-Site App" },
                         MultiWebConfig(
                             sites = sites,
-                            displayMode = "TABS",
+                            displayMode = displayMode,
                             refreshInterval = refreshInterval,
-                            showSiteIcons = true,
+                            showSiteIcons = showSiteIcons,
                             projectId = ""
                         ),
                         appIcon,
@@ -152,6 +159,34 @@ fun CreateMultiWebAppScreen(
                             )
                         }
                     }
+            }
+
+            WtaCreateFlowSection(title = Strings.multiWebDisplayMode) {
+                EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        DisplayModePicker(
+                            selected = displayMode,
+                            onSelect = { displayMode = it }
+                        )
+                        if (displayMode == "CARDS") {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    Strings.multiWebShowSiteIcons,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Switch(
+                                    checked = showSiteIcons,
+                                    onCheckedChange = { showSiteIcons = it }
+                                )
+                            }
+                        }
+                    }
+                }
             }
 
             WtaCreateFlowSection(title = Strings.preview) {
@@ -296,7 +331,13 @@ private fun ExistingAppPicker(
     onAddSelected: () -> Unit
 ) {
     val accentColor = MaterialTheme.colorScheme.onSurface
-    val eligibleApps = existingApps.filter { it.appType != com.webtoapp.data.model.AppType.MULTI_WEB }
+    // Nested multi-web and server-runtime apps (Node/PHP/Python/Go/WordPress) cannot be
+    // embedded as site sources: their runtimes are not packaged into a multi-web APK, so
+    // such sites would render a broken shell mode in the export. The build degrades
+    // legacy configs to URL sites; the picker hides them so new ones are never created.
+    val eligibleApps = existingApps.filter {
+        it.appType != com.webtoapp.data.model.AppType.MULTI_WEB && !it.appType.requiresProcessExec
+    }
     val availableTypes = remember(eligibleApps) {
         eligibleApps.map { it.appType.name }.distinct()
     }
@@ -348,62 +389,60 @@ private fun ExistingAppPicker(
 
         if (availableTypes.size > 1) {
             LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 item {
-                    FilterChip(
+                    WtaChip(
                         selected = filterType == null,
                         onClick = { onFilterTypeChange(null) },
-                        label = { Text(Strings.all, fontSize = 12.sp) }
+                        label = Strings.all,
+                        showSelectedCheck = false
                     )
                 }
                 items(availableTypes.size) { index ->
                     val type = availableTypes[index]
                     val (icon, label) = appTypeFilterInfo(type)
-                    FilterChip(
+                    WtaChip(
                         selected = filterType == type,
                         onClick = { onFilterTypeChange(if (filterType == type) null else type) },
-                        label = { Text(label, fontSize = 12.sp) },
-                        leadingIcon = { Icon(icon, null, modifier = Modifier.size(16.dp)) }
+                        label = label,
+                        leadingIcon = icon,
+                        showSelectedCheck = false
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(WtaSpacing.Tiny))
         }
 
         LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small),
             modifier = Modifier.fillMaxWidth()
         ) {
             item {
-                FilterChip(
+                WtaChip(
                     selected = filterCategoryId == null,
                     onClick = { onFilterCategoryChange(null) },
-                    label = { Text(Strings.allApps, fontSize = 12.sp) }
+                    label = Strings.allApps,
+                    showSelectedCheck = false
                 )
             }
             item {
-                FilterChip(
+                WtaChip(
                     selected = filterCategoryId == -1L,
                     onClick = { onFilterCategoryChange(-1L) },
-                    label = { Text(Strings.uncategorized, fontSize = 12.sp) }
+                    label = Strings.uncategorized,
+                    showSelectedCheck = false
                 )
             }
             items(categories.size) { index ->
                 val cat = categories[index]
-                FilterChip(
+                WtaChip(
                     selected = filterCategoryId == cat.id,
                     onClick = { onFilterCategoryChange(if (filterCategoryId == cat.id) null else cat.id) },
-                    label = { Text(cat.name, fontSize = 12.sp) },
-                    leadingIcon = {
-                        Icon(
-                            com.webtoapp.util.SvgIconMapper.getIcon(cat.icon),
-                            null,
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    label = cat.name,
+                    leadingIcon = com.webtoapp.util.SvgIconMapper.getIcon(cat.icon),
+                    showSelectedCheck = false
                 )
             }
         }
@@ -535,7 +574,7 @@ private fun getFilteredAppIds(
     filterCategoryId: Long?
 ): Set<Long> {
     return existingApps
-        .filter { it.appType != com.webtoapp.data.model.AppType.MULTI_WEB }
+        .filter { it.appType != com.webtoapp.data.model.AppType.MULTI_WEB && !it.appType.requiresProcessExec }
         .filter { app ->
             val typeMatch = filterType == null || app.appType.name == filterType
             val categoryMatch = when {
@@ -547,6 +586,109 @@ private fun getFilteredAppIds(
         }
         .map { it.id }
         .toSet()
+}
+
+private data class DisplayModeOption(
+    val mode: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val title: String,
+    val desc: String
+)
+
+@Composable
+private fun DisplayModePicker(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    val options = listOf(
+        DisplayModeOption("TABS", Icons.Outlined.Dock, Strings.multiWebModeTabs, Strings.multiWebModeTabsDesc),
+        DisplayModeOption("CARDS", Icons.Outlined.GridView, Strings.multiWebModeCards, Strings.multiWebModeCardsDesc),
+        DisplayModeOption("DRAWER", Icons.Outlined.ViewSidebar, Strings.multiWebModeDrawer, Strings.multiWebModeDrawerDesc),
+        DisplayModeOption("FEED", Icons.Outlined.RssFeed, Strings.multiWebModeFeed, Strings.multiWebModeFeedDesc)
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        options.chunked(2).forEach { rowOptions ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                rowOptions.forEach { option ->
+                    DisplayModeCard(
+                        option = option,
+                        isSelected = selected == option.mode,
+                        onClick = { onSelect(option.mode) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (rowOptions.size == 1) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DisplayModeCard(
+    option: DisplayModeOption,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        else
+            MaterialTheme.colorScheme.surfaceContainerLow,
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isSelected) 1.5.dp else 0.dp,
+            color = borderColor
+        )
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    option.icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp),
+                    tint = if (isSelected) MaterialTheme.colorScheme.primary
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isSelected) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                option.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                option.desc,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 16.sp
+            )
+        }
+    }
 }
 
 @Composable

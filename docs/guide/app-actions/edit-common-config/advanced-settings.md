@@ -8,7 +8,8 @@ A broad set of browser behavior toggles. This card collects the advanced `WebVie
 
 - **User agent mode** — system default or a custom UA string (`userAgentMode`, `customUserAgent`).
 - **Desktop mode** — request the desktop site (`desktopMode`).
-- **Zoom** — enable zoom and initial scale (`zoomEnabled`, `initialScale`).
+- **Zoom** — enable pinch zoom (`zoomEnabled`).
+- **Page zoom** — build-time per-app whole-page zoom as a percentage, chosen from Chrome-style presets (50%–150%) or entered freely (`pageZoomPercent`, default 100). Applied via `setInitialScale` on every run, including cold starts — it scales text and layout/images/canvas together (unlike `textZoom`, which only scales glyphs), so no runtime toolbar needed. A stored legacy value of `0` is treated as 100.
 - **Viewport mode** — default or a custom viewport width (`viewportMode`, `customViewportWidth`).
 
 ## Navigation & refresh
@@ -37,8 +38,9 @@ A broad set of browser behavior toggles. This card collects the advanced `WebVie
 
 - **Kernel disguise** — present a different browser kernel flavor (`enableKernelDisguise`, `kernelFlavor`, `kernelDisguiseLevel`).
 - **Cloudflare compatibility** — compatibility mode for Cloudflare challenges (`enableCloudflareCompat`, `cloudflareCompatMode`).
-- **Status bar** — color mode (`THEME`/`PAGE_TOP`/`TRANSPARENT`/`CUSTOM`), custom color, dark icons, background (color/image), for light and dark separately.
 - **Failover** — mirror URLs with triggers and timeout (`failoverEnabled`, `failoverUrls`, `failoverTimeoutSeconds`).
+
+The status bar color/appearance configuration (color mode `THEME`/`PAGE_TOP`/`TRANSPARENT`/`CUSTOM`, custom color, dark icons, background color/image, light and dark separately) lives in the expandable section of the [Fullscreen Mode](/guide/app-actions/edit-common-config/fullscreen) card.
 
 ## Notes
 

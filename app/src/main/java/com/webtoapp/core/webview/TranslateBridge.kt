@@ -77,23 +77,26 @@ class TranslateBridge(
                     results.addAll(translated)
                 }
 
+                // JSONArray.toString() is a valid JS array literal — pass it unquoted so no
+                // hand-rolled string escaping is involved. callbackId comes from page JS:
+                // quote it, or a crafted id ('x');payload();//) executes in whatever page is
+                // loaded by the time the async translation call completes.
                 val resultsJson = JSONArray(results).toString()
-                    .replace("\\", "\\\\")
-                    .replace("'", "\\'")
-                    .replace("\n", "\\n")
-                    .replace("\r", "\\r")
+                val quotedCallbackId = com.webtoapp.util.JsStrings.quote(callbackId)
 
                 withContext(Dispatchers.Main) {
                     webView.evaluateJavascript(
-                        "window._translateCallback('$callbackId', '$resultsJson');",
+                        "window._translateCallback($quotedCallbackId, $resultsJson);",
                         null
                     )
                 }
             } catch (e: Exception) {
                 AppLogger.e(TAG, "翻译执行失败", e)
+                val quotedCallbackId = com.webtoapp.util.JsStrings.quote(callbackId)
+                val quotedError = com.webtoapp.util.JsStrings.quote(e.message ?: "translation failed")
                 withContext(Dispatchers.Main) {
                     webView.evaluateJavascript(
-                        "window._translateCallback('$callbackId', null, '${e.message?.replace("'", "\\'")}');",
+                        "window._translateCallback($quotedCallbackId, null, $quotedError);",
                         null
                     )
                 }
@@ -167,7 +170,10 @@ class TranslateBridge(
     private fun translateViaGoogle(texts: List<String>, targetLang: String): List<String> {
         val combined = texts.joinToString("\n")
         val encoded = URLEncoder.encode(combined, "UTF-8")
-        val urlStr = "$GOOGLE_API?client=gtx&sl=auto&tl=$targetLang&dt=t&q=$encoded"
+        // targetLang comes from the page: encode it so it cannot inject
+        // query/path structure into the fixed API endpoint.
+        val lang = URLEncoder.encode(targetLang, "UTF-8")
+        val urlStr = "$GOOGLE_API?client=gtx&sl=auto&tl=$lang&dt=t&q=$encoded"
 
         val url = URL(urlStr)
         val conn = url.openConnection() as HttpURLConnection
@@ -302,7 +308,9 @@ class TranslateBridge(
         val combined = texts.joinToString("\n")
         val encoded = URLEncoder.encode(combined, "UTF-8")
 
-        val urlStr = "$LINGVA_API/auto/$targetLang/$encoded"
+        // Path segment: encode so a crafted lang cannot walk out of /auto/<lang>/.
+        val lang = URLEncoder.encode(targetLang, "UTF-8")
+        val urlStr = "$LINGVA_API/auto/$lang/$encoded"
 
         val url = URL(urlStr)
         val conn = url.openConnection() as HttpURLConnection

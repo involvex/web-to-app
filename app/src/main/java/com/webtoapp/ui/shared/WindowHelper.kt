@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
+import android.view.Window
 import android.view.WindowManager
 import android.webkit.WebChromeClient
 import android.widget.FrameLayout
@@ -33,6 +34,13 @@ object WindowHelper {
     ) {
         val controller = WindowInsetsControllerCompat(activity.window, activity.window.decorView)
         val alpha = backgroundAlpha.coerceIn(0f, 1f)
+        // The classic resize window (below API 30, RESIZE mode) does not draw behind the
+        // status bar, so a transparent bar would just show the window background.
+        val colorMode = if (colorMode == "TRANSPARENT" && isClassicKeyboardResizeWindow(activity.window)) {
+            "THEME"
+        } else {
+            colorMode
+        }
 
         when (colorMode) {
             "TRANSPARENT" -> {
@@ -90,7 +98,6 @@ object WindowHelper {
         hideNavBar: Boolean = true,
         isDarkTheme: Boolean = false,
         showStatusBar: Boolean = false,
-        forceHideSystemUi: Boolean = false,
         statusBarColorMode: String = "THEME",
         statusBarCustomColor: String? = null,
         statusBarDarkIcons: Boolean? = null,
@@ -105,23 +112,38 @@ object WindowHelper {
                     WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
             }
 
+            // Below API 30 the platform has no native IME-inset dispatch: with the window laid
+            // out edge-to-edge, the system neither resizes it for the keyboard nor reports IME
+            // insets, leaving RESIZE mode with no working keyboard avoidance at all (issue #613;
+            // the #634 softInputMode-only fix did not help because of these layout flags).
+            // Those devices keep the decor fitting system windows and rely on the classic
+            // SOFT_INPUT_ADJUST_RESIZE path instead. Nothing draws behind the system bars
+            // there, so translucent status-bar styles degrade to solid theme colors.
+            val classicKeyboardResize = isClassicKeyboardResize(keyboardAdjustMode)
+            val effectiveStatusBarColorMode =
+                if (classicKeyboardResize && statusBarColorMode == "TRANSPARENT") "THEME" else statusBarColorMode
+            val effectiveStatusBarBgType =
+                if (classicKeyboardResize && statusBarBgType == "IMAGE") "COLOR" else statusBarBgType
+
             WindowInsetsControllerCompat(activity.window, activity.window.decorView).let { controller ->
                 var decorFitsSystemWindows = true
                 if (enabled) {
-                    activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                    val shouldShowStatusBar = if (forceHideSystemUi) false else showStatusBar
+                    if (!classicKeyboardResize) {
+                        activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                    }
+                    val shouldShowStatusBar = showStatusBar
 
                     if (shouldShowStatusBar) {
-                        decorFitsSystemWindows = false
-                        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+                        decorFitsSystemWindows = classicKeyboardResize
+                        WindowCompat.setDecorFitsSystemWindows(activity.window, classicKeyboardResize)
                         controller.show(WindowInsetsCompat.Type.statusBars())
 
-                        if (statusBarBgType == "IMAGE") {
+                        if (effectiveStatusBarBgType == "IMAGE") {
                             activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
                             val useDarkIcons = statusBarDarkIcons ?: !isDarkTheme
                             controller.isAppearanceLightStatusBars = useDarkIcons
                         } else {
-                            when (statusBarColorMode) {
+                            when (effectiveStatusBarColorMode) {
                                 "CUSTOM" -> {
                                     val color = try {
                                         android.graphics.Color.parseColor(statusBarCustomColor ?: "#000000")
@@ -149,36 +171,52 @@ object WindowHelper {
                             }
                         }
                     } else {
-                        decorFitsSystemWindows = false
-                        WindowCompat.setDecorFitsSystemWindows(activity.window, false)
-                        activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
+                        decorFitsSystemWindows = classicKeyboardResize
+                        WindowCompat.setDecorFitsSystemWindows(activity.window, classicKeyboardResize)
+                        activity.window.statusBarColor = if (classicKeyboardResize) {
+                            // nothing draws behind a hidden bar on the classic path
+                            android.graphics.Color.parseColor(if (isDarkTheme) "#1C1B1F" else "#FFFBFE")
+                        } else {
+                            android.graphics.Color.TRANSPARENT
+                        }
                         controller.hide(WindowInsetsCompat.Type.statusBars())
                     }
 
-                    if (hideNavBar || forceHideSystemUi) {
+                    // Issue #771: a shown status bar must stay (BEHAVIOR_DEFAULT).
+                    // Transient bars auto-hide seconds after appearing, which is
+                    // why "show status bar" never stayed until swiped back.
+                    // Hidden paths keep the transient swipe-to-peek behavior.
+                    val barsBehavior = if (shouldShowStatusBar) {
+                        WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+                    } else {
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    }
+
+                    if (hideNavBar) {
                         controller.hide(WindowInsetsCompat.Type.navigationBars())
-                        controller.systemBarsBehavior =
-                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     } else {
                         controller.show(WindowInsetsCompat.Type.navigationBars())
-                        controller.systemBarsBehavior =
-                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     }
+                    controller.systemBarsBehavior = barsBehavior
                 } else {
-                    decorFitsSystemWindows = false
-                    WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+                    decorFitsSystemWindows = classicKeyboardResize
+                    WindowCompat.setDecorFitsSystemWindows(activity.window, classicKeyboardResize)
                     controller.show(WindowInsetsCompat.Type.systemBars())
+                    // Non-fullscreen bars are permanently shown chrome: default
+                    // behavior, never transient auto-hide (issue #771).
                     controller.systemBarsBehavior =
-                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                    activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                        WindowInsetsControllerCompat.BEHAVIOR_DEFAULT
+                    if (!classicKeyboardResize) {
+                        activity.window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                    }
 
-                    if (statusBarBgType == "IMAGE") {
+                    if (effectiveStatusBarBgType == "IMAGE") {
                         activity.window.statusBarColor = android.graphics.Color.TRANSPARENT
                         val useDarkIcons = statusBarDarkIcons ?: !isDarkTheme
                         controller.isAppearanceLightStatusBars = useDarkIcons
                         controller.isAppearanceLightNavigationBars = useDarkIcons
                     } else {
-                        when (statusBarColorMode) {
+                        when (effectiveStatusBarColorMode) {
                             "CUSTOM" -> {
                                 val color = try {
                                     android.graphics.Color.parseColor(statusBarCustomColor ?: "#000000")
@@ -199,7 +237,7 @@ object WindowHelper {
                             else -> {
                                 applyStatusBarColor(
                                     activity,
-                                    statusBarColorMode,
+                                    effectiveStatusBarColorMode,
                                     statusBarCustomColor,
                                     statusBarDarkIcons,
                                     isDarkTheme
@@ -211,12 +249,64 @@ object WindowHelper {
                         ViewCompat.requestApplyInsets(activity.window.decorView)
                     }
                 }
+                if (classicKeyboardResize) {
+                    // Not edge-to-edge: keep the nav bar in sync with the solid status bar
+                    // instead of leaving a default dark bar under light nav icons.
+                    activity.window.navigationBarColor = activity.window.statusBarColor
+                }
                 applyKeyboardMode(activity, keyboardAdjustMode, tag, decorFitsSystemWindows)
+                if (classicKeyboardResize && enabled) {
+                    // Classic (below API 30, RESIZE) windows have no insets controller: hiding
+                    // a bar sets the legacy SYSTEM_UI_FLAG_* bits, and the system clears the
+                    // fullscreen flag again whenever the hidden bar finishes animating away
+                    // (no ViewCompat.requestApplyInsets pass re-asserts it there). Without
+                    // this re-assert the window background shows through as a white strip
+                    // where the status bar was (2.5.5 fullscreen regression on Android 10).
+                    activity.window.decorView.postDelayed({
+                        try {
+                            val target = activity.window.decorView.systemUiVisibility
+                            val want = View.SYSTEM_UI_FLAG_LOW_PROFILE or
+                                View.SYSTEM_UI_FLAG_FULLSCREEN or
+                                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                                View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            if ((target and (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)) !=
+                                (View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION)
+                            ) {
+                                activity.window.decorView.systemUiVisibility = target or want
+                            }
+                        } catch (e: Exception) {
+                            AppLogger.w(tag, "re-assert immersive flags failed", e)
+                        }
+                    }, 350)
+                }
             }
         } catch (e: Exception) {
             AppLogger.w(tag, "applyImmersiveFullscreen failed", e)
         }
     }
+
+    private fun isClassicKeyboardResize(keyboardAdjustMode: KeyboardAdjustMode?): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return false
+        return (keyboardAdjustMode ?: KeyboardAdjustMode.RESIZE) == KeyboardAdjustMode.RESIZE
+    }
+
+    /** True when the window runs the classic (non-edge-to-edge) resize path below API 30. */
+    private fun isClassicKeyboardResizeWindow(window: Window): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) return false
+        return window.attributes.softInputMode and WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE != 0
+    }
+
+    /**
+     * Runtime truth for "this window does not draw behind the status bar and
+     * [androidx.compose.foundation.layout.WindowInsets.statusBars] cannot be used to size a
+     * status-bar band": on the classic pre-API-30 resize path the decor fits system windows,
+     * the insets value is 0 whether or not a bar is actually shown, and nothing renders behind
+     * the bar area. Compose callers must not fall back to a made-up 24dp band there (issue
+     * #683: fullscreen + "show status bar" left a blank strip because the content padding and
+     * the overlay each guessed an independent height).
+     */
+    fun isClassicSystemBarsWindow(activity: Activity): Boolean =
+        isClassicKeyboardResizeWindow(activity.window)
 
     private fun applyKeyboardMode(
         activity: Activity,
@@ -231,12 +321,10 @@ object WindowHelper {
         when (mode) {
             KeyboardAdjustMode.RESIZE -> {
 
-                // androidx only reports IME insets on API < 30 when the window runs with
-                // SOFT_INPUT_ADJUST_RESIZE; with ADJUST_NOTHING the manual padding below
-                // never sees a non-zero IME inset on Android 10 and lower, so the keyboard
-                // covered the input regardless of this setting (issue #613). Those devices
-                // fall back to the system resize path, which also lets the WebView scroll
-                // the focused input into view on its own.
+                // Manual IME padding needs native IME-inset dispatch (API 30+). Below that,
+                // applyImmersiveFullscreen keeps the window fitting system windows so the
+                // system SOFT_INPUT_ADJUST_RESIZE path actually resizes for the keyboard and
+                // the WebView scrolls the focused input into view on its own (issue #613).
                 val useManualImePadding = !decorFitsSystemWindows &&
                     Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
 

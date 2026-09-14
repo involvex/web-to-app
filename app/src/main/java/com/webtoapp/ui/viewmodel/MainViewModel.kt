@@ -2,7 +2,6 @@ package com.webtoapp.ui.viewmodel
 
 import android.app.Application
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -50,8 +49,27 @@ class MainViewModel(
     val categories: StateFlow<List<AppCategory>> = categoryRepository.allCategories
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    private val categoryFilterStore = com.webtoapp.core.category.CategoryFilterStore(application)
+
     private val _selectedCategoryId = MutableStateFlow<Long?>(null)
     val selectedCategoryId: StateFlow<Long?> = _selectedCategoryId.asStateFlow()
+
+    init {
+        // Restore the last category filter on cold start when the setting is on.
+        // A saved id whose category was deleted in the meantime falls back to All.
+        viewModelScope.launch {
+            if (!categoryFilterStore.rememberEnabled) return@launch
+            val saved = categoryFilterStore.loadSelection() ?: return@launch
+            _selectedCategoryId.value = when {
+                saved == -1L -> saved
+                saved > 0L -> {
+                    val existing = categoryRepository.allCategories.first()
+                    saved.takeIf { id -> existing.any { it.id == id } }
+                }
+                else -> null
+            }
+        }
+    }
 
     private val _currentApp = MutableStateFlow<WebApp?>(null)
     val currentApp: StateFlow<WebApp?> = _currentApp.asStateFlow()
@@ -342,7 +360,7 @@ class MainViewModel(
                 "Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36")
             try {
                 if (conn.responseCode !in 200..299) return null
-                val bitmap = BitmapFactory.decodeStream(conn.inputStream) ?: return null
+                val bitmap = com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapStream(conn.inputStream) ?: return null
                 IconStorage.saveIconFromBitmap(getApplication(), bitmap)
             } finally {
                 conn.disconnect()
@@ -353,16 +371,17 @@ class MainViewModel(
         }
     }
 
+    /**
+     * Icon/splash files referenced by a saved app's DB row must not be deleted during the
+     * editing session: the DB row is only rewritten on save, so discarding the edit (back
+     * press → 放弃更改) would leave the row pointing at a deleted file — a permanently
+     * broken icon/splash. Deletes are deferred to [deleteReplacedIconIfUnused] /
+     * [deleteReplacedSplashIfUnused], which run after the save has committed the new path.
+     */
     fun handleIconSelected(uri: Uri) {
         viewModelScope.launch {
-            val oldPath = _editState.value.savedIconPath
             val savedPath = withContext(Dispatchers.IO) {
-                val path = IconStorage.saveIconFromUri(getApplication(), uri)
-
-                if (path != null && oldPath != null && oldPath != path) {
-                    IconStorage.deleteIcon(oldPath)
-                }
-                path
+                IconStorage.saveIconFromUri(getApplication(), uri)
             }
             if (savedPath != null) {
                 _editState.value = _editState.value.copy(
@@ -377,13 +396,8 @@ class MainViewModel(
 
     fun handleSplashMediaSelected(uri: Uri, isVideo: Boolean) {
         viewModelScope.launch {
-            val oldPath = _editState.value.savedSplashPath
             val savedPath = withContext(Dispatchers.IO) {
-                val path = SplashStorage.saveMediaFromUri(getApplication(), uri, isVideo)
-                if (path != null && oldPath != null && oldPath != path) {
-                    SplashStorage.deleteMedia(oldPath)
-                }
-                path
+                SplashStorage.saveMediaFromUri(getApplication(), uri, isVideo)
             }
             if (savedPath != null) {
                 val newType = if (isVideo) SplashType.VIDEO else SplashType.IMAGE
@@ -399,18 +413,22 @@ class MainViewModel(
     }
 
     fun clearSplashMedia() {
-        viewModelScope.launch {
-            val oldPath = _editState.value.savedSplashPath
-            if (oldPath != null) {
-                withContext(Dispatchers.IO) {
-                    SplashStorage.deleteMedia(oldPath)
-                }
-            }
-            _editState.value = _editState.value.copy(
-                splashMediaUri = null,
-                savedSplashPath = null
-            )
-        }
+        _editState.value = _editState.value.copy(
+            splashMediaUri = null,
+            savedSplashPath = null
+        )
+    }
+
+    /** Deletes the app's previous icon file once the DB row references the replacement. */
+    private suspend fun deleteReplacedIconIfUnused(previousPath: String?, currentPath: String?) {
+        if (previousPath.isNullOrBlank() || previousPath == currentPath) return
+        withContext(Dispatchers.IO) { IconStorage.deleteIcon(previousPath) }
+    }
+
+    /** Deletes the app's previous splash media once the DB row references the replacement. */
+    private suspend fun deleteReplacedSplashIfUnused(previousPath: String?, currentPath: String?) {
+        if (previousPath.isNullOrBlank() || previousPath == currentPath) return
+        withContext(Dispatchers.IO) { SplashStorage.deleteMedia(previousPath) }
     }
 
     fun saveApp() {
@@ -434,8 +452,14 @@ class MainViewModel(
                 AppLogger.d("MainViewModel", "saveApp: activationEnabled=${state.activationEnabled}, " +
                     "activationCodeList.size=${state.activationCodeList.size}")
 
+                val previousIconPath = _currentApp.value?.iconPath
+                val previousSplashPath = _currentApp.value?.splashConfig?.mediaPath
+
                 if (_currentApp.value != null) {
                     repository.updateWebApp(webApp)
+                    // DB now references the new files — safe to remove the replaced ones.
+                    deleteReplacedIconIfUnused(previousIconPath, state.savedIconPath ?: state.iconUri?.toString())
+                    deleteReplacedSplashIfUnused(previousSplashPath, state.splashConfig?.mediaPath)
                 } else {
                     val newId = repository.createWebApp(webApp)
 
@@ -689,6 +713,9 @@ class MainViewModel(
                 val updatedApp = applyUpdate(existingApp, savedIconPath)
 
                 withContext(Dispatchers.IO) { repository.updateWebApp(updatedApp) }
+                // DB now references the new files — safe to remove the replaced ones.
+                deleteReplacedIconIfUnused(existingApp.iconPath, updatedApp.iconPath)
+                deleteReplacedSplashIfUnused(existingApp.splashConfig?.mediaPath, updatedApp.splashConfig?.mediaPath)
                 _uiState.value = UiState.Success(Strings.appUpdatedSuccessfully.replaceFirst("%s", typeName))
             } catch (e: Exception) {
                 AppLogger.e("MainViewModel", "Failed to update $typeName app", e)
@@ -1286,7 +1313,7 @@ class MainViewModel(
     ) = updateApp(appId, "HTML", iconUri) { existingApp, savedIconPath ->
         val context = getApplication<Application>()
 
-        val finalHtmlConfig = if (htmlConfig != null && htmlConfig != existingApp.htmlConfig) {
+        val finalHtmlConfig = if (htmlConfig != null && (htmlConfig != existingApp.htmlConfig || htmlContentChanged(existingApp.htmlConfig, htmlConfig))) {
             AppLogger.d("MainViewModel", "HTML files changed, re-processing...")
 
             // ⚠ 顺序很重要:不能先删旧项目目录再处理文件。
@@ -1325,6 +1352,30 @@ class MainViewModel(
             htmlConfig = finalHtmlConfig,
             updatedAt = System.currentTimeMillis()
         )
+    }
+
+    /**
+     * Data-class equality on [HtmlConfig] compares file *paths*, not contents. The editor
+     * writes CSS/JS edits straight into the stored files (paths unchanged), so a content-only
+     * edit compares equal and used to skip reprocessing — the first save had already inlined
+     * the old CSS/JS into the HTML, so the on-disk edit never took effect. Compare the
+     * referenced files' bytes too.
+     */
+    private fun htmlContentChanged(old: HtmlConfig?, new: HtmlConfig?): Boolean {
+        if (old == null || new == null) return true
+        val oldByPath = old.files.associateBy { it.path }
+        return new.files.any { file ->
+            val previous = oldByPath[file.path] ?: return@any false
+            if (previous.path != file.path) return@any false
+            try {
+                val f = java.io.File(file.path)
+                if (!f.isFile) return@any false
+                java.io.File(previous.path).let { it.length() != f.length() || !it.readBytes().contentEquals(f.readBytes()) }
+            } catch (e: Exception) {
+                AppLogger.w("MainViewModel", "htmlContentChanged probe failed for ${file.path}: ${e.message}")
+                false
+            }
+        }
     }
 
     fun updateZipHtmlApp(
@@ -1481,6 +1532,7 @@ class MainViewModel(
 
     fun selectCategory(categoryId: Long?) {
         _selectedCategoryId.value = categoryId
+        categoryFilterStore.saveSelection(categoryId)
     }
 
     fun createCategory(name: String, icon: String = "folder", color: String = "#6200EE") {
@@ -1509,6 +1561,25 @@ class MainViewModel(
         }
     }
 
+    fun moveCategory(category: AppCategory, delta: Int) {
+        val list = categories.value
+        val index = list.indexOfFirst { it.id == category.id }
+        val target = index + delta
+        if (index < 0 || target !in list.indices) return
+        viewModelScope.launch {
+            try {
+                val reordered = list.toMutableList().apply { add(target, removeAt(index)) }
+                reordered.forEachIndexed { i, cat ->
+                    if (cat.sortOrder != i) {
+                        categoryRepository.updateCategory(cat.copy(sortOrder = i))
+                    }
+                }
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(Strings.failedUpdateCategory.replaceFirst("%s", e.message ?: ""))
+            }
+        }
+    }
+
     fun deleteCategory(category: AppCategory) {
         viewModelScope.launch {
             try {
@@ -1518,7 +1589,7 @@ class MainViewModel(
                 categoryRepository.deleteCategory(category)
 
                 if (_selectedCategoryId.value == category.id) {
-                    _selectedCategoryId.value = null
+                    selectCategory(null)
                 }
             } catch (e: Exception) {
                 _uiState.value = UiState.Error(Strings.failedDeleteCategory.replaceFirst("%s", e.message ?: ""))

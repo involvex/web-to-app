@@ -30,7 +30,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.TouchApp
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,15 +53,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.webtoapp.R
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.stats.AppHealthRecord
 import com.webtoapp.core.stats.AppUsageStats
@@ -70,6 +65,9 @@ import com.webtoapp.core.stats.OverallStats
 import com.webtoapp.core.stats.StatsFormat
 import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.WebApp
+import com.webtoapp.ui.components.WtaAppIcon
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaBadge
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
@@ -169,10 +167,12 @@ fun StatsScreen(
     }
 
     if (showClearConfirm) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = { showClearConfirm = false },
-            title = { Text(Strings.statsClearAll) },
-            text = { Text(Strings.statsClearConfirm) },
+            icon = Icons.Outlined.DeleteSweep,
+            iconTint = MaterialTheme.colorScheme.error,
+            title = Strings.statsClearAll,
+            text = Strings.statsClearConfirm,
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -286,11 +286,7 @@ private fun UsageStatsTab(
         }
 
         item {
-            Text(
-                Strings.statsRankings,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            SectionLabel(Strings.statsRankings)
         }
 
         if (ranked.isEmpty()) {
@@ -351,38 +347,25 @@ private fun OverallStatsCard(stats: OverallStats) {
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
-            HorizontalMetricRow(
-                label = Strings.statsAvgSession,
-                value = stats.formattedAvgSession
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f)
             )
-        }
-    }
-}
-
-@Composable
-private fun HorizontalMetricRow(label: String, value: String) {
-    Surface(
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                value,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    Strings.statsAvgSession,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    stats.formattedAvgSession,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
     }
 }
@@ -411,8 +394,7 @@ private fun StatItem(
         Text(
             value,
             style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = color
+            fontWeight = FontWeight.SemiBold
         )
         Text(
             label,
@@ -450,31 +432,16 @@ private fun UsageRankCard(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = when (rank) {
-                        1 -> MaterialTheme.colorScheme.primary
-                        2 -> MaterialTheme.colorScheme.primaryContainer
-                        3 -> MaterialTheme.colorScheme.surfaceContainerHighest
-                        else -> MaterialTheme.colorScheme.surfaceVariant
-                    },
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Text(
-                            "#$rank",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = when (rank) {
-                                1 -> MaterialTheme.colorScheme.onPrimary
-                                2 -> MaterialTheme.colorScheme.onPrimaryContainer
-                                else -> MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
-                    }
-                }
-                Spacer(Modifier.width(12.dp))
-                AppIconSmall(app)
+                Text(
+                    "$rank",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(22.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                WtaAppIcon(app)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -521,7 +488,7 @@ private fun UsageRankCard(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
                     color = accent,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
                 )
             }
         }
@@ -696,14 +663,7 @@ private fun HealthStatusCard(
                 .padding(12.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                )
-                Spacer(Modifier.width(10.dp))
-                AppIconSmall(app)
+                WtaAppIcon(app)
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
@@ -721,18 +681,12 @@ private fun HealthStatusCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = statusColor.copy(alpha = 0.12f)
-                ) {
-                    Text(
-                        statusText,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = statusColor,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                WtaBadge(
+                    text = statusText,
+                    containerColor = statusColor.copy(alpha = 0.12f),
+                    contentColor = statusColor,
+                    compact = true
+                )
             }
 
             if (record != null) {
@@ -783,47 +737,12 @@ private fun HealthStatusCard(
 }
 
 @Composable
-private fun AppIconSmall(app: WebApp) {
-    Surface(
-        modifier = Modifier.size(36.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.primaryContainer
-    ) {
-        if (app.iconPath != null) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(app.iconPath)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = app.name,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(8.dp)),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            val defaultIconRes = when (app.appType) {
-                AppType.WEB -> R.drawable.ic_type_web
-                AppType.IMAGE -> R.drawable.ic_type_media
-                AppType.VIDEO -> R.drawable.ic_type_media
-                AppType.HTML -> R.drawable.ic_type_html
-                AppType.GALLERY -> R.drawable.ic_type_gallery
-                AppType.FRONTEND -> R.drawable.ic_type_frontend
-                AppType.WORDPRESS -> R.drawable.ic_type_wordpress
-                AppType.NODEJS_APP -> R.drawable.ic_type_nodejs
-                AppType.PHP_APP -> R.drawable.ic_type_php
-                AppType.PYTHON_APP -> R.drawable.ic_type_python
-                AppType.GO_APP -> R.drawable.ic_type_go
-                AppType.MULTI_WEB -> R.drawable.ic_type_multi_web
-            }
-            Icon(
-                painterResource(defaultIconRes),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+    )
 }

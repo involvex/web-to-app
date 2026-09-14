@@ -67,6 +67,9 @@ object Strings {
     val moreSectionDevTools: String get() = StringsA.moreSectionDevTools
     val moreSectionBrowser: String get() = StringsA.moreSectionBrowser
     val moreSectionAppearance: String get() = StringsA.moreSectionAppearance
+    val moreSectionGeneral: String get() = StringsA.moreSectionGeneral
+    val rememberCategoryFilter: String get() = StringsA.rememberCategoryFilter
+    val rememberCategoryFilterDesc: String get() = StringsA.rememberCategoryFilterDesc
     val menuStats: String get() = StringsA.menuStats
     val statsTitle: String get() = StringsA.statsTitle
     val statsTotalLaunches: String get() = StringsA.statsTotalLaunches
@@ -135,6 +138,19 @@ object Strings {
     val appTypeMultiWeb: String get() = StringsA.appTypeMultiWeb
     val createMultiWebApp: String get() = StringsA.createMultiWebApp
     val multiWebModeFeed: String get() = StringsA.multiWebModeFeed
+    val multiWebDisplayMode: String get() = StringsA.multiWebDisplayMode
+    val multiWebModeTabs: String get() = StringsA.multiWebModeTabs
+    val multiWebModeCards: String get() = StringsA.multiWebModeCards
+    val multiWebModeDrawer: String get() = StringsA.multiWebModeDrawer
+    val multiWebModeTabsDesc: String get() = StringsA.multiWebModeTabsDesc
+    val multiWebModeCardsDesc: String get() = StringsA.multiWebModeCardsDesc
+    val multiWebModeDrawerDesc: String get() = StringsA.multiWebModeDrawerDesc
+    val multiWebModeFeedDesc: String get() = StringsA.multiWebModeFeedDesc
+    val multiWebShowSiteIcons: String get() = StringsA.multiWebShowSiteIcons
+    val multiWebFeedEmpty: String get() = StringsA.multiWebFeedEmpty
+    val multiWebFeedEmptyHint: String get() = StringsA.multiWebFeedEmptyHint
+    val multiWebFeedStats: String get() = StringsA.multiWebFeedStats
+    val multiWebNoSiteSelected: String get() = StringsA.multiWebNoSiteSelected
     val multiWebAddSite: String get() = StringsA.multiWebAddSite
     val multiWebTypeExisting: String get() = StringsA.multiWebTypeExisting
     val multiWebCustomCodeSection: String get() = StringsA.multiWebCustomCodeSection
@@ -753,6 +769,8 @@ object Strings {
     val invalidTimeLimitConfig: String get() = StringsA.invalidTimeLimitConfig
     val invalidUsageLimitConfig: String get() = StringsA.invalidUsageLimitConfig
     val validityDays: String get() = StringsA.validityDays
+    val activationCodeExpiryDays: String get() = StringsA.activationCodeExpiryDays
+    val activationCodeValidUntil: String get() = StringsA.activationCodeValidUntil
     val usageCount: String get() = StringsA.usageCount
     val noteOptional: String get() = StringsA.noteOptional
     val vipUserOnly: String get() = StringsA.vipUserOnly
@@ -865,6 +883,7 @@ object Strings {
     val activationTypeCombined: String get() = StringsA.activationTypeCombined
     val activationTypeCombinedDesc: String get() = StringsA.activationTypeCombinedDesc
     val activated: String get() = StringsA.activated
+    val activationNeedsReverify: String get() = StringsA.activationNeedsReverify
     val activationExpired: String get() = StringsA.activationExpired
     val activationTime: String get() = StringsA.activationTime
     val remainingTime: String get() = StringsA.remainingTime
@@ -909,6 +928,8 @@ object Strings {
     val remoteActivationPrivacyNote: String get() = StringsA.remoteActivationPrivacyNote
     val remoteActivationDeliverUrlTitle: String get() = StringsA.remoteActivationDeliverUrlTitle
     val remoteActivationDeliverUrlHint: String get() = StringsA.remoteActivationDeliverUrlHint
+    val remoteActivationDeviceBoundTitle: String get() = StringsA.remoteActivationDeviceBoundTitle
+    val remoteActivationDeviceBoundHint: String get() = StringsA.remoteActivationDeviceBoundHint
     val remoteActivationEncryptUrlTitle: String get() = StringsA.remoteActivationEncryptUrlTitle
     val remoteActivationEncryptUrlHint: String get() = StringsA.remoteActivationEncryptUrlHint
     val remoteActivationAesKeyLabel: String get() = StringsA.remoteActivationAesKeyLabel
@@ -961,6 +982,15 @@ object Strings {
     val iconLibraryEmpty: String get() = StringsA.iconLibraryEmpty
     val iconLibraryEmptyHint: String get() = StringsA.iconLibraryEmptyHint
     val savedIcons: String get() = StringsA.savedIcons
+    val uploadToLibrary: String get() = StringsA.uploadToLibrary
+    val uploadToLibraryDesc: String get() = StringsA.uploadToLibraryDesc
+    val cropIcon: String get() = StringsA.cropIcon
+    val cropDragHint: String get() = StringsA.cropDragHint
+    val cropRatioSquare: String get() = StringsA.cropRatioSquare
+    val cropRatioFree: String get() = StringsA.cropRatioFree
+    val cropRatioCircle: String get() = StringsA.cropRatioCircle
+    val cropOriginalSize: String get() = StringsA.cropOriginalSize
+    val cropOutputSize: String get() = StringsA.cropOutputSize
     val deleteIcon: String get() = StringsA.deleteIcon
     val deleteIconConfirm: String get() = StringsA.deleteIconConfirm
     val saveFailed: String get() = StringsA.saveFailed
@@ -1001,6 +1031,8 @@ object Strings {
     val console: String get() = StringsA.console
     val pageZoomLabel: String get() = StringsA.pageZoomLabel
     val pageZoomReset: String get() = StringsA.pageZoomReset
+    val pageZoomSettingLabel: String get() = StringsA.pageZoomSettingLabel
+    val pageZoomSettingHint: String get() = StringsA.pageZoomSettingHint
     val noConsoleMessages: String get() = StringsA.noConsoleMessages
     val inputJavaScript: String get() = StringsA.inputJavaScript
     val preparingDownload: String get() = StringsA.preparingDownload
@@ -1042,6 +1074,7 @@ object Strings {
     val buildApkForApp: String get() = StringsA.buildApkForApp
     val buildCompleteInstallHint: String get() = StringsA.buildCompleteInstallHint
     val buildSummaryTitle: String get() = StringsA.buildSummaryTitle
+    val apkAnalysisTitle: String get() = StringsB.apkAnalysisTitle
     val buildSummaryAppSize: String get() = StringsB.buildSummaryAppSize
     val buildSummaryVersion: String get() = StringsB.buildSummaryVersion
     val buildSummaryJdk: String get() = StringsB.buildSummaryJdk
@@ -1530,6 +1563,11 @@ object Strings {
     val agentChangesReviewExpand: String get() = StringsB.agentChangesReviewExpand
     val agentChangesReviewCollapse: String get() = StringsB.agentChangesReviewCollapse
     val agentChangesUndoneToast: String get() = StringsB.agentChangesUndoneToast
+    val agentAppChangesHeader: String get() = StringsB.agentAppChangesHeader
+    val agentAppChangesKindCreate: String get() = StringsB.agentAppChangesKindCreate
+    val agentAppChangesKindUpdate: String get() = StringsB.agentAppChangesKindUpdate
+    val agentAppChangesOpen: String get() = StringsB.agentAppChangesOpen
+    val agentAppChangesFields: String get() = StringsB.agentAppChangesFields
     val agentPlanModeBadge: String get() = StringsB.agentPlanModeBadge
     val agentPlanModeNoPath: String get() = StringsB.agentPlanModeNoPath
     val agentPlanModeExitTooltip: String get() = StringsB.agentPlanModeExitTooltip
@@ -1553,6 +1591,8 @@ object Strings {
     val agentPreviewWarningsCount: String get() = StringsB.agentPreviewWarningsCount
     val agentPreviewRefresh: String get() = StringsB.agentPreviewRefresh
     val agentSessionPin: String get() = StringsB.agentSessionPin
+    val agentSessionUnpin: String get() = StringsB.agentSessionUnpin
+    val agentDrawerPinned: String get() = StringsB.agentDrawerPinned
     val agentSessionDelete: String get() = StringsB.agentSessionDelete
     val agentSessionMessagesShort: String get() = StringsB.agentSessionMessagesShort
     val agentToolDenied: String get() = StringsB.agentToolDenied
@@ -1588,12 +1628,14 @@ object Strings {
     val agentCodeCopy: String get() = StringsB.agentCodeCopy
     val agentTodoListHeader: String get() = StringsB.agentTodoListHeader
     val agentNoOutput: String get() = StringsB.agentNoOutput
+    val agentEmptyResponse: String get() = StringsB.agentEmptyResponse
     val agentAbortedHint: String get() = StringsB.agentAbortedHint
     val agentMissingTextModel: String get() = StringsB.agentMissingTextModel
     val agentMissingApiKey: String get() = StringsB.agentMissingApiKey
     val agentModelSwitched: String get() = StringsB.agentModelSwitched
     val agentModelPickerTitle: String get() = StringsB.agentModelPickerTitle
     val agentModelChipLabel: String get() = StringsB.agentModelChipLabel
+    val agentModelSearchHint: String get() = StringsB.agentModelSearchHint
     val agentModelPickerProviders: String get() = StringsB.agentModelPickerProviders
     val agentModelPickerModels: String get() = StringsB.agentModelPickerModels
     val agentServiceNotConnected: String get() = StringsB.agentServiceNotConnected
@@ -2348,12 +2390,14 @@ object Strings {
     val showNavigationBarHint: String get() = StringsC.showNavigationBarHint
     val fullscreenContentPadding: String get() = StringsC.fullscreenContentPadding
     val fullscreenContentPaddingHint: String get() = StringsC.fullscreenContentPaddingHint
-    val statusBarStyleConfigLabel: String get() = StringsC.statusBarStyleConfigLabel
+    val statusBarCustomizeLabel: String get() = StringsC.statusBarCustomizeLabel
     val statusBarLightModeLabel: String get() = StringsC.statusBarLightModeLabel
     val statusBarDarkModeLabel: String get() = StringsC.statusBarDarkModeLabel
-    val hideBrowserToolbarLabel: String get() = StringsC.hideBrowserToolbarLabel
-    val toolbarContentOptionsLabel: String get() = StringsC.toolbarContentOptionsLabel
-    val toolbarContentOptionsHint: String get() = StringsC.toolbarContentOptionsHint
+    val statusBarIconsLabel: String get() = StringsC.statusBarIconsLabel
+    val statusBarIconsAuto: String get() = StringsC.statusBarIconsAuto
+    val statusBarIconsDark: String get() = StringsC.statusBarIconsDark
+    val statusBarIconsLight: String get() = StringsC.statusBarIconsLight
+    val browserToolbarLabel: String get() = StringsC.browserToolbarLabel
     val toolbarShowTitleLabel: String get() = StringsC.toolbarShowTitleLabel
     val toolbarShowTitleHint: String get() = StringsC.toolbarShowTitleHint
     val toolbarShowUrlLabel: String get() = StringsC.toolbarShowUrlLabel
@@ -2362,7 +2406,6 @@ object Strings {
     val toolbarShowForwardLabel: String get() = StringsC.toolbarShowForwardLabel
     val toolbarShowRefreshLabel: String get() = StringsC.toolbarShowRefreshLabel
     val toolbarShowConsoleLabel: String get() = StringsC.toolbarShowConsoleLabel
-    val toolbarShowZoomLabel: String get() = StringsC.toolbarShowZoomLabel
     val toolbarShowFindLabel: String get() = StringsC.toolbarShowFindLabel
     val clickToSelectImageOrVideo: String get() = StringsC.clickToSelectImageOrVideo
     val displayDuration: String get() = StringsC.displayDuration
@@ -2871,6 +2914,14 @@ object Strings {
     val categoryNamePlaceholder: String get() = StringsD.categoryNamePlaceholder
     val categoryIcon: String get() = StringsD.categoryIcon
     val moveToCategory: String get() = StringsD.moveToCategory
+    val manageCategories: String get() = StringsD.manageCategories
+    val categoriesEmptyHint: String get() = StringsD.categoriesEmptyHint
+    val iconGroupCommon: String get() = StringsD.iconGroupCommon
+    val iconGroupMedia: String get() = StringsD.iconGroupMedia
+    val iconGroupWorkStudy: String get() = StringsD.iconGroupWorkStudy
+    val iconGroupLifeTravel: String get() = StringsD.iconGroupLifeTravel
+    val iconGroupTools: String get() = StringsD.iconGroupTools
+    val iconGroupFun: String get() = StringsD.iconGroupFun
     val clearAppCacheMenu: String get() = StringsD.clearAppCacheMenu
     val clearAppCacheTitle: String get() = StringsD.clearAppCacheTitle
     val clearAppCacheConfirm: String get() = StringsD.clearAppCacheConfirm
@@ -2919,6 +2970,10 @@ object Strings {
     val changeWebViewProviderDesc: String get() = StringsD.changeWebViewProviderDesc
     val installedBrowsers: String get() = StringsD.installedBrowsers
     val installedBrowsersDesc: String get() = StringsD.installedBrowsersDesc
+    val webViewProvidersTitle: String get() = StringsD.webViewProvidersTitle
+    val webViewProvidersDesc: String get() = StringsD.webViewProvidersDesc
+    val noOtherWebViewProviders: String get() = StringsD.noOtherWebViewProviders
+    val singleWebViewProviderNote: String get() = StringsD.singleWebViewProviderNote
     val noBrowserInstalled: String get() = StringsD.noBrowserInstalled
     val recommendedBrowsers: String get() = StringsD.recommendedBrowsers
     val recommendedBrowsersDesc: String get() = StringsD.recommendedBrowsersDesc
@@ -2940,6 +2995,7 @@ object Strings {
     val noMatchingScripts: String get() = StringsD.noMatchingScripts
     val matchRules: String get() = StringsD.matchRules
     val extensionModulesTab: String get() = StringsD.extensionModulesTab
+    val moduleDeleteConfirm: String get() = StringsD.moduleDeleteConfirm
     val userScriptsTab: String get() = StringsD.userScriptsTab
     val noUserScripts: String get() = StringsD.noUserScripts
     val noUserScriptsHint: String get() = StringsD.noUserScriptsHint
@@ -3737,6 +3793,9 @@ object Strings {
     val cwsSortReviews: String get() = StringsE.cwsSortReviews
     val cwsSortDownloads: String get() = StringsE.cwsSortDownloads
     val greasyForkTab: String get() = StringsE.greasyForkTab
+    val noGreasyForkScripts: String get() = StringsE.noGreasyForkScripts
+    val greasyForkEmptyHint: String get() = StringsE.greasyForkEmptyHint
+    val browseGreasyFork: String get() = StringsE.browseGreasyFork
     val gfSearchHint: String get() = StringsE.gfSearchHint
     val gfSearching: String get() = StringsE.gfSearching
     val gfNoResults: String get() = StringsE.gfNoResults
@@ -4043,6 +4102,8 @@ object Strings {
     val legalDisclaimerTitle5: String get() = StringsE.legalDisclaimerTitle5
     val legalDisclaimerContent5: String get() = StringsE.legalDisclaimerContent5
     val madeWithLove: String get() = StringsE.madeWithLove
+    val sponsorSectionTitle: String get() = StringsE.sponsorSectionTitle
+    val sponsorSwiftproxyDesc: String get() = StringsE.sponsorSwiftproxyDesc
     val shortcutPermissionTitle: String get() = StringsE.shortcutPermissionTitle
     val shortcutPermissionGoToSettings: String get() = StringsE.shortcutPermissionGoToSettings
     val shortcutPermissionLater: String get() = StringsE.shortcutPermissionLater
@@ -4061,6 +4122,8 @@ object Strings {
     val showNetworkErrorUiTitle: String get() = StringsE.showNetworkErrorUiTitle
     val showNetworkErrorUiDesc: String get() = StringsE.showNetworkErrorUiDesc
     val showSslErrorUiTitle: String get() = StringsE.showSslErrorUiTitle
+    val ignoreSslErrorsTitle: String get() = StringsE.ignoreSslErrorsTitle
+    val ignoreSslErrorsDesc: String get() = StringsE.ignoreSslErrorsDesc
     val showRenderCrashErrorUiTitle: String get() = StringsE.showRenderCrashErrorUiTitle
     val showRenderCrashErrorUiDesc: String get() = StringsE.showRenderCrashErrorUiDesc
     val errorPageTitle: String get() = StringsE.errorPageTitle
@@ -4112,6 +4175,8 @@ object Strings {
     val codeEditorReplaceHint: String get() = StringsE.codeEditorReplaceHint
     val codeEditorMatchCase: String get() = StringsE.codeEditorMatchCase
     val codeEditorNoMatches: String get() = StringsE.codeEditorNoMatches
+    val codeEditorBinaryFile: String get() = StringsE.codeEditorBinaryFile
+    val codeEditorFileTooLarge: String get() = StringsE.codeEditorFileTooLarge
     val orWriteDirectly: String get() = StringsE.orWriteDirectly
     val deviceDisguiseTitle: String get() = StringsE.deviceDisguiseTitle
     val deviceDisguiseHint: String get() = StringsE.deviceDisguiseHint
@@ -4142,6 +4207,8 @@ object Strings {
     val proxySectionSubtitle: String get() = StringsE.proxySectionSubtitle
     val tlsFingerprintTitle: String get() = StringsE.tlsFingerprintTitle
     val antiCaptureTitle: String get() = StringsE.antiCaptureTitle
+    val hideStatusBarInVideoFullscreenTitle: String get() = StringsE.hideStatusBarInVideoFullscreenTitle
+    val hideStatusBarInVideoFullscreenDesc: String get() = StringsE.hideStatusBarInVideoFullscreenDesc
     val vpnBlockTitle: String get() = StringsE.vpnBlockTitle
     val vpnBlockMessage: String get() = StringsE.vpnBlockMessage
     val vpnBlockRetry: String get() = StringsE.vpnBlockRetry
@@ -4153,6 +4220,9 @@ object Strings {
     val tlsFingerprintCustomCiphersHint: String get() = StringsE.tlsFingerprintCustomCiphersHint
     val tlsFingerprintGeckoWarning: String get() = StringsE.tlsFingerprintGeckoWarning
     val tlsFingerprintProxyIntegration: String get() = StringsE.tlsFingerprintProxyIntegration
+    val forceHttp3Title: String get() = StringsE.forceHttp3Title
+    val forceHttp3Description: String get() = StringsE.forceHttp3Description
+    val forceHttp3Note: String get() = StringsE.forceHttp3Note
     val proxyModeNone: String get() = StringsE.proxyModeNone
     val proxyModeStatic: String get() = StringsE.proxyModeStatic
     val proxyModePac: String get() = StringsE.proxyModePac
@@ -4407,6 +4477,11 @@ object Strings {
     val backupImportingApp: String get() = StringsE.backupImportingApp
     val backupExportSuccess: String get() = StringsE.backupExportSuccess
     val backupImportSuccess: String get() = StringsE.backupImportSuccess
+    val backupImportSuccessDupes: String get() = StringsE.backupImportSuccessDupes
+    val backupRestartTitle: String get() = StringsE.backupRestartTitle
+    val backupRestartMessage: String get() = StringsE.backupRestartMessage
+    val backupRestartNow: String get() = StringsE.backupRestartNow
+    val backupRestartLater: String get() = StringsE.backupRestartLater
     val scrapeNoHtmlFound: String get() = StringsE.scrapeNoHtmlFound
     val scrapePackFailed: String get() = StringsE.scrapePackFailed
     val scrapePackSuccess: String get() = StringsE.scrapePackSuccess
@@ -4455,6 +4530,9 @@ object Strings {
     val aiRequestFailed: String get() = StringsE.aiRequestFailed
     val aiApiNotConfigured: String get() = StringsE.aiApiNotConfigured
     val aiApiNotConfiguredDetail: String get() = StringsE.aiApiNotConfiguredDetail
+    val aiDeleteKeyConfirm: String get() = StringsE.aiDeleteKeyConfirm
+    val aiDeleteKeyCascade: String get() = StringsE.aiDeleteKeyCascade
+    val aiDeleteModelConfirm: String get() = StringsE.aiDeleteModelConfirm
     val aiModelListEmpty: String get() = StringsE.aiModelListEmpty
     val aiGetModelListError: String get() = StringsE.aiGetModelListError
     val aiGetModelListFailed: String get() = StringsE.aiGetModelListFailed
@@ -4509,6 +4587,10 @@ object Strings {
     val openBuildEnvScreen: String get() = StringsE.openBuildEnvScreen
     val noProjectSelected: String get() = StringsE.noProjectSelected
     val specialSettingsTitle: String get() = StringsE.specialSettingsTitle
+    val appReturnTitle: String get() = StringsE.appReturnTitle
+    val appReturnDesc: String get() = StringsE.appReturnDesc
+    val appReturnCustomSchemesLabel: String get() = StringsE.appReturnCustomSchemesLabel
+    val appReturnCustomSchemesHint: String get() = StringsE.appReturnCustomSchemesHint
     val decodeBase64DeepLinksTitle: String get() = StringsE.decodeBase64DeepLinksTitle
     val decodeBase64DeepLinksDesc: String get() = StringsE.decodeBase64DeepLinksDesc
     val mediaAutoplayTitle: String get() = StringsE.mediaAutoplayTitle
@@ -4650,7 +4732,11 @@ object Strings {
      val ratingTriggerLaunches: String get() = StringsE.ratingTriggerLaunches
      fun ratingDaysLabel(count: Int): String = StringsE.ratingDaysLabel(count)
      fun ratingLaunchesLabel(count: Int): String = StringsE.ratingLaunchesLabel(count)
-     val geolocationAccuracyLabel: String get() = StringsE.geolocationAccuracyLabel
+    val nativeBridgeCapsGoogleSignIn: String get() = StringsE.nativeBridgeCapsGoogleSignIn
+    val googleSignInClientIdLabel: String get() = StringsE.googleSignInClientIdLabel
+    val googleSignInClientIdPlaceholder: String get() = StringsE.googleSignInClientIdPlaceholder
+    val googleSignInHint: String get() = StringsE.googleSignInHint
+    val geolocationAccuracyLabel: String get() = StringsE.geolocationAccuracyLabel
     val geolocationAccuracyCoarse: String get() = StringsE.geolocationAccuracyCoarse
     val geolocationAccuracyFine: String get() = StringsE.geolocationAccuracyFine
     val geolocationPolicyLabel: String get() = StringsE.geolocationPolicyLabel
@@ -4822,6 +4908,9 @@ object Strings {
     val rulePathApkEncryption: String get() = StringsE.rulePathApkEncryption
     val ruleAreaApkEncryption: String get() = StringsE.ruleAreaApkEncryption
     val ruleFixApkEncryption: String get() = StringsE.ruleFixApkEncryption
+    val rulePathSslIgnore: String get() = StringsE.rulePathSslIgnore
+    val ruleAreaSslIgnore: String get() = StringsE.ruleAreaSslIgnore
+    val ruleFixSslIgnore: String get() = StringsE.ruleFixSslIgnore
     val rulePathBrowserDisguise: String get() = StringsE.rulePathBrowserDisguise
     val ruleAreaBrowserDisguise: String get() = StringsE.ruleAreaBrowserDisguise
     val ruleFixBrowserDisguise: String get() = StringsE.ruleFixBrowserDisguise
@@ -4930,6 +5019,18 @@ object Strings {
     val buildSummaryReason: String get() = StringsE.buildSummaryReason
     val buildAgain: String get() = StringsE.buildAgain
     val shareApkReadyMode: String get() = StringsE.shareApkReadyMode
+
+    // Agent UI rework additions
+    val agentToolViewFull: String get() = StringsE.agentToolViewFull
+    val agentCopyThinkingHeader: String get() = StringsE.agentCopyThinkingHeader
+    val agentSessionRename: String get() = StringsE.agentSessionRename
+    val agentSessionRenameTitle: String get() = StringsE.agentSessionRenameTitle
+    val agentSessionRenameHint: String get() = StringsE.agentSessionRenameHint
+    val agentSessionDeleteConfirmTitle: String get() = StringsE.agentSessionDeleteConfirmTitle
+    val agentSessionDeleteConfirmMessage: String get() = StringsE.agentSessionDeleteConfirmMessage
+    val agentSessionExport: String get() = StringsE.agentSessionExport
+    val agentFileDeleteConfirmTitle: String get() = StringsE.agentFileDeleteConfirmTitle
+    val agentFileDeleteConfirmMessage: String get() = StringsE.agentFileDeleteConfirmMessage
 }
 
 object StringsA {
@@ -5164,6 +5265,42 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Внешний вид и данные"
         AppLanguage.JAPANESE -> "外観とデータ"
         AppLanguage.KOREAN -> "외형 및 데이터"
+    }
+    val moreSectionGeneral: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "通用"
+        AppLanguage.ENGLISH -> "General"
+        AppLanguage.ARABIC -> "عام"
+        AppLanguage.PORTUGUESE -> "Geral"
+        AppLanguage.SPANISH -> "General"
+        AppLanguage.FRENCH -> "Général"
+        AppLanguage.GERMAN -> "Allgemein"
+        AppLanguage.RUSSIAN -> "Общие"
+        AppLanguage.JAPANESE -> "一般"
+        AppLanguage.KOREAN -> "일반"
+    }
+    val rememberCategoryFilter: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "记住上次分类"
+        AppLanguage.ENGLISH -> "Remember last category"
+        AppLanguage.ARABIC -> "تذكر آخر تصنيف"
+        AppLanguage.PORTUGUESE -> "Lembrar última categoria"
+        AppLanguage.SPANISH -> "Recordar última categoría"
+        AppLanguage.FRENCH -> "Mémoriser la dernière catégorie"
+        AppLanguage.GERMAN -> "Letzte Kategorie merken"
+        AppLanguage.RUSSIAN -> "Запомнить последнюю категорию"
+        AppLanguage.JAPANESE -> "前回のカテゴリを記憶"
+        AppLanguage.KOREAN -> "마지막 카테고리 기억"
+    }
+    val rememberCategoryFilterDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "启动时回到上次选择的分类标签；关闭则总是进入「全部」"
+        AppLanguage.ENGLISH -> "Reopen the last selected category on launch; off always starts on \"All\""
+        AppLanguage.ARABIC -> "العودة إلى آخر تصنيف محدد عند التشغيل؛ عند الإيقاف يبدأ دائمًا على \"الكل\""
+        AppLanguage.PORTUGUESE -> "Reabrir a última categoria selecionada ao iniciar; desligado sempre inicia em \"Todos\""
+        AppLanguage.SPANISH -> "Volver a la última categoría seleccionada al iniciar; desactivado siempre inicia en \"Todos\""
+        AppLanguage.FRENCH -> "Rouvrir la dernière catégorie sélectionnée au lancement ; désactivé, démarre toujours sur « Tous »"
+        AppLanguage.GERMAN -> "Beim Start die zuletzt gewählte Kategorie öffnen; aus startet immer auf „Alle“"
+        AppLanguage.RUSSIAN -> "Открывать последнюю выбранную категорию при запуске; выкл. — всегда «Все»"
+        AppLanguage.JAPANESE -> "起動時に前回選択したカテゴリを開きます。オフでは常に「すべて」から開始"
+        AppLanguage.KOREAN -> "시작 시 마지막으로 선택한 카테고리를 엽니다. 끄면 항상 \"전체\"로 시작합니다"
     }
     val menuStats: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "使用统计"
@@ -5991,6 +6128,175 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Лента"
         AppLanguage.JAPANESE -> "フィード"
         AppLanguage.KOREAN -> "피드"
+    }
+
+    val multiWebDisplayMode: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "界面样式"
+        AppLanguage.ENGLISH -> "Layout Style"
+        AppLanguage.ARABIC -> "نمط العرض"
+        AppLanguage.PORTUGUESE -> "Estilo de Layout"
+        AppLanguage.SPANISH -> "Estilo de Diseño"
+        AppLanguage.FRENCH -> "Style de mise en page"
+        AppLanguage.GERMAN -> "Layout-Stil"
+        AppLanguage.RUSSIAN -> "Стиль оформления"
+        AppLanguage.JAPANESE -> "レイアウトスタイル"
+        AppLanguage.KOREAN -> "레이아웃 스타일"
+    }
+
+    val multiWebModeTabs: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "底部标签"
+        AppLanguage.ENGLISH -> "Bottom Tabs"
+        AppLanguage.ARABIC -> "ألسنة سفلية"
+        AppLanguage.PORTUGUESE -> "Abas Inferiores"
+        AppLanguage.SPANISH -> "Pestañas Inferiores"
+        AppLanguage.FRENCH -> "Onglets en bas"
+        AppLanguage.GERMAN -> "Untere Tabs"
+        AppLanguage.RUSSIAN -> "Нижние вкладки"
+        AppLanguage.JAPANESE -> "下部タブ"
+        AppLanguage.KOREAN -> "하단 탭"
+    }
+
+    val multiWebModeCards: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "卡片主页"
+        AppLanguage.ENGLISH -> "Card Home"
+        AppLanguage.ARABIC -> "بطاقات رئيسية"
+        AppLanguage.PORTUGUESE -> "Página de Cartões"
+        AppLanguage.SPANISH -> "Inicio de Tarjetas"
+        AppLanguage.FRENCH -> "Accueil en cartes"
+        AppLanguage.GERMAN -> "Karten-Startseite"
+        AppLanguage.RUSSIAN -> "Карточки"
+        AppLanguage.JAPANESE -> "カードホーム"
+        AppLanguage.KOREAN -> "카드 홈"
+    }
+
+    val multiWebModeDrawer: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "侧边抽屉"
+        AppLanguage.ENGLISH -> "Side Drawer"
+        AppLanguage.ARABIC -> "درج جانبي"
+        AppLanguage.PORTUGUESE -> "Gaveta Lateral"
+        AppLanguage.SPANISH -> "Cajón Lateral"
+        AppLanguage.FRENCH -> "Tiroir latéral"
+        AppLanguage.GERMAN -> "Seitenmenü"
+        AppLanguage.RUSSIAN -> "Боковое меню"
+        AppLanguage.JAPANESE -> "サイドドロワー"
+        AppLanguage.KOREAN -> "사이드 드로어"
+    }
+
+    val multiWebModeTabsDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "底部标签栏常驻，点击切换站点"
+        AppLanguage.ENGLISH -> "Persistent bottom bar, tap to switch sites"
+        AppLanguage.ARABIC -> "شريط سفلي دائم، انقر للتبديل بين المواقع"
+        AppLanguage.PORTUGUESE -> "Barra inferior persistente, toque para alternar sites"
+        AppLanguage.SPANISH -> "Barra inferior persistente, toca para cambiar de sitio"
+        AppLanguage.FRENCH -> "Barre inférieure persistante, touchez pour changer de site"
+        AppLanguage.GERMAN -> "Feste Leiste unten, zum Wechseln tippen"
+        AppLanguage.RUSSIAN -> "Постоянная нижняя панель для переключения сайтов"
+        AppLanguage.JAPANESE -> "常設の下部バーでサイトを切り替え"
+        AppLanguage.KOREAN -> "하단 바 상시 표시, 탭하여 사이트 전환"
+    }
+
+    val multiWebModeCardsDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "主页展示站点卡片，点进卡片浏览"
+        AppLanguage.ENGLISH -> "Home grid of site cards, tap to browse"
+        AppLanguage.ARABIC -> "شبكة بطاقات رئيسية للمواقع، انقر للتصفح"
+        AppLanguage.PORTUGUESE -> "Grade inicial de cartões, toque para navegar"
+        AppLanguage.SPANISH -> "Cuadrícula de tarjetas de sitios, toca para navegar"
+        AppLanguage.FRENCH -> "Grille d'accueil de cartes, touchez pour naviguer"
+        AppLanguage.GERMAN -> "Startseiten-Raster mit Karten, zum Öffnen tippen"
+        AppLanguage.RUSSIAN -> "Главная с карточками сайтов, нажмите для просмотра"
+        AppLanguage.JAPANESE -> "ホームにサイトカードを並べ、タップで閲覧"
+        AppLanguage.KOREAN -> "홈에 사이트 카드 표시, 탭하여 열기"
+    }
+
+    val multiWebModeDrawerDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "左上角菜单或侧滑打开站点列表"
+        AppLanguage.ENGLISH -> "Site list in a side menu, top-left button or edge swipe"
+        AppLanguage.ARABIC -> "قائمة المواقع في قائمة جانبية، زر أعلى اليسار أو سحب من الحافة"
+        AppLanguage.PORTUGUESE -> "Lista de sites em menu lateral, botão superior ou deslize da borda"
+        AppLanguage.SPANISH -> "Lista de sitios en menú lateral, botón superior o deslizamiento"
+        AppLanguage.FRENCH -> "Liste des sites dans un menu latéral, bouton ou balayage"
+        AppLanguage.GERMAN -> "Seitenliste im Seitenmenü, oben links oder Wischgeste"
+        AppLanguage.RUSSIAN -> "Список сайтов в боковом меню, кнопка или свайп от края"
+        AppLanguage.JAPANESE -> "サイドメニューでサイト一覧、左上ボタンか端スワイプ"
+        AppLanguage.KOREAN -> "사이드 메뉴의 사이트 목록, 좌상단 버튼 또는 가장자리 스와이프"
+    }
+
+    val multiWebModeFeedDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "聚合各站点文章列表，适合资讯类站点"
+        AppLanguage.ENGLISH -> "Aggregates article lists from all sites, best for news/blog sites"
+        AppLanguage.ARABIC -> "يجمع قوائم المقالات من كل المواقع، مناسب لمواقع الأخبار"
+        AppLanguage.PORTUGUESE -> "Agrega listas de artigos de todos os sites, ideal para notícias/blogs"
+        AppLanguage.SPANISH -> "Agrega listas de artículos de todos los sitios, ideal para noticias/blogs"
+        AppLanguage.FRENCH -> "Agrège les articles de tous les sites, idéal pour l'actualité/blogs"
+        AppLanguage.GERMAN -> "Aggregiert Artikellisten aller Seiten, ideal für News/Blogs"
+        AppLanguage.RUSSIAN -> "Собирает статьи со всех сайтов в ленту, для новостей/блогов"
+        AppLanguage.JAPANESE -> "全サイトの記事を集約、ニュース/ブログ向け"
+        AppLanguage.KOREAN -> "모든 사이트의 글을 모아 보여줌, 뉴스/블로그에 적합"
+    }
+
+    val multiWebShowSiteIcons: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "卡片上显示站点图标"
+        AppLanguage.ENGLISH -> "Show site icons on cards"
+        AppLanguage.ARABIC -> "إظهار أيقونات المواقع على البطاقات"
+        AppLanguage.PORTUGUESE -> "Mostrar ícones dos sites nos cartões"
+        AppLanguage.SPANISH -> "Mostrar iconos de sitios en tarjetas"
+        AppLanguage.FRENCH -> "Afficher les icônes sur les cartes"
+        AppLanguage.GERMAN -> "Seiten-Icons auf Karten anzeigen"
+        AppLanguage.RUSSIAN -> "Показывать значки сайтов на карточках"
+        AppLanguage.JAPANESE -> "カードにサイトアイコンを表示"
+        AppLanguage.KOREAN -> "카드에 사이트 아이콘 표시"
+    }
+
+    val multiWebFeedEmpty: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "暂无文章"
+        AppLanguage.ENGLISH -> "No articles found"
+        AppLanguage.ARABIC -> "لا توجد مقالات"
+        AppLanguage.PORTUGUESE -> "Nenhum artigo encontrado"
+        AppLanguage.SPANISH -> "No se encontraron artículos"
+        AppLanguage.FRENCH -> "Aucun article trouvé"
+        AppLanguage.GERMAN -> "Keine Artikel gefunden"
+        AppLanguage.RUSSIAN -> "Статей не найдено"
+        AppLanguage.JAPANESE -> "記事が見つかりません"
+        AppLanguage.KOREAN -> "글이 없습니다"
+    }
+
+    val multiWebFeedEmptyHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "站点暂无可聚合的内容，点右上角刷新重试"
+        AppLanguage.ENGLISH -> "Nothing to aggregate yet — tap refresh to retry"
+        AppLanguage.ARABIC -> "لا يوجد محتوى للتجميع بعد — انقر على تحديث لإعادة المحاولة"
+        AppLanguage.PORTUGUESE -> "Nada para agregar ainda — toque em atualizar para tentar de novo"
+        AppLanguage.SPANISH -> "Aún no hay contenido para agregar — toca actualizar para reintentar"
+        AppLanguage.FRENCH -> "Rien à agréger pour l'instant — touchez actualiser pour réessayer"
+        AppLanguage.GERMAN -> "Noch nichts zum Aggregieren — zum Wiederholen aktualisieren tippen"
+        AppLanguage.RUSSIAN -> "Пока нечего собирать — нажмите «Обновить» для повтора"
+        AppLanguage.JAPANESE -> "集約するコンテンツがありません — 更新をタップして再試行"
+        AppLanguage.KOREAN -> "아직 집계할 콘텐츠가 없습니다 — 새로고침을 눌러 다시 시도하세요"
+    }
+
+    val multiWebFeedStats: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "来自 %2\$d 个站点的 %1\$d 篇文章"
+        AppLanguage.ENGLISH -> "%1\$d articles from %2\$d sites"
+        AppLanguage.ARABIC -> "%1\$d مقالات من %2\$d مواقع"
+        AppLanguage.PORTUGUESE -> "%1\$d artigos de %2\$d sites"
+        AppLanguage.SPANISH -> "%1\$d artículos de %2\$d sitios"
+        AppLanguage.FRENCH -> "%1\$d articles de %2\$d sites"
+        AppLanguage.GERMAN -> "%1\$d Artikel aus %2\$d Seiten"
+        AppLanguage.RUSSIAN -> "%1\$d статей с %2\$d сайтов"
+        AppLanguage.JAPANESE -> "%2\$d サイトから %1\$d 件の記事"
+        AppLanguage.KOREAN -> "%2\$d개 사이트의 글 %1\$d개"
+    }
+
+    val multiWebNoSiteSelected: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "未选择站点"
+        AppLanguage.ENGLISH -> "No site selected"
+        AppLanguage.ARABIC -> "لم يتم اختيار موقع"
+        AppLanguage.PORTUGUESE -> "Nenhum site selecionado"
+        AppLanguage.SPANISH -> "Ningún sitio seleccionado"
+        AppLanguage.FRENCH -> "Aucun site sélectionné"
+        AppLanguage.GERMAN -> "Keine Seite ausgewählt"
+        AppLanguage.RUSSIAN -> "Сайт не выбран"
+        AppLanguage.JAPANESE -> "サイトが選択されていません"
+        AppLanguage.KOREAN -> "선택된 사이트 없음"
     }
 
     val multiWebAddSite: String get() = when (Strings.lang) {
@@ -14424,6 +14730,30 @@ object StringsA {
         AppLanguage.JAPANESE -> "有効期間（日）"
         AppLanguage.KOREAN -> "유효기간 (일)"
     }
+    val activationCodeExpiryDays: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "截止天数（自生成日起，留空永久）"
+        AppLanguage.ENGLISH -> "Expires in (days from creation, blank = never)"
+        AppLanguage.ARABIC -> "ينتهي بعد (أيام من الإنشاء، فارغ = أبدًا)"
+        AppLanguage.PORTUGUESE -> "Expira em (dias desde a criação, vazio = nunca)"
+        AppLanguage.SPANISH -> "Caduca en (días desde la creación, vacío = nunca)"
+        AppLanguage.FRENCH -> "Expire dans (jours depuis la création, vide = jamais)"
+        AppLanguage.GERMAN -> "Läuft ab in (Tage ab Erstellung, leer = nie)"
+        AppLanguage.RUSSIAN -> "Истекает через (дней с создания, пусто = никогда)"
+        AppLanguage.JAPANESE -> "有効期限（生成日からの日数、空欄は無期限）"
+        AppLanguage.KOREAN -> "만료 기간(생성일부터 일수, 비우면 무제한)"
+    }
+    val activationCodeValidUntil: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "截止 %s"
+        AppLanguage.ENGLISH -> "Until %s"
+        AppLanguage.ARABIC -> "حتى %s"
+        AppLanguage.PORTUGUESE -> "Até %s"
+        AppLanguage.SPANISH -> "Hasta %s"
+        AppLanguage.FRENCH -> "Jusqu'au %s"
+        AppLanguage.GERMAN -> "Bis %s"
+        AppLanguage.RUSSIAN -> "До %s"
+        AppLanguage.JAPANESE -> "期限 %s"
+        AppLanguage.KOREAN -> "만료 %s"
+    }
 
     val usageCount: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "使用次数"
@@ -14608,16 +14938,16 @@ object StringsA {
     }
 
     val requireEveryLaunchHintOn: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "每次打开应用都需要输入激活码"
-        AppLanguage.ENGLISH -> "Enter activation code every time app opens"
-        AppLanguage.ARABIC -> "أدخل رمز التفعيل في كل مرة يفتح فيها التطبيق"
-        AppLanguage.PORTUGUESE -> "Insira o código de ativação toda vez que o app abrir"
-        AppLanguage.SPANISH -> "Introduce el código de activación cada vez que se abre la app"
-        AppLanguage.FRENCH -> "Saisir le code d'activation à chaque ouverture de l'app"
-        AppLanguage.GERMAN -> "Bei jedem Öffnen der App Aktivierungscode eingeben"
-        AppLanguage.RUSSIAN -> "Вводите код активации при каждом открытии приложения"
-        AppLanguage.JAPANESE -> "アプリを開くたびにアクティベーションコードを入力"
-        AppLanguage.KOREAN -> "앱을 열 때마다 활성화 코드 입력"
+        AppLanguage.CHINESE -> "每次启动重新验证上次的激活卡，失效或被移除才需重新输入"
+        AppLanguage.ENGLISH -> "Re-verify the last card on every launch; re-entry only if it lapsed or was revoked"
+        AppLanguage.ARABIC -> "إعادة التحقق من آخر بطاقة عند كل تشغيل؛ لا يُطلب الإدخال إلا إذا انتهت أو أُلغيت"
+        AppLanguage.PORTUGUESE -> "Reverificar o último cartão a cada abertura; só pede o código se expirar ou for revogado"
+        AppLanguage.SPANISH -> "Reverificar la última tarjeta en cada inicio; solo pide el código si caducó o fue revocada"
+        AppLanguage.FRENCH -> "Revérifie la dernière carte à chaque lancement ; ne redemande le code que si elle a expiré ou été révoquée"
+        AppLanguage.GERMAN -> "Letzte Karte bei jedem Start erneut prüfen; Eingabe nur nötig, wenn sie abgelaufen oder widerrufen ist"
+        AppLanguage.RUSSIAN -> "Перепроверять последнюю карту при каждом запуске; код запрашивается, только если она истекла или отозвана"
+        AppLanguage.JAPANESE -> "起動ごとに前回のカードを再検証。失効・削除時のみ再入力が必要"
+        AppLanguage.KOREAN -> "매번 실행 시 이전 카드를 재검증. 만료·폐기된 경우에만 다시 입력"
     }
 
     val requireEveryLaunchHintOff: String get() = when (Strings.lang) {
@@ -15872,6 +16202,22 @@ object StringsA {
         AppLanguage.KOREAN -> "활성화됨"
     }
 
+    // Shown on the activation record inside the code prompt when a valid grant
+    // exists but this launch still requires verification. Never claims "已激活"
+    // while a code is being demanded.
+    val activationNeedsReverify: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "需重新验证"
+        AppLanguage.ENGLISH -> "Re-verification required"
+        AppLanguage.ARABIC -> "يلزم إعادة التحقق"
+        AppLanguage.PORTUGUESE -> "Requer nova verificação"
+        AppLanguage.SPANISH -> "Se requiere reverificación"
+        AppLanguage.FRENCH -> "Revérification requise"
+        AppLanguage.GERMAN -> "Erneute Prüfung erforderlich"
+        AppLanguage.RUSSIAN -> "Требуется повторная проверка"
+        AppLanguage.JAPANESE -> "再検証が必要です"
+        AppLanguage.KOREAN -> "재검증 필요"
+    }
+
     val activationExpired: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "激活已失效"
         AppLanguage.ENGLISH -> "Activation expired"
@@ -16443,6 +16789,31 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Если включено, целевой URL доставляется сервером проверки после успешной активации вместо упаковки (URL можно оставить пустым). Сервер должен включать подписанное поле url в ответ."
         AppLanguage.JAPANESE -> "有効にすると、ターゲットURLはパッケージ化される代わりに、アクティベーション成功後に検証サーバーから配信されます（URLは空欄可）。サーバーは応答に署名付きのurlフィールドを含める必要があります。"
         AppLanguage.KOREAN -> "활성화 시, 대상 URL이 패키징되는 대신 활성화 성공 후 검증 서버에서 전달됩니다(URL은 비워둘 수 있음). 서버는 응답에 서명된 url 필드를 포함해야 합니다."
+    }
+
+    val remoteActivationDeviceBoundTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "设备绑定（一码一次）"
+        AppLanguage.ENGLISH -> "Device binding (one-time codes)"
+        AppLanguage.ARABIC -> "ربط الجهاز (رموز لمرة واحدة)"
+        AppLanguage.PORTUGUESE -> "Vínculo de dispositivo (códigos únicos)"
+        AppLanguage.SPANISH -> "Vinculación de dispositivo (códigos de un solo uso)"
+        AppLanguage.FRENCH -> "Liaison d'appareil (codes à usage unique)"
+        AppLanguage.GERMAN -> "Gerätebindung (Einmalcodes)"
+        AppLanguage.RUSSIAN -> "Привязка к устройству (одноразовые коды)"
+        AppLanguage.JAPANESE -> "デバイスバインディング（使い切りコード）"
+        AppLanguage.KOREAN -> "기기 바인딩(일회용 코드)"
+    }
+    val remoteActivationDeviceBoundHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "需要远程验证。开启后，激活请求携带设备标识，由服务器执行绑定：每个码默认限 1 台设备（首个激活的设备占座），其他设备激活将被拒绝。卸载重装不换设备不受影响；清除数据/换机后需服务器释放座位。本地（离线）验证无法实现此能力。"
+        AppLanguage.ENGLISH -> "Requires remote verification. The activation request carries a device identifier and the server enforces binding: each code is limited to 1 device by default (the first device to activate claims the seat); other devices are rejected. Reinstalling on the same device is unaffected; after clearing data or switching devices the server must release the seat. Not possible with local (offline) verification."
+        AppLanguage.ARABIC -> "يتطلب التحقق عن بُعد. يحمل طلب التفعيل معرّف الجهاز ويقوم الخادم بالربط: كل رمز محدود بجهاز واحد افتراضياً (أول جهاز يفعّل يحجز المقعد)؛ تُرفض الأجهزة الأخرى. إعادة التثبيت على نفس الجهاز لا تتأثر؛ بعد مسح البيانات أو تغيير الجهاز يجب أن يفرغ الخادم المقعد. غير ممكن مع التحقق المحلي (دون اتصال)."
+        AppLanguage.PORTUGUESE -> "Requer verificação remota. A solicitação de ativação carrega um identificador de dispositivo e o servidor impõe o vínculo: cada código é limitado a 1 dispositivo por padrão (o primeiro dispositivo a ativar reivindica a vaga); outros dispositivos são rejeitados. Reinstalar no mesmo dispositivo não é afetado; após limpar dados ou trocar de dispositivo o servidor precisa liberar a vaga. Não é possível com verificação local (offline)."
+        AppLanguage.SPANISH -> "Requiere verificación remota. La solicitud de activación lleva un identificador de dispositivo y el servidor aplica la vinculación: cada código está limitado a 1 dispositivo por defecto (el primer dispositivo que activa reclama el cupo); otros dispositivos son rechazados. Reinstalar en el mismo dispositivo no se ve afectado; tras borrar datos o cambiar de dispositivo el servidor debe liberar el cupo. No es posible con verificación local (sin conexión)."
+        AppLanguage.FRENCH -> "Nécessite la vérification distante. La requête d'activation transporte un identifiant d'appareil et le serveur applique la liaison : chaque code est limité à 1 appareil par défaut (le premier appareil qui active réserve la place) ; les autres appareils sont refusés. Réinstaller sur le même appareil n'a aucun effet ; après effacement des données ou changement d'appareil, le serveur doit libérer la place. Impossible avec la vérification locale (hors ligne)."
+        AppLanguage.GERMAN -> "Erfordert Remote-Verifizierung. Die Aktivierungsanfrage überträgt eine Gerätekennung, der Server erzwingt die Bindung: Jeder Code ist standardmäßig auf 1 Gerät begrenzt (das erste Gerät, das aktiviert, belegt den Platz); andere Geräte werden abgelehnt. Neuinstallation auf demselben Gerät bleibt unberührt; nach Datenlöschung oder Gerätewechsel muss der Server den Platz freigeben. Mit lokaler (Offline-)Verifizierung nicht möglich."
+        AppLanguage.RUSSIAN -> "Требуется удалённая проверка. Запрос активации несёт идентификатор устройства, сервер выполняет привязку: каждый код по умолчанию ограничен 1 устройством (первое активировавшее устройство занимает место); другие устройства отклоняются. Переустановка на том же устройстве не влияет; после очистки данных или смены устройства сервер должен освободить место. При локальной (офлайн) проверке невозможно."
+        AppLanguage.JAPANESE -> "リモート検証が必要です。アクティベーション要求にデバイス識別子を含め、サーバー側でバインディングを強制します：各コードは既定で1台のデバイスに制限され（最初にアクティベートしたデバイスが席を確保）、他のデバイスは拒否されます。同じデバイスへの再インストールは影響しません。データ消去や機種変更後はサーバーで席を解放する必要があります。ローカル（オフライン）検証では実現できません。"
+        AppLanguage.KOREAN -> "원격 검증이 필요합니다. 활성화 요청에 기기 식별자를 담아 서버가 바인딩을 강제합니다: 각 코드는 기본적으로 1대의 기기로 제한되며(최초 활성화한 기기가 자리를 차지), 다른 기기는 거부됩니다. 같은 기기에 재설치해도 영향이 없으며, 데이터 삭제나 기기 변경 후에는 서버에서 자리를 해제해야 합니다. 로컬(오프라인) 검증으로는 불가능합니다."
     }
 
     val remoteActivationEncryptUrlTitle: String get() = when (Strings.lang) {
@@ -17117,6 +17488,123 @@ object StringsA {
         AppLanguage.KOREAN -> "저장된 아이콘"
     }
 
+    val uploadToLibrary: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "上传图片"
+        AppLanguage.ENGLISH -> "Upload Image"
+        AppLanguage.ARABIC -> "تحميل صورة"
+        AppLanguage.PORTUGUESE -> "Enviar Imagem"
+        AppLanguage.SPANISH -> "Subir Imagen"
+        AppLanguage.FRENCH -> "Téléverser une image"
+        AppLanguage.GERMAN -> "Bild hochladen"
+        AppLanguage.RUSSIAN -> "Загрузить изображение"
+        AppLanguage.JAPANESE -> "画像をアップロード"
+        AppLanguage.KOREAN -> "이미지 업로드"
+    }
+
+    val uploadToLibraryDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "从相册选择图片，裁剪后存入图标库"
+        AppLanguage.ENGLISH -> "Pick an image from the gallery, crop it, and save it to the library"
+        AppLanguage.ARABIC -> "اختر صورة من المعرض، قصها، واحفظها في المكتبة"
+        AppLanguage.PORTUGUESE -> "Escolha uma imagem da galeria, recorte-a e salve-a na biblioteca"
+        AppLanguage.SPANISH -> "Elige una imagen de la galería, recórtala y guárdala en la biblioteca"
+        AppLanguage.FRENCH -> "Choisissez une image dans la galerie, recadrez-la et enregistrez-la dans la bibliothèque"
+        AppLanguage.GERMAN -> "Bild aus der Galerie wählen, zuschneiden und in der Bibliothek speichern"
+        AppLanguage.RUSSIAN -> "Выберите изображение из галереи, обрежьте его и сохраните в библиотеку"
+        AppLanguage.JAPANESE -> "ギャラリーから画像を選び、クロップしてライブラリに保存"
+        AppLanguage.KOREAN -> "갤러리에서 이미지를 선택하고 자른 뒤 라이브러리에 저장"
+    }
+
+    val cropIcon: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "裁剪图标"
+        AppLanguage.ENGLISH -> "Crop Icon"
+        AppLanguage.ARABIC -> "قص الأيقونة"
+        AppLanguage.PORTUGUESE -> "Recortar Ícone"
+        AppLanguage.SPANISH -> "Recortar Icono"
+        AppLanguage.FRENCH -> "Rogner l'icône"
+        AppLanguage.GERMAN -> "Symbol zuschneiden"
+        AppLanguage.RUSSIAN -> "Обрезать иконку"
+        AppLanguage.JAPANESE -> "アイコンをクロップ"
+        AppLanguage.KOREAN -> "아이콘 자르기"
+    }
+
+    val cropDragHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "拖动或双指缩放调整裁剪区域"
+        AppLanguage.ENGLISH -> "Drag or pinch to adjust the crop area"
+        AppLanguage.ARABIC -> "اسحب أو استخدم إصبعين لضبط منطقة القص"
+        AppLanguage.PORTUGUESE -> "Arraste ou pinça para ajustar a área de corte"
+        AppLanguage.SPANISH -> "Arrastra o pellizca para ajustar el área de recorte"
+        AppLanguage.FRENCH -> "Faites glisser ou pincez pour ajuster la zone de rognage"
+        AppLanguage.GERMAN -> "Ziehen oder auf-/zuziehen, um den Zuschnitt anzupassen"
+        AppLanguage.RUSSIAN -> "Перетащите или сожмите пальцами, чтобы настроить область обрезки"
+        AppLanguage.JAPANESE -> "ドラッグまたはピンチでクロップ範囲を調整"
+        AppLanguage.KOREAN -> "드래그하거나 두 손가락으로 확대/축소하여 영역 조정"
+    }
+
+    val cropRatioSquare: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "方形"
+        AppLanguage.ENGLISH -> "Square"
+        AppLanguage.ARABIC -> "مربع"
+        AppLanguage.PORTUGUESE -> "Quadrado"
+        AppLanguage.SPANISH -> "Cuadrado"
+        AppLanguage.FRENCH -> "Carré"
+        AppLanguage.GERMAN -> "Quadratisch"
+        AppLanguage.RUSSIAN -> "Квадрат"
+        AppLanguage.JAPANESE -> "正方形"
+        AppLanguage.KOREAN -> "정사각형"
+    }
+
+    val cropRatioFree: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自由"
+        AppLanguage.ENGLISH -> "Free"
+        AppLanguage.ARABIC -> "حر"
+        AppLanguage.PORTUGUESE -> "Livre"
+        AppLanguage.SPANISH -> "Libre"
+        AppLanguage.FRENCH -> "Libre"
+        AppLanguage.GERMAN -> "Frei"
+        AppLanguage.RUSSIAN -> "Свободно"
+        AppLanguage.JAPANESE -> "自由"
+        AppLanguage.KOREAN -> "자유"
+    }
+
+    val cropRatioCircle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "圆形"
+        AppLanguage.ENGLISH -> "Circle"
+        AppLanguage.ARABIC -> "دائرة"
+        AppLanguage.PORTUGUESE -> "Círculo"
+        AppLanguage.SPANISH -> "Círculo"
+        AppLanguage.FRENCH -> "Cercle"
+        AppLanguage.GERMAN -> "Kreis"
+        AppLanguage.RUSSIAN -> "Круг"
+        AppLanguage.JAPANESE -> "円形"
+        AppLanguage.KOREAN -> "원형"
+    }
+
+    val cropOriginalSize: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "原图尺寸"
+        AppLanguage.ENGLISH -> "Original Size"
+        AppLanguage.ARABIC -> "الحجم الأصلي"
+        AppLanguage.PORTUGUESE -> "Tamanho Original"
+        AppLanguage.SPANISH -> "Tamaño Original"
+        AppLanguage.FRENCH -> "Taille d'origine"
+        AppLanguage.GERMAN -> "Originalgröße"
+        AppLanguage.RUSSIAN -> "Исходный размер"
+        AppLanguage.JAPANESE -> "元のサイズ"
+        AppLanguage.KOREAN -> "원본 크기"
+    }
+
+    val cropOutputSize: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "输出尺寸"
+        AppLanguage.ENGLISH -> "Output Size"
+        AppLanguage.ARABIC -> "حجم الإخراج"
+        AppLanguage.PORTUGUESE -> "Tamanho de Saída"
+        AppLanguage.SPANISH -> "Tamaño de Salida"
+        AppLanguage.FRENCH -> "Taille de sortie"
+        AppLanguage.GERMAN -> "Ausgabegröße"
+        AppLanguage.RUSSIAN -> "Размер вывода"
+        AppLanguage.JAPANESE -> "出力サイズ"
+        AppLanguage.KOREAN -> "출력 크기"
+    }
+
     val deleteIcon: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "删除图标"
         AppLanguage.ENGLISH -> "Delete Icon"
@@ -17635,6 +18123,32 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Сбросить"
         AppLanguage.JAPANESE -> "リセット"
         AppLanguage.KOREAN -> "재설정"
+    }
+
+    val pageZoomSettingLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "初始页面缩放"
+        AppLanguage.ENGLISH -> "Initial Page Zoom"
+        AppLanguage.ARABIC -> "تكبير الصفحة الابتدائي"
+        AppLanguage.PORTUGUESE -> "Zoom Inicial da Página"
+        AppLanguage.SPANISH -> "Zoom inicial de página"
+        AppLanguage.FRENCH -> "Zoom de page initial"
+        AppLanguage.GERMAN -> "Anfänglicher Seitenzoom"
+        AppLanguage.RUSSIAN -> "Начальный масштаб страницы"
+        AppLanguage.JAPANESE -> "初期ページズーム"
+        AppLanguage.KOREAN -> "초기 페이지 확대"
+    }
+
+    val pageZoomSettingHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "应用启动时应用的页面缩放比例，无需退出全屏使用工具栏"
+        AppLanguage.ENGLISH -> "Page zoom applied at app start — no need to leave fullscreen for the toolbar"
+        AppLanguage.ARABIC -> "تكبير الصفحة المطبق عند بدء التطبيق — لا حاجة لمغادرة ملء الشاشة لاستخدام شريط الأدوات"
+        AppLanguage.PORTUGUESE -> "Zoom de página aplicado ao iniciar o aplicativo — sem precisar sair da tela cheia para usar a barra de ferramentas"
+        AppLanguage.SPANISH -> "Zoom de página aplicado al iniciar la aplicación; no hace falta salir de pantalla completa para usar la barra de herramientas"
+        AppLanguage.FRENCH -> "Zoom de page appliqué au démarrage de l'application — inutile de quitter le plein écran pour utiliser la barre d'outils"
+        AppLanguage.GERMAN -> "Beim App-Start angewandter Seitenzoom — ohne die Symbolleiste im Vollbildmodus verlassen zu müssen"
+        AppLanguage.RUSSIAN -> "Масштаб страницы при запуске приложения — не нужно выходить из полноэкранного режима ради панели инструментов"
+        AppLanguage.JAPANESE -> "アプリ起動時に適用されるページズーム。フルスクリーンを解除してツールバーを使う必要はありません"
+        AppLanguage.KOREAN -> "앱 시작 시 적용되는 페이지 확대/축소 — 전체 화면을 나가 도구 모음을 사용할 필요가 없습니다"
     }
 
     val noConsoleMessages: String get() = when (Strings.lang) {
@@ -18173,6 +18687,19 @@ object StringsA {
 }
 
 object StringsB {
+    val apkAnalysisTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "APK 组成分析"
+        AppLanguage.ENGLISH -> "APK Analysis"
+        AppLanguage.ARABIC -> "تحليل حزمة APK"
+        AppLanguage.PORTUGUESE -> "Análise do APK"
+        AppLanguage.SPANISH -> "Análisis del APK"
+        AppLanguage.FRENCH -> "Analyse de l'APK"
+        AppLanguage.GERMAN -> "APK-Analyse"
+        AppLanguage.RUSSIAN -> "Анализ APK"
+        AppLanguage.JAPANESE -> "APK 構成分析"
+        AppLanguage.KOREAN -> "APK 구성 분석"
+    }
+
     val buildSummaryAppSize: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "体积"
         AppLanguage.ENGLISH -> "Size"
@@ -18486,7 +19013,7 @@ object StringsB {
     }
 
     val refresh: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "Refresh"
+        AppLanguage.CHINESE -> "刷新"
         AppLanguage.ENGLISH -> "Refresh"
         AppLanguage.ARABIC -> "تحديث"
         AppLanguage.PORTUGUESE -> "Atualizar"
@@ -24407,6 +24934,66 @@ object StringsB {
         AppLanguage.JAPANESE -> "%d件の変更を元に戻しました"
         AppLanguage.KOREAN -> "%d개 변경 실행 취소됨"
     }
+    val agentAppChangesHeader: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "%d 个应用变更"
+        AppLanguage.ENGLISH -> "%d app changes"
+        AppLanguage.ARABIC -> "%d تغييرات على التطبيقات"
+        AppLanguage.PORTUGUESE -> "%d alterações em apps"
+        AppLanguage.SPANISH -> "%d cambios de apps"
+        AppLanguage.FRENCH -> "%d modifications d'apps"
+        AppLanguage.GERMAN -> "%d App-Änderungen"
+        AppLanguage.RUSSIAN -> "%d изменений приложений"
+        AppLanguage.JAPANESE -> "%d件のアプリ変更"
+        AppLanguage.KOREAN -> "%d개 앱 변경"
+    }
+    val agentAppChangesKindCreate: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "新建"
+        AppLanguage.ENGLISH -> "Created"
+        AppLanguage.ARABIC -> "إنشاء"
+        AppLanguage.PORTUGUESE -> "Criado"
+        AppLanguage.SPANISH -> "Creado"
+        AppLanguage.FRENCH -> "Créé"
+        AppLanguage.GERMAN -> "Erstellt"
+        AppLanguage.RUSSIAN -> "Создано"
+        AppLanguage.JAPANESE -> "作成"
+        AppLanguage.KOREAN -> "생성"
+    }
+    val agentAppChangesKindUpdate: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "更新"
+        AppLanguage.ENGLISH -> "Updated"
+        AppLanguage.ARABIC -> "تحديث"
+        AppLanguage.PORTUGUESE -> "Atualizado"
+        AppLanguage.SPANISH -> "Actualizado"
+        AppLanguage.FRENCH -> "Mis à jour"
+        AppLanguage.GERMAN -> "Aktualisiert"
+        AppLanguage.RUSSIAN -> "Обновлено"
+        AppLanguage.JAPANESE -> "更新"
+        AppLanguage.KOREAN -> "업데이트"
+    }
+    val agentAppChangesOpen: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "打开应用"
+        AppLanguage.ENGLISH -> "Open app"
+        AppLanguage.ARABIC -> "فتح التطبيق"
+        AppLanguage.PORTUGUESE -> "Abrir app"
+        AppLanguage.SPANISH -> "Abrir app"
+        AppLanguage.FRENCH -> "Ouvrir l'app"
+        AppLanguage.GERMAN -> "App öffnen"
+        AppLanguage.RUSSIAN -> "Открыть приложение"
+        AppLanguage.JAPANESE -> "アプリを開く"
+        AppLanguage.KOREAN -> "앱 열기"
+    }
+    val agentAppChangesFields: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "变更字段：%s"
+        AppLanguage.ENGLISH -> "Fields: %s"
+        AppLanguage.ARABIC -> "الحقول: %s"
+        AppLanguage.PORTUGUESE -> "Campos: %s"
+        AppLanguage.SPANISH -> "Campos: %s"
+        AppLanguage.FRENCH -> "Champs : %s"
+        AppLanguage.GERMAN -> "Felder: %s"
+        AppLanguage.RUSSIAN -> "Поля: %s"
+        AppLanguage.JAPANESE -> "フィールド: %s"
+        AppLanguage.KOREAN -> "필드: %s"
+    }
     val agentPlanModeBadge: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "Plan 模式"
         AppLanguage.ENGLISH -> "Plan Mode"
@@ -24685,6 +25272,30 @@ object StringsB {
         AppLanguage.RUSSIAN -> "Закрепить"
         AppLanguage.JAPANESE -> "ピン留め"
         AppLanguage.KOREAN -> "고정"
+    }
+    val agentSessionUnpin: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "取消置顶"
+        AppLanguage.ENGLISH -> "Unpin"
+        AppLanguage.ARABIC -> "إلغاء التثبيت"
+        AppLanguage.PORTUGUESE -> "Desafixar"
+        AppLanguage.SPANISH -> "Desfijar"
+        AppLanguage.FRENCH -> "Désépingler"
+        AppLanguage.GERMAN -> "Loslösen"
+        AppLanguage.RUSSIAN -> "Открепить"
+        AppLanguage.JAPANESE -> "ピン留めを解除"
+        AppLanguage.KOREAN -> "고정 해제"
+    }
+    val agentDrawerPinned: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "置顶"
+        AppLanguage.ENGLISH -> "Pinned"
+        AppLanguage.ARABIC -> "مثبتة"
+        AppLanguage.PORTUGUESE -> "Fixadas"
+        AppLanguage.SPANISH -> "Fijadas"
+        AppLanguage.FRENCH -> "Épinglées"
+        AppLanguage.GERMAN -> "Angeheftet"
+        AppLanguage.RUSSIAN -> "Закреплённые"
+        AppLanguage.JAPANESE -> "ピン留め"
+        AppLanguage.KOREAN -> "고정됨"
     }
     val agentSessionDelete: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "删除"
@@ -25107,6 +25718,18 @@ object StringsB {
         AppLanguage.JAPANESE -> "(出力なし)"
         AppLanguage.KOREAN -> "(출력 없음)"
     }
+    val agentEmptyResponse: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "模型返回了空响应（无文本、未调用工具）。若持续出现，请检查接口地址与模型名称是否匹配。"
+        AppLanguage.ENGLISH -> "The model returned an empty response (no text, no tool calls). If this persists, check that the endpoint and model name match."
+        AppLanguage.ARABIC -> "أعاد النموذج استجابة فارغة (لا نص ولا استدعاءات أدوات). إذا تكرر ذلك، تحقق من تطابق نقطة النهاية واسم النموذج."
+        AppLanguage.PORTUGUESE -> "O modelo retornou uma resposta vazia (sem texto e sem chamadas de ferramentas). Se persistir, verifique se o endpoint e o nome do modelo correspondem."
+        AppLanguage.SPANISH -> "El modelo devolvió una respuesta vacía (sin texto ni llamadas a herramientas). Si persiste, comprueba que el endpoint y el nombre del modelo coincidan."
+        AppLanguage.FRENCH -> "Le modèle a renvoyé une réponse vide (aucun texte, aucun appel d'outil). Si cela persiste, vérifiez que l'endpoint et le nom du modèle correspondent."
+        AppLanguage.GERMAN -> "Das Modell lieferte eine leere Antwort (kein Text, keine Tool-Aufrufe). Falls dies bestehen bleibt, prüfe, ob Endpunkt und Modellname zusammenpassen."
+        AppLanguage.RUSSIAN -> "Модель вернула пустой ответ (ни текста, ни вызовов инструментов). Если это повторяется, проверьте соответствие адреса endpoint и имени модели."
+        AppLanguage.JAPANESE -> "モデルが空の応答を返しました（テキストなし、ツール呼び出しなし）。続く場合は、エンドポイントとモデル名が一致しているか確認してください。"
+        AppLanguage.KOREAN -> "모델이 빈 응답을 반환했습니다(텍스트 없음, 도구 호출 없음). 계속되면 엔드포인트와 모델 이름이 일치하는지 확인하세요."
+    }
     val agentAbortedHint: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "[已中断]"
         AppLanguage.ENGLISH -> "[Interrupted]"
@@ -25178,6 +25801,18 @@ object StringsB {
         AppLanguage.RUSSIAN -> "Модель"
         AppLanguage.JAPANESE -> "モデル"
         AppLanguage.KOREAN -> "모델"
+    }
+    val agentModelSearchHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "搜索模型…"
+        AppLanguage.ENGLISH -> "Search models…"
+        AppLanguage.ARABIC -> "البحث في النماذج…"
+        AppLanguage.PORTUGUESE -> "Pesquisar modelos…"
+        AppLanguage.SPANISH -> "Buscar modelos…"
+        AppLanguage.FRENCH -> "Rechercher des modèles…"
+        AppLanguage.GERMAN -> "Modelle suchen…"
+        AppLanguage.RUSSIAN -> "Поиск моделей…"
+        AppLanguage.JAPANESE -> "モデルを検索…"
+        AppLanguage.KOREAN -> "모델 검색…"
     }
     val agentModelPickerProviders: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "供应商"
@@ -34214,29 +34849,29 @@ object StringsC {
     }
 
     val showStatusBar: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "显示状态栏"
-        AppLanguage.ENGLISH -> "Show Status Bar"
-        AppLanguage.ARABIC -> "إظهار شريط الحالة"
-        AppLanguage.PORTUGUESE -> "Mostrar Barra de Status"
-        AppLanguage.SPANISH -> "Mostrar Barra de Estado"
-        AppLanguage.FRENCH -> "Afficher la Barre d'État"
-        AppLanguage.GERMAN -> "Statusleiste anzeigen"
-        AppLanguage.RUSSIAN -> "Показывать строку состояния"
-        AppLanguage.JAPANESE -> "ステータスバーを表示"
-        AppLanguage.KOREAN -> "상태 표시줄 표시"
+        AppLanguage.CHINESE -> "状态栏常驻"
+        AppLanguage.ENGLISH -> "Always show status bar"
+        AppLanguage.ARABIC -> "إبقاء شريط الحالة ظاهرًا دائمًا"
+        AppLanguage.PORTUGUESE -> "Manter barra de status sempre visível"
+        AppLanguage.SPANISH -> "Mantener siempre visible la barra de estado"
+        AppLanguage.FRENCH -> "Toujours afficher la barre d'état"
+        AppLanguage.GERMAN -> "Statusleiste immer anzeigen"
+        AppLanguage.RUSSIAN -> "Всегда показывать строку состояния"
+        AppLanguage.JAPANESE -> "ステータスバーを常に表示"
+        AppLanguage.KOREAN -> "상태 표시줄 항상 표시"
     }
 
     val showStatusBarHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "全屏模式下仍显示状态栏，可解决导航栏问题"
-        AppLanguage.ENGLISH -> "Show status bar in fullscreen mode, can fix navigation bar issues"
-        AppLanguage.ARABIC -> "إظهار شريط الحالة في وضع ملء الشاشة، يمكن أن يحل مشاكل شريط التنقل"
-        AppLanguage.PORTUGUESE -> "Mostrar barra de status no modo tela cheia, pode corrigir problemas da barra de navegação"
-        AppLanguage.SPANISH -> "Mostrar barra de estado en modo pantalla completa, puede solucionar problemas de la barra de navegación"
-        AppLanguage.FRENCH -> "Afficher la barre d'état en mode plein écran, peut corriger les problèmes de barre de navigation"
-        AppLanguage.GERMAN -> "Statusleiste im Vollbildmodus anzeigen, kann Navigationsleistenprobleme beheben"
-        AppLanguage.RUSSIAN -> "Показывать строку состояния в полноэкранном режиме, может решить проблемы с панелью навигации"
-        AppLanguage.JAPANESE -> "全画面モードでステータスバーを表示、ナビゲーションバーの問題を解決できる場合があります"
-        AppLanguage.KOREAN -> "전체 화면 모드에서 상태 표시줄 표시, 내비게이션 바 문제를 해결할 수 있습니다"
+        AppLanguage.CHINESE -> "全屏时状态栏始终显示，不会自动隐藏"
+        AppLanguage.ENGLISH -> "Status bar stays visible in fullscreen and never auto-hides"
+        AppLanguage.ARABIC -> "يبقى شريط الحالة ظاهرًا في ملء الشاشة ولا يختفي تلقائيًا"
+        AppLanguage.PORTUGUESE -> "A barra de status permanece visível em tela cheia e nunca se oculta sozinha"
+        AppLanguage.SPANISH -> "La barra de estado permanece visible en pantalla completa y nunca se oculta sola"
+        AppLanguage.FRENCH -> "La barre d'état reste visible en plein écran et ne se masque jamais toute seule"
+        AppLanguage.GERMAN -> "Die Statusleiste bleibt im Vollbildmodus sichtbar und blendet sich nie automatisch aus"
+        AppLanguage.RUSSIAN -> "Строка состояния остаётся видимой в полноэкранном режиме и никогда не скрывается сама"
+        AppLanguage.JAPANESE -> "全画面でもステータスバーは表示されたままになり、自動では隠れません"
+        AppLanguage.KOREAN -> "전체 화면에서도 상태 표시줄이 계속 표시되며 자동으로 숨겨지지 않습니다"
     }
 
     val showNavigationBar: String get() = when (Strings.lang) {
@@ -34279,29 +34914,29 @@ object StringsC {
     }
 
     val fullscreenContentPaddingHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "全屏模式下给内容四周留白，让屏幕角落的按钮更容易点按，并缓解与返回手势边缘的冲突。若返回手势区仍偏小，可开启上方的“显示导航栏”恢复标准手势区。"
-        AppLanguage.ENGLISH -> "Add padding around content in fullscreen so corner buttons are easier to tap and it conflicts less with the back-gesture edge. If the back-gesture area still feels small, turn on “Show Navigation Bar” above to restore the standard gesture zone."
-        AppLanguage.ARABIC -> "أضف هامشًا حول المحتوى في وضع ملء الشاشة لتسهيل النقر على أزرار الزوايا وتقليل التعارض مع حافة إيماءة الرجوع. إذا ظل منطقة إيماءة الرجوع صغيرة، فعّل «إظهار شريط التنقل» بالأعلى لاستعادة منطقة الإيماءات القياسية."
-        AppLanguage.PORTUGUESE -> "Adicione preenchimento ao redor do conteúdo em tela cheia para facilitar tocar nos botões dos cantos e reduzir conflitos com a borda do gesto de voltar. Se a área do gesto de voltar ainda parecer pequena, ative “Mostrar Barra de Navegação” acima para restaurar a zona padrão de gestos."
-        AppLanguage.SPANISH -> "Añade relleno alrededor del contenido en pantalla completa para que los botones de las esquinas sean más fáciles de tocar y haya menos conflicto con el borde del gesto de retroceso. Si el área del gesto sigue pareciendo pequeña, activa “Mostrar Barra de Navegación” arriba para restaurar la zona estándar de gestos."
-        AppLanguage.FRENCH -> "Ajoutez une marge autour du contenu en plein écran pour faciliter l'appui sur les boutons d'angle et réduire les conflits avec la zone du geste de retour. Si la zone du geste de retour reste petite, activez « Afficher la Barre de Navigation » ci-dessus pour restaurer la zone de gestes standard."
-        AppLanguage.GERMAN -> "Fügt im Vollbildmodus einen Abstand um den Inhalt hinzu, damit Eckbuttons leichter antippbar sind und weniger Konflikte mit der Zurück-Geste-Kante entstehen. Wenn die Zone für die Zurück-Geste noch klein wirkt, aktivieren Sie oben „Navigationsleiste anzeigen“, um die Standard-Gestenzone wiederherzustellen."
-        AppLanguage.RUSSIAN -> "Добавляет отступ вокруг контента в полноэкранном режиме, чтобы кнопки в углах было легче нажимать, и уменьшает конфликт с краем жеста «назад». Если зона жеста «назад» всё ещё мала, включите выше «Показывать панель навигации», чтобы восстановить стандартную зону жестов."
-        AppLanguage.JAPANESE -> "全画面モードでコンテンツの周囲に余白を設け、画面の隅のボタンをタップしやすくし、戻るジェスチャーの縁との競合を和らげます。戻るジェスチャー領域がまだ狭い場合は、上の「ナビゲーションバーを表示」をオンにして標準のジェスチャー領域を復元してください。"
-        AppLanguage.KOREAN -> "전체 화면 모드에서 콘텐츠 주위에 여백을 추가해 화면 모서리의 버튼을 누르기 쉽게 하고, 뒤로 가기 제스처 경계와의 충돌을 줄입니다. 뒤로 가기 제스처 영역이 여전히 좁게 느껴지면 위의 “내비게이션 바 표시”를 켜서 표준 제스처 영역을 복원하세요."
+        AppLanguage.CHINESE -> "全屏时给内容留边，角落按钮更好点，也能缓解返回手势冲突"
+        AppLanguage.ENGLISH -> "Pad content in fullscreen: easier corner taps, fewer edge-gesture conflicts"
+        AppLanguage.ARABIC -> "هامش حول المحتوى في ملء الشاشة: نقر أسهل على أزرار الزوايا وتعاوض أقل مع إيماءات الحافة"
+        AppLanguage.PORTUGUESE -> "Margem no conteúdo em tela cheia: cantos mais fáceis de tocar, menos conflito com gestos de borda"
+        AppLanguage.SPANISH -> "Margen en pantalla completa: esquinas más fáciles y menos conflicto con gestos de borde"
+        AppLanguage.FRENCH -> "Marge en plein écran : boutons d'angle plus faciles, moins de conflits de gestes"
+        AppLanguage.GERMAN -> "Abstand im Vollbild: leichtere Eckbuttons, weniger Kantengesten-Konflikte"
+        AppLanguage.RUSSIAN -> "Отступ в полноэкранном режиме: кнопки в углах удобнее, меньше конфликтов с жестами"
+        AppLanguage.JAPANESE -> "全画面で余白を設け、隅のボタンを押しやすくし、エッジジェスチャーとの競合を軽減"
+        AppLanguage.KOREAN -> "전체 화면 여백: 모서리 버튼이 쉬워지고 가장자리 제스처 충돌 감소"
     }
 
-    val statusBarStyleConfigLabel: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "状态栏样式配置"
-        AppLanguage.ENGLISH -> "Status Bar Style Config"
-        AppLanguage.ARABIC -> "إعدادات نمط شريط الحالة"
-        AppLanguage.PORTUGUESE -> "Configuração de Estilo da Barra de Status"
-        AppLanguage.SPANISH -> "Configuración de Estilo de la Barra de Estado"
-        AppLanguage.FRENCH -> "Configuration du Style de la Barre d'État"
-        AppLanguage.GERMAN -> "Konfiguration des Statusleistenstils"
-        AppLanguage.RUSSIAN -> "Настройка стиля строки состояния"
-        AppLanguage.JAPANESE -> "ステータスバースタイル設定"
-        AppLanguage.KOREAN -> "상태 표시줄 스타일 설정"
+    val statusBarCustomizeLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "状态栏自定义"
+        AppLanguage.ENGLISH -> "Customize status bar"
+        AppLanguage.ARABIC -> "تخصيص شريط الحالة"
+        AppLanguage.PORTUGUESE -> "Personalizar barra de status"
+        AppLanguage.SPANISH -> "Personalizar barra de estado"
+        AppLanguage.FRENCH -> "Personnaliser la barre d'état"
+        AppLanguage.GERMAN -> "Statusleiste anpassen"
+        AppLanguage.RUSSIAN -> "Настроить строку состояния"
+        AppLanguage.JAPANESE -> "ステータスバーをカスタマイズ"
+        AppLanguage.KOREAN -> "상태 표시줄 사용자 설정"
     }
 
     val statusBarLightModeLabel: String get() = when (Strings.lang) {
@@ -34330,43 +34965,69 @@ object StringsC {
         AppLanguage.KOREAN -> "다크 모드"
     }
 
-    val hideBrowserToolbarLabel: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "隐藏工具栏"
-        AppLanguage.ENGLISH -> "Hide Toolbar"
-        AppLanguage.ARABIC -> "إخفاء شريط الأدوات"
-        AppLanguage.PORTUGUESE -> "Ocultar Barra de Ferramentas"
-        AppLanguage.SPANISH -> "Ocultar Barra de Herramientas"
-        AppLanguage.FRENCH -> "Masquer la Barre d'Outils"
-        AppLanguage.GERMAN -> "Symbolleiste ausblenden"
-        AppLanguage.RUSSIAN -> "Скрыть панель инструментов"
-        AppLanguage.JAPANESE -> "ツールバーを非表示"
-        AppLanguage.KOREAN -> "도구 모음 숨기기"
+    val statusBarIconsLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "状态栏图标"
+        AppLanguage.ENGLISH -> "Status bar icons"
+        AppLanguage.ARABIC -> "أيقونات شريط الحالة"
+        AppLanguage.PORTUGUESE -> "Ícones da barra de status"
+        AppLanguage.SPANISH -> "Iconos de la barra de estado"
+        AppLanguage.FRENCH -> "Icônes de la barre d'état"
+        AppLanguage.GERMAN -> "Symbole der Statusleiste"
+        AppLanguage.RUSSIAN -> "Значки строки состояния"
+        AppLanguage.JAPANESE -> "ステータスバーのアイコン"
+        AppLanguage.KOREAN -> "상태 표시줄 아이콘"
     }
 
-    val toolbarContentOptionsLabel: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "工具栏内容"
-        AppLanguage.ENGLISH -> "Toolbar Content"
-        AppLanguage.ARABIC -> "محتوى شريط الأدوات"
-        AppLanguage.PORTUGUESE -> "Conteúdo da Barra de Ferramentas"
-        AppLanguage.SPANISH -> "Contenido de la Barra de Herramientas"
-        AppLanguage.FRENCH -> "Contenu de la Barre d'Outils"
-        AppLanguage.GERMAN -> "Symbolleisteninhalt"
-        AppLanguage.RUSSIAN -> "Содержимое панели инструментов"
-        AppLanguage.JAPANESE -> "ツールバーのコンテンツ"
-        AppLanguage.KOREAN -> "도구 모음 콘텐츠"
+    val statusBarIconsAuto: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动"
+        AppLanguage.ENGLISH -> "Auto"
+        AppLanguage.ARABIC -> "تلقائي"
+        AppLanguage.PORTUGUESE -> "Automático"
+        AppLanguage.SPANISH -> "Automático"
+        AppLanguage.FRENCH -> "Auto"
+        AppLanguage.GERMAN -> "Auto"
+        AppLanguage.RUSSIAN -> "Авто"
+        AppLanguage.JAPANESE -> "自動"
+        AppLanguage.KOREAN -> "자동"
     }
 
-    val toolbarContentOptionsHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "配置浏览器工具栏可见时显示哪些内容"
-        AppLanguage.ENGLISH -> "Choose what appears when the browser toolbar is visible"
-        AppLanguage.ARABIC -> "اختر ما يظهر عند عرض شريط أدوات المتصفح"
-        AppLanguage.PORTUGUESE -> "Escolha o que aparece quando a barra de ferramentas do navegador está visível"
-        AppLanguage.SPANISH -> "Elige qué aparece cuando la barra de herramientas del navegador está visible"
-        AppLanguage.FRENCH -> "Choisissez ce qui apparaît lorsque la barre d'outils du navigateur est visible"
-        AppLanguage.GERMAN -> "Wählen Sie, was angezeigt wird, wenn die Browser-Symbolleiste sichtbar ist"
-        AppLanguage.RUSSIAN -> "Выберите, что отображается, когда панель инструментов браузера видна"
-        AppLanguage.JAPANESE -> "ブラウザツールバーが表示されているときに表示する内容を選択"
-        AppLanguage.KOREAN -> "브라우저 도구 모음이 표시될 때 나타날 항목 선택"
+    val statusBarIconsDark: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "深色"
+        AppLanguage.ENGLISH -> "Dark"
+        AppLanguage.ARABIC -> "داكن"
+        AppLanguage.PORTUGUESE -> "Escuros"
+        AppLanguage.SPANISH -> "Oscuros"
+        AppLanguage.FRENCH -> "Sombres"
+        AppLanguage.GERMAN -> "Dunkel"
+        AppLanguage.RUSSIAN -> "Тёмные"
+        AppLanguage.JAPANESE -> "ダーク"
+        AppLanguage.KOREAN -> "어둡게"
+    }
+
+    val statusBarIconsLight: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "浅色"
+        AppLanguage.ENGLISH -> "Light"
+        AppLanguage.ARABIC -> "فاتح"
+        AppLanguage.PORTUGUESE -> "Claros"
+        AppLanguage.SPANISH -> "Claros"
+        AppLanguage.FRENCH -> "Claires"
+        AppLanguage.GERMAN -> "Hell"
+        AppLanguage.RUSSIAN -> "Светлые"
+        AppLanguage.JAPANESE -> "ライト"
+        AppLanguage.KOREAN -> "밝게"
+    }
+
+    val browserToolbarLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "工具栏"
+        AppLanguage.ENGLISH -> "Toolbar"
+        AppLanguage.ARABIC -> "شريط الأدوات"
+        AppLanguage.PORTUGUESE -> "Barra de Ferramentas"
+        AppLanguage.SPANISH -> "Barra de Herramientas"
+        AppLanguage.FRENCH -> "Barre d'Outils"
+        AppLanguage.GERMAN -> "Symbolleiste"
+        AppLanguage.RUSSIAN -> "Панель инструментов"
+        AppLanguage.JAPANESE -> "ツールバー"
+        AppLanguage.KOREAN -> "도구 모음"
     }
 
     val toolbarShowTitleLabel: String get() = when (Strings.lang) {
@@ -34471,19 +35132,6 @@ object StringsC {
         AppLanguage.RUSSIAN -> "Показывать кнопку консоли"
         AppLanguage.JAPANESE -> "コンソールボタンを表示"
         AppLanguage.KOREAN -> "콘솔 버튼 표시"
-    }
-
-    val toolbarShowZoomLabel: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "显示页面缩放按钮"
-        AppLanguage.ENGLISH -> "Show Page Zoom Button"
-        AppLanguage.ARABIC -> "إظهار زر تكبير الصفحة"
-        AppLanguage.PORTUGUESE -> "Mostrar Botão de Zoom da Página"
-        AppLanguage.SPANISH -> "Mostrar Botón de Zoom de Página"
-        AppLanguage.FRENCH -> "Afficher le Bouton de Zoom de Page"
-        AppLanguage.GERMAN -> "Seiten-Zoom-Button anzeigen"
-        AppLanguage.RUSSIAN -> "Показывать кнопку масштабирования страницы"
-        AppLanguage.JAPANESE -> "ページズームボタンを表示"
-        AppLanguage.KOREAN -> "페이지 확대/축소 버튼 표시"
     }
 
     val toolbarShowFindLabel: String get() = when (Strings.lang) {
@@ -40105,41 +40753,41 @@ object StringsC {
     }
 
     val dnsEchDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "加密 TLS 握手，隐藏你访问的网站域名，防止网络中间人看到你连了哪个站。仅对支持 ECH 的网站生效。"
-        AppLanguage.ENGLISH -> "Encrypts the TLS handshake to hide which website domain you visit from on-path observers. Only effective for sites that support ECH."
-        AppLanguage.ARABIC -> "يشفّر مصافحة TLS لإخفاء اسم نطاق الموقع الذي تزوره عن المراقبين على المسار. يعمل فقط مع المواقع التي تدعم ECH."
-        AppLanguage.PORTUGUESE -> "Criptografa o handshake TLS para ocultar o domínio do site que você visita de observadores no caminho. Efetivo apenas para sites que suportam ECH."
-        AppLanguage.SPANISH -> "Cifra el handshake TLS para ocultar el dominio del sitio web que visitas a observadores en ruta. Solo efectivo para sitios que soportan ECH."
-        AppLanguage.FRENCH -> "Chiffre le handshake TLS pour cacher le domaine du site web que vous visitez aux observateurs sur le chemin. Efficace uniquement pour les sites qui supportent ECH."
-        AppLanguage.GERMAN -> "Verschlüsselt den TLS-Handshake, um die besuchte Website-Domain vor Pfad-Beobachtern zu verbergen. Nur wirksam für Sites, die ECH unterstützen."
-        AppLanguage.RUSSIAN -> "Шифрует TLS-рукопожатие, чтобы скрыть домен посещаемого сайта от наблюдателей на пути. Эффективно только для сайтов, поддерживающих ECH."
-        AppLanguage.JAPANESE -> "TLS ハンドシェイクを暗号化し、経路上の観察者から訪問先のウェブサイトドメインを隠します。ECH をサポートするサイトにのみ有効です。"
-        AppLanguage.KOREAN -> "TLS 핸드셰이크를 암호화하여 경로상 관찰자로부터 방문하는 웹사이트 도메인을 숨깁니다. ECH를 지원하는 사이트에만 유효합니다."
+        AppLanguage.CHINESE -> "加密 TLS 握手，隐藏你访问的网站域名，防止网络中间人看到你连了哪个站。两种引擎均支持；仅对支持 ECH 的网站生效。"
+        AppLanguage.ENGLISH -> "Encrypts the TLS handshake to hide which website domain you visit from on-path observers. Works on both engines; only effective for sites that support ECH."
+        AppLanguage.ARABIC -> "يشفّر مصافحة TLS لإخفاء اسم نطاق الموقع الذي تزوره عن المراقبين على المسار. يعمل على كلا المحركين؛ فعال فقط مع المواقع التي تدعم ECH."
+        AppLanguage.PORTUGUESE -> "Criptografa o handshake TLS para ocultar o domínio do site que você visita de observadores no caminho. Funciona em ambos os motores; efetivo apenas para sites que suportam ECH."
+        AppLanguage.SPANISH -> "Cifra el handshake TLS para ocultar el dominio del sitio web que visitas a observadores en ruta. Funciona en ambos motores; solo efectivo para sitios que soportan ECH."
+        AppLanguage.FRENCH -> "Chiffre le handshake TLS pour cacher le domaine du site web que vous visitez aux observateurs sur le chemin. Fonctionne sur les deux moteurs ; efficace uniquement pour les sites qui supportent ECH."
+        AppLanguage.GERMAN -> "Verschlüsselt den TLS-Handshake, um die besuchte Website-Domain vor Pfad-Beobachtern zu verbergen. Funktioniert auf beiden Engines; nur wirksam für Sites, die ECH unterstützen."
+        AppLanguage.RUSSIAN -> "Шифрует TLS-рукопожатие, чтобы скрыть домен посещаемого сайта от наблюдателей на пути. Работает на обоих движках; эффективно только для сайтов, поддерживающих ECH."
+        AppLanguage.JAPANESE -> "TLS ハンドシェイクを暗号化し、経路上の観察者から訪問先のウェブサイトドメインを隠します。両方のエンジンで動作し、ECH をサポートするサイトにのみ有効です。"
+        AppLanguage.KOREAN -> "TLS 핸드셰이크를 암호화하여 경로상 관찰자로부터 방문하는 웹사이트 도메인을 숨깁니다. 두 엔진 모두에서 작동하며 ECH를 지원하는 사이트에만 유효합니다."
     }
 
     val dnsEchGeckoBadge: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "仅 Gecko"
-        AppLanguage.ENGLISH -> "Gecko only"
-        AppLanguage.ARABIC -> "Gecko فقط"
-        AppLanguage.PORTUGUESE -> "Apenas Gecko"
-        AppLanguage.SPANISH -> "Solo Gecko"
-        AppLanguage.FRENCH -> "Gecko uniquement"
-        AppLanguage.GERMAN -> "Nur Gecko"
-        AppLanguage.RUSSIAN -> "Только Gecko"
-        AppLanguage.JAPANESE -> "Gecko のみ"
-        AppLanguage.KOREAN -> "Gecko 전용"
+        AppLanguage.CHINESE -> "SNI 加密"
+        AppLanguage.ENGLISH -> "Encrypted SNI"
+        AppLanguage.ARABIC -> "SNI مشفّر"
+        AppLanguage.PORTUGUESE -> "SNI criptografado"
+        AppLanguage.SPANISH -> "SNI cifrado"
+        AppLanguage.FRENCH -> "SNI chiffré"
+        AppLanguage.GERMAN -> "Verschlüsseltes SNI"
+        AppLanguage.RUSSIAN -> "Шифрование SNI"
+        AppLanguage.JAPANESE -> "SNI 暗号化"
+        AppLanguage.KOREAN -> "SNI 암호화"
     }
     val dnsEchEngineWarn: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "ECH 需 GeckoView 引擎才能加密 SNI。已自动切换到 GeckoView，构建后请确保已下载 GeckoView 运行时。"
-        AppLanguage.ENGLISH -> "ECH needs the GeckoView engine to encrypt SNI. Switched to GeckoView automatically — make sure the GeckoView runtime is downloaded before building."
-        AppLanguage.ARABIC -> "يحتاج ECH إلى محرك GeckoView لتشفير SNI. تم التبديل إلى GeckoView تلقائياً — تأكد من تنزيل وقت تشغيل GeckoView قبل البناء."
-        AppLanguage.PORTUGUESE -> "ECH precisa do motor GeckoView para criptografar SNI. Mudou para GeckoView automaticamente — certifique-se de baixar o runtime GeckoView antes de construir."
-        AppLanguage.SPANISH -> "ECH necesita el motor GeckoView para cifrar SNI. Se cambió a GeckoView automáticamente — asegúrate de descargar el runtime de GeckoView antes de construir."
-        AppLanguage.FRENCH -> "ECH nécessite le moteur GeckoView pour chiffrer SNI. Basculement vers GeckoView automatique — assurez-vous de télécharger le runtime GeckoView avant la construction."
-        AppLanguage.GERMAN -> "ECH benötigt die GeckoView-Engine, um SNI zu verschlüsseln. Automatisch auf GeckoView umgeschaltet — stellen Sie sicher, dass die GeckoView-Laufzeitumgebung vor dem Build heruntergeladen ist."
-        AppLanguage.RUSSIAN -> "ECH требует движок GeckoView для шифрования SNI. Автоматически переключено на GeckoView — убедитесь, что среда выполнения GeckoView загружена перед сборкой."
-        AppLanguage.JAPANESE -> "ECH は SNI を暗号化するために GeckoView エンジンが必要です。自動的に GeckoView に切り替わりました — ビルド前に GeckoView ランタイムがダウンロード済みであることを確認してください。"
-        AppLanguage.KOREAN -> "ECH는 SNI 암호화를 위해 GeckoView 엔진이 필요합니다. 자동으로 GeckoView로 전환되었습니다 — 빌드 전에 GeckoView 런타임이 다운로드되어 있는지 확인하세요."
+        AppLanguage.CHINESE -> "系统内核下 ECH 经本地桥接的 Chromium 网络组件实现：首次使用会自动下载组件（约 14MB），导出的 APK 将内置；与 SOCKS 上游代理互斥。若本地桥未启用，连接将回退为普通加密。"
+        AppLanguage.ENGLISH -> "On the system engine ECH rides the locally-bridged Chromium network component: first use auto-downloads it (~14 MB) and exported APKs embed it; mutually exclusive with a SOCKS upstream proxy. Without the component the connection falls back to ordinary encryption."
+        AppLanguage.ARABIC -> "على محرك النظام يعمل ECH عبر مكوّن شبكة Chromium المتصل محليًا: الاستخدام الأول ينزّله تلقائيًا (حوالي 14 ميغابايت) وتُدمجه ملفات APK المصدَّرة؛ وهو حصري مع وكيل SOCKS. بدونه تعود الاتصالات إلى التشفير العادي."
+        AppLanguage.PORTUGUESE -> "No motor do sistema, o ECH usa o componente de rede Chromium conectado localmente: o primeiro uso o baixa automaticamente (~14 MB) e os APKs exportados o incorporam; é mutuamente exclusivo com um proxy SOCKS upstream. Sem ele, a conexão volta à criptografia comum."
+        AppLanguage.SPANISH -> "En el motor del sistema, ECH funciona mediante el componente de red Chromium conectado localmente: el primer uso lo descarga automáticamente (~14 MB) y los APK exportados lo incorporan; es mutuamente excluyente con un proxy SOCKS. Sin él, la conexión vuelve al cifrado ordinario."
+        AppLanguage.FRENCH -> "Sur le moteur système, ECH passe par le composant réseau Chromium relié localement : le premier usage le télécharge automatiquement (~14 Mo) et les APK exportés l'intègrent ; il est mutuellement exclusif avec un proxy SOCKS. Sans lui, la connexion revient au chiffrement ordinaire."
+        AppLanguage.GERMAN -> "Auf der System-Engine läuft ECH über die lokal angebundene Chromium-Netzkomponente: Die erste Nutzung lädt sie automatisch herunter (~14 MB), exportierte APKs binden sie ein; gegenseitig ausgeschlossen mit einem SOCKS-Upstream. Ohne sie fällt die Verbindung auf gewöhnliche Verschlüsselung zurück."
+        AppLanguage.RUSSIAN -> "На системном движке ECH работает через локально подключённый сетевой компонент Chromium: первое использование скачивает его автоматически (~14 МБ), экспортируемые APK встраивают его; взаимоисключается с прокси SOCKS. Без него соединение откатывается к обычному шифрованию."
+        AppLanguage.JAPANESE -> "システムエンジンでは ECH はローカルにブリッジされた Chromium ネットワークコンポーネント経由で動作します。初回使用時に自動ダウンロード（約 14MB）され、エクスポートされた APK には組み込まれます。SOCKS 上流プロキシとは排他です。コンポーネントがない場合は通常の暗号化にフォールバックします。"
+        AppLanguage.KOREAN -> "시스템 엔진에서 ECH는 로컬로 브리지된 Chromium 네트워크 컴포넌트를 통해 작동합니다. 최초 사용 시 자동 다운로드(약 14MB)되며 내보낸 APK에는 포함됩니다. SOCKS 업스트림 프록시와는 상호 배타적입니다. 컴포넌트가 없으면 일반 암호화로 폴백합니다."
     }
 
     val browserDisguiseTitle: String get() = when (Strings.lang) {
@@ -41091,6 +41739,110 @@ object StringsD {
         AppLanguage.KOREAN -> "이 카테고리를 삭제하시겠습니까? 이 카테고리의 앱은 미분류로 변경됩니다."
     }
 
+    val manageCategories: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "管理分类"
+        AppLanguage.ENGLISH -> "Manage Categories"
+        AppLanguage.ARABIC -> "إدارة التصنيفات"
+        AppLanguage.PORTUGUESE -> "Gerenciar Categorias"
+        AppLanguage.SPANISH -> "Gestionar Categorías"
+        AppLanguage.FRENCH -> "Gérer les Catégories"
+        AppLanguage.GERMAN -> "Kategorien verwalten"
+        AppLanguage.RUSSIAN -> "Управление категориями"
+        AppLanguage.JAPANESE -> "カテゴリを管理"
+        AppLanguage.KOREAN -> "카테고리 관리"
+    }
+
+    val categoriesEmptyHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "还没有分类，点「添加分类」创建一个"
+        AppLanguage.ENGLISH -> "No categories yet — tap \"Add Category\" to create one"
+        AppLanguage.ARABIC -> "لا توجد تصنيفات بعد — اضغط \"إضافة تصنيف\" لإنشاء واحد"
+        AppLanguage.PORTUGUESE -> "Ainda não há categorias — toque em \"Adicionar Categoria\" para criar uma"
+        AppLanguage.SPANISH -> "Aún no hay categorías — toca \"Añadir Categoría\" para crear una"
+        AppLanguage.FRENCH -> "Aucune catégorie pour l'instant — touchez « Ajouter une Catégorie » pour en créer une"
+        AppLanguage.GERMAN -> "Noch keine Kategorien — tippe auf „Kategorie hinzufügen“, um eine zu erstellen"
+        AppLanguage.RUSSIAN -> "Категорий пока нет — нажмите «Добавить категорию», чтобы создать"
+        AppLanguage.JAPANESE -> "カテゴリはまだありません —「カテゴリを追加」で作成できます"
+        AppLanguage.KOREAN -> "아직 카테고리가 없습니다 — \"카테고리 추가\"를 눌러 만드세요"
+    }
+
+    val iconGroupCommon: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "常用"
+        AppLanguage.ENGLISH -> "Common"
+        AppLanguage.ARABIC -> "شائعة"
+        AppLanguage.PORTUGUESE -> "Comuns"
+        AppLanguage.SPANISH -> "Comunes"
+        AppLanguage.FRENCH -> "Courantes"
+        AppLanguage.GERMAN -> "Häufig"
+        AppLanguage.RUSSIAN -> "Частые"
+        AppLanguage.JAPANESE -> "よく使う"
+        AppLanguage.KOREAN -> "자주 사용"
+    }
+
+    val iconGroupMedia: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "媒体"
+        AppLanguage.ENGLISH -> "Media"
+        AppLanguage.ARABIC -> "وسائط"
+        AppLanguage.PORTUGUESE -> "Mídia"
+        AppLanguage.SPANISH -> "Medios"
+        AppLanguage.FRENCH -> "Médias"
+        AppLanguage.GERMAN -> "Medien"
+        AppLanguage.RUSSIAN -> "Медиа"
+        AppLanguage.JAPANESE -> "メディア"
+        AppLanguage.KOREAN -> "미디어"
+    }
+
+    val iconGroupWorkStudy: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "工作学习"
+        AppLanguage.ENGLISH -> "Work & Study"
+        AppLanguage.ARABIC -> "عمل ودراسة"
+        AppLanguage.PORTUGUESE -> "Trabalho e Estudo"
+        AppLanguage.SPANISH -> "Trabajo y Estudio"
+        AppLanguage.FRENCH -> "Travail et Études"
+        AppLanguage.GERMAN -> "Arbeit & Studium"
+        AppLanguage.RUSSIAN -> "Работа и учёба"
+        AppLanguage.JAPANESE -> "仕事と学び"
+        AppLanguage.KOREAN -> "작업·학습"
+    }
+
+    val iconGroupLifeTravel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "生活出行"
+        AppLanguage.ENGLISH -> "Life & Travel"
+        AppLanguage.ARABIC -> "حياة وسفر"
+        AppLanguage.PORTUGUESE -> "Vida e Viagem"
+        AppLanguage.SPANISH -> "Vida y Viajes"
+        AppLanguage.FRENCH -> "Vie et Voyages"
+        AppLanguage.GERMAN -> "Leben & Reisen"
+        AppLanguage.RUSSIAN -> "Жизнь и поездки"
+        AppLanguage.JAPANESE -> "生活と旅行"
+        AppLanguage.KOREAN -> "생활·여행"
+    }
+
+    val iconGroupTools: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "工具"
+        AppLanguage.ENGLISH -> "Tools"
+        AppLanguage.ARABIC -> "أدوات"
+        AppLanguage.PORTUGUESE -> "Ferramentas"
+        AppLanguage.SPANISH -> "Herramientas"
+        AppLanguage.FRENCH -> "Outils"
+        AppLanguage.GERMAN -> "Werkzeuge"
+        AppLanguage.RUSSIAN -> "Инструменты"
+        AppLanguage.JAPANESE -> "ツール"
+        AppLanguage.KOREAN -> "도구"
+    }
+
+    val iconGroupFun: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "趣味"
+        AppLanguage.ENGLISH -> "Fun"
+        AppLanguage.ARABIC -> "ترفيه"
+        AppLanguage.PORTUGUESE -> "Diversão"
+        AppLanguage.SPANISH -> "Diversión"
+        AppLanguage.FRENCH -> "Loisirs"
+        AppLanguage.GERMAN -> "Spaß"
+        AppLanguage.RUSSIAN -> "Развлечения"
+        AppLanguage.JAPANESE -> "趣味"
+        AppLanguage.KOREAN -> "재미"
+    }
+
     val randomNameTooltip: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "点击生成随机应用名称"
         AppLanguage.ENGLISH -> "Click to generate a random app name"
@@ -41650,6 +42402,58 @@ object StringsD {
         AppLanguage.KOREAN -> "이러한 브라우저는 WebView 제공자로 지원될 수 있습니다"
     }
 
+    val webViewProvidersTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "可作为 WebView 提供者的应用"
+        AppLanguage.ENGLISH -> "Apps that can provide WebView"
+        AppLanguage.ARABIC -> "التطبيقات التي يمكنها توفير WebView"
+        AppLanguage.PORTUGUESE -> "Apps que podem ser provedores WebView"
+        AppLanguage.SPANISH -> "Apps que pueden ser proveedores WebView"
+        AppLanguage.FRENCH -> "Apps pouvant fournir WebView"
+        AppLanguage.GERMAN -> "Apps als WebView-Anbieter"
+        AppLanguage.RUSSIAN -> "Приложения-поставщики WebView"
+        AppLanguage.JAPANESE -> "WebView プロバイダーになれるアプリ"
+        AppLanguage.KOREAN -> "WebView 제공자가 될 수 있는 앱"
+    }
+
+    val webViewProvidersDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "仅列出系统白名单中允许作为 WebView 实现的已安装应用"
+        AppLanguage.ENGLISH -> "Only installed apps whitelisted by the system as WebView implementations"
+        AppLanguage.ARABIC -> "يعرض فقط التطبيقات المثبتة الموجودة في القائمة البيضاء للنظام كتطبيقات WebView"
+        AppLanguage.PORTUGUESE -> "Lista apenas apps instalados permitidos pelo sistema como implementações WebView"
+        AppLanguage.SPANISH -> "Solo se listan las apps instaladas permitidas por el sistema como WebView"
+        AppLanguage.FRENCH -> "Seules les apps installées autorisées par le système comme implémentations WebView"
+        AppLanguage.GERMAN -> "Nur installierte Apps aus der System-Whitelist für WebView-Implementierungen"
+        AppLanguage.RUSSIAN -> "Только установленные приложения из системного белого списка WebView"
+        AppLanguage.JAPANESE -> "システムのホワイトリストにある WebView 実装として許可されたインストール済みアプリのみ"
+        AppLanguage.KOREAN -> "시스템 화이트리스트에서 WebView 구현으로 허용된 설치 앱만 표시"
+    }
+
+    val noOtherWebViewProviders: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "此设备上没有其他可作为 WebView 提供者的应用"
+        AppLanguage.ENGLISH -> "No other WebView-capable providers installed"
+        AppLanguage.ARABIC -> "لا توجد موفرات WebView أخرى مثبتة"
+        AppLanguage.PORTUGUESE -> "Nenhum outro provedor WebView instalado"
+        AppLanguage.SPANISH -> "No hay otros proveedores WebView instalados"
+        AppLanguage.FRENCH -> "Aucun autre fournisseur WebView installé"
+        AppLanguage.GERMAN -> "Keine weiteren WebView-Anbieter installiert"
+        AppLanguage.RUSSIAN -> "Других поставщиков WebView не установлено"
+        AppLanguage.JAPANESE -> "他の WebView プロバイダーはインストールされていません"
+        AppLanguage.KOREAN -> "설치된 다른 WebView 제공자가 없습니다"
+    }
+
+    val singleWebViewProviderNote: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "此设备只有一个 WebView 实现，系统不支持切换"
+        AppLanguage.ENGLISH -> "This device has a single WebView implementation; switching is not supported"
+        AppLanguage.ARABIC -> "يحتوي هذا الجهاز على تطبيق WebView واحد فقط؛ التبديل غير مدعوم"
+        AppLanguage.PORTUGUESE -> "Este dispositivo tem uma única implementação WebView; a troca não é suportada"
+        AppLanguage.SPANISH -> "Este dispositivo solo tiene una implementación WebView; no se puede cambiar"
+        AppLanguage.FRENCH -> "Cet appareil n'a qu'une seule implémentation WebView ; le changement n'est pas possible"
+        AppLanguage.GERMAN -> "Dieses Gerät hat nur eine WebView-Implementierung; ein Wechsel wird nicht unterstützt"
+        AppLanguage.RUSSIAN -> "На этом устройстве только одна реализация WebView; переключение не поддерживается"
+        AppLanguage.JAPANESE -> "この端末には WebView 実装が 1 つしかなく、切り替えはサポートされていません"
+        AppLanguage.KOREAN -> "이 기기에는 WebView 구현이 하나뿐이며 전환을 지원하지 않습니다"
+    }
+
     val noBrowserInstalled: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "未检测到支持 WebView 的浏览器"
         AppLanguage.ENGLISH -> "No WebView-capable browser detected"
@@ -41921,6 +42725,19 @@ object StringsD {
         AppLanguage.RUSSIAN -> "Расширения"
         AppLanguage.JAPANESE -> "拡張機能"
         AppLanguage.KOREAN -> "확장 프로그램"
+    }
+
+    val moduleDeleteConfirm: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "确定要删除这个模块吗？"
+        AppLanguage.ENGLISH -> "Delete this module?"
+        AppLanguage.ARABIC -> "هل تريد حذف هذه الوحدة؟"
+        AppLanguage.PORTUGUESE -> "Excluir este módulo?"
+        AppLanguage.SPANISH -> "¿Eliminar este módulo?"
+        AppLanguage.FRENCH -> "Supprimer ce module ?"
+        AppLanguage.GERMAN -> "Dieses Modul löschen?"
+        AppLanguage.RUSSIAN -> "Удалить этот модуль?"
+        AppLanguage.JAPANESE -> "このモジュールを削除しますか？"
+        AppLanguage.KOREAN -> "이 모듈을 삭제할까요?"
     }
 
     val userScriptsTab: String get() = when (Strings.lang) {
@@ -51419,6 +52236,32 @@ object StringsD {
 }
 
 object StringsE {
+    val sponsorSectionTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "赞助商"
+        AppLanguage.ENGLISH -> "Sponsor"
+        AppLanguage.ARABIC -> "الراعي"
+        AppLanguage.PORTUGUESE -> "Patrocinador"
+        AppLanguage.SPANISH -> "Patrocinador"
+        AppLanguage.FRENCH -> "Sponsor"
+        AppLanguage.GERMAN -> "Sponsor"
+        AppLanguage.RUSSIAN -> "Спонсор"
+        AppLanguage.JAPANESE -> "スポンサー"
+        AppLanguage.KOREAN -> "스폰서"
+    }
+
+    val sponsorSwiftproxyDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "高性能轮换住宅代理提供商,专注反封禁解决方案,提升数据采集成功率。"
+        AppLanguage.ENGLISH -> "High-performance rotating residential proxies with anti-ban solutions that boost data-collection success rates."
+        AppLanguage.ARABIC -> "بروكسي سكنية دوّارة عالية الأداء مع حلول مضادة للحظر ترفع معدل نجاح جمع البيانات."
+        AppLanguage.PORTUGUESE -> "Proxies residenciais rotativos de alto desempenho com soluções antibanimento que aumentam a taxa de sucesso da coleta de dados."
+        AppLanguage.SPANISH -> "Proxies residenciales rotativos de alto rendimiento con soluciones antibloqueo que aumentan la tasa de éxito de la recolección de datos."
+        AppLanguage.FRENCH -> "Proxies résidentiels rotatifs haute performance avec des solutions anti-blocage qui augmentent le taux de succès de la collecte de données."
+        AppLanguage.GERMAN -> "Hochleistungs-Rotating-Residential-Proxies mit Anti-Ban-Lösungen, die die Erfolgsquote beim Datensammeln erhöhen."
+        AppLanguage.RUSSIAN -> "Высокопроизводительные ротационные резидентные прокси с антиблокировочными решениями, повышающими успешность сбора данных."
+        AppLanguage.JAPANESE -> "アンチバソリューションでデータ収集の成功率を高める、高性能ローテーティングレジデンシャルプロキシ。"
+        AppLanguage.KOREAN -> "안티밴 솔루션으로 데이터 수집 성공률을 높이는 고성능 로테이팅 레지덴셜 프록시입니다."
+    }
+
     val communityExtStoreTitle: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "社区扩展商店"
         AppLanguage.ENGLISH -> "Community Extension Store"
@@ -51647,17 +52490,57 @@ object StringsE {
     }
 
     val greasyForkTab: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "GreasyFork 脚本"
-        AppLanguage.ENGLISH -> "GreasyFork Scripts"
-        AppLanguage.ARABIC -> "سكربتات GreasyFork"
-        AppLanguage.PORTUGUESE -> "Scripts GreasyFork"
-        AppLanguage.SPANISH -> "Scripts GreasyFork"
-        AppLanguage.FRENCH -> "Scripts GreasyFork"
-        AppLanguage.GERMAN -> "GreasyFork-Skripte"
-        AppLanguage.RUSSIAN -> "Скрипты GreasyFork"
-        AppLanguage.JAPANESE -> "GreasyFork スクリプト"
-        AppLanguage.KOREAN -> "GreasyFork 스크립트"
+        AppLanguage.CHINESE -> "GreasyFork"
+        AppLanguage.ENGLISH -> "GreasyFork"
+        AppLanguage.ARABIC -> "GreasyFork"
+        AppLanguage.PORTUGUESE -> "GreasyFork"
+        AppLanguage.SPANISH -> "GreasyFork"
+        AppLanguage.FRENCH -> "GreasyFork"
+        AppLanguage.GERMAN -> "GreasyFork"
+        AppLanguage.RUSSIAN -> "GreasyFork"
+        AppLanguage.JAPANESE -> "GreasyFork"
+        AppLanguage.KOREAN -> "GreasyFork"
     }
+
+    val noGreasyForkScripts: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "暂无 GreasyFork 脚本"
+        AppLanguage.ENGLISH -> "No GreasyFork scripts yet"
+        AppLanguage.ARABIC -> "لا توجد سكربتات GreasyFork بعد"
+        AppLanguage.PORTUGUESE -> "Ainda não há scripts do GreasyFork"
+        AppLanguage.SPANISH -> "Aún no hay scripts de GreasyFork"
+        AppLanguage.FRENCH -> "Pas encore de scripts GreasyFork"
+        AppLanguage.GERMAN -> "Noch keine GreasyFork-Skripte"
+        AppLanguage.RUSSIAN -> "Пока нет скриптов GreasyFork"
+        AppLanguage.JAPANESE -> "GreasyFork スクリプトはまだありません"
+        AppLanguage.KOREAN -> "아직 GreasyFork 스크립트가 없습니다"
+    }
+
+    val greasyForkEmptyHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "从扩展商店浏览安装，或导入 .user.js 文件"
+        AppLanguage.ENGLISH -> "Browse the store to install, or import a .user.js file"
+        AppLanguage.ARABIC -> "تصفح المتجر للتثبيت أو استورد ملف .user.js"
+        AppLanguage.PORTUGUESE -> "Navegue pela loja para instalar ou importe um arquivo .user.js"
+        AppLanguage.SPANISH -> "Explora la tienda para instalar o importa un archivo .user.js"
+        AppLanguage.FRENCH -> "Parcourez la boutique pour installer ou importez un fichier .user.js"
+        AppLanguage.GERMAN -> "Im Store stöbern oder eine .user.js-Datei importieren"
+        AppLanguage.RUSSIAN -> "Установите из магазина или импортируйте файл .user.js"
+        AppLanguage.JAPANESE -> "ストアからインストールするか、.user.js ファイルをインポート"
+        AppLanguage.KOREAN -> "스토어에서 설치하거나 .user.js 파일을 가져오세요"
+    }
+
+    val browseGreasyFork: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "逛逛 GreasyFork"
+        AppLanguage.ENGLISH -> "Browse GreasyFork"
+        AppLanguage.ARABIC -> "تصفح GreasyFork"
+        AppLanguage.PORTUGUESE -> "Explorar GreasyFork"
+        AppLanguage.SPANISH -> "Explorar GreasyFork"
+        AppLanguage.FRENCH -> "Parcourir GreasyFork"
+        AppLanguage.GERMAN -> "GreasyFork durchsuchen"
+        AppLanguage.RUSSIAN -> "Открыть GreasyFork"
+        AppLanguage.JAPANESE -> "GreasyFork を見る"
+        AppLanguage.KOREAN -> "GreasyFork 둘러보기"
+    }
+
     val gfSearchHint: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "搜索 GreasyFork 脚本"
         AppLanguage.ENGLISH -> "Search GreasyFork scripts"
@@ -55689,6 +56572,30 @@ object StringsE {
         AppLanguage.JAPANESE -> "SSL 証明書エラー通知"
         AppLanguage.KOREAN -> "SSL 인증서 오류 알림"
     }
+    val ignoreSslErrorsTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "忽略 SSL 证书错误"
+        AppLanguage.ENGLISH -> "Ignore SSL certificate errors"
+        AppLanguage.ARABIC -> "تجاهل أخطاء شهادة SSL"
+        AppLanguage.PORTUGUESE -> "Ignorar erros de certificado SSL"
+        AppLanguage.SPANISH -> "Ignorar errores de certificado SSL"
+        AppLanguage.FRENCH -> "Ignorer les erreurs de certificat SSL"
+        AppLanguage.GERMAN -> "SSL-Zertifikatsfehler ignorieren"
+        AppLanguage.RUSSIAN -> "Игнорировать ошибки SSL-сертификата"
+        AppLanguage.JAPANESE -> "SSL 証明書エラーを無視"
+        AppLanguage.KOREAN -> "SSL 인증서 오류 무시"
+    }
+    val ignoreSslErrorsDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "加载证书过期、不匹配或不受信任的 HTTPS 站点（含其图片与脚本）。将对该应用关闭 TLS 中间人防护，有被劫持风险；仅系统内核有效，且可能影响 Google Play 审核。"
+        AppLanguage.ENGLISH -> "Load HTTPS sites whose certificate is expired, mismatched, or untrusted (including their images and scripts). Disables TLS man-in-the-middle protection for the whole app and risks interception; system engine only, and may fail Google Play review."
+        AppLanguage.ARABIC -> "تحميل مواقع HTTPS التي انتهت شهادتها أو غير مطابقة أو غير موثوقة (بما في ذلك صورها ونصوصها البرمجية). يعطّل حماية TLS من الاعتراض للتطبيق بالكامل ويعرّضه للاختراق؛ محرك النظام فقط، وقد يفشل في مراجعة Google Play."
+        AppLanguage.PORTUGUESE -> "Carrega sites HTTPS cujo certificado está expirado, incompatível ou não confiável (incluindo suas imagens e scripts). Desativa a proteção TLS contra interceptação para todo o app e arrisca sequestro do tráfego; apenas no motor do sistema, e pode falhar na revisão do Google Play."
+        AppLanguage.SPANISH -> "Carga sitios HTTPS cuyo certificado esté caducado, no coincida o no sea de confianza (incluidas sus imágenes y scripts). Desactiva la protección TLS contra intercepción para toda la app y arriesga secuestros; solo en el motor del sistema, y puede fallar la revisión de Google Play."
+        AppLanguage.FRENCH -> "Charge les sites HTTPS dont le certificat est expiré, non concordant ou non fiable (images et scripts compris). Désactive la protection TLS contre l'interception pour toute l'application et fait courir un risque d'interception ; moteur système uniquement, et peut échouer à la vérification Google Play."
+        AppLanguage.GERMAN -> "Lädt HTTPS-Seiten mit abgelaufenem, nicht übereinstimmendem oder nicht vertrauenswürdigem Zertifikat (inkl. Bilder und Skripte). Deaktiviert den TLS-Man-in-the-Middle-Schutz für die gesamte App und birgt Abfang-Risiken; nur System-Engine, und kann die Google-Play-Prüfung verfehlen."
+        AppLanguage.RUSSIAN -> "Загружает HTTPS-сайты с просроченным, несоответствующим или недоверенным сертификатом (включая их изображения и скрипты). Отключает защиту TLS от перехвата для всего приложения и рискует перехватом трафика; только системный движок, и может не пройти проверку Google Play."
+        AppLanguage.JAPANESE -> "証明書の期限切れ・不一致・信頼できない HTTPS サイトを（画像やスクリプトを含めて）読み込みます。アプリ全体の TLS 中間者攻撃防御を無効化し、通信の傍受リスクが生じます。システムエンジン専用で、Google Play 審査で却下される可能性があります。"
+        AppLanguage.KOREAN -> "인증서가 만료되었거나 불일치 또는 신뢰할 수 없는 HTTPS 사이트(이미지와 스크립트 포함)를 로드합니다. 앱 전체의 TLS 중간자 공격 방어를 비활성화하여 가로채기 위험이 있으며, 시스템 엔진 전용이고 Google Play 심사에서 거부될 수 있습니다."
+    }
 
     val showRenderCrashErrorUiTitle: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "渲染崩溃提示"
@@ -56337,6 +57244,30 @@ object StringsE {
         AppLanguage.JAPANESE -> "一致なし"
         AppLanguage.KOREAN -> "결과 없음"
     }
+    val codeEditorBinaryFile: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "此文件是二进制文件（图片、字体等），不支持文本编辑"
+        AppLanguage.ENGLISH -> "This file is binary (image, font, etc.) and cannot be edited as text"
+        AppLanguage.ARABIC -> "هذا ملف ثنائي (صورة أو خط وما إلى ذلك) ولا يمكن تحريره كنص"
+        AppLanguage.PORTUGUESE -> "Este arquivo é binário (imagem, fonte etc.) e não pode ser editado como texto"
+        AppLanguage.SPANISH -> "Este archivo es binario (imagen, fuente, etc.) y no se puede editar como texto"
+        AppLanguage.FRENCH -> "Ce fichier est binaire (image, police, etc.) et ne peut pas être modifié comme texte"
+        AppLanguage.GERMAN -> "Diese Datei ist binär (Bild, Schriftart usw.) und kann nicht als Text bearbeitet werden"
+        AppLanguage.RUSSIAN -> "Этот файл бинарный (изображение, шрифт и т.п.) и не может быть изменён как текст"
+        AppLanguage.JAPANESE -> "このファイルはバイナリ（画像・フォントなど）のため、テキスト編集できません"
+        AppLanguage.KOREAN -> "이 파일은 바이너리(이미지, 글꼴 등)이므로 텍스트로 편집할 수 없습니다"
+    }
+    val codeEditorFileTooLarge: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "文件过大（超过 1 MB），不支持在应用内编辑"
+        AppLanguage.ENGLISH -> "File is too large (over 1 MB) to edit in-app"
+        AppLanguage.ARABIC -> "الملف كبير جدًا (أكثر من 1 ميغابايت) ولا يمكن تحريره داخل التطبيق"
+        AppLanguage.PORTUGUESE -> "O arquivo é grande demais (mais de 1 MB) para editar no app"
+        AppLanguage.SPANISH -> "El archivo es demasiado grande (más de 1 MB) para editarse en la app"
+        AppLanguage.FRENCH -> "Le fichier est trop volumineux (plus de 1 Mo) pour être modifié dans l'appli"
+        AppLanguage.GERMAN -> "Die Datei ist zu groß (über 1 MB), um sie in der App zu bearbeiten"
+        AppLanguage.RUSSIAN -> "Файл слишком большой (более 1 МБ) для редактирования в приложении"
+        AppLanguage.JAPANESE -> "ファイルが大きすぎる（1 MB 超）ため、アプリ内では編集できません"
+        AppLanguage.KOREAN -> "파일이 너무 커서(1 MB 초과) 앱에서 편집할 수 없습니다"
+    }
     val orWriteDirectly: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "或直接编写"
         AppLanguage.ENGLISH -> "or write directly"
@@ -56753,6 +57684,32 @@ object StringsE {
         AppLanguage.JAPANESE -> "有効にすると、一般的なパケットキャプチャツール（例：Charles、Fiddler）はウェブコンテンツを傍受できなくなります。アプリはシステムプロキシを無視し、キャプチャ証明書を拒否します。アプリ内部のプロキシには影響しません。"
         AppLanguage.KOREAN -> "활성화하면 일반적인 패킷 캡처 도구(예: Charles, Fiddler)가 웹 콘텐츠를 가로채지 못합니다. 앱은 시스템 프록시를 무시하고 캡처 인증서를 거부합니다. 앱 내부 프록시에는 영향을 주지 않습니다."
     }
+    val hideStatusBarInVideoFullscreenTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "视频全屏时隐藏状态栏"
+        AppLanguage.ENGLISH -> "Hide Status Bar in Video Fullscreen"
+        AppLanguage.ARABIC -> "إخفاء شريط الحالة في وضع ملء الشاشة للفيديو"
+        AppLanguage.PORTUGUESE -> "Ocultar Barra de Status em Tela Cheia de Vídeo"
+        AppLanguage.SPANISH -> "Ocultar Barra de Estado en Pantalla Completa de Vídeo"
+        AppLanguage.FRENCH -> "Masquer la Barre d'État en Plein Écran Vidéo"
+        AppLanguage.GERMAN -> "Statusleiste im Video-Vollbild ausblenden"
+        AppLanguage.RUSSIAN -> "Скрывать строку состояния в полноэкранном видео"
+        AppLanguage.JAPANESE -> "動画全画面時にステータスバーを非表示"
+        AppLanguage.KOREAN -> "동영상 전체 화면 시 상태 표시줄 숨기기"
+    }
+
+    val hideStatusBarInVideoFullscreenDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "网页视频进入全屏播放时自动隐藏状态栏，退出全屏后恢复（默认开启）"
+        AppLanguage.ENGLISH -> "Automatically hide the status bar when a web video enters fullscreen playback and restore it on exit (on by default)"
+        AppLanguage.ARABIC -> "إخفاء شريط الحالة تلقائيًا عند دخول فيديو الويب في وضع ملء الشاشة واستعادته عند الخروج (مفعّل افتراضيًا)"
+        AppLanguage.PORTUGUESE -> "Oculta automaticamente a barra de status quando um vídeo da web entra em tela cheia e a restaura ao sair (ativado por padrão)"
+        AppLanguage.SPANISH -> "Oculta automáticamente la barra de estado cuando un vídeo web entra en pantalla completa y la restaura al salir (activado de forma predeterminada)"
+        AppLanguage.FRENCH -> "Masque automatiquement la barre d'état lorsqu'une vidéo Web passe en plein écran et la restaure à la sortie (activé par défaut)"
+        AppLanguage.GERMAN -> "Blendet die Statusleiste automatisch aus, wenn ein Webvideo in den Vollbildmodus wechselt, und stellt sie beim Beenden wieder her (standardmäßig aktiviert)"
+        AppLanguage.RUSSIAN -> "Автоматически скрывает строку состояния, когда веб-видео переходит в полноэкранный режим, и восстанавливает её после выхода (включено по умолчанию)"
+        AppLanguage.JAPANESE -> "ウェブ動画が全画面再生になるとステータスバーを自動的に非表示にし、終了すると復元します（デフォルトで有効）"
+        AppLanguage.KOREAN -> "웹 동영상이 전체 화면 재생에 들어가면 상태 표시줄을 자동으로 숨기고 종료 시 복원합니다(기본적으로 켜짐)"
+    }
+
     val tlsFingerprintSubtitle: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "伪装 TLS 握手指纹，绕过 JA3/JA4 检测"
         AppLanguage.ENGLISH -> "Spoof TLS handshake fingerprint to bypass JA3/JA4 detection"
@@ -56836,6 +57793,42 @@ object StringsE {
         AppLanguage.RUSSIAN -> "При совместном использовании с прокси SOCKS5 повторное рукопожатие TLS проходит через туннель прокси"
         AppLanguage.JAPANESE -> "SOCKS5 プロキシと組み合わせると、TLS 再ハンドシェイクはプロキシトンネルを経由します"
         AppLanguage.KOREAN -> "SOCKS5 프록시와 함께 사용하면 TLS 재핸드셰이크가 프록시 터널을 통과합니다"
+    }
+    val forceHttp3Title: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "强制 HTTP/3 (QUIC)"
+        AppLanguage.ENGLISH -> "Force HTTP/3 (QUIC)"
+        AppLanguage.ARABIC -> "فرض HTTP/3 (QUIC)"
+        AppLanguage.PORTUGUESE -> "Forçar HTTP/3 (QUIC)"
+        AppLanguage.SPANISH -> "Forzar HTTP/3 (QUIC)"
+        AppLanguage.FRENCH -> "Forcer HTTP/3 (QUIC)"
+        AppLanguage.GERMAN -> "HTTP/3 erzwingen (QUIC)"
+        AppLanguage.RUSSIAN -> "Принудительный HTTP/3 (QUIC)"
+        AppLanguage.JAPANESE -> "HTTP/3 を強制 (QUIC)"
+        AppLanguage.KOREAN -> "HTTP/3 강제 (QUIC)"
+    }
+    val forceHttp3Description: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流量经真实 Chromium 网络栈传输，对每个站点从首个请求起优先尝试 QUIC"
+        AppLanguage.ENGLISH -> "Traffic rides the real Chromium network stack; every host tries QUIC from the first request"
+        AppLanguage.ARABIC -> "يستخدم حركة البيانات مكدس الشبكة الحقيقي لـ Chromium؛ كل موقع يجرب QUIC من الطلب الأول"
+        AppLanguage.PORTUGUESE -> "O tráfego usa a pilha de rede real do Chromium; cada host tenta QUIC desde a primeira solicitação"
+        AppLanguage.SPANISH -> "El tráfico usa la pila de red real de Chromium; cada host prueba QUIC desde la primera solicitud"
+        AppLanguage.FRENCH -> "Le trafic passe par la pile réseau réelle de Chromium ; chaque hôte tente QUIC dès la première requête"
+        AppLanguage.GERMAN -> "Der Verkehr läuft über den echten Chromium-Netzwerkstapel; jeder Host versucht QUIC ab der ersten Anfrage"
+        AppLanguage.RUSSIAN -> "Трафик идёт через настоящий сетевой стек Chromium; каждый хост пробует QUIC с первого запроса"
+        AppLanguage.JAPANESE -> "トラフィックは本物の Chromium ネットワークスタックを経由し、各ホストは最初のリクエストから QUIC を試みます"
+        AppLanguage.KOREAN -> "트래픽은 실제 Chromium 네트워크 스택을 통해 흐르며, 각 호스트는 첫 요청부터 QUIC를 시도합니다"
+    }
+    val forceHttp3Note: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "经本地桥将请求转发到内置的 Chromium 网络组件 (Cronet)：对每个目标站点从首个请求起优先建立 HTTP/3 (QUIC/UDP) 连接，不支持的站点自动回退到真实 Chrome 的 TLS 通道，出口指纹即真实 Chromium，无需另行伪装。首次使用会自动下载网络组件（约 14MB），导出的 APK 将内置该组件。与 SOCKS 上游代理互斥：配置 SOCKS 时本开关不生效。"
+        AppLanguage.ENGLISH -> "The local bridge forwards requests to the embedded Chromium network stack (Cronet): every target site is preferred over HTTP/3 (QUIC/UDP) from its first request, sites without h3 fall back to a genuine Chrome TLS path, and the outbound fingerprint is real Chromium — no spoofing needed. First use auto-downloads the network component (~14 MB); exported APKs embed it. Mutually exclusive with a SOCKS upstream: the switch is inert while SOCKS is configured."
+        AppLanguage.ARABIC -> "يعيد الجسر المحلي توجيه الطلبات إلى مكدس شبكة Chromium المدمج (Cronet): يُفضَّل HTTP/3 (QUIC/UDP) لكل موقع مستهدف من طلبه الأول، وتتراجع المواقع بدون h3 إلى مسار TLS حقيقي من Chrome، وبصمة الخروج هي Chromium حقيقي — لا حاجة للانتحال. الاستخدام الأول ينزّل مكوّن الشبكة تلقائيًا (حوالي 14 ميغابايت)؛ وتُدمج ملفات APK المصدَّرة المكوّن. حصري بشكل متبادل مع وكيل SOCKS: لا يعمل المفتاح عند تهيئة SOCKS."
+        AppLanguage.PORTUGUESE -> "A ponte local encaminha as solicitações para a pilha de rede Chromium integrada (Cronet): cada site de destino prefere HTTP/3 (QUIC/UDP) desde a primeira solicitação, sites sem h3 recuam para um caminho TLS genuíno do Chrome, e a impressão digital de saída é o Chromium real — sem necessidade de falsificação. O primeiro uso baixa automaticamente o componente de rede (~14 MB); APKs exportados o incorporam. Mutuamente exclusivo com um proxy SOCKS: a opção fica inerte com o SOCKS configurado."
+        AppLanguage.SPANISH -> "El puente local reenvía las solicitudes a la pila de red Chromium integrada (Cronet): cada sitio de destino prefiere HTTP/3 (QUIC/UDP) desde su primera solicitud, los sitios sin h3 retroceden a una ruta TLS genuina de Chrome, y la huella de salida es Chromium real, sin necesidad de suplantación. El primer uso descarga automáticamente el componente de red (~14 MB); los APK exportados lo incorporan. Mutuamente excluyente con un proxy SOCKS: la opción queda inerte con SOCKS configurado."
+        AppLanguage.FRENCH -> "Le pont local transmet les requêtes à la pile réseau Chromium intégrée (Cronet) : chaque site cible privilégie HTTP/3 (QUIC/UDP) dès sa première requête, les sites sans h3 reviennent à un chemin TLS authentique de Chrome, et l'empreinte sortante est du vrai Chromium — aucune usurpation nécessaire. La première utilisation télécharge automatiquement le composant réseau (~14 Mo) ; les APK exportés l'intègrent. Mutuellement exclusif avec un proxy SOCKS : l'option est inactive si SOCKS est configuré."
+        AppLanguage.GERMAN -> "Die lokale Bridge leitet Anfragen an den eingebetteten Chromium-Netzwerkstapel (Cronet) weiter: Jede Zielseite bevorzugt HTTP/3 (QUIC/UDP) ab der ersten Anfrage, Seiten ohne h3 fallen auf einen echten Chrome-TLS-Pfad zurück, und der ausgehende Fingerabdruck ist echtes Chromium — kein Spoofing nötig. Die erste Nutzung lädt die Netzkomponente automatisch herunter (~14 MB); exportierte APKs binden sie ein. Gegenseitig ausgeschlossen mit einem SOCKS-Upstream: Der Schalter ist wirkungslos, wenn SOCKS konfiguriert ist."
+        AppLanguage.RUSSIAN -> "Локальный мост перенаправляет запросы во встроенный сетевой стек Chromium (Cronet): каждому целевому сайту предпочтителен HTTP/3 (QUIC/UDP) с первого запроса, сайты без h3 откатываются на подлинный TLS-путь Chrome, а исходящий отпечаток — настоящий Chromium, подмена не нужна. Первый запуск автоматически скачивает сетевой компонент (~14 МБ); экспортируемые APK встраивают его. Взаимно исключается с вышестоящим SOCKS: при настроенном SOCKS переключатель не действует."
+        AppLanguage.JAPANESE -> "ローカルブリッジはリクエストを内蔵の Chromium ネットワークスタック (Cronet) へ転送します。各ターゲットサイトは最初のリクエストから HTTP/3 (QUIC/UDP) を優先し、h3 非対応サイトは本物の Chrome TLS 経路にフォールバックします。送出フィンガープリントは本物の Chromium そのものであり、偽装は不要です。初回使用時にネットワークコンポーネント（約 14MB）を自動ダウンロードし、エクスポートされた APK には組み込まれます。SOCKS 上流プロキシとは排他で、SOCKS 設定時はこのスイッチは無効になります。"
+        AppLanguage.KOREAN -> "로컬 브리지는 요청을 내장된 Chromium 네트워크 스택(Cronet)으로 전달합니다. 각 대상 사이트는 첫 요청부터 HTTP/3(QUIC/UDP)를 우선 시도하고, h3를 지원하지 않는 사이트는 진짜 Chrome TLS 경로로 폴백합니다. 송출 핑거프린트는 진짜 Chromium이므로 별도 위장이 필요 없습니다. 최초 사용 시 네트워크 컴포넌트(약 14MB)를 자동 다운로드하며, 내보낸 APK에는 포함됩니다. SOCKS 업스트림 프록시와는 상호 배타적이며 SOCKS 구성 시 이 스위치는 동작하지 않습니다."
     }
     val proxyModeNone: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "无代理"
@@ -59901,6 +60894,66 @@ object StringsE {
         AppLanguage.JAPANESE -> "インポート完了: %1\$d/%2\$d アプリ。一部の設定はアプリ再起動後に反映されます。"
         AppLanguage.KOREAN -> "가져오기 완료: %1\$d/%2\$d개 앱. 일부 설정은 앱 재시작 후 적용됩니다."
     }
+    val backupImportSuccessDupes: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导入成功：%1\$d/%2\$d 个应用，跳过 %3\$d 个重复项。部分设置需重启应用后生效。"
+        AppLanguage.ENGLISH -> "Imported: %1\$d/%2\$d apps, skipped %3\$d duplicates. Some settings apply after restarting the app."
+        AppLanguage.ARABIC -> "تم الاستيراد: %1\$d/%2\$d تطبيقات، تم تخطي %3\$d مكررة. تُطبَّق بعض الإعدادات بعد إعادة تشغيل التطبيق."
+        AppLanguage.PORTUGUESE -> "Importados: %1\$d/%2\$d apps, %3\$d duplicados ignorados. Algumas configurações só se aplicam após reiniciar o app."
+        AppLanguage.SPANISH -> "Importados: %1\$d/%2\$d apps, %3\$d duplicados omitidos. Algunas configuraciones se aplican tras reiniciar la app."
+        AppLanguage.FRENCH -> "Importés : %1\$d/%2\$d apps, %3\$d doublons ignorés. Certains réglages s'appliquent après le redémarrage de l'app."
+        AppLanguage.GERMAN -> "Importiert: %1\$d/%2\$d Apps, %3\$d Duplikate übersprungen. Einige Einstellungen werden erst nach App-Neustart wirksam."
+        AppLanguage.RUSSIAN -> "Импортировано: %1\$d/%2\$d приложений, пропущено дубликатов: %3\$d. Некоторые настройки применятся после перезапуска."
+        AppLanguage.JAPANESE -> "インポート完了: %1\$d/%2\$d アプリ、%3\$d 件の重複をスキップ。一部の設定はアプリ再起動後に反映されます。"
+        AppLanguage.KOREAN -> "가져오기 완료: %1\$d/%2\$d개 앱, 중복 %3\$d개 건너뜀. 일부 설정은 앱 재시작 후 적용됩니다."
+    }
+    val backupRestartTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "需要重启应用"
+        AppLanguage.ENGLISH -> "Restart required"
+        AppLanguage.ARABIC -> "إعادة التشغيل مطلوبة"
+        AppLanguage.PORTUGUESE -> "Reinício necessário"
+        AppLanguage.SPANISH -> "Reinicio necesario"
+        AppLanguage.FRENCH -> "Redémarrage requis"
+        AppLanguage.GERMAN -> "Neustart erforderlich"
+        AppLanguage.RUSSIAN -> "Требуется перезапуск"
+        AppLanguage.JAPANESE -> "再起動が必要です"
+        AppLanguage.KOREAN -> "재시작 필요"
+    }
+    val backupRestartMessage: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "部分恢复的设置需要重启应用后才会生效。是否立即重启？"
+        AppLanguage.ENGLISH -> "Some restored settings only take effect after a restart. Restart now?"
+        AppLanguage.ARABIC -> "بعض الإعدادات المستعادة لا تسري إلا بعد إعادة التشغيل. هل تريد إعادة التشغيل الآن؟"
+        AppLanguage.PORTUGUESE -> "Algumas configurações restauradas só entram em vigor após reiniciar. Reiniciar agora?"
+        AppLanguage.SPANISH -> "Algunos ajustes restaurados solo se aplican tras reiniciar. ¿Reiniciar ahora?"
+        AppLanguage.FRENCH -> "Certains réglages restaurés ne prennent effet qu'après un redémarrage. Redémarrer maintenant ?"
+        AppLanguage.GERMAN -> "Einige wiederhergestellte Einstellungen werden erst nach einem Neustart wirksam. Jetzt neu starten?"
+        AppLanguage.RUSSIAN -> "Некоторые восстановленные настройки вступят в силу после перезапуска. Перезапустить сейчас?"
+        AppLanguage.JAPANESE -> "復元された設定の一部は再起動後に反映されます。今すぐ再起動しますか？"
+        AppLanguage.KOREAN -> "복원된 일부 설정은 재시작 후 적용됩니다. 지금 재시작할까요?"
+    }
+    val backupRestartNow: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "立即重启"
+        AppLanguage.ENGLISH -> "Restart now"
+        AppLanguage.ARABIC -> "إعادة التشغيل الآن"
+        AppLanguage.PORTUGUESE -> "Reiniciar agora"
+        AppLanguage.SPANISH -> "Reiniciar ahora"
+        AppLanguage.FRENCH -> "Redémarrer"
+        AppLanguage.GERMAN -> "Jetzt neu starten"
+        AppLanguage.RUSSIAN -> "Перезапустить"
+        AppLanguage.JAPANESE -> "今すぐ再起動"
+        AppLanguage.KOREAN -> "지금 재시작"
+    }
+    val backupRestartLater: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "稍后"
+        AppLanguage.ENGLISH -> "Later"
+        AppLanguage.ARABIC -> "لاحقًا"
+        AppLanguage.PORTUGUESE -> "Mais tarde"
+        AppLanguage.SPANISH -> "Más tarde"
+        AppLanguage.FRENCH -> "Plus tard"
+        AppLanguage.GERMAN -> "Später"
+        AppLanguage.RUSSIAN -> "Позже"
+        AppLanguage.JAPANESE -> "後で"
+        AppLanguage.KOREAN -> "나중에"
+    }
     val scrapeNoHtmlFound: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "抓取完成但未找到有效的 HTML 文件"
         AppLanguage.ENGLISH -> "Scrape completed but no valid HTML files found"
@@ -60487,6 +61540,42 @@ object StringsE {
         AppLanguage.RUSSIAN -> "Адрес API не настроен. Введите базовый URL в настройках"
         AppLanguage.JAPANESE -> "API アドレスが設定されていません。設定でベース URL を入力してください"
         AppLanguage.KOREAN -> "API 주소가 설정되지 않았습니다. 설정에서 Base URL을 입력하세요"
+    }
+    val aiDeleteKeyConfirm: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "确定要删除此 API Key 吗？"
+        AppLanguage.ENGLISH -> "Delete this API key?"
+        AppLanguage.ARABIC -> "هل تريد حذف مفتاح API هذا؟"
+        AppLanguage.PORTUGUESE -> "Excluir esta chave de API?"
+        AppLanguage.SPANISH -> "¿Eliminar esta clave de API?"
+        AppLanguage.FRENCH -> "Supprimer cette clé API ?"
+        AppLanguage.GERMAN -> "Diesen API-Schlüssel löschen?"
+        AppLanguage.RUSSIAN -> "Удалить этот ключ API?"
+        AppLanguage.JAPANESE -> "このAPIキーを削除しますか？"
+        AppLanguage.KOREAN -> "이 API 키를 삭제하시겠습니까?"
+    }
+    val aiDeleteKeyCascade: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "此 Key 正被 %d 个已保存模型使用，将一并删除。"
+        AppLanguage.ENGLISH -> "%d saved model(s) use this key and will be deleted too."
+        AppLanguage.ARABIC -> "يستخدم %d نموذجًا محفوظًا هذا المفتاح وسيتم حذفها أيضًا."
+        AppLanguage.PORTUGUESE -> "%d modelo(s) salvo(s) usam esta chave e também serão excluídos."
+        AppLanguage.SPANISH -> "%d modelo(s) guardado(s) usan esta clave y también se eliminarán."
+        AppLanguage.FRENCH -> "%d modèle(s) enregistré(s) utilisent cette clé et seront aussi supprimés."
+        AppLanguage.GERMAN -> "%d gespeicherte Modell(e) verwenden diesen Schlüssel und werden ebenfalls gelöscht."
+        AppLanguage.RUSSIAN -> "Этот ключ используют %d сохранённых моделей — они тоже будут удалены."
+        AppLanguage.JAPANESE -> "このキーは %d 個の保存済みモデルで使用されており、一緒に削除されます。"
+        AppLanguage.KOREAN -> "이 키를 사용하는 저장된 모델 %d개도 함께 삭제됩니다."
+    }
+    val aiDeleteModelConfirm: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "确定要删除该模型吗？"
+        AppLanguage.ENGLISH -> "Delete this model?"
+        AppLanguage.ARABIC -> "هل تريد حذف هذا النموذج؟"
+        AppLanguage.PORTUGUESE -> "Excluir este modelo?"
+        AppLanguage.SPANISH -> "¿Eliminar este modelo?"
+        AppLanguage.FRENCH -> "Supprimer ce modèle ?"
+        AppLanguage.GERMAN -> "Dieses Modell löschen?"
+        AppLanguage.RUSSIAN -> "Удалить эту модель?"
+        AppLanguage.JAPANESE -> "このモデルを削除しますか？"
+        AppLanguage.KOREAN -> "이 모델을 삭제하시겠습니까?"
     }
     val aiModelListEmpty: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "API 返回的模型列表为空"
@@ -61137,6 +62226,54 @@ object StringsE {
         AppLanguage.RUSSIAN -> "Специальные настройки"
         AppLanguage.JAPANESE -> "特殊設定"
         AppLanguage.KOREAN -> "특수 설정"
+    }
+    val appReturnTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "应用回跳"
+        AppLanguage.ENGLISH -> "App return"
+        AppLanguage.ARABIC -> "العودة إلى التطبيق"
+        AppLanguage.PORTUGUESE -> "Retorno de app"
+        AppLanguage.SPANISH -> "Retorno de app"
+        AppLanguage.FRENCH -> "Retour d'application"
+        AppLanguage.GERMAN -> "App-Rückkehr"
+        AppLanguage.RUSSIAN -> "Возврат в приложение"
+        AppLanguage.JAPANESE -> "アプリへの戻り"
+        AppLanguage.KOREAN -> "앱 복귀"
+    }
+    val appReturnDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "授权完成后，允许第三方应用（QQ、微博等）把控制权交回本应用。关闭后登录仍能打开对应 App，但回调无处可返，系统会提示没有可用于打开的应用。"
+        AppLanguage.ENGLISH -> "Let third-party apps (QQ, Weibo, …) hand control back after an authorization. If off, the login still opens the provider app, but the callback has nowhere to return to and the system reports that no app can handle it."
+        AppLanguage.ARABIC -> "السماح للتطبيقات الخارجية (QQ وWeibo وما شابه) بإعادة التحكم إلى هذا التطبيق بعد التفويض. عند الإيقاف، يفتح تسجيل الدخول تطبيق المزوّد لكن لا يجد الرد مسارًا للعودة."
+        AppLanguage.PORTUGUESE -> "Permitir que apps de terceiros (QQ, Weibo, …) devolvam o controle após a autorização. Se desativado, o login abre o app do provedor, mas o retorno não tem para onde ir."
+        AppLanguage.SPANISH -> "Permitir que apps de terceros (QQ, Weibo, …) devuelvan el control tras la autorización. Si se desactiva, el inicio de sesión abre el app del proveedor, pero la respuesta no tiene a dónde volver."
+        AppLanguage.FRENCH -> "Autoriser des apps tierces (QQ, Weibo, …) à rendre le contrôle après l'autorisation. Désactivé, la connexion ouvre l'app du fournisseur mais le retour n'a plus de cible."
+        AppLanguage.GERMAN -> "Drittanbieter-Apps (QQ, Weibo, …) dürfen die Kontrolle nach der Autorisierung zurückgeben. Deaktiviert öffnet die Anmeldung die Anbieter-App, aber die Rückgabe findet kein Ziel."
+        AppLanguage.RUSSIAN -> "Разрешить сторонним приложениям (QQ, Weibo, …) возвращать управление после авторизации. Если выключено, вход откроет приложение провайдера, но обратному переходу некуда вернуться."
+        AppLanguage.JAPANESE -> "認可後にサードパーティアプリ（QQ、Weibo など）が制御を戻せるようにします。オフの場合、ログインはプロバイダのアプリを開きますが、コールバックの戻り先がなく、対応アプリがないと表示されます。"
+        AppLanguage.KOREAN -> "인증 후 서드파티 앱(QQ, Weibo 등)이 제어권을 되돌려줄 수 있게 합니다. 끄면 로그인이 제공자 앱을 열 수는 있지만 콜백이 돌아갈 곳이 없어 처리할 앱이 없다고 표시됩니다."
+    }
+    val appReturnCustomSchemesLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自定义回跳 scheme"
+        AppLanguage.ENGLISH -> "Custom return schemes"
+        AppLanguage.ARABIC -> "مخططات العودة المخصصة"
+        AppLanguage.PORTUGUESE -> "Esquemas de retorno personalizados"
+        AppLanguage.SPANISH -> "Esquemas de retorno personalizados"
+        AppLanguage.FRENCH -> "Schémas de retour personnalisés"
+        AppLanguage.GERMAN -> "Benutzerdefinierte Rückgabe-Schemata"
+        AppLanguage.RUSSIAN -> "Свои схемы возврата"
+        AppLanguage.JAPANESE -> "カスタム戻りスキーム"
+        AppLanguage.KOREAN -> "사용자 지정 복귀 스킴"
+    }
+    val appReturnCustomSchemesHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "部分平台（如微信）的回调 scheme 与你在该平台注册的应用绑定，需自行填写。每行或用逗号分隔一个，例如 wx1234567890abcdef。"
+        AppLanguage.ENGLISH -> "Some providers (e.g. WeChat) bind the callback scheme to the app id you registered with them, so it cannot ship as a default. One per line or comma-separated, e.g. wx1234567890abcdef."
+        AppLanguage.ARABIC -> "بعض المزوّدين (مثل WeChat) يربطون مخطط الاستجابة بمعرّف التطبيق المسجَّل لديهم، لذا يُدخَل يدويًا. واحد في كل سطر أو مفصولة بفواصل، مثل wx1234567890abcdef."
+        AppLanguage.PORTUGUESE -> "Alguns provedores (ex.: WeChat) vinculam o esquema de retorno ao app id registrado neles e ele não pode vir como padrão. Um por linha ou separados por vírgula, ex.: wx1234567890abcdef."
+        AppLanguage.SPANISH -> "Algunos proveedores (p. ej. WeChat) vinculan el esquema de retorno al app id registrado en ellos y no puede venir por defecto. Uno por línea o separados por comas, p. ej. wx1234567890abcdef."
+        AppLanguage.FRENCH -> "Certains fournisseurs (ex. WeChat) lient le schéma de retour à l'app id enregistré chez eux ; il ne peut donc pas être fourni par défaut. Un par ligne ou séparés par des virgules, ex. wx1234567890abcdef."
+        AppLanguage.GERMAN -> "Manche Anbieter (z. B. WeChat) binden das Rückgabe-Schema an die dort registrierte App-ID, daher ist es nicht als Standard möglich. Eine pro Zeile oder kommagetrennt, z. B. wx1234567890abcdef."
+        AppLanguage.RUSSIAN -> "Некоторые провайдеры (напр. WeChat) привязывают схему возврата к вашему app id, поэтому её нельзя задать по умолчанию. Укажите по одной в строке или через запятую, например wx1234567890abcdef."
+        AppLanguage.JAPANESE -> "一部のプロバイダ（WeChat など）はコールバックスキームを登録済みのアプリ ID に紐づけるため、既定値として提供できません。1 行またはカンマ区切りで入力してください（例: wx1234567890abcdef）。"
+        AppLanguage.KOREAN -> "일부 제공자(예: WeChat)는 콜백 스킴을 등록한 앱 ID에 연결하므로 기본값으로 제공할 수 없습니다. 한 줄에 하나씩 또는 쉼표로 구분해 입력하세요(예: wx1234567890abcdef)."
     }
     val decodeBase64DeepLinksTitle: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "解码 Base64 深度链接"
@@ -62181,6 +63318,12 @@ object StringsE {
      val ratingTriggerLaunches: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "触发启动次数"; AppLanguage.ENGLISH -> "Launches Threshold"; AppLanguage.ARABIC -> "حد عمليات الإطلاق"; AppLanguage.PORTUGUESE -> "Limite de Aberturas"; AppLanguage.SPANISH -> "Umbral de Aperturas"; AppLanguage.FRENCH -> "Seuil de lancements"; AppLanguage.GERMAN -> "Start-Schwelle"; AppLanguage.RUSSIAN -> "Порог запусков"; AppLanguage.JAPANESE -> "起動回数閾値"; AppLanguage.KOREAN -> "시작 횟수 임계값"; }
      fun ratingDaysLabel(count: Int): String = when (Strings.lang) { AppLanguage.CHINESE -> "$count 天"; AppLanguage.ENGLISH -> "$count days"; AppLanguage.ARABIC -> "$count أيام"; AppLanguage.PORTUGUESE -> "$count dias"; AppLanguage.SPANISH -> "$count días"; AppLanguage.FRENCH -> "$count jours"; AppLanguage.GERMAN -> "$count Tage"; AppLanguage.RUSSIAN -> "$count дней"; AppLanguage.JAPANESE -> "$count 日"; AppLanguage.KOREAN -> "$count 일"; }
      fun ratingLaunchesLabel(count: Int): String = when (Strings.lang) { AppLanguage.CHINESE -> "$count 启动"; AppLanguage.ENGLISH -> "$count launches"; AppLanguage.ARABIC -> "$count مرة"; AppLanguage.PORTUGUESE -> "$count aberturas"; AppLanguage.SPANISH -> "$count aperturas"; AppLanguage.FRENCH -> "$count lancements"; AppLanguage.GERMAN -> "$count Starts"; AppLanguage.RUSSIAN -> "$count запусков"; AppLanguage.JAPANESE -> "$count 回起動"; AppLanguage.KOREAN -> "$count 회 시작"; }
+
+    val nativeBridgeCapsGoogleSignIn: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "Google 原生登录"; AppLanguage.ENGLISH -> "Native Google Sign-In"; AppLanguage.ARABIC -> "تسجيل الدخول الأصلي عبر Google"; AppLanguage.PORTUGUESE -> "Login Nativo com Google"; AppLanguage.SPANISH -> "Inicio de Sesión Nativo con Google"; AppLanguage.FRENCH -> "Connexion Google Native"; AppLanguage.GERMAN -> "Native Google-Anmeldung"; AppLanguage.RUSSIAN -> "Нативный вход через Google"; AppLanguage.JAPANESE -> "ネイティブ Google ログイン"; AppLanguage.KOREAN -> "네이티브 Google 로그인"; }
+    val googleSignInClientIdLabel: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "Google Web Client ID"; AppLanguage.ENGLISH -> "Google Web Client ID"; AppLanguage.ARABIC -> "معرّف عميل Google للويب"; AppLanguage.PORTUGUESE -> "Client ID Web do Google"; AppLanguage.SPANISH -> "ID de Cliente Web de Google"; AppLanguage.FRENCH -> "ID client Web Google"; AppLanguage.GERMAN -> "Google Web-Client-ID"; AppLanguage.RUSSIAN -> "Веб-ID клиента Google"; AppLanguage.JAPANESE -> "Google ウェブクライアント ID"; AppLanguage.KOREAN -> "Google 웹 클라이언트 ID"; }
+    val googleSignInClientIdPlaceholder: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.ENGLISH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.ARABIC -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.PORTUGUESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.SPANISH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.FRENCH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.GERMAN -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.RUSSIAN -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.JAPANESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.KOREAN -> "xxxxxxxx.apps.googleusercontent.com"; }
+    val googleSignInHint: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "使用设备上的 Google 账户一键登录。需在 Google Cloud Console 中注册本应用的包名与签名 SHA-1，并填入同一项目的 Web Client ID；网页通过 NativeBridge.googleSignIn() 获取 ID Token。"; AppLanguage.ENGLISH -> "One-tap sign-in with the device's Google accounts. Register this app's package name and signing SHA-1 in Google Cloud Console and enter that project's Web Client ID; the page obtains an ID token via NativeBridge.googleSignIn()."; AppLanguage.ARABIC -> "تسجيل دخول بنقرة واحدة بحسابات Google على الجهاز. سجّل اسم حزمة هذا التطبيق وبصمة SHA-1 للتوقيع في Google Cloud Console وأدخل Web Client ID الخاص بنفس المشروع؛ تحصل الصفحة على ID Token عبر NativeBridge.googleSignIn()."; AppLanguage.PORTUGUESE -> "Login com um toque usando as contas Google do dispositivo. Registre o nome do pacote e o SHA-1 de assinatura deste app no Google Cloud Console e insira o Web Client ID do mesmo projeto; a página obtém um ID Token via NativeBridge.googleSignIn()."; AppLanguage.SPANISH -> "Inicio de sesión con un toque usando las cuentas Google del dispositivo. Registra el nombre de paquete y la huella SHA-1 de firma de esta app en Google Cloud Console e introduce el Web Client ID del mismo proyecto; la página obtiene un ID Token mediante NativeBridge.googleSignIn()."; AppLanguage.FRENCH -> "Connexion en un geste avec les comptes Google de l'appareil. Enregistrez le nom de package et l'empreinte SHA-1 de signature de cette app dans Google Cloud Console et saisissez le Web Client ID du même projet ; la page obtient un ID Token via NativeBridge.googleSignIn()."; AppLanguage.GERMAN -> "Anmeldung mit einem Tipp über die Google-Konten des Geräts. Registrieren Sie den Paketnamen und Signatur-SHA-1 dieser App in der Google Cloud Console und geben Sie die Web-Client-ID desselben Projekts ein; die Seite erhält ein ID-Token über NativeBridge.googleSignIn()."; AppLanguage.RUSSIAN -> "Вход одним касанием через аккаунты Google на устройстве. Зарегистрируйте имя пакета и отпечаток подписи SHA-1 этого приложения в Google Cloud Console и укажите Web Client ID того же проекта; страница получает ID Token через NativeBridge.googleSignIn()."; AppLanguage.JAPANESE -> "端末上の Google アカウントでワンタップ ログイン。Google Cloud Console でこのアプリのパッケージ名と署名 SHA-1 を登録し、同じプロジェクトの Web Client ID を入力してください。ページは NativeBridge.googleSignIn() で ID トークンを取得します。"; AppLanguage.KOREAN -> "기기의 Google 계정으로 원탭 로그인. Google Cloud Console에 이 앱의 패키지 이름과 서명 SHA-1을 등록하고 같은 프로젝트의 웹 클라이언트 ID를 입력하세요. 페이지는 NativeBridge.googleSignIn()으로 ID 토큰을 받습니다."; }
+
 
     val geolocationAccuracyLabel: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "精度"; AppLanguage.ENGLISH -> "Accuracy"; AppLanguage.ARABIC -> "الدقة"; AppLanguage.PORTUGUESE -> "Precisão"; AppLanguage.SPANISH -> "Precisión"; AppLanguage.FRENCH -> "Précision"; AppLanguage.GERMAN -> "Genauigkeit"; AppLanguage.RUSSIAN -> "Точность"; AppLanguage.JAPANESE -> "精度"; AppLanguage.KOREAN -> "정확도"; }
     val geolocationAccuracyCoarse: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "粗略"; AppLanguage.ENGLISH -> "Coarse"; AppLanguage.ARABIC -> "تقريبية"; AppLanguage.PORTUGUESE -> "Aproximada"; AppLanguage.SPANISH -> "Aproximada"; AppLanguage.FRENCH -> "Grossière"; AppLanguage.GERMAN -> "Grob"; AppLanguage.RUSSIAN -> "Грубая"; AppLanguage.JAPANESE -> "大まか"; AppLanguage.KOREAN -> "대략"; }
@@ -64020,6 +65163,45 @@ object StringsE {
         AppLanguage.KOREAN -> "APK 암호화를 비활성화하세요. Play는 앱 코드가 감사 가능해야 합니다. 암호화된 APK는 의도 은닉으로 플래그 지정됩니다."
     }
 
+    val rulePathSslIgnore: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "应用编辑 → 特殊设置 → 忽略 SSL 证书错误"
+        AppLanguage.ENGLISH -> "App Editor → Special Settings → Ignore SSL certificate errors"
+        AppLanguage.ARABIC -> "محرر التطبيق ← الإعدادات الخاصة ← تجاهل أخطاء شهادة SSL"
+        AppLanguage.PORTUGUESE -> "Editor do App → Configurações Especiais → Ignorar erros de certificado SSL"
+        AppLanguage.SPANISH -> "Editor de App → Ajustes Especiales → Ignorar errores de certificado SSL"
+        AppLanguage.FRENCH -> "Éditeur d'app → Paramètres spéciaux → Ignorer les erreurs de certificat SSL"
+        AppLanguage.GERMAN -> "App-Editor → Spezialeinstellungen → SSL-Zertifikatsfehler ignorieren"
+        AppLanguage.RUSSIAN -> "Редактор приложения → Специальные настройки → Игнорировать ошибки SSL-сертификата"
+        AppLanguage.JAPANESE -> "アプリエディタ → 特殊設定 → SSL 証明書エラーを無視"
+        AppLanguage.KOREAN -> "앱 에디터 → 특수 설정 → SSL 인증서 오류 무시"
+    }
+
+    val ruleAreaSslIgnore: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "设备和网络滥用（不安全实现）"
+        AppLanguage.ENGLISH -> "Device and Network Abuse (Unsafe Implementation)"
+        AppLanguage.ARABIC -> "إساءة استخدام الجهاز والشبكة (تنفيذ غير آمن)"
+        AppLanguage.PORTUGUESE -> "Abuso de Dispositivo e Rede (Implementação Insegura)"
+        AppLanguage.SPANISH -> "Abuso de Dispositivo y Red (Implementación Insegura)"
+        AppLanguage.FRENCH -> "Abus d'appareil et de réseau (implémentation non sécurisée)"
+        AppLanguage.GERMAN -> "Geräte- und Netzwerkmissbrauch (unsichere Implementierung)"
+        AppLanguage.RUSSIAN -> "Злоупотребление устройством и сетью (небезопасная реализация)"
+        AppLanguage.JAPANESE -> "デバイスとネットワークの濫用（安全でない実装）"
+        AppLanguage.KOREAN -> "기기 및 네트워크 남용 (안전하지 않은 구현)"
+    }
+
+    val ruleFixSslIgnore: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "为上架 Play 关闭「忽略 SSL 证书错误」。该功能会无条件放行证书校验失败(含过期/域名不匹配/不受信任),属于 Play 政策明确列出的不安全实现,审核大概率被拒。仅侧载分发时无此限制。"
+        AppLanguage.ENGLISH -> "Disable Ignore SSL certificate errors before publishing to Play. Proceeding past all certificate failures (expired, mismatched, untrusted) is an unsafe implementation explicitly called out by Play policy and will most likely be rejected. Sideload-only distribution is unaffected."
+        AppLanguage.ARABIC -> "عطّل تجاهل أخطاء شهادة SSL قبل النشر على Play. تجاوز جميع حالات فشل الشهادة (منتهية، غير مطابقة، غير موثوقة) تنفيذ غير آمن تنص عليه سياسة Play صراحةً وسيُرفض على الأرجح. التوزيع بالتثبيت الجانبي غير متأثر."
+        AppLanguage.PORTUGUESE -> "Desative Ignorar erros de certificado SSL antes de publicar no Play. Prosseguir além de todas as falhas de certificado (expirado, incompatível, não confiável) é uma implementação insegura explicitamente citada pela política do Play e provavelmente será rejeitada. Distribuição apenas por sideload não é afetada."
+        AppLanguage.SPANISH -> "Desactiva Ignorar errores de certificado SSL antes de publicar en Play. Continuar ante cualquier fallo de certificado (caducado, no coincidente, no confiable) es una implementación insegura señalada expresamente por la política de Play y lo más probable es que se rechace. La distribución solo por instalación lateral no se ve afectada."
+        AppLanguage.FRENCH -> "Désactivez Ignorer les erreurs de certificat SSL avant de publier sur Play. Passer outre tous les échecs de certificat (expiré, non concordant, non fiable) est une implémentation non sécurisée explicitement visée par la politique Play et sera très probablement rejetée. La distribution par chargement latéral n'est pas concernée."
+        AppLanguage.GERMAN -> "Deaktivieren Sie SSL-Zertifikatsfehler ignorieren, bevor Sie bei Play veröffentlichen. Das Fortfahren trotz aller Zertifikatsfehler (abgelaufen, nicht übereinstimmend, nicht vertrauenswürdig) ist eine unsichere Implementierung, die von der Play-Richtlinie ausdrücklich genannt wird, und wird höchstwahrscheinlich abgelehnt. Reine Sideload-Verteilung ist davon nicht betroffen."
+        AppLanguage.RUSSIAN -> "Отключите «Игнорировать ошибки SSL-сертификата» перед публикацией в Play. Игнорирование всех ошибок сертификата (просрочен, не совпадает, недоверен) — небезопасная реализация, прямо названная политикой Play, и она почти наверняка будет отклонена. Распространение только через sideload не затронуто."
+        AppLanguage.JAPANESE -> "Play で公開する前に「SSL 証明書エラーを無視」を無効化してください。証明書の検証失敗(期限切れ・不一致・信頼不可)をすべて通過させるのは、Play ポリシーが明示する安全でない実装であり、審査落ちする可能性が高いです。サイドロードのみの配布には影響しません。"
+        AppLanguage.KOREAN -> "Play에 게시하기 전에 SSL 인증서 오류 무시를 비활성화하세요. 인증서 검증 실패(만료, 불일치, 신뢰 불가)를 모두 통과시키는 것은 Play 정책이 명시하는 안전하지 않은 구현이며 심사 거절 가능성이 높습니다. 사이드로드 전용 배포에는 영향이 없습니다."
+    }
+
 
     val rulePathBrowserDisguise: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "应用编辑 → 浏览器指纹伪装"
@@ -65435,6 +66617,138 @@ object StringsE {
         AppLanguage.RUSSIAN -> "APK готов (%s)"
         AppLanguage.JAPANESE -> "APK 準備完了 (%s)"
         AppLanguage.KOREAN -> "APK 준비됨 (%s)"
+    }
+
+    // Agent UI rework: tool viewer, copy header, session/file actions
+
+    val agentToolViewFull: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "查看完整内容"
+        AppLanguage.ENGLISH -> "View full output"
+        AppLanguage.ARABIC -> "عرض المحتوى الكامل"
+        AppLanguage.PORTUGUESE -> "Ver conteúdo completo"
+        AppLanguage.SPANISH -> "Ver contenido completo"
+        AppLanguage.FRENCH -> "Voir tout le contenu"
+        AppLanguage.GERMAN -> "Vollständigen Inhalt ansehen"
+        AppLanguage.RUSSIAN -> "Показать полностью"
+        AppLanguage.JAPANESE -> "すべて表示"
+        AppLanguage.KOREAN -> "전체 보기"
+    }
+
+    val agentCopyThinkingHeader: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "💭 思考过程"
+        AppLanguage.ENGLISH -> "💭 Thinking"
+        AppLanguage.ARABIC -> "💭 عملية التفكير"
+        AppLanguage.PORTUGUESE -> "💭 Processo de pensamento"
+        AppLanguage.SPANISH -> "💭 Proceso de pensamiento"
+        AppLanguage.FRENCH -> "💭 Réflexion"
+        AppLanguage.GERMAN -> "💭 Denkprozess"
+        AppLanguage.RUSSIAN -> "💭 Рассуждение"
+        AppLanguage.JAPANESE -> "💭 思考プロセス"
+        AppLanguage.KOREAN -> "💭 사고 과정"
+    }
+
+    val agentSessionRename: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "重命名"
+        AppLanguage.ENGLISH -> "Rename"
+        AppLanguage.ARABIC -> "إعادة تسمية"
+        AppLanguage.PORTUGUESE -> "Renomear"
+        AppLanguage.SPANISH -> "Renombrar"
+        AppLanguage.FRENCH -> "Renommer"
+        AppLanguage.GERMAN -> "Umbenennen"
+        AppLanguage.RUSSIAN -> "Переименовать"
+        AppLanguage.JAPANESE -> "名前を変更"
+        AppLanguage.KOREAN -> "이름 바꾸기"
+    }
+
+    val agentSessionRenameTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "重命名会话"
+        AppLanguage.ENGLISH -> "Rename session"
+        AppLanguage.ARABIC -> "إعادة تسمية الجلسة"
+        AppLanguage.PORTUGUESE -> "Renomear sessão"
+        AppLanguage.SPANISH -> "Renombrar sesión"
+        AppLanguage.FRENCH -> "Renommer la session"
+        AppLanguage.GERMAN -> "Sitzung umbenennen"
+        AppLanguage.RUSSIAN -> "Переименовать сессию"
+        AppLanguage.JAPANESE -> "セッション名を変更"
+        AppLanguage.KOREAN -> "세션 이름 바꾸기"
+    }
+
+    val agentSessionRenameHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "会话名称"
+        AppLanguage.ENGLISH -> "Session name"
+        AppLanguage.ARABIC -> "اسم الجلسة"
+        AppLanguage.PORTUGUESE -> "Nome da sessão"
+        AppLanguage.SPANISH -> "Nombre de la sesión"
+        AppLanguage.FRENCH -> "Nom de la session"
+        AppLanguage.GERMAN -> "Sitzungsname"
+        AppLanguage.RUSSIAN -> "Название сессии"
+        AppLanguage.JAPANESE -> "セッション名"
+        AppLanguage.KOREAN -> "세션 이름"
+    }
+
+    val agentSessionDeleteConfirmTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "删除会话？"
+        AppLanguage.ENGLISH -> "Delete session?"
+        AppLanguage.ARABIC -> "حذف الجلسة؟"
+        AppLanguage.PORTUGUESE -> "Excluir sessão?"
+        AppLanguage.SPANISH -> "¿Eliminar sesión?"
+        AppLanguage.FRENCH -> "Supprimer la session ?"
+        AppLanguage.GERMAN -> "Sitzung löschen?"
+        AppLanguage.RUSSIAN -> "Удалить сессию?"
+        AppLanguage.JAPANESE -> "セッションを削除しますか?"
+        AppLanguage.KOREAN -> "세션을 삭제할까요?"
+    }
+
+    val agentSessionDeleteConfirmMessage: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "将永久删除该会话及其全部消息记录，无法恢复。"
+        AppLanguage.ENGLISH -> "This session and all its messages will be permanently deleted. This cannot be undone."
+        AppLanguage.ARABIC -> "سيتم حذف هذه الجلسة وجميع رسائلها نهائياً. لا يمكن التراجع عن هذا الإجراء."
+        AppLanguage.PORTUGUESE -> "Esta sessão e todas as suas mensagens serão excluídas permanentemente. Isto não pode ser desfeito."
+        AppLanguage.SPANISH -> "Esta sesión y todos sus mensajes se eliminarán permanentemente. No se puede deshacer."
+        AppLanguage.FRENCH -> "Cette session et tous ses messages seront définitivement supprimés. Cette action est irréversible."
+        AppLanguage.GERMAN -> "Diese Sitzung und alle ihre Nachrichten werden dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden."
+        AppLanguage.RUSSIAN -> "Эта сессия и все её сообщения будут удалены безвозвратно. Действие нельзя отменить."
+        AppLanguage.JAPANESE -> "このセッションとすべてのメッセージは完全に削除されます。元に戻すことはできません。"
+        AppLanguage.KOREAN -> "이 세션과 모든 메시지가 영구적으로 삭제되며 되돌릴 수 없습니다."
+    }
+
+    val agentSessionExport: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导出"
+        AppLanguage.ENGLISH -> "Export"
+        AppLanguage.ARABIC -> "تصدير"
+        AppLanguage.PORTUGUESE -> "Exportar"
+        AppLanguage.SPANISH -> "Exportar"
+        AppLanguage.FRENCH -> "Exporter"
+        AppLanguage.GERMAN -> "Exportieren"
+        AppLanguage.RUSSIAN -> "Экспорт"
+        AppLanguage.JAPANESE -> "エクスポート"
+        AppLanguage.KOREAN -> "내보내기"
+    }
+
+    val agentFileDeleteConfirmTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "删除文件？"
+        AppLanguage.ENGLISH -> "Delete file?"
+        AppLanguage.ARABIC -> "حذف الملف؟"
+        AppLanguage.PORTUGUESE -> "Excluir arquivo?"
+        AppLanguage.SPANISH -> "¿Eliminar archivo?"
+        AppLanguage.FRENCH -> "Supprimer le fichier ?"
+        AppLanguage.GERMAN -> "Datei löschen?"
+        AppLanguage.RUSSIAN -> "Удалить файл?"
+        AppLanguage.JAPANESE -> "ファイルを削除しますか?"
+        AppLanguage.KOREAN -> "파일을 삭제할까요?"
+    }
+
+    val agentFileDeleteConfirmMessage: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "将永久删除文件 %s，无法恢复。"
+        AppLanguage.ENGLISH -> "The file %s will be permanently deleted. This cannot be undone."
+        AppLanguage.ARABIC -> "سيتم حذف الملف %s نهائياً. لا يمكن التراجع عن هذا الإجراء."
+        AppLanguage.PORTUGUESE -> "O arquivo %s será excluído permanentemente. Isto não pode ser desfeito."
+        AppLanguage.SPANISH -> "El archivo %s se eliminará permanentemente. No se puede deshacer."
+        AppLanguage.FRENCH -> "Le fichier %s sera définitivement supprimé. Cette action est irréversible."
+        AppLanguage.GERMAN -> "Die Datei %s wird dauerhaft gelöscht. Dies kann nicht rückgängig gemacht werden."
+        AppLanguage.RUSSIAN -> "Файл %s будет удалён безвозвратно. Действие нельзя отменить."
+        AppLanguage.JAPANESE -> "ファイル %s は完全に削除されます。元に戻すことはできません。"
+        AppLanguage.KOREAN -> "파일 %s이(가) 영구적으로 삭제되며 되돌릴 수 없습니다."
     }
 
 }

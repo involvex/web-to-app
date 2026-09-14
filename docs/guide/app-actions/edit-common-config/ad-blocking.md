@@ -8,7 +8,7 @@ Blocks ads in the generated app using hosts rules and cosmetic filtering.
 
 - **Enable** — turn ad blocking on (`adBlockEnabled`).
 - **Rules** — custom blocking rules (`adBlockRules`).
-- **Subscriptions** — filter subscription URLs (`adBlockSubscriptions`).
+- **Subscriptions** — filter subscription URLs (`adBlockSubscriptions`), chosen from the built-in lists and your imported custom sources in [Hosts Ad Blocking](/guide/more-features/hosts-adblock).
 
 ## Notes
 

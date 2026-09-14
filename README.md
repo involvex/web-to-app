@@ -29,6 +29,13 @@
 </p>
 
 <p align="center">
+  <a href="https://www.swiftproxy.net/?ref=shiaho">
+    <img src=".github/assets/sponsors/swiftproxy-logo-full.png" alt="Swiftproxy" width="220" />
+  </a><br/>
+  <a href="https://www.swiftproxy.net/?ref=shiaho"><b>Sponsored by Swiftproxy</b></a> — Swiftproxy · Reliable Residential Proxies for Web Automation
+</p>
+
+<p align="center">
   <a href="#what-makes-webtoapp-different">What's different</a> ·
   <a href="#what-you-can-build">What you can build</a> ·
   <a href="#capability-overview">Capability overview</a> ·
@@ -52,7 +59,7 @@
 Most "website to app" tools stop at wrapping a URL in a WebView. WebToApp is closer to a pocket-sized APK workshop, and the hard parts are exactly where it diverges:
 
 - **It runs real server runtimes on-device.** Node.js, PHP, Python, Go, and WordPress are fork+exec'd as native binaries straight from app storage — like Termux, packaged into an installable APK. URL-wrapper tools cannot do this at all.
-- **It ships a hardened, anti-censorship network stack.** DNS-over-HTTPS, TLS fingerprint spoofing (Chrome / Firefox / Safari JA3 templates) with a local MITM bridge, Encrypted Client Hello (ECH) on the GeckoView engine to encrypt the SNI, per-app proxies, and CORS bypass for locked-down SPAs.
+- **It ships a hardened, anti-censorship network stack.** DNS-over-HTTPS, TLS fingerprint spoofing (Chrome / Firefox / Safari JA3 templates) with a local MITM bridge, Encrypted Client Hello (ECH) on both engines to encrypt the SNI, per-app proxies, and CORS bypass for locked-down SPAs.
 - **The whole build is self-contained.** Binary AXML/ARSC patching, permission pruning, V1/V2/V3 signing, and Google Play-ready AAB export all happen inside the app via `apksig` — no remote build queue, no PC.
 - **It stays extensible after shipping.** Add JS/CSS modules, Tampermonkey-style userscripts, or MV3 Chrome extensions (live-searched and installed from the Chrome Web Store) without rebuilding the host.
 - **The host UI speaks 10 languages out of the box.** Chinese, English, Arabic (RTL), Portuguese, Spanish, French, German, Russian, Japanese, and Korean — switch anytime in Settings; new in-app copy is maintained for all ten.
@@ -66,13 +73,13 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 | Area | Highlights |
 | --- | --- |
 | **Build targets** | Web · HTML · Frontend · WordPress · Node.js · PHP · Python · Go · Image · Video · Gallery · Multi-Web |
-| **Browser engines** | System WebView by default; optional GeckoView (Firefox) runtime for ECH / SNI encryption |
+| **Browser engines** | System WebView by default; optional GeckoView (Firefox) runtime |
 | **Network & anti-censorship** | DoH (7 providers), TLS fingerprint spoofing + MITM bridge, ECH, static/PAC/SOCKS5 proxies, CORS bypass |
 | **Privacy & hardening** | 50+ vector browser fingerprint disguise, resource encryption (AES-256-GCM), anti-debug, activation gating |
 | **Local runtimes** | Native Node.js 18.20, PHP 8.4 + Composer 2.10, Python 3.14, official Go 1.26, WordPress 7.x over SQLite |
 | **Extensions** | Built-in modules, userscripts with `GM_*`, MV3 Chrome extensions, live Chrome Web Store search |
 | **APK/AAB output** | On-device V1/V2/V3 signing, Google Play AAB export with targetSdk rewrite, keystore management |
-| **Agent** | Full-app automation via 50+ tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx |
+| **Agent** | Full-app automation via up to 57 tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx |
 | **Host languages** | **10 UI languages** — 中文 · English · العربية · Português · Español · Français · Deutsch · Русский · 日本語 · 한국어 (Arabic RTL) |
 
 ---
@@ -104,7 +111,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **Popup handling** — same window, external browser, popup window, or block.
 - **Proxies** — static HTTP/HTTPS/SOCKS5, PAC, authentication, bypass rules, and a local HTTP-to-SOCKS bridge.
 - **DNS-over-HTTPS** — Cloudflare, Google, AdGuard, NextDNS, CleanBrowsing, Quad9, Mullvad, plus custom endpoints; strict or automatic modes.
-- **Encrypted Client Hello (ECH)** — encrypt the SNI in the TLS handshake (GeckoView only; auto-wires DoH + GeckoView when toggled).
+- **Encrypted Client Hello (ECH)** — encrypt the SNI in the TLS handshake on **both engines**: GeckoView via TRR + its ECH prefs, the system WebView via the MITM bridge's Chromium upstream (auto-downloaded on first use, embedded in exported APKs). Auto-wires DoH when toggled; a SOCKS upstream proxy takes precedence.
 - **TLS fingerprint spoofing** — impersonate Chrome 131 / Firefox 133 / Safari 18 JA3 profiles (or custom ciphers), served through a local TLS-MITM bridge so the outgoing ClientHello matches a real browser.
 - **CORS bypass** — on by default for static SPAs that call external APIs blocked by CORS; same-origin traffic is left alone, and CORS-only apps can use a lightweight `PrivateNetworkNativeBridgeAdapter` without the full Native Bridge surface.
 - **Failover** — automatic fallback to mirror URLs when the primary target is unreachable.
@@ -118,7 +125,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 <summary><b>🛡️ Privacy, fingerprint defense & hardening</b></summary>
 
 - **Browser fingerprint disguise across 50+ vectors** — User-Agent, WebGL, Canvas, AudioContext, ClientRects, timezone, language, memory, media devices, WebRTC, fonts, battery, permissions, performance, storage, notifications, CSS media, iframe propagation, and error-stack cleanup.
-- **Hosts-rule ad blocker** with cosmetic MutationObserver filtering, **20 built-in community filter lists** (EasyList, uBlock Origin, AdGuard, AdAway, plus 8 language-specific lists), per-source enable/disable/delete, and custom subscription rules bundled into the APK.
+- **Hosts-rule ad blocker** with cosmetic MutationObserver filtering, **20 built-in community filter lists** (EasyList, uBlock Origin, AdGuard, AdAway, plus 8 language-specific lists), per-source enable/disable/delete, named custom filter imports managed as cards and selectable per app, and custom subscription rules bundled into the APK.
 - **Resource encryption** (PBKDF2 + AES-256-GCM) for packaged config, HTML, media, and BGM; optional custom encryption password stronger than package/certificate-derived keys.
 - **Runtime hardening** when encryption is on — anti-debug, anti-Frida, DEX-tamper checks; threat response of log-only, silent exit, or randomized crash.
 - **WebView/content isolation** for storage, WebRTC, Canvas, Audio, WebGL, fonts, headers, and IP surfaces.
@@ -148,7 +155,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **MV3 Chrome extension runtime** for manifest content scripts in isolated or main worlds, with `chrome.*` polyfills for runtime, storage, tabs, scripting, and declarative network-request parsing.
 - **In-app Chrome Web Store search** — browse and install browser extensions by keyword (or paste a store URL / extension ID), with offline fallback to manual import.
 - **Export codes** (`WTA1:` gzip + Base64) and QR sharing via ZXing.
-- **Agent** — a tool-calling assistant with 50+ built-in tools covering the entire app surface: create/edit/build/export apps, manage ports and browser engines, install/clear runtimes, ad-block hosts rules, common-config templates, usage stats, app cloning, batch import, Play policy checks, and module development. Plan mode waits for user approval; automatic retry/backoff on 429/5xx.
+- **Agent** — a tool-calling assistant with up to 57 built-in tools covering the entire app surface: create/edit/build/export apps, manage ports and browser engines, install/clear runtimes, ad-block hosts rules, common-config templates, usage stats, app cloning, batch import, Play policy checks, and module development. Plan mode waits for user approval; automatic retry/backoff on 429/5xx.
 
 </details>
 
@@ -157,7 +164,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 
 - **Splash screens** — image or video, with skip behavior, trim ranges, and fixed orientation.
 - **Background music** — playlists with synced LRC lyrics, lyric animations, custom font/color/stroke/shadow, and online music search.
-- **Toolbar, status bar (light & dark), navigation, floating-window mode, and long-press menu styles.** Status bar color can follow theme, a custom color, full transparency, or **PAGE_TOP** (sample the page’s top pixels so the chrome matches the content). The runtime toolbar also offers a per-app **page-zoom preset** (saved across cold starts) and a **console** panel for on-device debugging.
+- **Toolbar, status bar (light & dark), navigation, floating-window mode, and long-press menu styles.** The browser toolbar is a master toggle (off by default) with per-item buttons for title/URL/back/forward/refresh plus a native **find-in-page** bottom bar and a **console** panel for on-device debugging. Status bar color can follow theme, a custom color, full transparency, or **PAGE_TOP** (sample the page’s top pixels so the chrome matches the content).
 - **Download location mode** — system Downloads, app-private directory, or a custom SAF folder picked by the user.
 - **Announcement templates** for launch, interval, and no-network moments.
 - **Host app language** — switch the entire builder UI among 10 languages (中文 / English / العربية / Português / Español / Français / Deutsch / Русский / 日本語 / 한국어); Arabic is full RTL.
@@ -174,7 +181,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 
 - **Custom package name**, `versionName`, `versionCode`, icon, label, architecture target, and export format.
 - **Build-time permission injection** with unused permissions pruned from the template manifest.
-- **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build.
+- **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build. Available for every app type except the server-runtime ones and encrypted builds — see [which apps can be published](docs/guide/more-features/google-play.md).
 - **Keystore management** — create, import, export, delete, and certificate-fingerprint viewing; PKCS12/PFX/JKS/BKS import including Android Studio upload-key cases where store and key passwords differ.
 - **Signature schemes** — V1, V2, V3 independently controlled, with auto-fallback for legacy certificates; custom V1 signer filename for `META-INF/<name>.SF` / `.RSA`.
 - **Performance options** — image compression, WebP conversion, code minification, lazy loading, DNS prefetch, and preload hints.
@@ -204,7 +211,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 
 ## Agent
 
-WebToApp ships a built-in AI agent (open from **⋮ → Agent**) that can operate the entire app through natural-language conversation. Instead of tapping through menus, you describe what you want and the Agent executes it via a tool-calling loop backed by any OpenAI-compatible LLM you configure in [AI Settings](#tech-stack).
+WebToApp ships a built-in AI agent (open from **⋮ → Agent**) that can operate the entire app through natural-language conversation. Instead of tapping through menus, you describe what you want and the Agent executes it via a tool-calling loop backed by any LLM you configure in [AI Settings](#tech-stack) — Chat Completions, Anthropic Messages, or OpenAI Responses endpoints, plus Google Gemini and Ollama / LM Studio / VLLM locals.
 
 **How it works:**
 
@@ -213,7 +220,7 @@ WebToApp ships a built-in AI agent (open from **⋮ → Agent**) that can operat
 3. The Agent executes each tool on-device — read-only tools run immediately; write tools pop a permission dialog first.
 4. Results flow back to the LLM, which continues until the task is done or it asks you a clarifying question.
 
-**40+ built-in tools, grouped by domain:**
+**Up to 57 built-in tools, grouped by domain (the 3 imagery tools load only with an image-capable model):**
 
 | Domain | Examples |
 | --- | --- |
@@ -269,7 +276,7 @@ The official documentation site is published at **[shiaho777.github.io/web-to-ap
 - The repository has **three Gradle modules**: `app` (the full builder and host), `shell` (the runtime host embedded into generated APKs), and `clone-host` (host code for app cloning — compiled to a `classes.jar`, converted to DEX via d8, and bundled as an asset for `AppCloner`).
 - Runtime code is authored in `app` and synchronized into `shell`, so shared WebView/runtime behavior has one source of truth (`core/shell`, `core/webview`, `core/engine`, `core/extension`, `ui/shell`, etc.).
 - The APK builder patches template APKs at the binary AXML/ARSC level, injects config/resources, prunes permissions, and signs with `apksig`. A separate encrypted build path (`EncryptedApkBuilder`) offers resource encryption, shelling, and integrity checks.
-- Generated APKs pin `targetSdk = 28` deliberately (via the shell template) — it is what lets them fork+exec native runtimes (Node.js, PHP, Python, Go, WordPress) from app storage, a capability URL-wrapper tools lack. The host app itself targets 35 (antivirus engines flag low-targetSdk builds as legacy malware); SELinux W^X at that level blocks host-side preview of the exec-based runtimes, which degrade with an explicit message — Node.js preview (JNI) and every exported app are unaffected. For Play Store distribution the AAB exporter separately rewrites `targetSdk` to the Play-required level (currently 36). WebView-only app types (Web/HTML/Frontend/Gallery/Media/MultiWeb) can also opt to raise the standalone APK's `targetSdk` (34/35/36) from the APK export section; server-runtime types are gated to 28 because `targetSdk >= 29` enforces W^X and breaks fork+exec of the bundled binaries.
+- Generated APKs pin `targetSdk = 28` deliberately (via the shell template) — it is what lets them fork+exec native runtimes (Node.js, PHP, Python, Go, WordPress) from app storage, a capability URL-wrapper tools lack. The host app itself targets 36 (antivirus engines flag low-targetSdk builds as legacy malware); SELinux W^X at that level blocks host-side preview of the exec-based runtimes, which degrade with an explicit message — Node.js preview (JNI) and every exported app are unaffected. **This does not limit Play distribution.** For Play the AAB exporter separately rewrites `targetSdk` to the Play-required level (currently 36), so every app type publishes normally except the five server-runtime ones and any build with resource encryption enabled — only the server-runtime types are tied to APK distribution, because the required target level would break their fork+exec runtimes. WebView-only app types (Web/HTML/Frontend/Gallery/Media/MultiWeb) can also opt to raise the standalone APK's `targetSdk` (34/35/36) from the APK export section.
 - Server runtimes and the optional GeckoView native libraries (`.so` + `omni.ja`) are downloaded on first use rather than bundled into the base APK; the GeckoView API classes come from a gradle dependency, while the heavy native artifacts are fetched on demand.
 - The configuration center is `WebApp` (`data/model/WebApp.kt`) and its `*Config` classes — the single source of truth for all feature settings, carried through a full packaging passthrough chain into the generated APK.
 
@@ -334,6 +341,22 @@ Developed by **shiaho**.
 [The Unlicense](LICENSE).
 
 Advanced features such as device disguise are intended for technical demonstration and must only be used with informed user consent.
+
+## Acknowledgements
+
+[daoxe.com](https://daoxe.com) — AI API relay for personal use.
+
+<p align="center">
+  <a href="https://www.swiftproxy.net/?ref=shiaho">
+    <img src=".github/assets/sponsors/swiftproxy-banner-en.png" width="640" alt="Swiftproxy — Residential Proxies from $0.7/GB, ISP Proxies $6/IP, 10% off code: PROXY90" />
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://www.swiftproxy.net/?ref=shiaho"><b>Sponsored by Swiftproxy</b></a> — Swiftproxy provides 90M+ clean residential IPs across 220+ locations, supporting HTTP(S) and SOCKS5 proxies, flexible targeting, rotating and sticky sessions, and non-expiring traffic. It helps WebToApp users with reliable global access, location-based testing, web automation, and data collection. Free testing is available, with 10% off using code <code>PROXY90</code>.
+</p>
+
+---
 
 <div align="center">
 

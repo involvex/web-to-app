@@ -12,19 +12,73 @@ class GitHubMirrorTest {
 
     @Test
     fun `proxiedCn expands a github release asset with direct fallback`() {
-        val urls = GitHubMirror.proxiedCn("https://github.com/oct/x/releases/download/v1/a.zip")
-        assertThat(urls).hasSize(GitHubMirror.CN_PROXIES.size + 1)
-        // No probe cache in tests: base order (proxies first), direct last.
-        GitHubMirror.CN_PROXIES.forEachIndexed { i, proxy ->
-            assertThat(urls[i]).isEqualTo(proxy + "https://github.com/oct/x/releases/download/v1/a.zip")
+        val asset = "https://github.com/oct/x/releases/download/v1/a.zip"
+        val urls = GitHubMirror.proxiedCn(asset)
+        // Order is dynamic by design: CnMirrorProbe re-sorts channels by measured
+        // latency and a background probe can land mid-suite, so assert membership
+        // rather than a fixed sequence. The plain URL must always be present —
+        // it is the fallback route when every proxy fails.
+        assertThat(urls).containsExactlyElementsIn(
+            GitHubMirror.CN_PROXIES.map { it.rewrite(asset) } + asset
+        )
+    }
+
+    @Test
+    fun `direct channel leaves the url untouched`() {
+        val asset = "https://github.com/oct/x/releases/download/v1/a.zip"
+        assertThat(GitHubMirror.MirrorChannel.DIRECT.rewrite(asset)).isEqualTo(asset)
+    }
+
+    @Test
+    fun `every proxy channel rewrites to a prefix url`() {
+        val asset = "https://github.com/oct/x/releases/download/v1/a.zip"
+        GitHubMirror.CN_PROXIES.forEach { channel ->
+            val rewritten = channel.rewrite(asset)
+            assertThat(rewritten).startsWith(channel.prefix)
+            assertThat(rewritten).endsWith(asset)
         }
-        assertThat(urls.last()).isEqualTo("https://github.com/oct/x/releases/download/v1/a.zip")
+    }
+
+    @Test
+    fun `channel pool has no duplicate ids`() {
+        val ids = GitHubMirror.ALL_CHANNELS.map { it.id }
+        assertThat(ids).containsNoDuplicates()
+        assertThat(ids).contains("direct")
     }
 
     @Test
     fun `proxiedCn passes non-github urls through untouched`() {
         assertThat(GitHubMirror.proxiedCn("https://wordpress.org/latest.tar.gz"))
             .containsExactly("https://wordpress.org/latest.tar.gz")
+    }
+
+    @Test
+    fun `api and raw hosts expand like release assets do`() {
+        listOf(
+            "https://api.github.com/repos/shiaho777/web-to-app/releases/latest",
+            "https://raw.githubusercontent.com/shiaho777/web-to-app/main/modules/registry.json",
+            "https://github.com/shiaho777/web-to-app/releases/download/v1/a.apk"
+        ).forEach { url ->
+            val urls = GitHubMirror.proxiedCnGitHubHost(url)
+            assertThat(urls).hasSize(GitHubMirror.CN_PROXIES.size + 1)
+            // The plain URL is always present so there is somewhere to fall
+            // back to; its position is dynamic under a measured probe order.
+            assertThat(urls).contains(url)
+        }
+    }
+
+    @Test
+    fun `cdn hosts are not treated as github hosts`() {
+        val url = "https://cdn.jsdelivr.net/gh/shiaho777/web-to-app@main/modules/registry.json"
+        assertThat(GitHubMirror.proxiedCnGitHubHost(url)).containsExactly(url)
+    }
+
+    @Test
+    fun `release downloads keep using the untouched proxiedCn path`() {
+        // Widen proxiedCn to api.github.com later and this fails: the release
+        // path was measured and shipped, so it should not drift on its own.
+        val api = "https://api.github.com/repos/shiaho777/web-to-app/releases/latest"
+        assertThat(GitHubMirror.proxiedCn(api)).containsExactly(api)
     }
 
     @Test

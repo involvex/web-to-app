@@ -26,10 +26,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.shell.ShellConfig
-import com.webtoapp.core.webview.PageZoomStore
 import com.webtoapp.core.webview.WebViewCallbacks
 import com.webtoapp.data.model.WebViewConfig
-import com.webtoapp.data.model.hasAnySlimToolbarItem
+import com.webtoapp.data.model.hasAnyToolbarItem
 import com.webtoapp.data.model.resolveToolbarButtons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,7 +37,6 @@ fun BoxScope.ShellScaffoldLayout(
     config: ShellConfig,
     appType: String,
     hideToolbar: Boolean,
-    hideBrowserToolbar: Boolean = false,
 
     isLoading: Boolean,
     loadProgress: Int,
@@ -52,6 +50,7 @@ fun BoxScope.ShellScaffoldLayout(
     webViewRecreationKey: Int,
 
     webViewRef: WebView?,
+    browserSurface: com.webtoapp.core.engine.BrowserSurface? = null,
     webViewConfig: WebViewConfig,
     webViewCallbacks: WebViewCallbacks,
     webViewManager: com.webtoapp.core.webview.WebViewManager,
@@ -92,7 +91,9 @@ fun BoxScope.ShellScaffoldLayout(
         val controller = com.webtoapp.core.webview.AutoRefreshController(
             intervalSec = webViewConfig.autoRefreshIntervalSec.coerceAtLeast(1),
             showCountdown = webViewConfig.autoRefreshShowCountdown,
-            onReload = { webViewRef?.reload() }
+            // Surface-first: webViewRef stays null on the GeckoView kernel, where the
+            // countdown used to run against a reload that never happened.
+            onReload = { browserSurface?.reload() ?: webViewRef?.reload() }
         )
         autoRefreshController = controller
         controller.start()
@@ -105,49 +106,32 @@ fun BoxScope.ShellScaffoldLayout(
     }
 
     val toolbarCfg = config.webViewConfig
-    // Native find-in-page drives WebView.findAllAsync — system WebView only.
-    val findInPageSupported = config.engineType == "SYSTEM_WEBVIEW"
-    val showSlimToolbar = hideBrowserToolbar && toolbarCfg.browserToolbarCustomized && hasAnySlimToolbarItem(
+    // Find-in-page runs on both kernels: WebView findAllAsync on the system engine,
+    // GeckoView's native SessionFinder on the Gecko engine (BrowserSurface.findInPage).
+    val toolbarEnabled = toolbarCfg.browserToolbarEnabled
+    val hasAnyItem = hasAnyToolbarItem(
         toolbarShowTitle = toolbarCfg.toolbarShowTitle,
         toolbarShowUrl = toolbarCfg.toolbarShowUrl,
         toolbarShowBack = toolbarCfg.toolbarShowBack,
         toolbarShowForward = toolbarCfg.toolbarShowForward,
         toolbarShowRefresh = toolbarCfg.toolbarShowRefresh,
         toolbarShowConsole = toolbarCfg.toolbarShowConsole,
-        toolbarShowZoom = toolbarCfg.toolbarShowZoom,
-        toolbarShowFind = toolbarCfg.toolbarShowFind && findInPageSupported
-    )
-    val showToolbar = (!hideToolbar || config.webViewConfig.showToolbarInFullscreen) &&
-        (!hideBrowserToolbar || showSlimToolbar)
-
-    // In normal (non-hide) mode the toolbar always shows the full button set; only the
-    // customized slim mode applies the toolbarShow* filters. This keeps a normal-mode
-    // app from ending up with every button hidden after the hide toggle was turned off.
-    val toolbarVisibility = resolveToolbarButtons(
-        hideBrowserToolbar = toolbarCfg.hideBrowserToolbar,
-        browserToolbarCustomized = toolbarCfg.browserToolbarCustomized,
-        toolbarShowTitle = toolbarCfg.toolbarShowTitle,
-        toolbarShowUrl = toolbarCfg.toolbarShowUrl,
-        toolbarShowBack = toolbarCfg.toolbarShowBack,
-        toolbarShowForward = toolbarCfg.toolbarShowForward,
-        toolbarShowRefresh = toolbarCfg.toolbarShowRefresh,
-        toolbarShowConsole = toolbarCfg.toolbarShowConsole,
-        toolbarShowZoom = toolbarCfg.toolbarShowZoom,
         toolbarShowFind = toolbarCfg.toolbarShowFind
     )
+    val showToolbar = toolbarEnabled && hasAnyItem &&
+        (!hideToolbar || config.webViewConfig.showToolbarInFullscreen)
 
-    // Per-app runtime page zoom (persists across cold starts). 0 = no override.
-    var pageZoomPercent by remember {
-        mutableStateOf(PageZoomStore.getZoomPercent(context, config.packageName))
-    }
-    val onZoomChange: (Int) -> Unit = { percent ->
-        pageZoomPercent = percent
-        // textZoom only takes effect on the next page layout, so a live page needs a reload
-        // to reflect the change immediately (Chromium does not relayout for setTextZoom).
-        webViewRef?.settings?.textZoom = if (percent > 0) percent else 100
-        webViewRef?.reload()
-        PageZoomStore.setZoomPercent(context, config.packageName, percent)
-    }
+    // Every button requires both the master switch and its own flag.
+    val toolbarVisibility = resolveToolbarButtons(
+        toolbarEnabled = toolbarEnabled,
+        toolbarShowTitle = toolbarCfg.toolbarShowTitle,
+        toolbarShowUrl = toolbarCfg.toolbarShowUrl,
+        toolbarShowBack = toolbarCfg.toolbarShowBack,
+        toolbarShowForward = toolbarCfg.toolbarShowForward,
+        toolbarShowRefresh = toolbarCfg.toolbarShowRefresh,
+        toolbarShowConsole = toolbarCfg.toolbarShowConsole,
+        toolbarShowFind = toolbarCfg.toolbarShowFind
+    )
 
     Scaffold(
 
@@ -171,16 +155,14 @@ fun BoxScope.ShellScaffoldLayout(
                     canGoBack = canGoBack,
                     canGoForward = canGoForward,
                     webViewRef = webViewRef,
+                    browserSurface = browserSurface,
                     showConsoleButton = toolbarVisibility.showConsoleButton,
                     showConsole = showConsole,
                     onToggleConsole = onToggleConsole,
                     consoleErrorCount = consoleMessages.count { it.level == ConsoleLevel.ERROR },
-                    showFindButton = toolbarVisibility.showFind && findInPageSupported,
+                    showFindButton = toolbarVisibility.showFind,
                     showFindBar = showFindBar,
-                    onToggleFindBar = onToggleFindBar,
-                    showZoom = toolbarVisibility.showZoom,
-                    currentZoomPercent = pageZoomPercent,
-                    onZoomChange = onZoomChange
+                    onToggleFindBar = onToggleFindBar
                 )
             }
         }
@@ -188,11 +170,23 @@ fun BoxScope.ShellScaffoldLayout(
 
         val density = LocalDensity.current
 
-        val topInsetPx = WindowInsets.statusBars.getTop(density)
-        val systemStatusBarHeightDp = if (topInsetPx > 0) {
-            with(density) { topInsetPx.toDp() }
+        // On the classic pre-API-30 resize path the decor fits system windows: the status-bar
+        // inset is 0 whether or not a bar is drawn, and nothing renders behind the bar area
+        // (issue #683). Never pad the content by a guessed status-bar band there — only the
+        // user's explicit statusBarHeightDp override may reserve space.
+        val classicSystemBars = LocalContext.current.let { ctx ->
+            (ctx as? android.app.Activity)?.let { com.webtoapp.ui.shared.WindowHelper.isClassicSystemBarsWindow(it) } ?: false
+        }
+
+        val systemStatusBarHeightDp = if (classicSystemBars) {
+            0.dp
         } else {
-            24.dp
+            val topInsetPx = WindowInsets.statusBars.getTop(density)
+            if (topInsetPx > 0) {
+                with(density) { topInsetPx.toDp() }
+            } else {
+                0.dp
+            }
         }
 
         val actualStatusBarPadding = if (statusBarHeightDp >= 0) statusBarHeightDp.dp else systemStatusBarHeightDp
@@ -200,6 +194,15 @@ fun BoxScope.ShellScaffoldLayout(
         // 全屏模式下可选的内容内边距：把网页交互区从屏幕边缘内移，让角落按钮易于点按，
         // 同时缓解与系统返回手势边缘带的冲突。默认 0 → 向后兼容旧行为。
         val contentPad = config.webViewConfig.fullscreenContentPaddingDp.dp
+
+        // Issue #771: transparent/image bars overlay the content (persistent
+        // WeChat-style bar) instead of reserving a strip; solid bars keep the
+        // reservation so page controls stay clear of the status icons.
+        val shellDark = androidx.compose.foundation.isSystemInDarkTheme()
+        val shellBgType = if (shellDark) config.webViewConfig.statusBarBackgroundTypeDark else config.webViewConfig.statusBarBackgroundType
+        val shellMode = if (shellDark) config.webViewConfig.statusBarColorModeDark else config.webViewConfig.statusBarColorMode
+        val shellOverlaysContent = shellBgType == "IMAGE" ||
+            shellMode == com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT.name
 
         val contentModifier = when {
             hideToolbar && showToolbar -> {
@@ -209,7 +212,7 @@ fun BoxScope.ShellScaffoldLayout(
             hideToolbar && config.webViewConfig.showStatusBarInFullscreen -> {
 
                 Modifier.fillMaxSize().padding(
-                    top = actualStatusBarPadding,
+                    top = if (shellOverlaysContent) 0.dp else actualStatusBarPadding,
                     start = contentPad,
                     end = contentPad,
                     bottom = contentPad
@@ -289,15 +292,15 @@ fun BoxScope.ShellScaffoldLayout(
                 )
             }
 
-            // Find-in-page bar (native WebView search; slides up like the console)
+            // Find-in-page bar (native engine search; slides up like the console)
             AnimatedVisibility(
-                visible = showFindBar && findInPageSupported,
+                visible = showFindBar,
                 enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + fadeOut(),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 FindInPageBar(
-                    webView = webViewRef,
+                    surface = browserSurface,
                     onClose = onToggleFindBar
                 )
             }
@@ -319,16 +322,14 @@ private fun ShellTopAppBar(
     canGoBack: Boolean,
     canGoForward: Boolean,
     webViewRef: WebView?,
+    browserSurface: com.webtoapp.core.engine.BrowserSurface? = null,
     showConsoleButton: Boolean = true,
     showConsole: Boolean = false,
     onToggleConsole: () -> Unit = {},
     consoleErrorCount: Int = 0,
     showFindButton: Boolean = true,
     showFindBar: Boolean = false,
-    onToggleFindBar: () -> Unit = {},
-    showZoom: Boolean = true,
-    currentZoomPercent: Int = 0,
-    onZoomChange: (Int) -> Unit = {}
+    onToggleFindBar: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -361,7 +362,13 @@ private fun ShellTopAppBar(
                 com.webtoapp.ui.design.WtaIconButton(
                     onClick = {
                         (context as? AppCompatActivity)?.let { activity ->
-                            ShellWebViewNavigation.goBackOrFinish(activity, webViewRef)
+                            // Surface-first: on the GeckoView kernel webViewRef is null and
+                            // the engine's own history must drive back navigation.
+                            if (browserSurface != null) {
+                                ShellWebViewNavigation.goBackOrFinish(activity, browserSurface)
+                            } else {
+                                ShellWebViewNavigation.goBackOrFinish(activity, webViewRef)
+                            }
                         }
                     },
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
@@ -371,7 +378,7 @@ private fun ShellTopAppBar(
             }
             if (showForward) {
                 com.webtoapp.ui.design.WtaIconButton(
-                    onClick = { webViewRef?.goForward() },
+                    onClick = { browserSurface?.goForward() ?: webViewRef?.goForward() },
                     icon = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = "Forward",
                     enabled = canGoForward
@@ -379,7 +386,7 @@ private fun ShellTopAppBar(
             }
             if (showRefresh) {
                 com.webtoapp.ui.design.WtaIconButton(
-                    onClick = { webViewRef?.reload() },
+                    onClick = { browserSurface?.reload() ?: webViewRef?.reload() },
                     icon = Icons.Default.Refresh,
                     contentDescription = "Refresh"
                 )
@@ -401,30 +408,14 @@ private fun ShellTopAppBar(
                     )
                 }
             }
-            // Find-in-page button: opens the native bottom find bar (system WebView only).
+            // Find-in-page button: opens the native bottom find bar (works on both kernels
+            // — WebView findAllAsync and GeckoView SessionFinder via BrowserSurface).
             if (showFindButton) {
                 com.webtoapp.ui.design.WtaIconButton(
                     onClick = onToggleFindBar,
                     icon = if (showFindBar) Icons.Filled.Search else Icons.Outlined.Search,
                     contentDescription = Strings.nativeBridgeCapsFindInPage
                 )
-            }
-            // Page-zoom button: opens the zoom presets dialog directly. When more page-level
-            // actions (find-in-page, …) land, this can become a ⋮ overflow menu again.
-            if (showZoom) {
-                var zoomDialogOpen by remember { mutableStateOf(false) }
-                com.webtoapp.ui.design.WtaIconButton(
-                    onClick = { zoomDialogOpen = true },
-                    icon = Icons.Outlined.ZoomIn,
-                    contentDescription = Strings.pageZoomLabel
-                )
-                if (zoomDialogOpen) {
-                    ZoomPresetsDialog(
-                        currentZoom = currentZoomPercent,
-                        onSelect = onZoomChange,
-                        onDismiss = { zoomDialogOpen = false }
-                    )
-                }
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(

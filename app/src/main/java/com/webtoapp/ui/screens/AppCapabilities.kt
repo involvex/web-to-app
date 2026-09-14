@@ -71,7 +71,7 @@ fun buildAppCapabilities(editState: EditState): List<AppCapability> = listOf(
         icon = Icons.Outlined.OpenInBrowser,
         keywords = listOf("浏览器", "工具栏", "全屏", "横屏", "长按", "ua", "useragent"),
         configured = editState.webViewConfig.hideToolbar ||
-            editState.webViewConfig.hideBrowserToolbar ||
+            editState.webViewConfig.browserToolbarEnabled ||
             editState.webViewConfig.landscapeMode
     ),
     AppCapability(

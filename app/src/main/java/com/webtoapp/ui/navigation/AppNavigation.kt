@@ -110,6 +110,7 @@ object Routes {
     }
 
     fun buildApk(appId: Long) = "build_apk/$appId"
+    fun moduleMarket(tab: Int = 0) = "module_market?initialTab=$tab"
 
     fun editApp(appId: Long) = "edit_app/$appId"
     fun editWebApp(appId: Long) = "edit_web_app/$appId"
@@ -663,7 +664,8 @@ fun AppNavigation() {
             composable(Routes.AGENT) {
                 AgentScreen(
                     onBack = { navController.popBackStack() },
-                    onOpenAiSettings = { navController.navigate(Routes.AI_SETTINGS) }
+                    onOpenAiSettings = { navController.navigate(Routes.AI_SETTINGS) },
+                    onOpenApp = { appId -> navController.navigate(Routes.editApp(appId)) }
                 )
             }
 
@@ -742,7 +744,7 @@ fun AppNavigation() {
                         }
                     },
                     onNavigateToAiDeveloper = { navController.navigate(Routes.AGENT) },
-                    onNavigateToMarket = { navController.navigate(Routes.MODULE_MARKET) }
+                    onNavigateToMarket = { tab -> navController.navigate(Routes.moduleMarket(tab)) }
                 )
             }
 
@@ -805,7 +807,7 @@ fun PreviewScreen(appId: Long, onBack: () -> Unit) {
 
                 com.webtoapp.data.model.AppType.GALLERY -> {
                     app.galleryConfig?.let { config ->
-                        com.webtoapp.ui.gallery.GalleryPlayerActivity.launch(context, config, 0)
+                        com.webtoapp.ui.gallery.GalleryPlayerActivity.launch(context, config, 0, appId)
                     }
                 }
 

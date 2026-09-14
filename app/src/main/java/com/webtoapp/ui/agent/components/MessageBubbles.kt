@@ -1,6 +1,13 @@
 package com.webtoapp.ui.agent.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -8,14 +15,17 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,15 +33,22 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Apps
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.ChecklistRtl
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
+import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
@@ -41,6 +58,7 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Refresh
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -57,6 +75,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -80,6 +99,7 @@ import com.webtoapp.ui.design.WtaInfoChip
 import com.webtoapp.ui.design.WtaSize
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.theme.AppColors
+import java.util.Date
 
 data class MessageActions(
     val onCopy: (AgentMessage, includeDetails: Boolean) -> Unit,
@@ -109,7 +129,8 @@ internal fun formatMessageForCopy(message: AgentMessage, includeDetails: Boolean
         val c = seg.content.trim()
         if (c.isBlank()) return@forEachIndexed
         if (sb.isNotEmpty()) sb.append("\n\n")
-        sb.append(if (segments.size > 1) "💭 思考过程 (${i + 1})" else "💭 思考过程")
+        sb.append(Strings.agentCopyThinkingHeader)
+        if (segments.size > 1) sb.append(" (${i + 1})")
         sb.append("\n").append(c)
     }
     // Tool calls with their result previews.
@@ -178,14 +199,22 @@ fun MessageBubble(
                 horizontal = WtaSpacing.Medium + 2.dp,
                 vertical = WtaSpacing.Medium - 2.dp
             ),
-            modifier = Modifier.widthIn(max = 560.dp)
+            // Long-press opens the same action menu as the ⋯ button — the
+            // standard chat affordance users reach for before discovering the
+            // tiny icon. Text long-press still selects via SelectionContainer.
+            modifier = Modifier
+                .widthIn(max = 560.dp)
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = { menuOpen = true }
+                )
         ) {
             if (isUser) {
-                if (message.userAttachments.isNotEmpty()) {
-                    UserAttachmentList(message.userAttachments)
+                if (message.userAttachmentsSafe.isNotEmpty()) {
+                    UserAttachmentList(message.userAttachmentsSafe)
                     if (message.content.isNotBlank()) Spacer(Modifier.height(WtaSpacing.Small))
                 }
-                if (message.content.isNotBlank() || message.userAttachments.isEmpty()) {
+                if (message.content.isNotBlank() || message.userAttachmentsSafe.isEmpty()) {
                     SelectionContainer {
                         Text(
                             text = message.content.ifBlank { Strings.agentNoOutput },
@@ -222,55 +251,69 @@ fun MessageBubble(
             Spacer(Modifier.height(WtaSpacing.Tiny))
             AttachmentList(message.attachments)
         }
-        Spacer(Modifier.height(WtaSpacing.Tiny))
-        Box {
-            WtaIconButton(
-                onClick = { menuOpen = true },
-                icon = Icons.Outlined.MoreHoriz,
-                contentDescription = Strings.more,
-                modifier = Modifier.size(WtaSize.TouchTarget)
+        Row(
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Timestamp orients long sessions; the menu stays the action anchor.
+            Text(
+                text = remember(message.timestamp) {
+                    MESSAGE_TIME_FORMAT.format(Date(message.timestamp))
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = WtaAlpha.Strong)
             )
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                if (isUser) {
-                    DropdownMenuItem(
-                        text = { Text(Strings.agentMessageActionCopy) },
-                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
-                        onClick = { menuOpen = false; actions.onCopy(message, false) }
-                    )
-                } else {
-                    DropdownMenuItem(
-                        text = { Text(Strings.agentMessageActionCopyOutput) },
-                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
-                        onClick = { menuOpen = false; actions.onCopy(message, false) }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(Strings.agentMessageActionCopyAll) },
-                        leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
-                        onClick = { menuOpen = false; actions.onCopy(message, true) }
-                    )
-                }
-                if (isUser) {
-                    DropdownMenuItem(
-                        text = { Text(Strings.agentMessageActionEdit) },
-                        leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
-                        onClick = { menuOpen = false; actions.onEdit(message) }
-                    )
-                } else {
-                    DropdownMenuItem(
-                        text = { Text(Strings.agentMessageActionRegenerate) },
-                        leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
-                        onClick = { menuOpen = false; actions.onRegenerate(message) }
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(Strings.agentMessageActionDelete) },
-                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
-                    onClick = { menuOpen = false; actions.onDeleteFromHere(message) }
+            Spacer(Modifier.width(WtaSpacing.Tiny))
+            Box {
+                WtaIconButton(
+                    onClick = { menuOpen = true },
+                    icon = Icons.Outlined.MoreHoriz,
+                    contentDescription = Strings.more,
+                    modifier = Modifier.size(32.dp)
                 )
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    if (isUser) {
+                        DropdownMenuItem(
+                            text = { Text(Strings.agentMessageActionCopy) },
+                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
+                            onClick = { menuOpen = false; actions.onCopy(message, false) }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text(Strings.agentMessageActionCopyOutput) },
+                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
+                            onClick = { menuOpen = false; actions.onCopy(message, false) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text(Strings.agentMessageActionCopyAll) },
+                            leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
+                            onClick = { menuOpen = false; actions.onCopy(message, true) }
+                        )
+                    }
+                    if (isUser) {
+                        DropdownMenuItem(
+                            text = { Text(Strings.agentMessageActionEdit) },
+                            leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
+                            onClick = { menuOpen = false; actions.onEdit(message) }
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text(Strings.agentMessageActionRegenerate) },
+                            leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
+                            onClick = { menuOpen = false; actions.onRegenerate(message) }
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(Strings.agentMessageActionDelete) },
+                        leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                        onClick = { menuOpen = false; actions.onDeleteFromHere(message) }
+                    )
+                }
             }
         }
     }
 }
+
+private val MESSAGE_TIME_FORMAT = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
 
 @Composable
 fun ThinkingBlock(
@@ -285,10 +328,18 @@ fun ThinkingBlock(
         if (!isLive) expanded = false
         else expanded = true
     }
+    // Live thinking blocks materialize with a small fade+rise; settled ones stay static.
+    var appeared by remember(content.hashCode()) { mutableStateOf(!isLive) }
+    LaunchedEffect(Unit) { appeared = true }
+    val appearAlpha by animateFloatAsState(if (appeared) 1f else 0f, tween(220), label = "appear-alpha")
+    val appearDy by animateDpAsState(if (appeared) 0.dp else 8.dp, tween(220), label = "appear-dy")
     WtaCard(
         tone = WtaCardTone.Elevated,
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-        modifier = modifier
+        modifier = modifier.graphicsLayer {
+            alpha = appearAlpha
+            translationY = appearDy.toPx()
+        }
     ) {
         Row(
             modifier = Modifier
@@ -386,15 +437,6 @@ fun StreamingBubble(
     pendingTools: List<RecordedToolCall>,
     activity: String?
 ) {
-    val hasLiveSegment = thinkingSegments.any { it.frozenDurationMs == null }
-    var nowMs by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(hasLiveSegment) {
-        while (hasLiveSegment) {
-            nowMs = System.currentTimeMillis()
-            kotlinx.coroutines.delay(100)
-        }
-    }
-
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.Start) {
         WtaCard(
             tone = WtaCardTone.Surface,
@@ -412,17 +454,40 @@ fun StreamingBubble(
                     onSurface = MaterialTheme.colorScheme.onSurface,
                     liveTrailing = true
                 )
+                // Between a finished tool call and the next streamed chunk nothing
+                // else says "still working" — keep the typing cue alive in that gap.
+                // Suppressed while prose is live-trailing (the caret covers it) or
+                // a live thinking block is showing its own spinner.
+                val toolSettled = pendingTools.isNotEmpty() &&
+                    pendingTools.none { it.resultPreview == RecordedToolCall.RUNNING_SENTINEL }
+                val thinkingLive = thinkingSegments.any { it.frozenDurationMs == null }
+                val tail = text.trimEnd()
+                val tailIsMarker = tail.isEmpty() || tail.last() == '\u2063'
+                AnimatedVisibility(
+                    visible = toolSettled && !thinkingLive && tailIsMarker,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(top = WtaSpacing.Tiny + 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TypingDots(color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(WtaSpacing.Small + 2.dp))
+                        Text(
+                            text = activity ?: Strings.agentPhaseThinking,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
             if (text.isBlank() && pendingTools.isEmpty() && thinkingSegments.isEmpty()) {
                 Row(
                     modifier = Modifier.padding(vertical = WtaSpacing.Tiny),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 1.6.dp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    TypingDots(color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(WtaSpacing.Small + 2.dp))
                     Text(
                         text = activity ?: Strings.agentPhaseThinking,
@@ -431,6 +496,40 @@ fun StreamingBubble(
                     )
                 }
             }
+        }
+    }
+}
+
+/** Three staggered pulsing dots — the classic "typing" cue for the connecting state. */
+@Composable
+private fun TypingDots(color: Color, modifier: Modifier = Modifier) {
+    val transition = rememberInfiniteTransition(label = "typing-dots")
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { i ->
+            val alpha by transition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 600, delayMillis = i * 160),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "dot-$i"
+            )
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .graphicsLayer {
+                        this.alpha = alpha
+                        val s = 0.85f + alpha * 0.3f
+                        scaleX = s
+                        scaleY = s
+                    }
+                    .background(color, CircleShape)
+            )
         }
     }
 }
@@ -595,7 +694,7 @@ private fun scrubInline(s: String): String =
 @Composable
 fun ToolCallCard(tc: RecordedToolCall, live: Boolean) {
     val running = tc.resultPreview == RecordedToolCall.RUNNING_SENTINEL
-    val (icon, tint) = when {
+    val (statusIcon, statusTint) = when {
         running -> Icons.Outlined.HourglassTop to MaterialTheme.colorScheme.primary
         tc.ok -> Icons.Outlined.CheckCircle to WtaColors.semantic.success
         else -> Icons.Outlined.ErrorOutline to MaterialTheme.colorScheme.error
@@ -613,99 +712,219 @@ fun ToolCallCard(tc: RecordedToolCall, live: Boolean) {
             }
         }
     }
-    Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
-        shape = MaterialTheme.shapes.medium,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expanded = !expanded }
-                    .padding(horizontal = WtaSpacing.Small + 2.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = tint,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(WtaSpacing.Small))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = tc.name,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
-                    )
-                    if (subtitle.isNotBlank()) {
-                        Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
-                        )
-                    }
-                }
-                if (running) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(12.dp),
-                        strokeWidth = 1.5.dp,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(Modifier.width(WtaSpacing.Tiny + 2.dp))
-                }
-                Icon(
-                    imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
+    // Started ticking when the card first appears live; stops when the tool finishes.
+    val startedAt = remember(tc.toolCallId) { System.currentTimeMillis() }
+    var elapsedMs by remember(tc.toolCallId) { mutableStateOf<Long?>(null) }
+    LaunchedEffect(running) {
+        if (running) {
+            while (true) {
+                elapsedMs = System.currentTimeMillis() - startedAt
+                kotlinx.coroutines.delay(500)
             }
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
+        }
+    }
+    val stripeColor = when {
+        running -> MaterialTheme.colorScheme.primary
+        tc.ok -> WtaColors.semantic.success
+        else -> MaterialTheme.colorScheme.error
+    }
+    var showFullResult by remember(tc.toolCallId) { mutableStateOf(false) }
+
+    // Live cards materialize with a small fade+rise; history rows stay static.
+    var appeared by remember(tc.toolCallId) { mutableStateOf(!live) }
+    LaunchedEffect(Unit) { appeared = true }
+    val appearAlpha by animateFloatAsState(if (appeared) 1f else 0f, tween(220), label = "appear-alpha")
+    val appearDy by animateDpAsState(if (appeared) 0.dp else 8.dp, tween(220), label = "appear-dy")
+
+    Surface(
+        color = if (!tc.ok && !running) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer { alpha = appearAlpha; translationY = appearDy.toPx() }
+    ) {
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // Status stripe, stretching with the card (header + expanded body).
+            Box(
+                modifier = Modifier
+                    .width(3.dp)
+                    .fillMaxHeight()
+                    .background(stripeColor)
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = WtaSpacing.Small + 2.dp)
-                        .padding(bottom = WtaSpacing.Small)
+                        .clickable { expanded = !expanded }
+                        .padding(horizontal = WtaSpacing.Small + 2.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val handled = SpecialToolBody(tc, running = running)
-                    if (!handled) {
-                        if (tc.argumentsJson.isNotBlank()) {
-                            ToolBlockLabel(Strings.agentToolArgsLabel)
-                            Spacer(Modifier.height(2.dp))
-                            ToolMonoBlock(prettyJsonOrRaw(tc.argumentsJson))
+                    Icon(
+                        imageVector = toolIconFor(tc.name),
+                        contentDescription = null,
+                        tint = statusTint,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(WtaSpacing.Small))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = tc.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
+                        )
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1
+                            )
                         }
-                        if (running) {
-                            Spacer(Modifier.height(WtaSpacing.Tiny + 2.dp))
-                            ToolBlockLabel(Strings.agentToolResultLabel)
-                            Spacer(Modifier.height(2.dp))
-                            if (tc.resultPreview.isNotBlank() && tc.resultPreview != RecordedToolCall.RUNNING_SENTINEL) {
-                                ToolMonoBlock(text = tc.resultPreview, spinner = true)
-                            } else {
+                    }
+                    elapsedMs?.takeIf { it >= 400 || !running }?.let { ms ->
+                        Text(
+                            text = formatElapsed(ms),
+                            style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.width(WtaSpacing.Tiny + 2.dp))
+                    }
+                    if (running) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(12.dp),
+                            strokeWidth = 1.5.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(Modifier.width(WtaSpacing.Tiny + 2.dp))
+                    }
+                    Icon(
+                        imageVector = statusIcon,
+                        contentDescription = null,
+                        tint = statusTint,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(Modifier.width(WtaSpacing.Tiny))
+                    Icon(
+                        imageVector = if (expanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = WtaSpacing.Small + 2.dp)
+                            .padding(bottom = WtaSpacing.Small)
+                    ) {
+                        val handled = SpecialToolBody(tc, running = running)
+                        if (!handled) {
+                            if (tc.argumentsJson.isNotBlank()) {
+                                ToolBlockLabel(Strings.agentToolArgsLabel)
+                                Spacer(Modifier.height(2.dp))
+                                ToolMonoBlock(prettyJsonOrRaw(tc.argumentsJson))
+                            }
+                            if (running) {
+                                Spacer(Modifier.height(WtaSpacing.Tiny + 2.dp))
+                                ToolBlockLabel(Strings.agentToolResultLabel)
+                                Spacer(Modifier.height(2.dp))
+                                if (tc.resultPreview.isNotBlank() && tc.resultPreview != RecordedToolCall.RUNNING_SENTINEL) {
+                                    ToolMonoBlock(text = tc.resultPreview, spinner = true)
+                                } else {
+                                    ToolMonoBlock(
+                                        text = (tc.activity ?: Strings.agentPhaseToolRunning),
+                                        spinner = true
+                                    )
+                                }
+                            } else if (tc.resultPreview.isNotBlank()) {
+                                Spacer(Modifier.height(WtaSpacing.Tiny + 2.dp))
+                                ToolBlockLabel(Strings.agentToolResultLabel)
+                                Spacer(Modifier.height(2.dp))
                                 ToolMonoBlock(
-                                    text = (tc.activity ?: Strings.agentPhaseToolRunning),
-                                    spinner = true
+                                    text = tc.resultPreview,
+                                    truncated = tc.resultPreview.length >= 2000,
+                                    onViewFull = { showFullResult = true }
                                 )
                             }
-                        } else if (tc.resultPreview.isNotBlank()) {
-                            Spacer(Modifier.height(WtaSpacing.Tiny + 2.dp))
-                            ToolBlockLabel(Strings.agentToolResultLabel)
-                            Spacer(Modifier.height(2.dp))
-                            ToolMonoBlock(text = tc.resultPreview)
                         }
                     }
                 }
             }
         }
     }
+
+    if (showFullResult) {
+        ToolFullResultDialog(
+            title = tc.name,
+            content = tc.resultPreview,
+            onDismiss = { showFullResult = false }
+        )
+    }
+}
+
+/** Map common tool names to an icon; unknown tools fall back to a wrench. */
+private fun toolIconFor(name: String): androidx.compose.ui.graphics.vector.ImageVector = when (name) {
+    "Write" -> Icons.Outlined.Edit
+    "Edit" -> Icons.Outlined.Edit
+    "Read" -> Icons.Outlined.Description
+    "Delete" -> Icons.Outlined.Delete
+    "Glob" -> Icons.Outlined.Search
+    "Grep" -> Icons.Outlined.Search
+    "ListFiles" -> Icons.Outlined.FolderOpen
+    "TodoWrite" -> Icons.Outlined.ChecklistRtl
+    "CreateApp", "UpdateApp", "GetApp", "ListApps" -> Icons.Outlined.Apps
+    "CreateModule", "UpdateModule", "GetModule", "ListModules" -> Icons.Outlined.Extension
+    else -> Icons.Outlined.Build
+}
+
+private fun formatElapsed(ms: Long): String = when {
+    ms < 1000 -> "${ms}ms"
+    ms < 60_000 -> "%.1fs".format(ms / 1000.0)
+    else -> "${ms / 60_000}m ${(ms % 60_000) / 1000}s"
+}
+
+/** Full-screen scrollable dialog showing the untruncated tool result. */
+@Composable
+private fun ToolFullResultDialog(title: String, content: String, onDismiss: () -> Unit) {
+    val clipboard = LocalClipboardManager.current
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                Text(Strings.close)
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = {
+                clipboard.setText(AnnotatedString(content))
+                onDismiss()
+            }) {
+                Text(Strings.agentMessageActionCopy)
+            }
+        },
+        title = { Text(title, style = MaterialTheme.typography.titleSmall) },
+        text = {
+            Box(modifier = Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                SelectionContainer {
+                    Text(
+                        text = content,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 11.sp
+                        )
+                    )
+                }
+            }
+        }
+    )
 }
 
 @Composable
@@ -821,7 +1040,51 @@ private fun SpecialToolBody(tc: RecordedToolCall, running: Boolean): Boolean {
             }
             true
         }
+        "Glob", "Grep", "ListFiles" -> {
+            // Path-listing tools read far better as rows than as a raw text blob.
+            if (running) return false
+            val lines = tc.resultPreview.lines().map { it.trim() }.filter { it.isNotEmpty() }
+            if (lines.isEmpty()) return false
+            FileListBody(lines)
+            true
+        }
         else -> false
+    }
+}
+
+@Composable
+private fun FileListBody(lines: List<String>) {
+    val shown = lines.take(60)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        shown.forEach { line ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(vertical = 1.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(12.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = line,
+                    style = MaterialTheme.typography.labelSmall.copy(fontFamily = FontFamily.Monospace),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (lines.size > shown.size) {
+            Spacer(Modifier.height(WtaSpacing.Tiny))
+            Text(
+                text = "… +${lines.size - shown.size}",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
@@ -932,7 +1195,7 @@ private fun ToolBlockLabel(text: String) {
 }
 
 @Composable
-private fun ToolMonoBlock(text: String, spinner: Boolean = false) {
+private fun ToolMonoBlock(text: String, spinner: Boolean = false, truncated: Boolean = false, onViewFull: (() -> Unit)? = null) {
     val clipboard = LocalClipboardManager.current
     androidx.compose.material3.Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -967,6 +1230,29 @@ private fun ToolMonoBlock(text: String, spinner: Boolean = false) {
                     icon = Icons.Outlined.ContentCopy,
                     contentDescription = Strings.agentMessageActionCopy,
                     modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        if (truncated && onViewFull != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onViewFull)
+                    .padding(horizontal = WtaSpacing.Small + 2.dp, vertical = WtaSpacing.Tiny),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = Strings.agentToolViewFull,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = AppColors.CodeGutter,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = Icons.Outlined.ExpandMore,
+                    contentDescription = null,
+                    tint = AppColors.CodeGutter,
+                    modifier = Modifier.size(14.dp)
                 )
             }
         }

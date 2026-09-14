@@ -2,7 +2,10 @@ package com.webtoapp.util
 
 import android.content.Context
 import android.net.Uri
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import com.webtoapp.data.model.BgmItem
+import com.webtoapp.data.model.BgmTag
 import com.webtoapp.data.model.LrcData
 import com.webtoapp.data.model.LrcLine
 import com.webtoapp.core.logging.AppLogger
@@ -24,6 +27,15 @@ object BgmStorage {
     private val SAFE_NAME_REGEX = Regex("[^a-zA-Z0-9\u4e00-\u9fa5_-]")
 
     private val IMAGE_COVER_EXTENSIONS = setOf("png", "jpg", "jpeg", "jpe", "jfif", "webp", "bmp", "gif", "heic", "heif")
+
+    /** Audio extensions every writer (upload, online download) and the library scanner agree on. */
+    val MUSIC_EXTENSIONS = listOf("mp3", "m4a", "aac", "ogg", "flac", "wav")
+
+    private val MUSIC_EXTENSION_SET = MUSIC_EXTENSIONS.toSet()
+
+    private const val LIBRARY_TAGS_FILE = "library_tags.json"
+
+    private val tagGson = Gson()
 
     fun getBgmDir(context: Context): File {
         val dir = File(context.filesDir, BGM_DIR)
@@ -50,10 +62,13 @@ object BgmStorage {
             val assetManager = context.assets
             val files = assetManager.list(ASSETS_BGM_DIR) ?: return emptyList()
 
-            val mp3Files = files.filter { it.lowercase().endsWith(".mp3") }
+            val tagOverrides = loadTagOverrides(context)
+            val audioFiles = files.filter {
+                it.substringAfterLast('.', missingDelimiterValue = "").lowercase() in MUSIC_EXTENSION_SET
+            }
 
-            for (mp3File in mp3Files) {
-                val nameWithoutExt = mp3File.substringBeforeLast(".")
+            for (audioFile in audioFiles) {
+                val nameWithoutExt = audioFile.substringBeforeLast(".")
 
                 val coverFile = files.find { file ->
                     val fileNameWithoutExt = file.substringBeforeLast(".")
@@ -62,7 +77,7 @@ object BgmStorage {
                         ext in IMAGE_COVER_EXTENSIONS
                 }
 
-                val bgmPath = "asset:///$ASSETS_BGM_DIR/$mp3File"
+                val bgmPath = "asset:///$ASSETS_BGM_DIR/$audioFile"
                 val userLrcFile = File(getBgmDir(context), "$nameWithoutExt.lrc")
                 val lrcData = if (userLrcFile.exists()) {
 
@@ -82,6 +97,9 @@ object BgmStorage {
                     path = bgmPath,
                     coverPath = coverFile?.let { "asset:///$ASSETS_BGM_DIR/$it" },
                     isAsset = true,
+                    tags = tagOverrides[trackKey(isAsset = true, basename = nameWithoutExt)]
+                        ?.mapNotNull { runCatching { BgmTag.valueOf(it) }.getOrNull() }
+                        ?: emptyList(),
                     lrcData = lrcData
                 ))
             }
@@ -100,7 +118,8 @@ object BgmStorage {
 
         val files = bgmDir.listFiles() ?: return emptyList()
 
-        val mp3Files = files.filter { it.extension.lowercase() == "mp3" }
+        val tagOverrides = loadTagOverrides(context)
+        val mp3Files = files.filter { it.extension.lowercase() in MUSIC_EXTENSION_SET }
 
         for (mp3File in mp3Files) {
             val nameWithoutExt = mp3File.nameWithoutExtension
@@ -122,6 +141,9 @@ object BgmStorage {
                 path = mp3File.absolutePath,
                 coverPath = coverFile?.absolutePath,
                 isAsset = false,
+                tags = tagOverrides[trackKey(isAsset = false, basename = nameWithoutExt)]
+                    ?.mapNotNull { runCatching { BgmTag.valueOf(it) }.getOrNull() }
+                    ?: emptyList(),
                 lrcData = lrcData
             ))
         }
@@ -296,11 +318,52 @@ object BgmStorage {
 
             bgmItem.coverPath?.let { File(it).delete() }
 
+            runCatching { File(getLrcPathForBgm(context, bgmItem.path)).delete() }
+                .onFailure { AppLogger.w(TAG, "删除歌词文件失败", it) }
+
+            saveTagsForBgm(context, bgmItem, emptyList())
+
             true
         } catch (e: Exception) {
             AppLogger.e(TAG, "Operation failed", e)
             false
         }
+    }
+
+    /**
+     * Library-level tag overrides, keyed by origin + file basename so they survive
+     * rescans. Without this, tags edited in the selector lived only inside the app
+     * configs that happened to include the track.
+     */
+    fun saveTagsForBgm(context: Context, bgm: BgmItem, tags: List<BgmTag>) {
+        try {
+            val overrides = loadTagOverrides(context)
+            val key = trackKey(bgm.isAsset, File(bgm.path).nameWithoutExtension)
+            if (tags.isEmpty()) {
+                overrides.remove(key)
+            } else {
+                overrides[key] = tags.map { it.name }
+            }
+            File(getBgmDir(context), LIBRARY_TAGS_FILE).writeText(tagGson.toJson(overrides))
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "保存标签元数据失败", e)
+        }
+    }
+
+    private fun loadTagOverrides(context: Context): MutableMap<String, List<String>> {
+        return try {
+            val file = File(getBgmDir(context), LIBRARY_TAGS_FILE)
+            if (!file.exists()) return mutableMapOf()
+            val type = object : TypeToken<MutableMap<String, List<String>>>() {}.type
+            tagGson.fromJson(file.readText(), type) ?: mutableMapOf()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "读取标签元数据失败", e)
+            mutableMapOf()
+        }
+    }
+
+    private fun trackKey(isAsset: Boolean, basename: String): String {
+        return "${if (isAsset) "asset" else "user"}/$basename"
     }
 
     fun getBgmInputStream(context: Context, path: String): java.io.InputStream? {
@@ -353,6 +416,11 @@ object BgmStorage {
                     val seconds = ((line.startTime % 60000) / 1000).toInt()
                     val millis = ((line.startTime % 1000) / 10).toInt()
                     appendLine("[%02d:%02d.%02d]%s".format(minutes, seconds, millis, line.text))
+                    // Match the export wire format (ApkBuilder.convertLrcDataToLrcString) so
+                    // translated lyrics survive the sidecar round-trip.
+                    line.translation?.let { translation ->
+                        appendLine("[%02d:%02d.%02d]%s".format(minutes, seconds, millis, translation))
+                    }
                 }
             }
 

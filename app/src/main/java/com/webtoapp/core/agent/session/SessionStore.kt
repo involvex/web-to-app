@@ -173,12 +173,58 @@ class SessionStore(
         return captured
     }
 
+    /**
+     * Deserialise the sessions blob. Gson bypasses Kotlin constructor defaults, so
+     * fields absent from legacy (pre-Agent-rename) session JSON deserialise as null
+     * even though the Kotlin properties are declared non-null. Every session and
+     * message is normalised here so callers can rely on empty lists instead of
+     * tripping NPEs deep in the UI/VM (issue #712: restoring a pre-Agent backup
+     * then opening Agent crashed on `userAttachments.isNotEmpty()`).
+     *
+     * Normalisation is keyed on the raw JSON so repeated decodes of an unchanged blob
+     * (sessionsFlow re-emits after every write, and [get] re-reads mid-turn) reuse the
+     * previous result instead of copying every session and message again. The blob is
+     * the source of truth; a content-keyed cache cannot go stale.
+     */
     private fun decode(raw: String?): List<AgentSession> {
         if (raw.isNullOrBlank()) return emptyList()
-        return runCatching {
-            gson.fromJson<List<AgentSession>>(raw, object : TypeToken<List<AgentSession>>() {}.type)
+        lastDecodeCache[raw]?.let { return it }
+        val decoded = runCatching {
+            val sessions: List<AgentSession> =
+                gson.fromJson(raw, object : TypeToken<List<AgentSession>>() {}.type)
+            sessions.map(::normalize)
         }.getOrElse { emptyList() }
+        lastDecodeCache.clear()
+        if (decoded.isNotEmpty()) lastDecodeCache[raw] = decoded
+        return decoded
     }
+
+    private val lastDecodeCache = HashMap<String, List<AgentSession>>()
+
+    private fun normalize(session: AgentSession): AgentSession = session.copy(
+        config = session.config.let { c ->
+            c.copy(
+                contextAppIds = c.contextAppIdsSafe,
+                contextModuleIds = c.contextModuleIdsSafe,
+                builtApks = c.builtApksSafe,
+                customRules = c.customRules ?: emptyList()
+            )
+        },
+        messages = session.messages.map(::normalizeMessage),
+        planSlugs = session.planSlugs ?: emptyList()
+    )
+
+    private fun normalizeMessage(message: AgentMessage): AgentMessage = message.copy(
+        userAttachments = message.userAttachmentsSafe,
+        thinkingSegments = message.thinkingSegmentsSafe,
+        toolCalls = message.toolCalls ?: emptyList(),
+        producedFiles = message.producedFiles ?: emptyList(),
+        attachments = message.attachments ?: emptyList(),
+        mentionedFiles = message.mentionedFiles ?: emptyList()
+    )
+
+    /** Test hook: exposes [decode] (including legacy-JSON normalisation) without touching DataStore. */
+    fun decodeForTest(raw: String): List<AgentSession> = decode(raw)
 
     companion object {
         private val KEY_SESSIONS = stringPreferencesKey("sessions_v1")

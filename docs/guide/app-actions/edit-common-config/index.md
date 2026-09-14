@@ -12,7 +12,7 @@ This section documents **every card**, one page each, in the order they appear i
 
 ## Browser & interface
 
-- [Hide Browser Toolbar](/guide/app-actions/edit-common-config/hide-toolbar)
+- [Browser Toolbar](/guide/app-actions/edit-common-config/browser-toolbar)
 - [Fullscreen Mode](/guide/app-actions/edit-common-config/fullscreen)
 - [Screen Orientation](/guide/app-actions/edit-common-config/orientation)
 - [Keep Screen On](/guide/app-actions/edit-common-config/keep-screen-on)

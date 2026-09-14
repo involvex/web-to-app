@@ -7,7 +7,7 @@ Runs the app in a resizable floating window over other apps.
 ## Options
 
 - **Enable** — turn on floating-window mode (`floatingWindowConfig.enabled`).
-- **Size** — window size percent, or separate width/height percent; lock aspect ratio with a mode (`SCREEN`, `FREE`, `RATIO_16_9`, or custom width:height).
+- **Size** — window size percent, or separate width/height percent; lock aspect ratio with a mode (`SCREEN`, `FREE`, `RATIO_16_9`, or custom width:height). Defaults to free resize (`lockAspectRatio = false`, `FREE`), so corner-drag reshapes the window freely unless you lock it.
 - **Appearance** — opacity, corner radius, and border style (`NONE`, `SUBTLE`, `GLOW`, `ACCENT`).
 - **Title bar** — show title bar, auto-hide it.
 - **Minimized** — start minimized, custom minimized icon and size, edge docking.

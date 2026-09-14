@@ -4,7 +4,7 @@
 
 ## 布局与边框
 
-- [隐藏浏览器工具栏](/zh/guide/app-actions/edit-common-config/hide-toolbar) —— 应用内工具栏可见性与各项。
+- [浏览器工具栏](/zh/guide/app-actions/edit-common-config/browser-toolbar) —— 应用内工具栏可见性与各项。
 - [全屏模式](/zh/guide/app-actions/edit-common-config/fullscreen) —— 沉浸式、状态/导航栏。
 - [屏幕方向](/zh/guide/app-actions/edit-common-config/orientation) —— 竖屏/横屏/传感器模式。
 - [保持屏幕常亮](/zh/guide/app-actions/edit-common-config/keep-screen-on) —— 常亮模式、超时、亮度。

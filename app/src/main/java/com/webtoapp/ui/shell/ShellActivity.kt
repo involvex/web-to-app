@@ -47,6 +47,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     private var immersiveFullscreenEnabled: Boolean = false
     private var showStatusBarInFullscreen: Boolean = false
+    private var hideStatusBarInVideoFullscreen: Boolean = true
     private var showNavigationBarInFullscreen: Boolean = false
     private var translateBridge: TranslateBridge? = null
     private var clearBrowsingDataOnLaunch: Boolean = false
@@ -68,7 +69,6 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     private var statusBarBackgroundImageDark: String? = null
     private var statusBarBackgroundAlphaDark: Float = 1.0f
     private var statusBarAutoColor: String? = null
-    private var forceHideSystemUi: Boolean = false
     private var keyboardAdjustMode: KeyboardAdjustMode = KeyboardAdjustMode.RESIZE
 
     private var pendingFloatingWindowLaunch = false
@@ -110,7 +110,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     private fun refreshStatusBarAppearance() {
         if (customView != null) return
         val systemDark = isSystemInDarkMode()
-        if (immersiveFullscreenEnabled || forceHideSystemUi) {
+        if (immersiveFullscreenEnabled) {
             applyImmersiveFullscreen(true, isDarkTheme = systemDark)
             return
         }
@@ -131,13 +131,17 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         val effectiveColorMode = if (systemDark) statusBarColorModeDark else statusBarColorMode
         val effectiveCustomColor = if (systemDark) statusBarCustomColorDark else statusBarCustomColor
         val resolved = resolveStatusBarColorMode(effectiveColorMode, effectiveCustomColor)
+        // Issue #711: while a web video holds HTML5 fullscreen (custom view showing), the
+        // status bar is force-hidden regardless of the static "show status bar in fullscreen"
+        // preference; the flag is cleared in hideCustomView() when the video exits fullscreen.
+        val effectiveShowStatusBar = showStatusBarInFullscreen &&
+            !(hideStatusBarInVideoFullscreen && customView != null)
         WindowHelper.applyImmersiveFullscreen(
             activity = this,
             enabled = enabled,
             hideNavBar = shouldHideNavBar,
             isDarkTheme = isDarkTheme,
-            showStatusBar = showStatusBarInFullscreen,
-            forceHideSystemUi = forceHideSystemUi,
+            showStatusBar = effectiveShowStatusBar,
             statusBarColorMode = resolved.first,
             statusBarCustomColor = resolved.second,
             statusBarDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons,
@@ -199,8 +203,26 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         }
     }
 
+    /**
+     * Forward keys to the page only when focus actually belongs to the page (the WebView /
+     * browser surface, or no app UI is focused). While a find session is active, Chromium's
+     * WebView consumes DEL unconditionally, so blindly forwarding ate the backspace of app
+     * UI like the find-in-page input.
+     */
+    private fun isFocusInsidePageView(): Boolean {
+        var view = currentFocus ?: return true
+        val pageView = browserSurface?.view ?: webView
+        while (view is View) {
+            if (view is WebView || (pageView != null && view == pageView)) return true
+            view = view.parent as? View ?: return false
+        }
+        return false
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (shouldForwardKeyToWebView(event) && (browserSurface?.dispatchKeyEvent(event) == true || webView?.dispatchKeyEvent(event) == true)) {
+        if (shouldForwardKeyToWebView(event) && isFocusInsidePageView() &&
+            (browserSurface?.dispatchKeyEvent(event) == true || webView?.dispatchKeyEvent(event) == true)
+        ) {
             return true
         }
 
@@ -383,6 +405,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         statusBarBackgroundImageDark = config.webViewConfig.statusBarBackgroundImageDark
         statusBarBackgroundAlphaDark = config.webViewConfig.statusBarBackgroundAlphaDark
         showStatusBarInFullscreen = config.webViewConfig.showStatusBarInFullscreen
+        hideStatusBarInVideoFullscreen = config.webViewConfig.hideStatusBarInVideoFullscreen
         showNavigationBarInFullscreen = config.webViewConfig.showNavigationBarInFullscreen
 
         keyboardAdjustMode = try {
@@ -516,13 +539,18 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                         } catch (e: Exception) {
                             com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD
                         }
-                        val downloadBridge = com.webtoapp.core.webview.DownloadBridge(
-                            this@ShellActivity,
-                            lifecycleScope,
-                            downloadLocationMode,
-                            config.webViewConfig.customDownloadDirUri
-                        )
-                        wv.addJavascriptInterface(downloadBridge, com.webtoapp.core.webview.DownloadBridge.JS_INTERFACE_NAME)
+                        // Gate the JS-side download surface on the same flag that gates the
+                        // injected script: an always-registered bridge would let any page
+                        // (or embedded iframe) drop arbitrary content into public storage.
+                        if (config.webViewConfig.downloadEnabled) {
+                            val downloadBridge = com.webtoapp.core.webview.DownloadBridge(
+                                this@ShellActivity,
+                                lifecycleScope,
+                                downloadLocationMode,
+                                config.webViewConfig.customDownloadDirUri
+                            )
+                            wv.addJavascriptInterface(downloadBridge, com.webtoapp.core.webview.DownloadBridge.JS_INTERFACE_NAME)
+                        }
 
                         if (config.webViewConfig.enablePrintBridge) {
                             val printBridge = com.webtoapp.core.webview.PrintBridge(
@@ -599,10 +627,12 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 orientation = config.webViewConfig.nativeBridgeOrientation,
                                 fullscreen = config.webViewConfig.nativeBridgeFullscreen,
                                 print = config.webViewConfig.nativeBridgePrint,
-                                  screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
-                                  pip = config.webViewConfig.nativeBridgePip,
-                                  rating = config.webViewConfig.nativeBridgeRating,
-                              )
+                                screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
+                                pip = config.webViewConfig.nativeBridgePip,
+                                rating = config.webViewConfig.nativeBridgeRating,
+                                googleSignIn = config.webViewConfig.nativeBridgeGoogleSignIn,
+                                googleSignInClientId = config.webViewConfig.nativeBridgeGoogleSignInClientId,
+                            )
                             val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                                 context = this@ShellActivity,
                                 scope = lifecycleScope,
@@ -610,7 +640,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 capabilities = capabilities,
                                 corsBypass = config.webViewConfig.enableCorsBypass,
                                 downloadLocationMode = downloadLocationMode,
-                                customDownloadDirUri = config.webViewConfig.customDownloadDirUri
+                                customDownloadDirUri = config.webViewConfig.customDownloadDirUri,
+                                appOriginUrl = config.targetUrl
                             )
                             wv.addJavascriptInterface(nativeBridge, com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME)
                             shellNativeBridge = nativeBridge
@@ -619,7 +650,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 context = this@ShellActivity,
                                 scope = lifecycleScope,
                                 webViewProvider = { wv },
-                                corsBypass = config.webViewConfig.enableCorsBypass
+                                corsBypass = config.webViewConfig.enableCorsBypass,
+                                appOriginUrl = config.targetUrl
                             )
                             wv.addJavascriptInterface(privateNetworkBridge, com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME)
                         } else {
@@ -671,6 +703,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
             activity = this,
             getCustomView = { customView },
             getWebView = { webView },
+            getBrowserSurface = { browserSurface },
             hideCustomView = ::hideCustomView,
             getShellConfig = { shellConfig }
         ))
@@ -765,7 +798,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            if (customView != null || immersiveFullscreenEnabled || forceHideSystemUi) {
+            if (customView != null || immersiveFullscreenEnabled) {
                 applyImmersiveFullscreen(true, isDarkTheme = isSystemInDarkMode())
             } else {
                 val systemDark = isSystemInDarkMode()
@@ -780,7 +813,9 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        webView?.saveState(outState)
+        // Save through the surface first: on engine-backed (GeckoView) sites the
+        // activity's webView field stays null while the surface holds the live view.
+        browserSurface?.saveState(outState) ?: webView?.saveState(outState)
         com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onSaveInstanceState - WebView state saved")
     }
 

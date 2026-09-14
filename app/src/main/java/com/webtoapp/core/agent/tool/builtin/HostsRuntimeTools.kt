@@ -16,7 +16,8 @@ class GetAdBlockStatusTool : Tool {
     override val name = "GetAdBlockStatus"
     override val description = """
         Get the current ad-blocker status: total rules, hosts rules, enabled/disabled sources,
-        and whether ad-blocking is globally enabled.
+        user-imported custom sources with their display names, and whether ad-blocking is
+        globally enabled.
     """.trimIndent()
     override val parametersSchema: JsonElement = jsonSchema {}
     override fun isReadOnly() = true
@@ -28,12 +29,24 @@ class GetAdBlockStatusTool : Tool {
         val enabledSources = blocker.getEnabledHostsSources()
         val disabledSources = blocker.getDisabledHostsSources()
         val downloaded = blocker.getAllDownloadedSourceKeys()
+        val customSources = blocker.getCustomHostsSources()
         return ToolResult.ok(buildString {
             appendLine("Ad-block enabled: $enabled")
             appendLine("Total rules: $totalRules (hosts: $hostsRules)")
             appendLine("Downloaded sources: ${downloaded.size}")
             if (enabledSources.isNotEmpty()) appendLine("Enabled: ${enabledSources.joinToString(", ")}")
             if (disabledSources.isNotEmpty()) appendLine("Disabled: ${disabledSources.joinToString(", ")}")
+            if (customSources.isNotEmpty()) {
+                appendLine("Custom (user-imported) sources:")
+                customSources.forEach { source ->
+                    val state = when {
+                        enabledSources.contains(source.url) -> "enabled"
+                        disabledSources.contains(source.url) -> "disabled"
+                        else -> "unknown"
+                    }
+                    appendLine("- ${source.name} -> ${source.url} ($state)")
+                }
+            }
         }.trimEnd())
     }
 }
@@ -42,7 +55,8 @@ class ManageHostsRulesTool : Tool {
     override val name = "ManageHostsRules"
     override val description = """
         Manage hosts-based ad-block rule sources. Actions:
-        - import_url: download and import a hosts list from a URL.
+        - import_url: download and import a hosts list from a URL. Pass displayName to give
+          the source a friendly name (shown in the ad-block UI and per-app selector).
         - toggle: enable or disable a downloaded source.
         - remove: remove a downloaded source.
         - clear: remove all hosts sources.
@@ -50,6 +64,7 @@ class ManageHostsRulesTool : Tool {
     override val parametersSchema: JsonElement = jsonSchema {
         enum("action", listOf("import_url", "toggle", "remove", "clear"), "The action to perform.", required = true)
         string("url", "URL for import_url action.")
+        string("displayName", "For import_url: optional friendly name for the imported source.")
         string("sourceKey", "Source key for toggle/remove (use GetAdBlockStatus to find keys).")
         boolean("enabled", "For toggle: true to enable, false to disable.")
     }
@@ -62,7 +77,8 @@ class ManageHostsRulesTool : Tool {
         return when (action) {
             "import_url" -> {
                 val url = args.get("url")?.asString ?: return ToolResult.error("ManageHostsRules: missing `url` for import_url.")
-                val result = blocker.importHostsFromUrl(url, ctx.androidContext)
+                val displayName = args.get("displayName")?.asString?.trim()?.takeIf { it.isNotEmpty() }
+                val result = blocker.importHostsFromUrl(url, ctx.androidContext, displayName)
                 if (result.isSuccess) ToolResult.ok("Imported ${result.getOrNull()} rules from $url.")
                 else ToolResult.error("Import failed: ${result.exceptionOrNull()?.message}")
             }
@@ -98,25 +114,35 @@ class GetRuntimeStatusTool : Tool {
         output. Node.js (JNI) and every exported APK are unaffected either way.
     """.trimIndent()
     override val parametersSchema: JsonElement = jsonSchema {
-        enum("runtime", listOf("php", "node", "python", "go"), "Check a specific runtime only.")
+        enum("runtime", listOf("php", "wordpress", "node", "python", "go"), "Check a specific runtime only. `php` and `wordpress` both report the PHP/WordPress stack.")
     }
     override fun isReadOnly() = true
     override suspend fun execute(args: JsonObject, ctx: ToolContext): ToolResult {
         val c = ctx.androidContext
+        // An unrecognized runtime used to fall through and return only the
+        // localExecAllowed line — an error naming the valid values lets the model
+        // recover in one turn instead.
+        val runtime = args.get("runtime")?.asString
+        val valid = setOf("php", "wordpress", "node", "python", "go")
+        if (runtime != null && runtime !in valid) {
+            return ToolResult.error(
+                "GetRuntimeStatus: unknown runtime '$runtime' (valid: ${valid.joinToString("/")})."
+            )
+        }
         val execAllowed = com.webtoapp.core.linux.RuntimeExecPolicy.canExecAppDataBinaries(c)
         val lines = buildList {
             add("localExecAllowed=$execAllowed" + if (execAllowed) "" else " (targetSdk>=29 host: PHP/WordPress/Python/Go cannot start locally for preview; Node.js and exported APKs are unaffected)")
-            if (args.get("runtime")?.asString?.let { it == "php" || it == "wordpress" } != false) {
+            if (runtime == null || runtime == "php" || runtime == "wordpress") {
                 add("PHP: ready=${WordPressDependencyManager.isPhpReady(c)}")
                 add("WordPress: ready=${WordPressDependencyManager.isWordPressReady(c)}")
             }
-            if (args.get("runtime")?.asString?.let { it == "node" } != false || args.get("runtime") == null) {
+            if (runtime == null || runtime == "node") {
                 add("Node.js: ready=${NodeDependencyManager.isNodeReady(c)}")
             }
-            if (args.get("runtime")?.asString?.let { it == "python" } != false || args.get("runtime") == null) {
+            if (runtime == null || runtime == "python") {
                 add("Python: ready=${PythonDependencyManager.isPythonReady(c)}")
             }
-            if (args.get("runtime")?.asString?.let { it == "go" } != false || args.get("runtime") == null) {
+            if (runtime == null || runtime == "go") {
                 add("Go: ready=${GoToolchainManager.isGoReady(c)}")
             }
         }

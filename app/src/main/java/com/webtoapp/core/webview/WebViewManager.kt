@@ -3,6 +3,7 @@ package com.webtoapp.core.webview
 import android.annotation.SuppressLint
 import android.app.Activity
 import android.app.Dialog
+import android.util.Base64
 import com.webtoapp.core.logging.AppLogger
 import android.content.Context
 import android.content.Intent
@@ -1123,6 +1124,11 @@ class WebViewManager(
     private val LOOPBACK_MAIN_FRAME_MAX_RETRIES = 3
     private val LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS = 150L
 
+    // Cross-URL budget over all app-initiated auto-reloads (#654): per-path counters
+    // reset when the URL changes, so only this breaker can stop error-navigation
+    // cycles (e.g. login redirect loops) from reloading forever.
+    private val reloadBreaker = ReloadCircuitBreaker()
+
     // A download-intercepted navigation surfaces as an aborted main-frame load; remember
     // the URL so the loopback auto-retry does not re-navigate into the same download.
     private var lastDownloadInterceptedUrl: String? = null
@@ -1172,6 +1178,13 @@ class WebViewManager(
             return false
         }
         val nextUrl = urls[current]
+        // Circuit breaker (#654): error-navigation-error cycles reset the per-URL
+        // counters above, so only a cross-URL budget can stop a reload storm.
+        // Tripping falls through to the error UI instead of another loadUrl.
+        if (!reloadBreaker.noteAutoReload(nextUrl)) {
+            AppLogger.w("WebViewManager", "Failover circuit breaker tripped, showing error instead: $nextUrl reason=$reason")
+            return false
+        }
         failoverCursor[view] = current + 1
         AppLogger.i(
             "WebViewManager",
@@ -1273,11 +1286,7 @@ class WebViewManager(
             }
         } else null
 
-        this.cachedKernelFlavorJs = if (!config.kernelFlavor.profile.isNoOp) {
-            config.kernelFlavor.profile.buildFlavorJs().also { js ->
-                AppLogger.d("WebViewManager", "Kernel Flavor JS cached: ${config.kernelFlavor.name}, ${js.length} chars")
-            }
-        } else null
+        this.cachedKernelFlavorJs = null
 
         this.appExtensionModuleIds = extensionModuleIds
 
@@ -1289,6 +1298,25 @@ class WebViewManager(
         this.extensionMasterEnabled = extensionEnabled
 
         this.currentDeviceDisguiseConfig = deviceDisguiseConfig
+
+        // Resolve the one browser identity this app presents, after every disguise source is
+        // cached. The UA string and its client-hint metadata are produced together here and
+        // applied together below, so a page can never see a UA that contradicts `Sec-CH-UA`.
+        this.resolvedBrowserIdentity = resolveBrowserIdentityFor(config)
+
+        // The JS layer only needs a script for real flavors: a derived profile (custom UA or
+        // device disguise) is already backed by the metadata, and `navigator.userAgent` follows
+        // the overridden UA string on its own.
+        this.cachedKernelFlavorJs = resolvedBrowserIdentity.profile
+            ?.takeIf { it.flavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT }
+            ?.buildFlavorJs()
+            ?.takeIf { it.isNotEmpty() }
+            ?.also { js ->
+                AppLogger.d(
+                    "WebViewManager",
+                    "Kernel Flavor JS cached: ${resolvedBrowserIdentity.profile?.flavor?.name}, ${js.length} chars"
+                )
+            }
 
         if (config.errorPageConfig.mode != ErrorPageMode.DEFAULT) {
 
@@ -1328,11 +1356,20 @@ class WebViewManager(
         }
 
         GeckoViewEngine.applyAntiCapture(config.antiCapture)
+        GeckoViewEngine.applyAutoplayPolicy(config.mediaAutoplayEnabled)
 
         val tlsFingerprintEnabled = config.tlsFingerprintEnabled &&
             config.tlsFingerprintTemplate.isNotBlank()
+        // ECH on the system engine rides the same MITM bridge as forced HTTP/3: the
+        // upstream leg is Cronet, whose Chromium stack fetches HTTPS records and
+        // encrypts the ClientHello SNI natively. Without DoH the record query goes out
+        // over plain DNS — echEffective still allows that; the SNI itself stays hidden.
+        val echUpstream = config.dnsConfig.echEffective
+        // Forced HTTP/3 and ECH both ride the MITM bridge (their upstream leg is
+        // Cronet), so either must be able to start the bridge alone.
+        val needsMitmBridge = tlsFingerprintEnabled || config.forceHttp3 || echUpstream
 
-        if (tlsFingerprintEnabled) {
+        if (needsMitmBridge) {
             val template = TlsFingerprintTemplate.fromId(config.tlsFingerprintTemplate)
             val upstreamSocks = if (config.proxyMode == "STATIC" &&
                 (config.proxyType == "SOCKS5" || config.proxyType == "SOCKS")) {
@@ -1345,6 +1382,12 @@ class WebViewManager(
             } else {
                 null
             }
+            if (config.forceHttp3 && upstreamSocks != null) {
+                AppLogger.w("WebViewManager", "强制 HTTP/3 ignored: SOCKS upstream proxy takes precedence")
+            }
+            if (echUpstream && upstreamSocks != null) {
+                AppLogger.w("WebViewManager", "ECH ignored on system engine: SOCKS upstream proxy takes precedence")
+            }
 
             val mitmPort = TlsMitmBridge.start(
                 config = TlsMitmBridge.Config(
@@ -1354,9 +1397,16 @@ class WebViewManager(
                     } else {
                         emptyList()
                     },
-                    upstreamSocks = upstreamSocks
+                    upstreamSocks = upstreamSocks,
+                    forceHttp3 = config.forceHttp3,
+                    echUpstream = echUpstream
                 ),
-                caDir = context.filesDir
+                caDir = context.filesDir,
+                customCaAnchors = runCatching {
+                    CustomCaTrustStore.init(context)
+                    CustomCaTrustStore.getAnchorCertificates()
+                }.getOrDefault(emptyList()),
+                appContext = context.applicationContext
             )
 
             if (mitmPort > 0) {
@@ -1422,6 +1472,8 @@ class WebViewManager(
 
         val preferLandscapeEmbeddedViewport = config.landscapeMode && !isDesktopModeRequested
 
+        val zoomPlan = planPageZoom(config.pageZoomPercent, config.initialScale)
+
         webView.apply {
             settings.apply {
 
@@ -1450,7 +1502,14 @@ class WebViewManager(
                 displayZoomControls = false
 
                 useWideViewPort = true
-                loadWithOverviewMode = !preferLandscapeEmbeddedViewport
+                // Whole-page zoom (initialScale) is overridden by overview fit, so
+                // overview must stay off while an explicit zoom is active. Default
+                // path (zoom 100) keeps the historical behavior.
+                loadWithOverviewMode = if (zoomPlan.zoomActive) {
+                    false
+                } else {
+                    !preferLandscapeEmbeddedViewport
+                }
 
                 if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
                     useWideViewPort = true
@@ -1467,24 +1526,40 @@ class WebViewManager(
                     AppLogger.d("WebViewManager", "ViewportMode.CUSTOM applied: width=${config.customViewportWidth}")
                 }
 
-                val effectiveUserAgent = resolveUserAgent(config)
-                if (effectiveUserAgent != null) {
+                val identity = resolvedBrowserIdentity
+                if (identity.userAgent != null) {
 
-                    userAgentString = stripWebViewMarker(effectiveUserAgent)
-                    AppLogger.d("WebViewManager", "User-Agent set: ${userAgentString.take(80)}...")
+                    userAgentString = stripWebViewMarker(identity.userAgent)
+                    AppLogger.d(
+                        "WebViewManager",
+                        "Browser identity applied (${identity.profile?.flavor?.name ?: "derived-from-UA"}): " +
+                            "${userAgentString.take(80)}..."
+                    )
                 } else {
 
                     userAgentString = stripWebViewMarker(userAgentString)
                     AppLogger.d("WebViewManager", "User-Agent (system default, wv stripped): ${userAgentString.take(80)}...")
                 }
 
-                if (!isDesktopModeRequested && effectiveUserAgent == null) {
+                // Client hints are part of the same identity, never a separate decision: the
+                // engine would otherwise advertise its real brands in `Sec-CH-UA` while the UA
+                // above claims a different browser.
+                com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, identity.profile)
+
+                if (!isDesktopModeRequested && identity.userAgent == null) {
                     val hasActiveChromeExt = getActiveModulesForCurrentApp().any { module ->
                         module.sourceType == com.webtoapp.core.extension.ModuleSourceType.CHROME_EXTENSION &&
                         module.chromeExtId.isNotEmpty()
                     }
                     if (hasActiveChromeExt) {
-                        userAgentString = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
+                        val desktopUa = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
+                        userAgentString = desktopUa
+                        // Swapping the UA here must carry its client hints along, or the same
+                        // UA/client-hint contradiction reappears for extension-bearing apps.
+                        com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+                            webView,
+                            com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(desktopUa)
+                        )
                         AppLogger.d("WebViewManager", "Desktop UA auto-enabled for active Chrome extension(s)")
                     }
                 }
@@ -1549,17 +1624,17 @@ class WebViewManager(
 
             com.webtoapp.core.perf.NativePerfEngine.optimizeWebViewSettings(this)
 
-            // Runtime per-app page zoom (textZoom), persisted across cold starts via
-            // PageZoomStore. Applied AFTER the viewport/dark-mode settings above (which may
-            // pin textZoom to 100 in DESKTOP mode) so the user override wins. 0 = no override.
-            val runtimeZoomOverride = com.webtoapp.core.webview.PageZoomStore
-                .getZoomPercent(context, context.packageName)
-            if (runtimeZoomOverride > 0) {
-                settings.textZoom = runtimeZoomOverride
-                AppLogger.d("WebViewManager", "Applied runtime page zoom: textZoom=$runtimeZoomOverride%")
-            }
-
-            if (config.initialScale > 0) {
+            // Per-app page zoom (#654): whole-page scaling via initialScale — text
+            // AND layout/images/canvas, unlike textZoom (glyphs only, invisible on
+            // dashboard/canvas UIs). Runs AFTER the viewport block above so an
+            // explicit zoom wins over FIT_SCREEN/CUSTOM scale-1 forcing; textZoom
+            // stays pinned at 100 so text is never scaled twice. Default (100)
+            // leaves everything untouched; pooled instances are reset to auto.
+            if (zoomPlan.zoomActive) {
+                settings.textZoom = 100
+                setInitialScale(zoomPlan.initialScalePercent)
+                AppLogger.d("WebViewManager", "Applied page zoom: initialScale=${zoomPlan.initialScalePercent}% (overview off)")
+            } else if (config.initialScale > 0) {
                 setInitialScale(config.initialScale)
                 AppLogger.d("WebViewManager", "Set initial scale: ${config.initialScale}%")
             } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
@@ -1570,6 +1645,9 @@ class WebViewManager(
 
                 setInitialScale(1)
                 AppLogger.d("WebViewManager", "ViewportMode.CUSTOM: forced initial scale to 1 (custom width=${config.customViewportWidth})")
+            } else {
+                // DEFAULT mode, no zoom: clear any scale a pooled WebView may carry.
+                setInitialScale(0)
             }
 
             settings.setSupportMultipleWindows(config.newWindowBehavior != NewWindowBehavior.SAME_WINDOW)
@@ -1639,10 +1717,27 @@ class WebViewManager(
                 }
             }
 
+            // Register the GM bridge only when userscripts can actually run: the interface
+            // object is exposed to every frame of every page, so an unconditional
+            // registration hands a cross-origin HTTP client to apps with zero userscripts.
+            // Global-fallback mode keeps the bridge registered because its module set is
+            // resolved dynamically per page load and a late addJavascriptInterface would
+            // not reach already-loaded pages.
+            val hasUserscriptModules = runCatching {
+                resolveActiveExtensionModules().any {
+                    it.sourceType == com.webtoapp.core.extension.ModuleSourceType.USERSCRIPT ||
+                        it.sourceType == com.webtoapp.core.extension.ModuleSourceType.GREASYFORK
+                } || embeddedModules.any { it.enabled && it.isUserscript() }
+            }.getOrDefault(false)
             gmBridge?.destroy()
-            val bridge = com.webtoapp.core.extension.GreasemonkeyBridge(context) { webView }
-            gmBridge = bridge
-            addJavascriptInterface(bridge, com.webtoapp.core.extension.GreasemonkeyBridge.JS_INTERFACE_NAME)
+            gmBridge = null
+            if (hasUserscriptModules || allowGlobalModuleFallback) {
+                val bridge = com.webtoapp.core.extension.GreasemonkeyBridge(context) { webView }
+                gmBridge = bridge
+                addJavascriptInterface(bridge, com.webtoapp.core.extension.GreasemonkeyBridge.JS_INTERFACE_NAME)
+            } else {
+                removeJavascriptInterface(com.webtoapp.core.extension.GreasemonkeyBridge.JS_INTERFACE_NAME)
+            }
 
             initChromeExtensionRuntimes(webView)
 
@@ -1657,10 +1752,6 @@ class WebViewManager(
                         com.webtoapp.core.kernel.BrowserKernel.Level.DEEP
                 }
                 com.webtoapp.core.kernel.BrowserKernel.configureWebView(webView, level)
-            }
-
-            if (!config.kernelFlavor.profile.isNoOp) {
-                com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, config.kernelFlavor.profile)
             }
 
             isFocusable = true
@@ -1779,52 +1870,6 @@ class WebViewManager(
         }
     }
 
-    private fun resolveUserAgent(config: WebViewConfig): String? {
-        AppLogger.d("WebViewManager", "resolveUserAgent: userAgentMode=${config.userAgentMode}, customUserAgent=${config.customUserAgent?.take(30)}, desktopMode=${config.desktopMode}")
-
-        val ddConfig = currentDeviceDisguiseConfig
-        if (ddConfig != null && ddConfig.enabled) {
-            val ua = ddConfig.generateUserAgent()
-            if (ua.isNotBlank()) {
-                AppLogger.d("WebViewManager", "resolveUserAgent: DeviceDisguise -> ${ua.take(80)}")
-                return ua
-            }
-        }
-
-        when (config.userAgentMode) {
-            UserAgentMode.DEFAULT -> {
-
-            }
-            UserAgentMode.CUSTOM -> {
-
-                val ua = config.customUserAgent?.takeIf { it.isNotBlank() }
-                AppLogger.d("WebViewManager", "resolveUserAgent: CUSTOM mode -> ${ua?.take(60) ?: "null"}")
-                return ua
-            }
-            else -> {
-
-                val ua = config.userAgentMode.userAgentString
-                AppLogger.d("WebViewManager", "resolveUserAgent: ${config.userAgentMode.name} mode -> ${ua?.take(60) ?: "null"}")
-                return ua
-            }
-        }
-
-        val flavorUa = config.kernelFlavor.profile.userAgent?.takeIf { it.isNotBlank() }
-        if (flavorUa != null) {
-            AppLogger.d("WebViewManager", "resolveUserAgent: KernelFlavor ${config.kernelFlavor.name} -> ${flavorUa.take(60)}")
-            return flavorUa
-        }
-
-        if (config.desktopMode) {
-            AppLogger.d("WebViewManager", "resolveUserAgent: desktopMode fallback")
-            return DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
-        }
-
-        val legacyUa = config.userAgent?.takeIf { it.isNotBlank() }
-        AppLogger.d("WebViewManager", "resolveUserAgent: DEFAULT mode, legacyUA=${legacyUa?.take(60) ?: "null"}")
-        return legacyUa
-    }
-
     private fun createWebViewClient(
         config: WebViewConfig,
         callbacks: WebViewCallbacks
@@ -1845,11 +1890,21 @@ class WebViewManager(
                     val url = it.url?.toString() ?: ""
                     diagRequestCount++
 
+                    // Feed the TLS-MITM bridge's host allowlist: every request the WebView
+                    // issues passes through here before its network stack CONNECTs through
+                    // the bridge, so this is the authoritative "host actually requested" set.
+                    if (TlsMitmBridge.isRunning()) {
+                        TlsMitmBridge.allowHost(runCatching { android.net.Uri.parse(url).host }.getOrNull())
+                    }
+
                     if (com.webtoapp.core.extension.ExtensionResourceInterceptor.isChromeExtensionUrl(url)) {
                         return com.webtoapp.core.extension.ExtensionResourceInterceptor.intercept(context, url)
                     }
 
                     val resType = if (url.startsWith("http://") || url.startsWith("https://")) inferResourceType(it) else null
+                    // One Uri.parse + host extraction per request; the initiator domain
+                    // is constant across every check in this callback.
+                    val initiatorDomain = try { android.net.Uri.parse(currentMainFrameUrl ?: "").host ?: "" } catch (_: Exception) { "" }
                     if (resType != null) {
 
                         if (com.webtoapp.core.extension.WebRequestBridge.shouldBlock(url, resType)) {
@@ -1860,7 +1915,7 @@ class WebViewManager(
                         val dnrResult = com.webtoapp.core.extension.DeclarativeNetRequestEngine.evaluate(
                             url = url,
                             resourceType = resType,
-                            initiatorDomain = try { android.net.Uri.parse(currentMainFrameUrl ?: "").host ?: "" } catch (_: Exception) { "" },
+                            initiatorDomain = initiatorDomain,
                             method = it.method ?: "GET"
                         )
                         if (dnrResult != null) {
@@ -1887,7 +1942,7 @@ class WebViewManager(
                             val headerMods = com.webtoapp.core.extension.DeclarativeNetRequestEngine.collectHeaderModifications(
                                 url = url,
                                 resourceType = resType,
-                                initiatorDomain = try { android.net.Uri.parse(currentMainFrameUrl ?: "").host ?: "" } catch (_: Exception) { "" },
+                                initiatorDomain = initiatorDomain,
                                 method = it.method ?: "GET"
                             )
                             if (headerMods != null) {
@@ -1966,11 +2021,15 @@ class WebViewManager(
                         }
                     }
 
-                    val isOAuthRequest = if (isHttpOrHttps) isOAuthServiceRequest(url) else false
-
-                    val mainFrameUrl = currentMainFrameUrl
-                    val isOAuthPageSubResource = !isOAuthRequest && isHttpOrHttps &&
-                        mainFrameUrl != null && isOAuthServiceRequest(mainFrameUrl)
+                    // Legacy proxy fallback for pre-PROXY_OVERRIDE WebViews: fetch via
+                    // the configured proxy in-app. Null when disarmed/bypassed/scheme
+                    // mismatch (normal loading continues); 502 on fetch failure so a
+                    // dead proxy fails closed instead of leaking direct.
+                    LegacyProxyFetchBridge.intercept(
+                        url = url,
+                        method = it.method,
+                        requestHeaders = it.requestHeaders ?: emptyMap()
+                    )?.let { proxied -> return proxied }
                 }
 
                 return super.shouldInterceptRequest(view, request)
@@ -2049,6 +2108,9 @@ class WebViewManager(
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
                 currentMainFrameUrl = url
+                if (TlsMitmBridge.isRunning()) {
+                    TlsMitmBridge.allowHost(runCatching { android.net.Uri.parse(url ?: "").host }.getOrNull())
+                }
                 extensionPanelInjected = false
                 view?.let {
                     userscriptInjectionState.remove(it)
@@ -2106,7 +2168,10 @@ class WebViewManager(
                     scheduleFailoverTimeoutIfNeeded(view, config, url)
                 }
 
-                adBlocker.invalidateCache()
+                // NOTE: do NOT invalidate adBlocker cache here. The cache key
+                // includes pageHost + resource type so it is correct across
+                // navigations; clearing per page destroys the hit rate and
+                // forces cold regex matching for every subresource.
 
                 val isBack = isNavigatingBack
 
@@ -2149,12 +2214,18 @@ class WebViewManager(
                     view?.let { com.webtoapp.core.kernel.BrowserKernel.injectKernelJs(it, kernelLevel) }
                 }
 
+                // Batch the static config-gated shims below into ONE evaluateJavascript:
+                // each call is a Binder IPC + renderer round-trip on the first-paint
+                // path. Chunks stay in original order and are try/catch-isolated so
+                // one failing shim can't suppress the rest (separate evals used to
+                // provide that isolation for free).
+                val startBatch = StringBuilder()
                 if (config.enableClipboardPolyfill) {
-                    view?.evaluateJavascript(CLIPBOARD_POLYFILL_JS, null)
+                    startBatch.append("try{").append(CLIPBOARD_POLYFILL_JS).append("}catch(e){};\n")
                 }
 
                 if (config.geolocationEnabled) {
-                    view?.evaluateJavascript(GeolocationBridge.getShimScript(), null)
+                    startBatch.append("try{").append(GeolocationBridge.getShimScript()).append("}catch(e){};\n")
                 }
 
                 // Warm up the audio session on the first user gesture so async audio (e.g. AI
@@ -2169,17 +2240,21 @@ class WebViewManager(
                 view?.let { injectPrivateNetworkApiBridgeFallback(it, url) }
 
                 if (config.enableScrollMemory) {
-                    view?.evaluateJavascript(SCROLL_SAVE_JS, null)
+                    startBatch.append("try{").append(SCROLL_SAVE_JS).append("}catch(e){};\n")
                 }
 
                 if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
-                    view?.evaluateJavascript(VIEWPORT_FIT_SCREEN_JS, null)
+                    startBatch.append("try{").append(VIEWPORT_FIT_SCREEN_JS).append("}catch(e){};\n")
                 }
 
                 if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
-                    view?.evaluateJavascript(customJs, null)
+                    startBatch.append("try{").append(customJs).append("}catch(e){};\n")
+                }
+
+                if (startBatch.isNotEmpty()) {
+                    view?.evaluateJavascript(startBatch.toString(), null)
                 }
 
                 view?.let { injectScripts(it, config.injectScripts, ScriptRunTime.DOCUMENT_START, url) }
@@ -2245,15 +2320,13 @@ class WebViewManager(
 
                 if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
 
-                    view?.evaluateJavascript("window.__wtaViewportFitApplied=false;", null)
-                    view?.evaluateJavascript(VIEWPORT_FIT_SCREEN_JS, null)
+                    view?.evaluateJavascript("window.__wtaViewportFitApplied=false;\n$VIEWPORT_FIT_SCREEN_JS", null)
                 }
 
                 if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
-                    view?.evaluateJavascript("window.__wtaViewportCustomApplied=false;", null)
-                    view?.evaluateJavascript(customJs, null)
+                    view?.evaluateJavascript("window.__wtaViewportCustomApplied=false;\n$customJs", null)
                 }
 
                 if (url != null && (url.startsWith("http://") || url.startsWith("https://")) && config.enableImageRepair) {
@@ -2297,6 +2370,19 @@ class WebViewManager(
                                         .replace("'", "\\'")
                                         .replace("\n", "\\n")
                                         .replace("\r", "")
+                                    // Hide-selector batches mirror the CSS hide rules one
+                                    // entry per rule; querying per batch keeps one invalid
+                                    // selector list from skipping the remaining batches.
+                                    val hideBatchesJs = adBlocker.getCosmeticHideBatches(pageHost)
+                                        .joinToString(",") { batch ->
+                                            "'" + batch
+                                                .replace("\\", "\\\\")
+                                                .replace("'", "\\'")
+                                                .replace("\n", "\\n")
+                                                .replace("\r", "") + "'"
+                                        }
+                                    // Already a JS literal (JSON-escaped in AdBlocker).
+                                    val procJs = adBlocker.getCosmeticProceduralRulesJs(pageHost)
                                     view.evaluateJavascript("""
                                         (function() {
                                             'use strict';
@@ -2310,27 +2396,78 @@ class WebViewManager(
                                                 (document.head || document.documentElement).appendChild(style);
                                             }
 
-                                            var selectors = '$escapedCss'.match(/([^{]+)\{/g);
-                                            if (selectors && selectors.length > 0) {
-                                                var selectorList = selectors.map(function(s) {
-                                                    return s.replace(/\s*\{${'$'}/, '').trim();
-                                                }).join(',');
+                                            var batches = [$hideBatchesJs];
+                                            var procRules = $procJs;
 
+                                            var hideMatches = function() {
+                                                for (var b = 0; b < batches.length; b++) {
+                                                    try {
+                                                        var els = document.querySelectorAll(batches[b]);
+                                                        for (var i = 0; i < els.length; i++) {
+                                                            if (els[i].style.display !== 'none') {
+                                                                els[i].style.setProperty('display', 'none', 'important');
+                                                                els[i].style.setProperty('visibility', 'hidden', 'important');
+                                                            }
+                                                        }
+                                                    } catch(e) { /* invalid selector list — skip this batch */ }
+                                                }
+                                            };
+
+                                            // Procedural rules: base selector via qSA, then the
+                                            // pseudo chain (t = text match, u = upward walk,
+                                            // r = remove) evaluated here in page JS.
+                                            var applyProc = function() {
+                                                for (var r = 0; r < procRules.length; r++) {
+                                                    var rule = procRules[r];
+                                                    try {
+                                                        var els = document.querySelectorAll(rule.b);
+                                                        for (var i = 0; i < els.length; i++) {
+                                                            var el = els[i];
+                                                            var ok = true;
+                                                            for (var o = 0; o < rule.o.length && ok; o++) {
+                                                                var op = rule.o[o];
+                                                                var kind = op.charAt(0);
+                                                                var arg = op.substring(2);
+                                                                if (kind === 't') {
+                                                                    var txt = el.textContent || '';
+                                                                    if (arg.length > 2 && arg.charAt(0) === '/' && arg.charAt(arg.length - 1) === '/') {
+                                                                        ok = new RegExp(arg.substring(1, arg.length - 1), 'i').test(txt);
+                                                                    } else {
+                                                                        ok = txt.toLowerCase().indexOf(arg.toLowerCase()) >= 0;
+                                                                    }
+                                                                } else if (kind === 'u') {
+                                                                    var steps = parseInt(arg, 10);
+                                                                    if (!isNaN(steps)) {
+                                                                        while (steps-- > 0 && el) el = el.parentElement;
+                                                                    } else if (el.closest) {
+                                                                        el = el.closest(arg);
+                                                                    } else {
+                                                                        el = null;
+                                                                    }
+                                                                    ok = !!el;
+                                                                }
+                                                            }
+                                                            if (!ok || !el) continue;
+                                                            if (rule.a === 1) {
+                                                                el.remove();
+                                                            } else if (el.style && el.style.display !== 'none') {
+                                                                el.style.setProperty('display', 'none', 'important');
+                                                                el.style.setProperty('visibility', 'hidden', 'important');
+                                                            }
+                                                        }
+                                                    } catch(e) { /* invalid base selector — skip rule */ }
+                                                }
+                                            };
+
+                                            if (batches.length > 0 || procRules.length > 0) {
                                                 var pending = false;
                                                 var observer = new MutationObserver(function() {
                                                     if (pending) return;
                                                     pending = true;
                                                     (window.requestIdleCallback || setTimeout)(function() {
                                                         pending = false;
-                                                        try {
-                                                            var els = document.querySelectorAll(selectorList);
-                                                            for (var i = 0; i < els.length; i++) {
-                                                                if (els[i].style.display !== 'none') {
-                                                                    els[i].style.setProperty('display', 'none', 'important');
-                                                                    els[i].style.setProperty('visibility', 'hidden', 'important');
-                                                                }
-                                                            }
-                                                        } catch(e) { /* selector parse error — skip */ }
+                                                        hideMatches();
+                                                        applyProc();
                                                     }, { timeout: 100 });
                                                 });
 
@@ -2342,6 +2479,7 @@ class WebViewManager(
                                                 }
 
                                                 setTimeout(function() { observer.disconnect(); }, 30000);
+                                                applyProc();
                                             }
                                         })();
                                     """.trimIndent(), null)
@@ -2444,34 +2582,40 @@ class WebViewManager(
                         val isSameRetry = failedUrl == loopbackMainFrameRetryUrl
                         val currentRetry = if (isSameRetry) loopbackMainFrameRetryCount else 0
                         if (currentRetry < LOOPBACK_MAIN_FRAME_MAX_RETRIES) {
+                            if (!reloadBreaker.noteAutoReload(failedUrl)) {
+                                AppLogger.w(
+                                    "WebViewManager",
+                                    "Loopback auto-retry circuit breaker tripped, showing error instead: $failedUrl"
+                                )
+                            } else {
+                                loopbackMainFrameRetryRunnable?.let { view.removeCallbacks(it) }
 
-                            loopbackMainFrameRetryRunnable?.let { view.removeCallbacks(it) }
+                                loopbackMainFrameRetryUrl = failedUrl
+                                loopbackMainFrameRetryCount = currentRetry + 1
+                                loopbackMainFrameRetryPending = true
+                                loopbackMainFrameRetryView = view
+                                AppLogger.i(
+                                    "WebViewManager",
+                                    "Loopback main-frame load failed (code=$errorCode, desc=$rawDescription), auto-retry ${loopbackMainFrameRetryCount}/$LOOPBACK_MAIN_FRAME_MAX_RETRIES after ${LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS}ms: $failedUrl"
+                                )
+                                val retryRunnable = Runnable {
+                                    val currentUrl = view.url
+                                    if (currentUrl == null || currentUrl == "about:blank" || currentUrl == failedUrl || currentMainFrameUrl == failedUrl) {
+                                        AppLogger.d("WebViewManager", "Retrying loopback main-frame request: $failedUrl")
+                                        view.loadUrl(failedUrl)
+                                    } else {
+                                        AppLogger.d(
+                                            "WebViewManager",
+                                            "Skip loopback auto-retry because WebView navigated away: current=$currentUrl, failed=$failedUrl"
+                                        )
+                                    }
 
-                            loopbackMainFrameRetryUrl = failedUrl
-                            loopbackMainFrameRetryCount = currentRetry + 1
-                            loopbackMainFrameRetryPending = true
-                            loopbackMainFrameRetryView = view
-                            AppLogger.i(
-                                "WebViewManager",
-                                "Loopback main-frame load failed (code=$errorCode, desc=$rawDescription), auto-retry ${loopbackMainFrameRetryCount}/$LOOPBACK_MAIN_FRAME_MAX_RETRIES after ${LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS}ms: $failedUrl"
-                            )
-                            val retryRunnable = Runnable {
-                                val currentUrl = view.url
-                                if (currentUrl == null || currentUrl == "about:blank" || currentUrl == failedUrl || currentMainFrameUrl == failedUrl) {
-                                    AppLogger.d("WebViewManager", "Retrying loopback main-frame request: $failedUrl")
-                                    view.loadUrl(failedUrl)
-                                } else {
-                                    AppLogger.d(
-                                        "WebViewManager",
-                                        "Skip loopback auto-retry because WebView navigated away: current=$currentUrl, failed=$failedUrl"
-                                    )
+                                    loopbackMainFrameRetryRunnable = null
                                 }
-
-                                loopbackMainFrameRetryRunnable = null
+                                loopbackMainFrameRetryRunnable = retryRunnable
+                                view.postDelayed(retryRunnable, LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS)
+                                return
                             }
-                            loopbackMainFrameRetryRunnable = retryRunnable
-                            view.postDelayed(retryRunnable, LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS)
-                            return
                         } else {
                             AppLogger.w(
                                 "WebViewManager",
@@ -2493,16 +2637,23 @@ class WebViewManager(
                         val isSameRetry = failedUrl == fileRetryUrl
                         val currentRetry = if (isSameRetry) fileRetryCount else 0
                         if (currentRetry < FILE_MAX_RETRIES) {
-                            fileRetryUrl = failedUrl
-                            fileRetryCount = currentRetry + 1
-                            AppLogger.d(
-                                "WebViewManager",
-                                "file:// load failed (code=$errorCode, desc=$rawDescription), auto-retry ${fileRetryCount}/$FILE_MAX_RETRIES after ${FILE_RETRY_DELAY_MS}ms: $failedUrl"
-                            )
-                            view.postDelayed({
-                                view.loadUrl(failedUrl)
-                            }, FILE_RETRY_DELAY_MS)
-                            return
+                            if (!reloadBreaker.noteAutoReload(failedUrl)) {
+                                AppLogger.w(
+                                    "WebViewManager",
+                                    "file:// auto-retry circuit breaker tripped, showing error instead: $failedUrl"
+                                )
+                            } else {
+                                fileRetryUrl = failedUrl
+                                fileRetryCount = currentRetry + 1
+                                AppLogger.d(
+                                    "WebViewManager",
+                                    "file:// load failed (code=$errorCode, desc=$rawDescription), auto-retry ${fileRetryCount}/$FILE_MAX_RETRIES after ${FILE_RETRY_DELAY_MS}ms: $failedUrl"
+                                )
+                                view.postDelayed({
+                                    view.loadUrl(failedUrl)
+                                }, FILE_RETRY_DELAY_MS)
+                                return
+                            }
                         } else {
                             AppLogger.w(
                                 "WebViewManager",
@@ -2593,6 +2744,20 @@ class WebViewManager(
                     }
 
                     val manager = errorPageManager
+                    // Local router runtimes (PHP/WordPress) stamp their own diagnostic page
+                    // (fatal message / stack trace) into X-Wta-Router-Error on 5xx. Showing the
+                    // body beats replacing it with a generic "HTTP 500" page that hides whether
+                    // the failure is a fatal, an exception, or app-level PHP output.
+                    val routerErrorBody = if (statusCode in 500..599) {
+                        extractRouterErrorBody(errorResponse)
+                    } else null
+                    if (routerErrorBody != null && view != null && failedUrl != null) {
+                        lastFailedUrl = failedUrl
+                        view.loadDataWithBaseURL(failedUrl, routerErrorBody, "text/html", "UTF-8", failedUrl)
+                        AppLogger.d("WebViewManager", "Router 5xx diagnostic body shown for: $failedUrl, code=$statusCode")
+                        callbacks.onError(statusCode, description)
+                        return
+                    }
                     if (!isCloudflareResponse && manager != null && view != null && failedUrl != null && failedUrl != "about:blank") {
                         val errorHtml = manager.generateErrorPage(statusCode, description, failedUrl)
                         if (errorHtml != null) {
@@ -2666,6 +2831,20 @@ class WebViewManager(
                             return
                         }
                     }
+                }
+
+                // Explicit opt-out (Special Settings): proceed past every certificate error
+                // for main-frame AND sub-resource loads — an expired-cert site must render
+                // fully, not just its HTML. This deliberately disables TLS MITM protection
+                // for the whole app; the Play policy checker flags it for Play-bound exports.
+                if (config.errorPageConfig.ignoreSslErrors) {
+                    AppLogger.w(
+                        "WebViewManager",
+                        "Proceeding past SSL certificate error (ignoreSslErrors enabled): " +
+                            "$errorUrl primaryError=${error?.primaryError} mainFrame=$isMainFrameSslError"
+                    )
+                    handler?.proceed()
+                    return
                 }
 
                 if (!isMainFrameSslError) {
@@ -3102,18 +3281,30 @@ class WebViewManager(
             ?: runCatching { Uri.parse(target).host?.lowercase() }.getOrNull()
     }
 
+    /**
+     * Reads and base64-decodes the X-Wta-Router-Error diagnostic header that the local
+     * PHP router stamps onto 5xx responses. Returns null when the header is absent
+     * (non-router origins) or unreadable.
+     */
+    private fun extractRouterErrorBody(errorResponse: WebResourceResponse?): String? {
+        val headers = runCatching { errorResponse?.responseHeaders }.getOrNull() ?: return null
+        val encoded = headers.entries
+            .firstOrNull { it.key.equals("X-Wta-Router-Error", ignoreCase = true) }
+            ?.value
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        return runCatching {
+            String(Base64.decode(encoded, Base64.DEFAULT), Charsets.UTF_8)
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
     private fun isMitmSslError(error: android.net.http.SslError?): Boolean {
         if (error == null) return false
-        val cert = extractServerCert(error)
-        if (cert != null) {
-            return TlsMitmCaManager.isSignedByLocalCa(cert)
-        }
-        return TlsMitmBridge.isRunning() && (
-            error.primaryError == android.net.http.SslError.SSL_UNTRUSTED ||
-            error.primaryError == android.net.http.SslError.SSL_EXPIRED ||
-            error.primaryError == android.net.http.SslError.SSL_NOTYETVALID ||
-            error.primaryError == android.net.http.SslError.SSL_IDMISMATCH
-        )
+        if (!TlsMitmBridge.isRunning()) return false
+        // Only a certificate that cryptographically chains to the local MITM CA counts.
+        // Never fall back to error-type matching: any other SSL error (an attacker's
+        // self-signed cert on a non-tunneled connection) must surface to the user.
+        return TlsMitmCaManager.isSignedByLocalCa(extractServerCert(error))
     }
 
     private fun extractServerCert(error: android.net.http.SslError?): java.security.cert.X509Certificate? {
@@ -3954,10 +4145,15 @@ class WebViewManager(
 
     private fun injectPrivateNetworkApiBridgeFallback(webView: WebView, pageUrl: String?) {
         if (!isLocalRuntimeUrl(pageUrl ?: webView.url)) return
+        // Only install the fetch/XHR hijack when a Java-side NativeBridge actually
+        // exists. Without this gate the hijack intercepts cross-origin fetches on
+        // local pages and rejects them with "bridge is unavailable" even though the
+        // user never enabled any bridge — the request should just use the WebView's
+        // normal (CORS-enforcing) behavior instead.
+        val cfg = currentConfig ?: return
+        if (!cfg.enableNativeBridge && !cfg.enablePrivateNetworkBridge && !cfg.enableCorsBypass) return
         try {
-
-            val cfg = currentConfig
-            val script = if (cfg != null) privateNetworkScriptWithScope(cfg) else PrivateNetworkApiBridgeScriptHolder.SCRIPT
+            val script = privateNetworkScriptWithScope(cfg)
             webView.evaluateJavascript(script, null)
         } catch (e: Exception) {
             AppLogger.w("WebViewManager", "Private network bridge fallback injection failed", e)
@@ -3971,6 +4167,14 @@ class WebViewManager(
     private var cachedBrowserDisguiseJs: String? = null
 
     private var cachedKernelFlavorJs: String? = null
+
+    /**
+     * The single browser identity resolved for the current app: its `User-Agent` and the
+     * client-hint metadata that describes it. Kept as one value so the two can never be applied
+     * apart from each other.
+     */
+    private var resolvedBrowserIdentity: com.webtoapp.core.kernel.BrowserIdentity =
+        com.webtoapp.core.kernel.BrowserIdentity.SYSTEM_DEFAULT
 
     private var cachedBrowserDisguiseConfig: com.webtoapp.core.appearance.BrowserDisguiseConfig? = null
 
@@ -5262,10 +5466,28 @@ class WebViewManager(
         }
     }
 
+    /**
+     * Resolves the single browser identity for [config] from the currently cached disguise
+     * sources. Reading the cached device-disguise config (rather than taking it as a parameter)
+     * keeps this usable both during configuration and from deferred extension handling.
+     */
+    private fun resolveBrowserIdentityFor(config: WebViewConfig): com.webtoapp.core.kernel.BrowserIdentity =
+        com.webtoapp.core.kernel.BrowserIdentityResolver.resolve(
+            flavor = config.kernelFlavor,
+            legacyMode = config.userAgentMode,
+            customUserAgent = config.customUserAgent,
+            desktopMode = config.desktopMode,
+            desktopUserAgent = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK,
+            legacyUserAgent = config.userAgent,
+            deviceDisguiseUserAgent = currentDeviceDisguiseConfig
+                ?.takeIf { it.enabled }
+                ?.generateUserAgent()
+        )
+
     private fun ensureDesktopUaForDeferredChromeExt(webView: WebView): Boolean {
         val config = currentConfig ?: return false
         if (isDesktopUaRequested(config)) return false
-        if (resolveUserAgent(config) != null) return false
+        if (resolveBrowserIdentityFor(config).userAgent != null) return false
         val hasActiveChromeExt = getActiveModulesForCurrentApp().any { module ->
             module.sourceType == com.webtoapp.core.extension.ModuleSourceType.CHROME_EXTENSION &&
                 module.chromeExtId.isNotEmpty()
@@ -5274,6 +5496,11 @@ class WebViewManager(
         val desktopUa = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
         if (webView.settings.userAgentString == desktopUa) return false
         webView.settings.userAgentString = desktopUa
+        // Carry the client hints along with the swapped UA, or the UA and `Sec-CH-UA` disagree.
+        com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+            webView,
+            com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(desktopUa)
+        )
         AppLogger.d(
             "WebViewManager",
             "Desktop UA auto-enabled (deferred) for active Chrome extension(s); reloading"
@@ -5593,8 +5820,11 @@ class WebViewManager(
                     extensionFileManager.getCachedResource(name, url) ?: url
                 }
 
+                // The polyfill carries a random storage alias, not the raw module id: the
+                // bridge object is reachable from every frame, so raw ids would let any
+                // embedded content read/write another script's GM storage.
                 val polyfill = com.webtoapp.core.extension.GreasemonkeyBridge.generatePolyfillScript(
-                    scriptId = module.id,
+                    scriptId = gmBridge?.storageAliasFor(module.id) ?: module.id,
                     grants = module.gmGrants,
                     scriptInfo = scriptInfo,
                     resources = resolvedResources
@@ -5769,7 +5999,7 @@ class WebViewManager(
                 )
 
                 val polyfill = com.webtoapp.core.extension.GreasemonkeyBridge.generatePolyfillScript(
-                    scriptId = module.id,
+                    scriptId = gmBridge?.storageAliasFor(module.id) ?: module.id,
                     grants = module.gmGrants,
                     scriptInfo = scriptInfo,
                     resources = module.resources
@@ -6350,7 +6580,12 @@ class WebViewManager(
 
                 function nativeHttpRequest(payload) {
                     if (!window.NativeBridge || typeof window.NativeBridge.httpRequest !== 'function') {
-                        return Promise.reject(new TypeError('Native private network bridge is unavailable'));
+                        // Defensive only since the wrapper is no longer injected without a
+                        // bridge; kept actionable in case interface removal races injection.
+                        return Promise.reject(new TypeError(
+                            'Native private network bridge is unavailable. ' +
+                            'Enable "Private network bridge" (or CORS bypass) for this app in the WebToApp editor and rebuild.'
+                        ));
                     }
                     return bodyToBase64(payload.body).then(function(bodyBase64) {
                         var raw = window.NativeBridge.httpRequest(JSON.stringify({

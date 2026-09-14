@@ -8,7 +8,7 @@
 
 - **启用** —— 打开去广告(`adBlockEnabled`)。
 - **规则** —— 自定义拦截规则(`adBlockRules`)。
-- **订阅** —— 过滤订阅 URL(`adBlockSubscriptions`)。
+- **订阅** —— 过滤订阅 URL(`adBlockSubscriptions`),从[Hosts 拦截](/zh/guide/more-features/hosts-adblock)中的内置列表与导入的自定义源中选取。
 
 ## 说明
 

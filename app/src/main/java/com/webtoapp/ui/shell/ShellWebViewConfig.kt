@@ -38,12 +38,14 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         downloadLocationMode = try { com.webtoapp.data.model.DownloadLocationMode.valueOf(config.webViewConfig.downloadLocationMode) } catch (e: Exception) { com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD },
         customDownloadDirUri = config.webViewConfig.customDownloadDirUri,
         hideToolbar = config.webViewConfig.hideToolbar,
-        hideBrowserToolbar = config.webViewConfig.hideBrowserToolbar,
+        browserToolbarEnabled = config.webViewConfig.browserToolbarEnabled,
         toolbarShowTitle = config.webViewConfig.toolbarShowTitle,
         toolbarShowUrl = config.webViewConfig.toolbarShowUrl,
         toolbarShowBack = config.webViewConfig.toolbarShowBack,
         toolbarShowForward = config.webViewConfig.toolbarShowForward,
         toolbarShowRefresh = config.webViewConfig.toolbarShowRefresh,
+        toolbarShowConsole = config.webViewConfig.toolbarShowConsole,
+        toolbarShowFind = config.webViewConfig.toolbarShowFind,
         showStatusBarInFullscreen = config.webViewConfig.showStatusBarInFullscreen,
         showNavigationBarInFullscreen = config.webViewConfig.showNavigationBarInFullscreen,
         showToolbarInFullscreen = config.webViewConfig.showToolbarInFullscreen,
@@ -78,6 +80,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         popupBlockerToggleEnabled = config.webViewConfig.popupBlockerToggleEnabled,
 
         initialScale = config.webViewConfig.initialScale,
+        pageZoomPercent = config.webViewConfig.pageZoomPercent,
         viewportMode = try { com.webtoapp.data.model.ViewportMode.valueOf(config.webViewConfig.viewportMode) } catch (e: Exception) { com.webtoapp.data.model.ViewportMode.DEFAULT },
         customViewportWidth = config.webViewConfig.customViewportWidth,
         newWindowBehavior = try { com.webtoapp.data.model.NewWindowBehavior.valueOf(config.webViewConfig.newWindowBehavior) } catch (e: Exception) { com.webtoapp.data.model.NewWindowBehavior.SAME_WINDOW },
@@ -275,6 +278,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             showHttp5xxErrorUi = config.webViewConfig.errorPageConfig.showHttp5xxErrorUi,
             showNetworkErrorUi = config.webViewConfig.errorPageConfig.showNetworkErrorUi,
             showSslErrorUi = config.webViewConfig.errorPageConfig.showSslErrorUi,
+            ignoreSslErrors = config.webViewConfig.errorPageConfig.ignoreSslErrors,
             showRenderCrashErrorUi = config.webViewConfig.errorPageConfig.showRenderCrashErrorUi
         ),
 
@@ -300,6 +304,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         tlsFingerprintEnabled = config.webViewConfig.tlsFingerprintEnabled,
         tlsFingerprintTemplate = config.webViewConfig.tlsFingerprintTemplate,
         tlsFingerprintCustomCiphers = config.webViewConfig.tlsFingerprintCustomCiphers,
+        forceHttp3 = config.webViewConfig.forceHttp3,
         antiCapture = config.webViewConfig.antiCapture,
 
         dnsMode = config.webViewConfig.dnsMode,

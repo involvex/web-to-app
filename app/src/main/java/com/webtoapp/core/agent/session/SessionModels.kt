@@ -34,6 +34,14 @@ data class SessionConfig(
     /** Null-safe: Gson bypasses the constructor so [builtApks] can be null for old sessions. */
     val builtApksSafe: List<PersistedApk>
         get() = @Suppress("USELESS_CAST") (builtApks as? List<PersistedApk>) ?: emptyList()
+
+    /** Null-safe: Gson bypasses the constructor so [contextAppIds] can be null for old sessions. */
+    val contextAppIdsSafe: List<Long>
+        get() = @Suppress("USELESS_CAST") (contextAppIds as? List<Long>) ?: emptyList()
+
+    /** Null-safe: Gson bypasses the constructor so [contextModuleIds] can be null for old sessions. */
+    val contextModuleIdsSafe: List<String>
+        get() = @Suppress("USELESS_CAST") (contextModuleIds as? List<String>) ?: emptyList()
 }
 
 /**
@@ -73,6 +81,14 @@ data class AgentMessage(
     val timestamp: Long = System.currentTimeMillis()
 ) {
     enum class Role { USER, ASSISTANT, SYSTEM }
+
+    /**
+     * Null-safe accessor: Gson bypasses the constructor when deserialising, so
+     * [userAttachments] can be null for messages loaded from older session JSON that
+     * predates this field. Treat that the same as an empty list.
+     */
+    val userAttachmentsSafe: List<UserAttachment>
+        get() = @Suppress("USELESS_CAST") (userAttachments as? List<UserAttachment>) ?: emptyList()
 
     /**
      * Null-safe accessor: Gson bypasses the constructor when deserialising, so

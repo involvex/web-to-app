@@ -56,9 +56,9 @@ android {
         applicationId = "com.webtoapp"
         minSdk = 23
 
-        targetSdk = 35
-        versionCode = 60
-        versionName = "2.5.4"
+        targetSdk = 36
+        versionCode = 65
+        versionName = "2.6.3"
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "false")
 
         vectorDrawables {
@@ -82,7 +82,7 @@ android {
         create("standard") {
             // Sideloaded variant (GitHub releases, keeps `com.webtoapp` for the existing
             // update path). Identical to gplay in every way except the applicationId —
-            // both inherit targetSdk 35 from defaultConfig and run the same code paths
+            // both inherit targetSdk 36 from defaultConfig and run the same code paths
             // (runtime capability gates key off the installed targetSdk, not the channel).
         }
         create("gplay") {
@@ -166,6 +166,14 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+            // Gecko omni.ja is downloaded on demand, never bundle it in host.
+            excludes += "assets/omni.ja"
+            excludes += "**/omni.ja"
+            // BouncyCastle post-quantum experimental blobs (~1.2M), unused.
+            excludes += "**/org/bouncycastle/pqc/**"
+            // Django gettext sources (~5.9M raw): the Python runtime only reads
+            // compiled .mo files, .po never ships in a working install.
+            excludes += "**/*.po"
         }
 
         jniLibs {
@@ -177,11 +185,26 @@ android {
             excludes += "**/libmozavutil.so"
             excludes += "**/libmozavcodec.so"
 
+            excludes += "**/libgkcodecs.so"
+            excludes += "**/libminidump_analyzer.so"
+            excludes += "**/libnss3.so"
+            excludes += "**/libfreebl3.so"
+            excludes += "**/libsoftokn3.so"
+            excludes += "**/liblgpllibs.so"
+            excludes += "**/libplugin-container.so"
+
             excludes += "**/libcrypto_engine.so"
+
+            // Cronet natives are downloaded on demand / injected per-export, never bundled.
+            excludes += "**/libcronet*.so"
         }
     }
     androidResources {
-        ignoreAssetsPattern = ""
+        // Keep "" semantics (include dot-dirs like .pypackages) while dropping
+        // Django gettext sources (*.po, runtime reads .mo only) and Gecko's
+        // omni.ja (downloaded on demand). packaging.resources.excludes does
+        // NOT cover assets, hence aapt-level filtering (verified by APK audit).
+        ignoreAssetsPattern = "*.po:*.ja"
 
         localeFilters += listOf("zh", "en", "ar")
     }
@@ -574,7 +597,6 @@ dependencies {
 
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("io.coil-kt:coil-video:2.5.0")
-    implementation("io.coil-kt:coil-gif:2.5.0")
 
     implementation("com.google.code.gson:gson:2.10.1")
 
@@ -603,12 +625,19 @@ dependencies {
 
     implementation("org.mozilla.geckoview:geckoview-arm64-v8a:142.0.20250827004350")
 
+    // Forced HTTP/3 (issue #721): Chromium's own network stack as the MITM bridge's
+    // upstream leg. Java classes ship in the APK; libcronet is NEVER bundled — the host
+    // downloads it on demand (filesDir/cronet_deps) and ApkBuilder injects it into
+    // exported APKs only when the app enables 强制 HTTP/3 (libnode/GeckoView precedent).
+    // Version must match CronetDependencyManager.CRONET_ARTIFACT_VERSION.
+    implementation("org.chromium.net:cronet-embedded:143.7445.0")
+
     implementation("com.google.zxing:core:3.5.2")
-    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
-    implementation("com.patrykandpatrick.vico:compose-m3:2.0.0-beta.3")
-
-    implementation("androidx.credentials:credentials:1.3.0")
+    // Native Google sign-in through the Jetpack Credential Manager (NativeBridge).
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     implementation("androidx.browser:browser:1.8.0")
 
     implementation("androidx.media:media:1.7.0")
@@ -658,11 +687,14 @@ tasks.register("checkConfigFieldDrift") {
     val apkConfigFile = file("src/main/java/com/webtoapp/core/apkbuilder/ApkConfig.kt")
     val shellConfigFile = file("src/main/java/com/webtoapp/core/shell/ShellModeManager.kt")
     val allowlist = rootProject.file("scripts/config_field_drift_allowlist.json")
+    // Configuration-cache safe: capture values at configuration time; the doLast action
+    // must not reach through Project.
+    val rootDir = rootProject.projectDir
     inputs.files(script, payloadFile, apkConfigFile, shellConfigFile, allowlist)
     outputs.upToDateWhen { false }
     doLast {
         val pb = ProcessBuilder(resolvePython3Command() + script.absolutePath)
-        pb.directory(rootProject.projectDir)
+        pb.directory(rootDir)
         pb.redirectErrorStream(true)
         val proc = pb.start()
         val log = proc.inputStream.bufferedReader().readText()

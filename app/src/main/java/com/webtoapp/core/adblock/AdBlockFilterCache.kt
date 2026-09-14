@@ -15,7 +15,7 @@ object AdBlockFilterCache {
     private const val SOURCE_CONTENT_DIR = "source_content"
     private const val COMPILED_STATE_FILE = "compiled_state.bin"
     private const val CONTENT_HASH_FILE = "content_hash.txt"
-    private const val CACHE_VERSION = 2
+    private const val CACHE_VERSION = 5
     private const val URL_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 
     suspend fun getCachedUrlContent(context: Context, url: String): String? = withContext(Dispatchers.IO) {
@@ -321,14 +321,35 @@ object AdBlockFilterCache {
         out.writeBoolean(filter.isException)
         writeStringSet(out, filter.domains)
         writeStringSet(out, filter.excludedDomains)
+        out.writeBoolean(filter.styleOverride != null)
+        if (filter.styleOverride != null) out.writeUTF(filter.styleOverride)
+        out.writeBoolean(filter.injectedCss != null)
+        if (filter.injectedCss != null) out.writeUTF(filter.injectedCss)
+        out.writeBoolean(filter.proceduralOps != null)
+        if (filter.proceduralOps != null) writeStringSet(out, filter.proceduralOps.toSet())
+        out.writeBoolean(filter.proceduralRaw != null)
+        if (filter.proceduralRaw != null) out.writeUTF(filter.proceduralRaw)
     }
 
     private fun readCosmeticFilter(input: DataInputStream): AdBlocker.CosmeticFilter {
+        val selector = input.readUTF()
+        val isException = input.readBoolean()
+        val domains = readStringSet(input)
+        val excludedDomains = readStringSet(input)
+        val styleOverride = if (input.readBoolean()) input.readUTF() else null
+        val injectedCss = if (input.readBoolean()) input.readUTF() else null
+        // Ops order matters (the chain applies left to right); readStringSet keeps it.
+        val proceduralOps = if (input.readBoolean()) readStringSet(input).toList() else null
+        val proceduralRaw = if (input.readBoolean()) input.readUTF() else null
         return AdBlocker.CosmeticFilter(
-            selector = input.readUTF(),
-            isException = input.readBoolean(),
-            domains = readStringSet(input),
-            excludedDomains = readStringSet(input)
+            selector = selector,
+            isException = isException,
+            domains = domains,
+            excludedDomains = excludedDomains,
+            styleOverride = styleOverride,
+            injectedCss = injectedCss,
+            proceduralOps = proceduralOps,
+            proceduralRaw = proceduralRaw
         )
     }
 

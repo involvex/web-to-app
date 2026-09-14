@@ -32,8 +32,6 @@ class ConfigTemplateStoreTest {
         assertThat(loaded).isNotNull()
         assertThat(loaded!!.webViewConfig.zoomEnabled).isFalse()
         assertThat(loaded.webViewConfig.toolbarShowConsole).isFalse()
-        // defaults survive the JSON round-trip
-        assertThat(loaded.webViewConfig.toolbarShowZoom).isTrue()
     }
 
     @Test

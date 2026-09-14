@@ -109,7 +109,11 @@ class ApkBuildCache(private val context: Context) {
         errorPageMediaPath: String?,
         nativeLibsFingerprint: String? = null,
         hostVersionCode: Int = 0,
-        forceFullRebuild: Boolean
+        forceFullRebuild: Boolean,
+        manifestFingerprint: String? = null,
+        perfFingerprint: String? = null,
+        multiWebSiteGalleryItems: List<com.webtoapp.data.model.GalleryItem> = emptyList(),
+        multiWebSiteMediaPaths: List<String> = emptyList()
     ): IncrementalPlan {
         val shellId = shellTemplateId(templateApk)
         val identity = identityFingerprint(
@@ -119,7 +123,9 @@ class ApkBuildCache(private val context: Context) {
             abiFilters = abiFilters,
             iconPath = webApp.iconPath,
             nativeLibsFingerprint = nativeLibsFingerprint,
-            hostVersionCode = hostVersionCode
+            hostVersionCode = hostVersionCode,
+            manifestFingerprint = manifestFingerprint,
+            perfFingerprint = perfFingerprint
         )
         val content = contentFingerprint(
             config = config,
@@ -131,7 +137,10 @@ class ApkBuildCache(private val context: Context) {
             galleryItems = galleryItems,
             errorPageMediaPath = errorPageMediaPath,
             statusBarImage = config.statusBarBackgroundImage,
-            floatingIcon = config.floatingWindowMinimizedIconPath
+            statusBarImageDark = config.statusBarBackgroundImageDark,
+            floatingIcon = config.floatingWindowMinimizedIconPath,
+            multiWebSiteGalleryItems = multiWebSiteGalleryItems,
+            multiWebSiteMediaPaths = multiWebSiteMediaPaths
         )
 
         if (forceFullRebuild) {
@@ -283,6 +292,8 @@ class ApkBuildCache(private val context: Context) {
         if (entryName == "assets/wta_adblock_compiled.txt") return true
         if (entryName == "assets/wta_perf_optimize.js") return true
         if (entryName == "assets/statusbar_background.png") return true
+        if (entryName == "assets/statusbar_background_dark.png") return true
+        if (entryName == "assets/announcement_icon.png") return true
         if (entryName == "assets/floating_window_minimized_icon.png") return true
         if (entryName.startsWith("assets/splash_media.")) return true
         if (entryName.startsWith("assets/error_page_media.")) return true
@@ -293,11 +304,17 @@ class ApkBuildCache(private val context: Context) {
         if (entryName.startsWith("assets/html_projects/")) return true
         if (entryName.startsWith("assets/nodejs_app/")) return true
         if (entryName.startsWith("assets/php_app/")) return true
+        if (entryName.startsWith("assets/python/")) return true
         if (entryName.startsWith("assets/python_app/")) return true
+        // Re-embedded by RuntimeAssetEmbedder.embedPythonStdlib on every build in both
+        // modes; without this entry CONTENT_OVERLAY copies the cached stdlib AND the
+        // embedder writes it again — duplicate entries accumulating on every rebuild.
+        if (entryName.startsWith("assets/python_runtime/")) return true
         if (entryName.startsWith("assets/go_app/")) return true
         if (entryName.startsWith("assets/frontend_app/")) return true
         if (entryName.startsWith("assets/static_pack/")) return true
         if (entryName.startsWith("assets/wordpress/")) return true
+        if (entryName.startsWith("assets/wta_custom_ca/")) return true
         if (entryName.startsWith("assets/multiweb_sites/")) return true
         if (entryName.startsWith("assets/multi_web/")) return true
         return false
@@ -343,7 +360,9 @@ class ApkBuildCache(private val context: Context) {
         abiFilters: List<String>,
         iconPath: String?,
         nativeLibsFingerprint: String? = null,
-        hostVersionCode: Int = 0
+        hostVersionCode: Int = 0,
+        manifestFingerprint: String? = null,
+        perfFingerprint: String? = null
     ): String {
         val parts = mutableListOf<String>()
         parts += "shell=$shellTemplateId"
@@ -376,6 +395,16 @@ class ApkBuildCache(private val context: Context) {
         // targetSdk override changes the manifest's <uses-sdk>; without this a cached unsigned
         // APK with targetSdk 28 would be reused after the user raises it, defeating the change.
         parts += "targetSdk=${config.targetSdkOverride ?: 28}"
+        // The derived manifest permission/component set: CONTENT_OVERLAY reuses the
+        // cached base's AndroidManifest, so a config change that alters this set without
+        // touching any other identity part (e.g. enabling scheduled start →
+        // SCHEDULE_EXACT_ALARM + ScheduledStartReceiver) must change the identity or the
+        // overlay ships a stale manifest.
+        parts += "manifest=${manifestFingerprint ?: "n/a"}"
+        // Export-level performance options change output bytes (resource stripping,
+        // asset re-optimization, wta_perf_optimize.js injection) without appearing in
+        // ApkConfig — key them explicitly or REUSE_UNSIGNED serves the old setting.
+        parts += "perf=${perfFingerprint ?: "off"}"
         return sha256(parts.joinToString("\n"))
     }
 
@@ -389,7 +418,10 @@ class ApkBuildCache(private val context: Context) {
         galleryItems: List<com.webtoapp.data.model.GalleryItem>,
         errorPageMediaPath: String?,
         statusBarImage: String?,
-        floatingIcon: String?
+        statusBarImageDark: String?,
+        floatingIcon: String?,
+        multiWebSiteGalleryItems: List<com.webtoapp.data.model.GalleryItem> = emptyList(),
+        multiWebSiteMediaPaths: List<String> = emptyList()
     ): String {
         val parts = mutableListOf<String>()
         parts += "configJson=${ApkConfigJsonFactory.create(config)}"
@@ -400,6 +432,7 @@ class ApkBuildCache(private val context: Context) {
         parts += "splash=${fileFingerprint(splashMediaPath)}"
         parts += "errorPage=${fileFingerprint(errorPageMediaPath)}"
         parts += "statusBar=${fileFingerprint(statusBarImage)}"
+        parts += "statusBarDark=${fileFingerprint(statusBarImageDark)}"
         parts += "floatingIcon=${fileFingerprint(floatingIcon)}"
         bgmPlaylistPaths.forEachIndexed { index, path ->
             parts += "bgm[$index]=${fileFingerprint(path)}"
@@ -409,6 +442,12 @@ class ApkBuildCache(private val context: Context) {
         }
         galleryItems.forEachIndexed { index, item ->
             parts += "gallery[$index]=${item.path}|${fileFingerprint(item.path)}|thumb=${fileFingerprint(item.thumbnailPath)}"
+        }
+        multiWebSiteGalleryItems.forEachIndexed { index, item ->
+            parts += "mwGallery[$index]=${item.path}|${fileFingerprint(item.path)}|thumb=${fileFingerprint(item.thumbnailPath)}"
+        }
+        multiWebSiteMediaPaths.forEachIndexed { index, path ->
+            parts += "mwMedia[$index]=${fileFingerprint(path)}"
         }
         return sha256(parts.joinToString("\n"))
     }
@@ -420,11 +459,18 @@ class ApkBuildCache(private val context: Context) {
         return "sha256=${fileSha256(file)}"
     }
 
-    private fun treeFingerprint(dir: File): String {
+    internal fun treeFingerprint(dir: File): String {
         if (!dir.isDirectory) return "missing"
         val digest = MessageDigest.getInstance("SHA-256")
         dir.walkTopDown()
             .filter { it.isFile }
+            // .git is excluded by every embed config (RuntimeAssetEmbedder) so it
+            // can never affect the APK — but it can be thousands of files. Skip it
+            // here to avoid hashing the entire git history on every build.
+            .filter { file ->
+                !file.relativeTo(dir).invariantSeparatorsPath
+                    .split('/').contains(".git")
+            }
             .sortedBy { it.relativeTo(dir).invariantSeparatorsPath }
             .forEach { file ->
                 val relativePath = file.relativeTo(dir).invariantSeparatorsPath

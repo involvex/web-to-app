@@ -1,11 +1,11 @@
 package com.webtoapp.ui.screens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webtoapp.ui.components.PremiumButton
-import com.webtoapp.ui.components.PremiumFilterChip
+import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSpacing
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.widget.Toast
@@ -41,7 +41,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +74,7 @@ fun ExtensionModuleScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEditor: (String?) -> Unit,
     onNavigateToAiDeveloper: () -> Unit = {},
-    onNavigateToMarket: () -> Unit = {},
+    onNavigateToMarket: (Int) -> Unit = {},
 
 ) {
     val context = LocalContext.current
@@ -167,27 +167,6 @@ fun ExtensionModuleScreen(
         }
     }
 
-    val jsZipPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let {
-            isImporting = true
-            scope.launch {
-                val result = extensionFileManager.importJsZipPackage(it)
-                isImporting = false
-                when (result) {
-                    is ExtensionFileManager.ImportResult.JsPackage -> {
-                        showJsPackagePreview = result
-                    }
-                    is ExtensionFileManager.ImportResult.Error -> {
-                        Toast.makeText(context, Strings.moduleImportFailed(result.message), Toast.LENGTH_SHORT).show()
-                    }
-                    else -> {}
-                }
-            }
-        }
-    }
-
     val qrCodeImagePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri ->
@@ -195,7 +174,8 @@ fun ExtensionModuleScreen(
             scope.launch {
                 try {
                     context.contentResolver.openInputStream(it)?.use { stream ->
-                        val bitmap = BitmapFactory.decodeStream(stream)
+                        // Bounded: a shared image can be an arbitrary camera panorama (#779).
+                        val bitmap = com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapStream(stream)
                         if (bitmap != null) {
                             val qrContent = QrCodeUtils.decodeQrCode(bitmap)
                             if (qrContent != null) {
@@ -300,7 +280,7 @@ fun ExtensionModuleScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text(Strings.communityExtStoreTitle) },
-                                onClick = { showMoreMenu = false; onNavigateToMarket() },
+                                onClick = { showMoreMenu = false; onNavigateToMarket(0) },
                                 leadingIcon = { Icon(Icons.Default.Storefront, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
@@ -323,11 +303,6 @@ fun ExtensionModuleScreen(
                                 text = { Text(Strings.importChromeExtension) },
                                 onClick = { showMoreMenu = false; chromeExtPickerLauncher.launch("*/*") },
                                 leadingIcon = { Icon(Icons.Default.Extension, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.importJsPackage) },
-                                onClick = { showMoreMenu = false; jsZipPickerLauncher.launch("*/*") },
-                                leadingIcon = { Icon(Icons.Default.FolderZip, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
                                 text = { Text(Strings.importFromFile) },
@@ -407,7 +382,12 @@ fun ExtensionModuleScreen(
                         filteredUserScripts = filteredUserScripts,
                         extensionManager = extensionManager,
                         searchQuery = searchQuery,
-                        onImportUserScript = {
+                        emptyTitle = Strings.noUserScripts,
+                        emptyMessage = Strings.noUserScriptsHint,
+                        emptyIcon = Icons.Outlined.Extension,
+                        emptyActionLabel = Strings.importUserScript,
+                        emptyActionIcon = Icons.Default.Download,
+                        onEmptyAction = {
                             userScriptPickerLauncher.launch("*/*")
                         },
                         onClearSearch = { searchQuery = "" }
@@ -416,8 +396,13 @@ fun ExtensionModuleScreen(
                         filteredUserScripts = filteredGreasyFork,
                         extensionManager = extensionManager,
                         searchQuery = searchQuery,
-                        onImportUserScript = {
-                            userScriptPickerLauncher.launch("*/*")
+                        emptyTitle = Strings.noGreasyForkScripts,
+                        emptyMessage = Strings.greasyForkEmptyHint,
+                        emptyIcon = Icons.Outlined.Restaurant,
+                        emptyActionLabel = Strings.browseGreasyFork,
+                        emptyActionIcon = Icons.Outlined.Storefront,
+                        onEmptyAction = {
+                            onNavigateToMarket(2)
                         },
                         onClearSearch = { searchQuery = "" }
                     )
@@ -877,6 +862,7 @@ fun ModuleCard(
     var showMenu by remember { mutableStateOf(false) }
     var showQrCodeDialog by remember { mutableStateOf(false) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     val createFileLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -1009,14 +995,6 @@ fun ModuleCard(
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
-                        if (module.permissions.any { it.dangerous }) {
-                            Icon(
-                                Icons.Outlined.Shield,
-                                null,
-                                modifier = Modifier.size(13.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
                     }
 
                 }
@@ -1050,7 +1028,7 @@ fun ModuleCard(
                             Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)))
                             DropdownMenuItem(
                                 text = { Text(Strings.btnDelete, color = MaterialTheme.colorScheme.error) },
-                                onClick = { showMenu = false; onDelete() },
+                                onClick = { showMenu = false; showDeleteDialog = true },
                                 leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) }
                             )
                         }
@@ -1064,10 +1042,28 @@ fun ModuleCard(
                     module.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }
+    }
+
+    if (showDeleteDialog) {
+        WtaAlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = Strings.deleteConfirmTitle,
+            text = Strings.moduleDeleteConfirm,
+            confirmButton = {
+                TextButton(onClick = { showDeleteDialog = false; onDelete() }) {
+                    Text(Strings.btnDelete, color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(Strings.cancel)
+                }
+            }
+        )
     }
 
     if (showQrCodeDialog) {
@@ -1220,22 +1216,24 @@ private fun ExtensionModulesTabContent(
     Column(modifier = Modifier.fillMaxSize()) {
 
         LazyRow(
-            modifier = Modifier.padding(vertical = 8.dp),
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            modifier = Modifier.padding(vertical = WtaSpacing.Small),
+            contentPadding = PaddingValues(horizontal = WtaSpacing.ScreenHorizontal),
+            horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
         ) {
             item {
-                PremiumFilterChip(
+                WtaChip(
                     selected = selectedCategory == null,
                     onClick = { onCategoryChange(null) },
-                    label = { Text(Strings.all) }
+                    label = Strings.all,
+                    showSelectedCheck = false
                 )
             }
             items(ModuleCategory.values().toList()) { category ->
-                PremiumFilterChip(
+                WtaChip(
                     selected = selectedCategory == category,
                     onClick = { onCategoryChange(if (selectedCategory == category) null else category) },
-                    label = { Text(category.getDisplayName()) }
+                    label = category.getDisplayName(),
+                    showSelectedCheck = false
                 )
             }
         }
@@ -1325,7 +1323,12 @@ private fun UserScriptsTabContent(
     filteredUserScripts: List<ExtensionModule>,
     extensionManager: ExtensionManager,
     searchQuery: String,
-    onImportUserScript: () -> Unit,
+    emptyTitle: String,
+    emptyMessage: String,
+    emptyIcon: ImageVector,
+    emptyActionLabel: String,
+    emptyActionIcon: ImageVector,
+    onEmptyAction: () -> Unit,
     onClearSearch: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -1353,44 +1356,23 @@ private fun UserScriptsTabContent(
 
         if (filteredUserScripts.isEmpty()) {
             item {
-                Box(
+                WtaFullEmptyState(
+                    title = if (searchQuery.isNotBlank()) Strings.noMatchingScripts else emptyTitle,
+                    message = if (searchQuery.isNotBlank()) Strings.tryDifferentSearch else emptyMessage,
+                    icon = if (searchQuery.isNotBlank()) Icons.Outlined.Search else emptyIcon,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 56.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                if (searchQuery.isNotBlank()) Strings.noMatchingScripts else Strings.noUserScripts,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Text(
-                                if (searchQuery.isNotBlank()) Strings.tryDifferentSearch else Strings.noUserScriptsHint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                                textAlign = TextAlign.Center
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
+                    fillMaxSize = false,
+                    action = {
                         if (searchQuery.isBlank()) {
                             PremiumButton(
-                                onClick = onImportUserScript,
+                                onClick = onEmptyAction,
                                 shape = RoundedCornerShape(WtaRadius.Button)
                             ) {
-                                Icon(Icons.Default.Download, null, Modifier.size(16.dp))
+                                Icon(emptyActionIcon, null, Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(Strings.importUserScript, style = MaterialTheme.typography.labelMedium)
+                                Text(emptyActionLabel, style = MaterialTheme.typography.labelMedium)
                             }
                         } else {
                             TextButton(onClick = onClearSearch) {
@@ -1400,7 +1382,7 @@ private fun UserScriptsTabContent(
                             }
                         }
                     }
-                }
+                )
             }
         }
 
@@ -1417,12 +1399,13 @@ private fun UserScriptCard(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showSourceDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
 
     val isChromeExt = module.sourceType == ModuleSourceType.CHROME_EXTENSION
     val isGreasyFork = module.sourceType == ModuleSourceType.GREASYFORK
     val typeIcon = when {
         isChromeExt -> "🧩"
-        isGreasyFork -> " 🍴"
+        isGreasyFork -> "🍴"
         else -> "🐵"
     }
     val typeLabel = when {
@@ -1431,11 +1414,10 @@ private fun UserScriptCard(
         else -> "UserScript"
     }
 
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(WtaRadius.Card))
-            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+    WtaCard(
+        tone = WtaCardTone.Surface,
+        contentPadding = PaddingValues(0.dp),
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
 
@@ -1544,7 +1526,7 @@ private fun UserScriptCard(
                         Box(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).height(0.5.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)))
                         DropdownMenuItem(
                             text = { Text(Strings.btnDelete, color = MaterialTheme.colorScheme.error) },
-                            onClick = { showMenu = false; onDelete() },
+                            onClick = { showMenu = false; showDeleteDialog = true },
                             leadingIcon = { Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error) }
                         )
                     }
@@ -1626,6 +1608,24 @@ private fun UserScriptCard(
         ExtensionSourceBrowserDialog(
             module = module,
             onDismiss = { showSourceDialog = false }
+        )
+    }
+
+    if (showDeleteDialog) {
+        WtaAlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = Strings.deleteConfirmTitle,
+            text = Strings.moduleDeleteConfirm,
+            confirmButton = {
+                TextButton(onClick = { showDeleteDialog = false; onDelete() }) {
+                    Text(Strings.btnDelete, color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(Strings.cancel)
+                }
+            }
         )
     }
 }

@@ -1,5 +1,9 @@
 package com.webtoapp.ui.components
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -37,8 +41,18 @@ fun IconLibraryDialog(
     val scope = rememberCoroutineScope()
     val icons by IconLibraryStorage.iconsFlow.collectAsState(initial = emptyList())
 
+    var pendingCropUri by remember { mutableStateOf<Uri?>(null) }
+
     LaunchedEffect(Unit) {
         IconLibraryStorage.initialize(context)
+    }
+
+    val cropImageLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            pendingCropUri = uri
+        }
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -87,6 +101,48 @@ fun IconLibraryDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedCard(
+                    onClick = {
+                        cropImageLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Outlined.AddPhotoAlternate,
+                            null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(32.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
+                            Text(
+                                Strings.uploadToLibrary,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                Strings.uploadToLibraryDesc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Icon(
+                            Icons.Default.ChevronRight,
+                            null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -201,6 +257,18 @@ fun IconLibraryDialog(
                 }
             }
         }
+    }
+
+    pendingCropUri?.let { uri ->
+        IconCropDialog(
+            imageUri = uri,
+            onDismiss = { pendingCropUri = null },
+            onCropComplete = { path ->
+                pendingCropUri = null
+                onSelectIcon(path)
+                onDismiss()
+            }
+        )
     }
 }
 

@@ -1,11 +1,15 @@
 package com.webtoapp.ui.components
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.webtoapp.ui.animation.CardCollapseTransition
+import com.webtoapp.ui.animation.CardExpandTransition
 import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaBadge
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaDivider
 import com.webtoapp.ui.design.WtaRadius
+import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 
 import android.content.Intent
@@ -135,10 +139,7 @@ fun ExtensionModuleCard(
     var showSavePresetDialog by remember { mutableStateOf(false) }
 
     EnhancedElevatedCard(modifier = modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -200,10 +201,11 @@ fun ExtensionModuleCard(
 
             AnimatedVisibility(
                 visible = enabled,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = CardExpandTransition,
+                exit = CardCollapseTransition
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Spacer(Modifier.height(14.dp))
 
                     if (selectedModules.isEmpty()) {
                         ExtensionEmptyState(
@@ -397,7 +399,7 @@ private fun SelectedModulesSection(
             Text(
                 text = Strings.extensionEnabledModulesLabel,
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.primary
             )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -570,7 +572,10 @@ private fun FabIconSelector(
         uri ?: return@rememberLauncherForActivityResult
         try {
             val inputStream = context.contentResolver.openInputStream(uri) ?: return@rememberLauncherForActivityResult
-            val original = BitmapFactory.decodeStream(inputStream)
+            // Bounded first: the full-res decode below OOMs on panoramas; the
+            // output is cropped and scaled to 96px anyway (#779).
+            val original = com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapStream(inputStream)
+                ?: return@rememberLauncherForActivityResult
             inputStream.close()
 
             val size = minOf(original.width, original.height)
@@ -595,7 +600,7 @@ private fun FabIconSelector(
         if (selectedIcon.startsWith("custom:")) {
             try {
                 val bytes = Base64.decode(selectedIcon.removePrefix("custom:"), Base64.NO_WRAP)
-                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapBytes(bytes)
             } catch (e: Exception) { null }
         } else null
     }
@@ -670,7 +675,7 @@ private fun FabIconSelector(
     Text(
         text = Strings.extensionFabIconLabel,
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
+        color = MaterialTheme.colorScheme.primary
     )
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -919,28 +924,22 @@ fun ExtensionModuleSelectorDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                     ) {
                         item {
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = selectedCategory == null,
                                 onClick = { selectedCategory = null },
-                                label = { Text(Strings.all) },
-                                leadingIcon = if (selectedCategory == null) {
-                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                                } else null
+                                label = Strings.all
                             )
                         }
                         items(ModuleCategory.values().toList()) { category ->
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = selectedCategory == category,
                                 onClick = {
                                     selectedCategory = if (selectedCategory == category) null else category
                                 },
-                                label = { Text(category.getDisplayName()) },
-                                leadingIcon = if (selectedCategory == category) {
-                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                                } else null
+                                label = category.getDisplayName()
                             )
                         }
                     }
@@ -1216,16 +1215,13 @@ fun ModuleTestDialog(
                     )
 
                     LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                     ) {
                         items(testPages) { page ->
-                            PremiumFilterChip(
+                            WtaChip(
                                 selected = selectedTestPage?.id == page.id,
                                 onClick = { selectedTestPage = page },
-                                label = { Text("${page.icon} ${page.name}") },
-                                leadingIcon = if (selectedTestPage?.id == page.id) {
-                                    { Icon(Icons.Default.Check, null, Modifier.size(16.dp)) }
-                                } else null
+                                label = "${page.icon} ${page.name}"
                             )
                         }
                     }

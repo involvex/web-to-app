@@ -41,7 +41,7 @@ object ShellActivityInit {
                 autoStartManager.setBootStart(
                     appId = 0L,
                     enabled = autoStartConfig.bootStartEnabled,
-                    delayMs = com.webtoapp.core.autostart.AutoStartManager.DEFAULT_BOOT_DELAY_MS
+                    delayMs = autoStartConfig.bootDelay
                 )
 
                 if (autoStartConfig.scheduledStartEnabled) {
@@ -55,7 +55,11 @@ object ShellActivityInit {
                     autoStartManager.setScheduledStart(appId = 0L, enabled = false)
                 }
 
-                com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "自启动配置已注册: 开机=${autoStartConfig.bootStartEnabled}, 定时=${autoStartConfig.scheduledStartEnabled}")
+                com.webtoapp.core.shell.ShellLogger.i(
+                    "ShellActivity",
+                    "自启动配置已注册: 开机=${autoStartConfig.bootStartEnabled}, delay=${autoStartConfig.bootDelay}ms, " +
+                        "定时=${autoStartConfig.scheduledStartEnabled}"
+                )
             } catch (e: Exception) {
                 com.webtoapp.core.shell.ShellLogger.e("ShellActivity", "自启动配置注册失败", e)
             }
@@ -166,6 +170,7 @@ object ShellActivityInit {
         activity: AppCompatActivity,
         getCustomView: () -> android.view.View?,
         getWebView: () -> WebView?,
+        getBrowserSurface: () -> com.webtoapp.core.engine.BrowserSurface?,
         hideCustomView: () -> Unit,
         getShellConfig: () -> ShellConfig?
     ): OnBackPressedCallback {
@@ -204,7 +209,11 @@ object ShellActivityInit {
                                 ShellWebViewNavigation.goBackOrFinish(activity, wv, useJsHistoryBack = useJsHistoryBack)
                             }
                         } else {
-                            activity.finish()
+                            // GeckoView kernel: no WebView handle — walk the engine's own
+                            // history through the surface instead of exiting the app on every
+                            // back press. The Escape-key JS probe is skipped: Gecko's
+                            // javascript: URI eval cannot return a result to consult.
+                            ShellWebViewNavigation.goBackOrFinish(activity, getBrowserSurface())
                         }
                     }
                 }

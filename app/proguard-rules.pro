@@ -221,20 +221,11 @@
 -dontwarn org.mozilla.geckoview.**
 
 # ============================================================
-# ZXing — 反射查找编码格式
+# ZXing — 反射查找编码格式 (仅 core，embedded 已移除)
 # ============================================================
 -keep class com.google.zxing.** { *; }
--keep class com.journeyapps.** { *; }
 -dontwarn com.google.zxing.**
--dontwarn com.journeyapps.**
 
-# ============================================================
-# Vico 图表 — Compose 渲染器反射
-# ============================================================
--keep class com.patrykandpatrick.vico.** { *; }
--dontwarn com.patrykandpatrick.vico.**
-
-# ============================================================
 # BillingClient — AIDL stub
 # ============================================================
 -keep class com.android.vending.billing.** { *; }
@@ -310,3 +301,15 @@
 -keep class com.google.android.gms.** { *; }
 -dontwarn com.google.firebase.**
 -dontwarn com.google.android.gms.**
+
+# ============================================================
+# Cronet (forced HTTP/3 upstream)
+# ============================================================
+# Cronet's native code reaches its Java classes via JNI and ServiceLoader
+# (org.chromium.net.impl.** / org.chromium.base.**); R8 must not rename or
+# strip them. The AAR ships consumer rules, this is the belt-and-braces copy.
+-keep class org.chromium.net.** { *; }
+-keep class org.chromium.base.** { *; }
+-keep class org.chromium.components.** { *; }
+-dontwarn org.chromium.**
+-keepdirectories META-INF/services/**

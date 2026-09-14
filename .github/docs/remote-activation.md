@@ -50,14 +50,23 @@ Accept: application/json
 - `nonce` is fresh per request — you **must** echo it back unchanged (replay
   protection).
 - `ts` is the client clock in epoch milliseconds.
-- `deviceBound` is `true` when the entered code is a **device-bound** code. For
-  such codes your server should enforce per-device binding: record the first
-  `deviceId` that activates a given `code`, and reject the same `code` from any
-  different `deviceId` (return `{ "ok": false }`). This is the only way to
-  truly restrict a device-bound code to one device — the app itself has no
-  shared state between devices, so a purely local device-bound code can only
-  prevent re-activation on the same device after a local reset or hardware
-  change.
+- `deviceBound` is `true` when the app has the **Device binding (one-time codes)**
+  toggle enabled in the editor's remote-activation section (it is always `false`
+  for purely local verification — see below). For such codes your server should
+  enforce per-device binding: record the first `deviceId` that activates a given
+  `code`, and reject the same `code` from any different `deviceId` (return
+  `{ "ok": false }`). This is the only way to truly restrict a device-bound code
+  to one device — the app itself has no shared state between devices, so a purely
+  local device-bound code can only prevent re-activation on the same device
+  after a local reset or hardware change.
+
+  The reference worker in `examples/remote-activation-worker` implements this as
+  seats: `maxDevices` (default `1`) devices may claim a code; a code with
+  `maxDevices: 1` behaves as a **one-time / single-device code**. The claimed
+  device id survives uninstall + reinstall on the same device (it derives from
+  `ANDROID_ID`, stable per signing key), so a seat is only released when you edit
+  the KV record. To free a seat manually, remove the `deviceId` entry from
+  `record.devices` (or delete `code:<CODE>`).
 
 ## Response (your server → app)
 
@@ -194,6 +203,26 @@ openssl ecparam -name prime256v1 -genkey -noout -out ec_private.pem
 # public key (paste into the app's "Signature public key" field, header lines optional)
 openssl ec -in ec_private.pem -pubout -out ec_public.pem
 ```
+
+## Ready-to-deploy option (Cloudflare Worker)
+
+If you would rather not run a server at all, there is a complete reference
+worker in
+[`examples/remote-activation-worker/`](../../examples/remote-activation-worker/README.md):
+codes held in Workers KV (revocable without rebuilding the APK), signed
+responses, device binding, optional AES-256-GCM URL delivery, and a
+`GET /` self-check that hands you the public key to paste into the app. It
+deploys with `npx wrangler deploy` and ships a test that verifies responses the
+way the client does.
+
+One caveat it documents, because it applies to any server you write: **the
+request does not say whether the app expects a delivered URL**, so the server
+cannot discover it. A code that carries a `url` must be paired with an app that
+has "Deliver target URL" enabled, and a code without one with an app that has it
+disabled — otherwise the two sides sign different payloads and every activation
+fails.
+
+The Node example below is the same contract for your own infrastructure.
 
 ## Reference server (Node.js, no framework)
 

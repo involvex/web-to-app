@@ -18,6 +18,7 @@ import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
+import java.util.concurrent.TimeUnit
 
 class AiApiClient(private val context: Context) {
 
@@ -51,18 +52,15 @@ class AiApiClient(private val context: Context) {
 
             val modelsEndpoint = apiKey.getEffectiveModelsEndpoint()
             val fullUrl = buildApiUrl(baseUrl, modelsEndpoint)
-            val displayUrl = when (apiKey.provider) {
-                AiProvider.GOOGLE -> "$fullUrl?key=***"
-                else -> fullUrl
-            }
-
-            AppLogger.i("AiApiClient", "Testing API connection: provider=${apiKey.provider.name}, url=$displayUrl")
+            // The key travels in a header now, so the URL is safe to log as-is.
+            AppLogger.i("AiApiClient", "Testing API connection: provider=${apiKey.provider.name}, url=$fullUrl")
 
             val request = when (apiKey.provider) {
                 AiProvider.GOOGLE -> {
 
                     Request.Builder()
-                        .url("$fullUrl?key=${apiKey.apiKey.trim()}")
+                        .url(fullUrl)
+                        .header("x-goog-api-key", apiKey.apiKey.trim())
                         .get()
                         .build()
                 }
@@ -123,6 +121,31 @@ class AiApiClient(private val context: Context) {
         }
     }
 
+    // Per-model probe: one real chat request against the saved model id.
+    // Unlike testConnection (models endpoint only), this also catches wrong
+    // model ids, missing access, and provider-side model outages.
+    suspend fun testModel(apiKey: ApiKeyConfig, model: AiModel): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val baseUrl = when {
+                !apiKey.baseUrl.isNullOrBlank() -> apiKey.baseUrl.trimEnd('/')
+                apiKey.provider.baseUrl.isNotBlank() -> apiKey.provider.baseUrl.trimEnd('/')
+                else -> return@withContext Result.failure(Exception(Strings.aiApiNotConfiguredDetail))
+            }
+            val probe = listOf(mapOf("role" to "user", "content" to "Hi"))
+            AppLogger.i("AiApiClient", "Testing model: provider=${apiKey.provider.name}, model=${model.id}")
+            when (apiKey.provider) {
+                AiProvider.GOOGLE -> chatWithGemini(baseUrl, apiKey.apiKey, model.id, probe, 0.7f)
+                AiProvider.ANTHROPIC -> chatWithAnthropic(baseUrl, apiKey.apiKey, model.id, probe, 0.7f)
+                AiProvider.GLM -> chatWithGLM(baseUrl, apiKey.apiKey, model.id, probe, 0.7f)
+                AiProvider.OLLAMA -> chatWithOllama(baseUrl, apiKey.apiKey, model.id, probe, 0.7f)
+                else -> probeOpenAICompatible(baseUrl, apiKey, model.id, probe)
+            }
+        } catch (e: Exception) {
+            AppLogger.e("AiApiClient", "Model test EXCEPTION: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchModels(apiKey: ApiKeyConfig): Result<List<AiModel>> = withContext(Dispatchers.IO) {
         try {
             val baseUrl = (apiKey.baseUrl ?: apiKey.provider.baseUrl).trimEnd('/')
@@ -137,7 +160,8 @@ class AiApiClient(private val context: Context) {
             val request = when (apiKey.provider) {
                 AiProvider.GOOGLE -> {
                     Request.Builder()
-                        .url("$fullUrl?key=${apiKey.apiKey.trim()}")
+                        .url(fullUrl)
+                        .header("x-goog-api-key", apiKey.apiKey.trim())
                         .get()
                         .build()
                 }
@@ -385,15 +409,19 @@ class AiApiClient(private val context: Context) {
             return listOf(ModelCapability.IMAGE_GENERATION)
         }
 
+        // Matched on the family prefix rather than individual generations, so a
+        // new major version does not silently lose capabilities. Listing
+        // "claude-3"/"claude-4" used to drop Claude 5 back to text-only.
         if (id.contains("vision") || id.contains("gpt-4o") || id.contains("gpt-5") ||
-            id.contains("gemini") || id.contains("claude-3") || id.contains("claude-4") ||
+            id.contains("gemini") || id.contains("claude-") ||
             id.contains("pixtral") || id.contains("mistral-large") ||
             id.contains("llava") || id.contains("bakllava") ||
             id.contains("qwen-vl") || id.contains("qwen2-vl") || id.contains("qwen2.5-vl") ||
-            id.contains("glm-4v") || id.contains("step-1v") || id.contains("step-2v") ||
+            id.contains("glm-4v") || id.contains("glm-5") || id.contains("step-1v") || id.contains("step-2v") ||
             id.contains("yi-vision") || id.contains("internvl") ||
             id.contains("moonshot-v") || id.contains("kimi-v") ||
-            id.contains("hunyuan-vision") || id.contains("grok-2-vision") || id.contains("grok-3") ||
+            id.contains("hunyuan-vision") || id.contains("grok-2") ||
+            id.contains("grok-3") || id.contains("grok-4") ||
             id.contains("audio") || id.contains("whisper") || id.contains("realtime")) {
             return listOf(ModelCapability.MULTIMODAL)
         }
@@ -423,7 +451,9 @@ class AiApiClient(private val context: Context) {
             id.contains("gpt-3.5") -> 16000
             id.contains("o1") || id.contains("o3") || id.contains("o4") -> 200000
 
-            id.contains("claude-3") || id.contains("claude-4") -> 200000
+            // Family-prefixed so a new generation inherits the floor instead of
+            // falling through to the 8192 default and truncating every prompt.
+            id.contains("claude-") -> 200000
 
             id.contains("gemini-1.5") || id.contains("gemini-2") || id.contains("gemini-3") -> 1000000
             id.contains("gemini") -> 32000
@@ -439,7 +469,9 @@ class AiApiClient(private val context: Context) {
             id.contains("jamba-1.5") -> 256000
             id.contains("jamba") -> 256000
 
-            id.contains("grok-3") || id.contains("grok-2") -> 131072
+            // Grok 4 ships a longer window than this; 128k is a deliberate floor
+            // because the registry is the authoritative source when it is reachable.
+            id.contains("grok-4") || id.contains("grok-3") || id.contains("grok-2") -> 131072
             id.contains("grok") -> 8192
 
             id.contains("deepseek") -> 64000
@@ -447,6 +479,10 @@ class AiApiClient(private val context: Context) {
             id.contains("qwen-long") || id.contains("qwen-turbo") -> 1000000
             id.contains("qwen2.5") || id.contains("qwen3") -> 131072
             id.contains("qwen") -> 32000
+            // Zhipu is absent from the models.dev catalogue, so GLM models always
+            // land on these fallbacks — getting GLM-5 wrong truncated a 200k
+            // window down to 8192.
+            id.contains("glm-5") -> 200000
             id.contains("glm-4") -> 128000
             id.contains("glm") -> 8192
             id.contains("doubao") -> 32000
@@ -615,7 +651,8 @@ class AiApiClient(private val context: Context) {
         }
 
         val request = Request.Builder()
-            .url("$baseUrl/v1beta/models/$modelId:generateContent?key=$apiKey")
+            .url("$baseUrl/v1beta/models/$modelId:generateContent")
+            .header("x-goog-api-key", apiKey)
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -785,7 +822,8 @@ class AiApiClient(private val context: Context) {
         }
 
         val request = Request.Builder()
-            .url("$baseUrl/v1beta/models/$modelId:generateContent?key=$apiKey")
+            .url("$baseUrl/v1beta/models/$modelId:generateContent")
+            .header("x-goog-api-key", apiKey)
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -993,6 +1031,48 @@ class AiApiClient(private val context: Context) {
             parseOpenAIChatResponse(response.body?.string() ?: "")
         } else {
             Result.failure(Exception(Strings.aiRequestFailed.format(response.code, response.body?.string())))
+        }
+    }
+
+    // Minimal chat probe for the model test: no temperature/max_tokens, because
+    // reasoning models (o1, gpt-5, …) reject those fields and would fail the
+    // test even though the model is reachable. Honors customChatEndpoint, which
+    // chatWithOpenAICompatible does not.
+    private fun probeOpenAICompatible(
+        baseUrl: String,
+        apiKey: ApiKeyConfig,
+        modelId: String,
+        messages: List<Map<String, String>>
+    ): Result<String> {
+        val messagesArray = com.google.gson.JsonArray()
+        messages.forEach { msg ->
+            messagesArray.add(JsonObject().apply {
+                addProperty("role", msg["role"])
+                addProperty("content", msg["content"])
+            })
+        }
+
+        val body = JsonObject().apply {
+            addProperty("model", modelId)
+            add("messages", messagesArray)
+        }
+
+        val request = Request.Builder()
+            .url(buildApiUrl(baseUrl, apiKey.getEffectiveChatEndpoint()))
+            .header("Authorization", "Bearer ${apiKey.apiKey.sanitize()}")
+            .header("Content-Type", "application/json")
+            .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
+            .build()
+
+        // Cap the wait: streamingClient's 10-minute read timeout is a bad fit
+        // for a manual connectivity probe.
+        val probeClient = client.newBuilder().callTimeout(45, TimeUnit.SECONDS).build()
+        val response = probeClient.newCall(request).execute()
+        val responseBody = response.body?.string() ?: ""
+        return if (response.isSuccessful) {
+            parseOpenAIChatResponse(responseBody)
+        } else {
+            Result.failure(Exception(Strings.aiRequestFailed.format(response.code, responseBody)))
         }
     }
 
@@ -1322,7 +1402,8 @@ val json = gson.fromJson(body, JsonObject::class.java)
         }
 
         return Request.Builder()
-            .url("$baseUrl/v1beta/models/$modelId:streamGenerateContent?alt=sse&key=$apiKey")
+            .url("$baseUrl/v1beta/models/$modelId:streamGenerateContent?alt=sse")
+            .header("x-goog-api-key", apiKey)
             .header("Content-Type", "application/json")
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
             .build()
@@ -1600,7 +1681,8 @@ val json = gson.fromJson(body, JsonObject::class.java)
         }
 
         val request = Request.Builder()
-            .url("$baseUrl/v1beta/models/$modelId:generateContent?key=$apiKey")
+            .url("$baseUrl/v1beta/models/$modelId:generateContent")
+            .header("x-goog-api-key", apiKey)
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
             .build()
 
@@ -2299,7 +2381,8 @@ val json = gson.fromJson(body, JsonObject::class.java)
         }
 
         val request = Request.Builder()
-            .url("$baseUrl/v1beta/models/$modelId:generateContent?key=$apiKey")
+            .url("$baseUrl/v1beta/models/$modelId:generateContent")
+            .header("x-goog-api-key", apiKey)
             .post(gson.toJson(body).toRequestBody("application/json".toMediaType()))
             .build()
 

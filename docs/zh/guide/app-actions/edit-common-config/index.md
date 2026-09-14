@@ -12,7 +12,7 @@
 
 ## 浏览器与界面
 
-- [隐藏浏览器工具栏](/zh/guide/app-actions/edit-common-config/hide-toolbar)
+- [浏览器工具栏](/zh/guide/app-actions/edit-common-config/browser-toolbar)
 - [全屏模式](/zh/guide/app-actions/edit-common-config/fullscreen)
 - [屏幕方向](/zh/guide/app-actions/edit-common-config/orientation)
 - [保持屏幕常亮](/zh/guide/app-actions/edit-common-config/keep-screen-on)

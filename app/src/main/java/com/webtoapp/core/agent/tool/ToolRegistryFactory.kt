@@ -99,7 +99,6 @@ class ToolRegistryFactory(
         UpdateAppTool(),
         // Picture-in-Picture
         SetPictureInPictureTool(),
-        ReadAppFileTool(),
         // Common-config templates
         ListConfigTemplatesTool(),
         SaveConfigTemplateTool(),

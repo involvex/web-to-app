@@ -116,26 +116,6 @@ class ApkTemplate(private val context: Context) {
         templateDir.mkdirs()
     }
 
-    fun getTemplateApk(): File? {
-        val templateFile = File(templateDir, "webview_shell.apk")
-
-        if (templateFile.exists()) {
-            return templateFile
-        }
-
-        return try {
-            context.assets.open(TEMPLATE_APK).use { input ->
-                FileOutputStream(templateFile).use { output ->
-                    input.copyTo(output)
-                }
-            }
-            templateFile
-        } catch (e: Exception) {
-
-            null
-        }
-    }
-
     fun hasTemplate(): Boolean {
         return try {
             context.assets.open(TEMPLATE_APK).close()
@@ -176,14 +156,15 @@ class ApkTemplate(private val context: Context) {
 
     fun loadBitmap(iconPath: String): Bitmap? {
         return try {
+            // Downstream re-encodes at mipmap scale; cap the decode (#779).
             if (iconPath.startsWith("/")) {
-                BitmapFactory.decodeFile(iconPath)
+                com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapFile(iconPath, 1024)
             } else if (iconPath.startsWith("content://")) {
                 context.contentResolver.openInputStream(android.net.Uri.parse(iconPath))?.use {
-                    BitmapFactory.decodeStream(it)
+                    com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapStream(it, 1024)
                 }
             } else {
-                BitmapFactory.decodeFile(iconPath)
+                com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapFile(iconPath, 1024)
             }
         } catch (e: Exception) {
             null

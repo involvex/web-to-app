@@ -74,6 +74,7 @@ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -117,7 +118,8 @@ import java.util.Locale
 @Composable
 fun AgentScreen(
     onBack: () -> Unit,
-    onOpenAiSettings: () -> Unit
+    onOpenAiSettings: () -> Unit,
+    onOpenApp: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
     val app = context.applicationContext as Application
@@ -128,6 +130,7 @@ fun AgentScreen(
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    val focusManager = LocalFocusManager.current
 
     var drawerMounted by remember { mutableStateOf(false) }
 
@@ -164,7 +167,9 @@ fun AgentScreen(
     LaunchedEffect(state.info) { state.info?.let { snackbar.showSnackbar(it); vm.dismissBanner() } }
     LaunchedEffect(state.drawerOpen) {
         if (state.drawerOpen) {
-
+            // Don't let the composer IME stay up over the drawer — opening the
+            // sidebar should dismiss the keyboard, not summon it.
+            focusManager.clearFocus()
             drawerMounted = true
             drawerState.open()
         } else {
@@ -229,6 +234,11 @@ fun AgentScreen(
                         },
                         onDeleteSession = vm::deleteSession,
                         onPinSession = vm::pinSession,
+                        onRenameSession = vm::renameSession,
+                        onExportSession = { id ->
+                            scope.launch { drawerState.close() }
+                            vm.exportSession(id)
+                        },
                         onPickFile = { path ->
                             scope.launch { drawerState.close() }
                             vm.selectFile(path)
@@ -241,7 +251,8 @@ fun AgentScreen(
                         onOpenWith = { path ->
                             scope.launch { drawerState.close() }
                             vm.openWithSystemChooser(path)
-                        }
+                        },
+                        onDeleteFile = vm::deleteSessionFile
                     )
                 }
             }
@@ -333,6 +344,14 @@ fun AgentScreen(
                     onUndoAll = vm::undoAllChanges,
                     onClear = vm::clearChangesReview
                 )
+
+                com.webtoapp.ui.agent.components.AppChangesReviewCard(
+                    changes = state.pendingAppChanges,
+                    expanded = state.appChangesExpanded,
+                    onToggle = vm::toggleAppChangesReview,
+                    onClear = vm::clearAppChanges,
+                    onOpenApp = onOpenApp
+                )
                 if (state.editingMessageId != null) {
                     EditingHint(onCancel = vm::cancelEditing)
                 }
@@ -353,6 +372,7 @@ fun AgentScreen(
                     onAttachFile = { filePicker.launch("*/*") },
                     onAttachFolder = { folderPicker.launch(null) },
                     onRemoveAttachment = vm::removePendingAttachment,
+                    resolveAttachmentPreview = vm::attachmentPreviewFile,
 
                     onOpenContextPicker = vm::openContextPicker,
 
@@ -555,6 +575,24 @@ private fun Conversation(
         if (atBottom) followBottom = true
     }
 
+    // A fresh turn (Idle → Connecting) always re-attaches to the newest content.
+    // Without this, a followBottom left false from earlier history reading keeps
+    // the just-sent user message AND the whole streaming output off-screen —
+    // sending is an explicit action, so the view must jump to it. Manual scroll-up
+    // only detaches within a turn; the next send snaps back.
+    var wasWorking by remember { mutableStateOf(false) }
+    LaunchedEffect(state.isWorking) {
+        val working = state.isWorking
+        if (working && !wasWorking) {
+            followBottom = true
+            val target = totalContentItems - 1
+            if (target >= 0) {
+                runCatching { listState.scrollToItem(target) }
+            }
+        }
+        wasWorking = working
+    }
+
     val streamingTextLen = state.streamingText.length
     val streamingThinkingLen = state.streamingThinkingSegments.sumOf { it.content.length }
     LaunchedEffect(
@@ -573,12 +611,17 @@ private fun Conversation(
             val info = listState.layoutInfo
             val viewportBottom = info.viewportEndOffset - info.afterContentPadding
             val last = info.visibleItemsInfo.lastOrNull()
-            if (last != null) {
-                val lastBottom = last.offset + last.size
-                val gap = lastBottom - viewportBottom
+            if (last != null && last.index == info.totalItemsCount - 1) {
+                // The newest item is on screen — align its bottom edge with the viewport.
+                val gap = (last.offset + last.size) - viewportBottom
                 if (gap > 0) {
                     listState.scrollBy(gap.toFloat())
                 }
+            } else if (info.totalItemsCount > 0) {
+                // The newest item is entirely below the fold (a burst of output
+                // outgrew the viewport between pushes) — jump straight to it so
+                // following never stalls.
+                listState.scrollToItem(info.totalItemsCount - 1)
             }
 
             kotlinx.coroutines.yield()
@@ -608,21 +651,29 @@ private fun Conversation(
             verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
         ) {
             items(messages, key = { it.id }) { msg ->
-                MessageBubble(message = msg, actions = actions)
+                MessageBubble(
+                    message = msg,
+                    actions = actions,
+                    modifier = Modifier.animateItem()
+                )
             }
             if (state.todos.isNotEmpty()) {
                 item(key = "todos") {
-                    TodoChecklist(state.todos)
+                    Box(Modifier.animateItem()) {
+                        TodoChecklist(state.todos)
+                    }
                 }
             }
             if (state.isWorking) {
                 item(key = "streaming") {
-                    StreamingBubble(
-                        text = state.streamingText,
-                        thinkingSegments = state.streamingThinkingSegments,
-                        pendingTools = state.pendingToolCalls,
-                        activity = state.currentActivity
-                    )
+                    Box(Modifier.animateItem()) {
+                        StreamingBubble(
+                            text = state.streamingText,
+                            thinkingSegments = state.streamingThinkingSegments,
+                            pendingTools = state.pendingToolCalls,
+                            activity = state.currentActivity
+                        )
+                    }
                 }
             }
         }

@@ -67,7 +67,7 @@ class PermissionChecker(
         if (tool.name in planWriteTools) {
             val path = args.get("path")?.asString ?: args.get("file_path")?.asString
             val resolved = path?.let { ctx.resolveSafePath(it) }
-            if (resolved != null && resolved == ctx.activePlanFile) return PermissionDecision.Allow
+            if (resolved != null && resolved == ctx.effectivePlanFile()) return PermissionDecision.Allow
             return PermissionDecision.Deny
         }
         return PermissionDecision.Deny
@@ -90,7 +90,10 @@ class PermissionChecker(
         val req = PermissionRequest(
             toolCallId = "perm-${System.nanoTime()}",
             toolName = tool.name,
-            activity = tool.activityDescription(args),
+            // activityDescription implementations read untyped args (get("x")?.asString)
+            // and can throw on JSON null / wrong types — the permission prompt must not
+            // be able to kill the run.
+            activity = runCatching { tool.activityDescription(args) }.getOrNull(),
             argsPreview = previewArgs(args)
         )
         return when (prompter.request(req)) {

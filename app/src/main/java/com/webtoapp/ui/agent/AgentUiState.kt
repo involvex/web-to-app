@@ -51,6 +51,8 @@ data class AgentUiState(
     val modelProviderGroups: List<ProviderGroup> = emptyList(),
     val selectedProviderKeyId: String? = null,
     val currentModelLabel: String = "",
+    /** No usable text model is configured — the model chip highlights this. */
+    val modelMissing: Boolean = false,
 
     val mentionPickerOpen: Boolean = false,
 
@@ -82,6 +84,10 @@ data class AgentUiState(
     val pendingChanges: List<PendingChange> = emptyList(),
 
     val changesReviewExpanded: Boolean = false,
+
+    val pendingAppChanges: List<PendingAppChange> = emptyList(),
+
+    val appChangesExpanded: Boolean = false,
 
     val error: String? = null,
     val info: String? = null,
@@ -152,6 +158,20 @@ data class PendingChange(
 ) {
     enum class Kind { Write, Edit, Delete }
 }
+
+/**
+ * An app created or updated by an agent tool this turn, pending review. Mirrors
+ * [PendingChange] for the app-changes review card: shown below the conversation
+ * after the turn ends, with what changed and a jump to the app's editor.
+ */
+data class PendingAppChange(
+    val appId: Long,
+    val appName: String,
+    val appType: String,
+    val created: Boolean,
+    val changedFields: List<String>,
+    val changedAt: Long
+)
 
 data class SlashCommand(
     val id: String,

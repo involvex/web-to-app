@@ -14,8 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import com.webtoapp.core.i18n.RandomAppNameGenerator
 import com.webtoapp.core.i18n.Strings
-import com.webtoapp.ui.design.WtaTextField
 
+/**
+ * App-name input styled as an outlined field so it matches the website-URL field
+ * on the same screen (floating label on the stroke, same corner radius).
+ */
 @Composable
 fun AppNameTextField(
     value: String,
@@ -24,13 +27,13 @@ fun AppNameTextField(
     placeholder: String? = null,
     imeAction: ImeAction = ImeAction.Next
 ) {
-    WtaTextField(
+    PremiumTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
-        label = Strings.labelAppName,
-        placeholder = placeholder ?: Strings.inputAppName,
-        leadingIcon = Icons.Outlined.Badge,
+        label = { Text(Strings.labelAppName) },
+        placeholder = { Text(placeholder ?: Strings.inputAppName) },
+        leadingIcon = { Icon(Icons.Outlined.Badge, null) },
         trailingIcon = {
             IconButton(
                 onClick = { onValueChange(RandomAppNameGenerator.generate()) }
@@ -54,12 +57,13 @@ fun AppNameTextFieldSimple(
     modifier: Modifier = Modifier,
     placeholder: String? = null
 ) {
-    WtaTextField(
+    PremiumTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier.fillMaxWidth(),
-        label = Strings.labelAppName,
-        placeholder = placeholder ?: Strings.inputAppName,
+        label = { Text(Strings.labelAppName) },
+        placeholder = { Text(placeholder ?: Strings.inputAppName) },
+        leadingIcon = { Icon(Icons.Outlined.Badge, null) },
         trailingIcon = {
             IconButton(
                 onClick = { onValueChange(RandomAppNameGenerator.generate()) }

@@ -46,7 +46,8 @@ fun ShellActivationDialog(
                         offlinePolicy = parseOfflinePolicy(config.activationRemoteOfflinePolicy),
                         deliverUrl = config.activationRemoteDeliverUrl,
                         encryptUrl = config.activationRemoteEncryptUrl,
-                        aesKeyBase64 = config.activationRemoteAesKey
+                        aesKeyBase64 = config.activationRemoteAesKey,
+                        deviceBound = config.activationRemoteDeviceBound
                     )
                 )
             } else {
@@ -56,8 +57,12 @@ fun ShellActivationDialog(
                     config.activationCodes
                 )
             }
-            if (result is ActivationResult.Success) {
-                onActivated(result.url)
+            // AlreadyActivated counts too: re-entering the card that already backs
+            // the grant must still let the user in, not trap them on the dialog.
+            when (result) {
+                is ActivationResult.Success -> onActivated(result.url)
+                is ActivationResult.AlreadyActivated -> onActivated(null)
+                else -> {}
             }
             result
         },
@@ -106,7 +111,7 @@ fun ShellAnnouncementDialog(
     val customIconBitmap = if (config.announcementHasCustomIcon) {
         try {
             val bytes = com.webtoapp.core.crypto.AssetDecryptor(context).loadAsset("announcement_icon.png")
-            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapBytes(bytes)
         } catch (e: Exception) { null }
     } else null
 

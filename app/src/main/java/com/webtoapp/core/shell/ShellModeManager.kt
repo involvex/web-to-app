@@ -190,6 +190,9 @@ data class ShellConfig(
     @SerializedName("activationRemoteAesKey")
     val activationRemoteAesKey: String = "",
 
+    @SerializedName("activationRemoteDeviceBound")
+    val activationRemoteDeviceBound: Boolean = false,
+
     @SerializedName("adBlockEnabled")
     val adBlockEnabled: Boolean = false,
 
@@ -450,7 +453,10 @@ data class ShellConfig(
     val siteDirName: String = "",
 
     @SerializedName("siteAssetBase")
-    val siteAssetBase: String = ""
+    val siteAssetBase: String = "",
+
+    @SerializedName("previewMediaPath")
+    val previewMediaPath: String? = null
 )
 
 data class EmbeddedShellModule(
@@ -807,7 +813,10 @@ data class MediaShellConfig(
     val landscape: Boolean = false,
 
     @SerializedName("keepScreenOn")
-    val keepScreenOn: Boolean = true
+    val keepScreenOn: Boolean = true,
+
+    @SerializedName("backgroundColor")
+    val backgroundColor: String = "#000000"
 )
 
 data class WordPressShellConfig(
@@ -1124,8 +1133,8 @@ data class WebViewShellConfig(
     @SerializedName("hideToolbar")
     val hideToolbar: Boolean = false,
 
-    @SerializedName("hideBrowserToolbar")
-    val hideBrowserToolbar: Boolean = false,
+    @SerializedName("browserToolbarEnabled")
+    val browserToolbarEnabled: Boolean = false,
 
     @SerializedName("toolbarShowTitle")
     val toolbarShowTitle: Boolean = true,
@@ -1143,16 +1152,14 @@ data class WebViewShellConfig(
     val toolbarShowRefresh: Boolean = true,
         @SerializedName("toolbarShowConsole")
         val toolbarShowConsole: Boolean = true,
-        @SerializedName("toolbarShowZoom")
-        val toolbarShowZoom: Boolean = true,
         @SerializedName("toolbarShowFind")
         val toolbarShowFind: Boolean = true,
 
-    @SerializedName("browserToolbarCustomized")
-    val browserToolbarCustomized: Boolean = false,
-
     @SerializedName("showStatusBarInFullscreen")
     val showStatusBarInFullscreen: Boolean = false,
+
+    @SerializedName("hideStatusBarInVideoFullscreen")
+    val hideStatusBarInVideoFullscreen: Boolean = true,
 
     @SerializedName("showNavigationBarInFullscreen")
     val showNavigationBarInFullscreen: Boolean = false,
@@ -1230,6 +1237,9 @@ data class WebViewShellConfig(
 
     @SerializedName("initialScale")
     val initialScale: Int = 0,
+
+    @SerializedName("pageZoomPercent")
+    val pageZoomPercent: Int = 100,
 
     @SerializedName("viewportMode")
     val viewportMode: String = "DEFAULT",
@@ -1378,29 +1388,35 @@ data class WebViewShellConfig(
     @SerializedName("nativeBridgePrint")
     val nativeBridgePrint: Boolean = true,
 
-     @SerializedName("nativeBridgeScreenCapture")
-     val nativeBridgeScreenCapture: Boolean = true,
+    @SerializedName("nativeBridgeScreenCapture")
+    val nativeBridgeScreenCapture: Boolean = true,
 
-     @SerializedName("nativeBridgePip")
-     val nativeBridgePip: Boolean = false,
+    @SerializedName("nativeBridgePip")
+    val nativeBridgePip: Boolean = false,
 
-     @SerializedName("nativeBridgeRating")
-     val nativeBridgeRating: Boolean = false,
+    @SerializedName("nativeBridgeRating")
+    val nativeBridgeRating: Boolean = false,
 
-     @SerializedName("ratingEnabled")
-     val ratingEnabled: Boolean = false,
+    @SerializedName("ratingEnabled")
+    val ratingEnabled: Boolean = false,
 
-     @SerializedName("ratingTriggerDays")
-     val ratingTriggerDays: Int = 7,
+    @SerializedName("ratingTriggerDays")
+    val ratingTriggerDays: Int = 7,
 
-     @SerializedName("ratingTriggerLaunches")
-     val ratingTriggerLaunches: Int = 5,
+    @SerializedName("ratingTriggerLaunches")
+    val ratingTriggerLaunches: Int = 5,
 
-     @SerializedName("pictureInPictureEnabled")
-     val pictureInPictureEnabled: Boolean = false,
+    @SerializedName("pictureInPictureEnabled")
+    val pictureInPictureEnabled: Boolean = false,
 
-     @SerializedName("javaScriptCanOpenWindows")
-     val javaScriptCanOpenWindows: Boolean = false,
+    @SerializedName("nativeBridgeGoogleSignIn")
+    val nativeBridgeGoogleSignIn: Boolean = false,
+
+    @SerializedName("nativeBridgeGoogleSignInClientId")
+    val nativeBridgeGoogleSignInClientId: String = "",
+
+    @SerializedName("javaScriptCanOpenWindows")
+    val javaScriptCanOpenWindows: Boolean = false,
 
     @SerializedName("jsOpenWindowsPolicy")
     val jsOpenWindowsPolicy: String = "ALLOW",
@@ -1588,6 +1604,9 @@ data class WebViewShellConfig(
     @SerializedName("tlsFingerprintCustomCiphers")
     val tlsFingerprintCustomCiphers: List<String> = emptyList(),
 
+    @SerializedName("forceHttp3")
+    val forceHttp3: Boolean = false,
+
     @SerializedName("antiCapture")
     val antiCapture: Boolean = false,
 
@@ -1699,6 +1718,9 @@ data class ErrorPageShellConfig(
 
     @SerializedName("showSslErrorUi")
     val showSslErrorUi: Boolean = true,
+
+    @SerializedName("ignoreSslErrors")
+    val ignoreSslErrors: Boolean = false,
 
     @SerializedName("showRenderCrashErrorUi")
     val showRenderCrashErrorUi: Boolean = true

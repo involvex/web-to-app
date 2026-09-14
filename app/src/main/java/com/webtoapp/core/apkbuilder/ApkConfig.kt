@@ -67,6 +67,7 @@ data class ApkConfig(
     val activationRemoteDeliverUrl: Boolean get() = activation.remoteDeliverUrl
     val activationRemoteEncryptUrl: Boolean get() = activation.remoteEncryptUrl
     val activationRemoteAesKey: String get() = activation.remoteAesKey
+    val activationRemoteDeviceBound: Boolean get() = activation.remoteDeviceBound
 
     val adBlockEnabled: Boolean get() = adBlock.enabled
     val adBlockRules: List<String> get() = adBlock.rules
@@ -106,16 +107,14 @@ data class ApkConfig(
     val userAgentMode: String get() = webView.userAgentMode
     val customUserAgent: String? get() = webView.customUserAgent
     val hideToolbar: Boolean get() = webView.hideToolbar
-    val hideBrowserToolbar: Boolean get() = webView.hideBrowserToolbar
+    val browserToolbarEnabled: Boolean get() = webView.browserToolbarEnabled
     val toolbarShowTitle: Boolean get() = webView.toolbarShowTitle
     val toolbarShowUrl: Boolean get() = webView.toolbarShowUrl
     val toolbarShowBack: Boolean get() = webView.toolbarShowBack
     val toolbarShowForward: Boolean get() = webView.toolbarShowForward
     val toolbarShowRefresh: Boolean get() = webView.toolbarShowRefresh
     val toolbarShowConsole: Boolean get() = webView.toolbarShowConsole
-    val toolbarShowZoom: Boolean get() = webView.toolbarShowZoom
     val toolbarShowFind: Boolean get() = webView.toolbarShowFind
-    val browserToolbarCustomized: Boolean get() = webView.browserToolbarCustomized
     val showStatusBarInFullscreen: Boolean get() = webView.showStatusBarInFullscreen
     val showNavigationBarInFullscreen: Boolean get() = webView.showNavigationBarInFullscreen
     val showToolbarInFullscreen: Boolean get() = webView.showToolbarInFullscreen
@@ -139,6 +138,7 @@ data class ApkConfig(
     val keyboardAdjustMode: String get() = webView.keyboardAdjustMode
 
     val initialScale: Int get() = webViewBehavior.initialScale
+    val pageZoomPercent: Int get() = webViewBehavior.pageZoomPercent
     val viewportMode: String get() = webViewBehavior.viewportMode
     val customViewportWidth: Int get() = webViewBehavior.customViewportWidth
     val newWindowBehavior: String get() = webViewBehavior.newWindowBehavior
@@ -243,6 +243,7 @@ data class ApkConfig(
     val tlsFingerprintEnabled: Boolean get() = tlsFingerprint.enabled
     val tlsFingerprintTemplate: String get() = tlsFingerprint.template
     val tlsFingerprintCustomCiphers: List<String> get() = tlsFingerprint.customCipherSuites
+    val tlsFingerprintForceHttp3: Boolean get() = tlsFingerprint.forceHttp3
     val antiCaptureEnabled: Boolean get() = webView.antiCapture
 
     val dnsMode: String get() = dns.mode
@@ -420,7 +421,8 @@ data class ActivationBlock(
     val remotePublicKey: String = "",    val remoteOfflinePolicy: String = "ALLOW_CACHED",
     val remoteDeliverUrl: Boolean = false,
     val remoteEncryptUrl: Boolean = false,
-    val remoteAesKey: String = ""
+    val remoteAesKey: String = "",
+    val remoteDeviceBound: Boolean = false
 )
 
 data class AdBlockBlock(
@@ -473,17 +475,16 @@ data class WebViewBlock(
     val userAgentMode: String = "DEFAULT",
     val customUserAgent: String? = null,
     val hideToolbar: Boolean = false,
-    val hideBrowserToolbar: Boolean = false,
+    val browserToolbarEnabled: Boolean = false,
     val toolbarShowTitle: Boolean = true,
     val toolbarShowUrl: Boolean = true,
     val toolbarShowBack: Boolean = true,
     val toolbarShowForward: Boolean = true,
     val toolbarShowRefresh: Boolean = true,
     val toolbarShowConsole: Boolean = true,
-    val toolbarShowZoom: Boolean = true,
     val toolbarShowFind: Boolean = true,
-    val browserToolbarCustomized: Boolean = false,
     val showStatusBarInFullscreen: Boolean = false,
+    val hideStatusBarInVideoFullscreen: Boolean = true,
     val showNavigationBarInFullscreen: Boolean = false,
     val showToolbarInFullscreen: Boolean = false,
     val fullscreenContentPaddingDp: Int = 0,
@@ -518,6 +519,7 @@ data class WebViewBlock(
 
 data class WebViewBehaviorBlock(
     val initialScale: Int = 0,
+    val pageZoomPercent: Int = 100,
     val viewportMode: String = "DEFAULT",
     val customViewportWidth: Int = 0,
     val newWindowBehavior: String = "SAME_WINDOW",
@@ -568,15 +570,17 @@ data class WebViewBehaviorBlock(
     val nativeBridgeLogging: Boolean = true,
     val nativeBridgeFindInPage: Boolean = true,
     val nativeBridgeOrientation: Boolean = true,
-     val nativeBridgeFullscreen: Boolean = true,
-     val nativeBridgePrint: Boolean = true,
-     val nativeBridgeScreenCapture: Boolean = true,
-     val nativeBridgePip: Boolean = false,
-     val nativeBridgeRating: Boolean = false,
-     val ratingEnabled: Boolean = false,
-     val ratingTriggerDays: Int = 7,
-     val ratingTriggerLaunches: Int = 5,
-     val pictureInPictureEnabled: Boolean = false,
+    val nativeBridgeFullscreen: Boolean = true,
+    val nativeBridgePrint: Boolean = true,
+    val nativeBridgeGoogleSignIn: Boolean = false,
+    val nativeBridgeGoogleSignInClientId: String = "",
+    val nativeBridgeScreenCapture: Boolean = true,
+    val nativeBridgePip: Boolean = false,
+    val nativeBridgeRating: Boolean = false,
+    val ratingEnabled: Boolean = false,
+    val ratingTriggerDays: Int = 7,
+    val ratingTriggerLaunches: Int = 5,
+    val pictureInPictureEnabled: Boolean = false,
     val databaseEnabled: Boolean = true,
     val enableCookiePersistence: Boolean = true,
     val enablePrivateNetworkBridge: Boolean = false,
@@ -678,7 +682,8 @@ data class DnsBlock(
 data class TlsFingerprintBlock(
     val enabled: Boolean = false,
     val template: String = "CHROME_131",
-    val customCipherSuites: List<String> = emptyList()
+    val customCipherSuites: List<String> = emptyList(),
+    val forceHttp3: Boolean = false
 )
 
 data class ErrorPageBlock(
@@ -694,7 +699,8 @@ data class ErrorPageBlock(
     val showHttp5xxErrorUi: Boolean = true,
     val showNetworkErrorUi: Boolean = true,
     val showSslErrorUi: Boolean = true,
-    val showRenderCrashErrorUi: Boolean = true
+    val showRenderCrashErrorUi: Boolean = true,
+    val ignoreSslErrors: Boolean = false
 )
 
 data class SplashBlock(
@@ -717,7 +723,8 @@ data class MediaBlock(
     val autoPlay: Boolean = true,
     val fillScreen: Boolean = true,
     val landscape: Boolean = false,
-    val keepScreenOn: Boolean = true
+    val keepScreenOn: Boolean = true,
+    val backgroundColor: String = "#000000"
 )
 
 data class HtmlBlock(
@@ -949,4 +956,15 @@ data class DnsApkConfig(
     val dohMode: String = "automatic",
     val bypassSystemDns: Boolean = false,
     val echEnabled: Boolean = false
-)
+) {
+    /** Mirrors [com.webtoapp.data.model.DnsConfig.echEffective] on the export side. */
+    val echEffective: Boolean
+        get() = echEnabled && effectiveDohUrl.isNotBlank()
+
+    val effectiveDohUrl: String
+        get() = if (provider == "custom") {
+            customDohUrl
+        } else {
+            com.webtoapp.data.model.DnsProvider.entries.find { it.key == provider }?.dohUrl ?: ""
+        }
+}
