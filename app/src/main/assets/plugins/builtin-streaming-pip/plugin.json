@@ -1,0 +1,12 @@
+{
+  "id": "builtin-streaming-pip",
+  "name": "Streaming PiP",
+  "version": "1.0.0",
+  "description": "Auto-detect video playback (HTML5, HLS, DASH, YouTube) and enter Picture-in-Picture.",
+  "author": "WebToApp",
+  "icon": "play_circle_filled",
+  "matches": ["*"],
+  "runAt": "document_idle",
+  "permissions": ["STORAGE", "NOTIFY"],
+  "toolbar": true
+}

@@ -24,7 +24,7 @@
 - **滚动记忆** —— 记住滚动位置(`enableScrollMemory`)。
 - **返回状态保留** —— `enableBackStatePreservation`。
 - **Blob 下载拦截** —— 带范围和大小阈值(`enableBlobDownloadInterception`、`blobInterceptThresholdMb`)。
-- **流媒体画中画** —— 在 **扩展模块** 下启用 **视频增强**(画中画、倍速、后台播放)或 **流媒体画中画**(自动检测视频播放,自动进入 HLS/DASH/YouTube 的画中画)。详见[流媒体画中画](/zh/guide/app-actions/edit-common-config/streaming-pip)。
+- **流媒体画中画** —— 启用 **视频增强** 或 **流媒体画中画** 插件(画中画、倍速、后台播放,HLS/DASH/YouTube 自动检测)。详见[流媒体画中画](/zh/guide/app-actions/edit-common-config/streaming-pip)。
 - **接收分享内容** —— 生成的 App 出现在 Android 系统分享面板中;收到的图片/文本经 `wta:share` DOM 事件送达页面,或预填页面的文件选择器(`receiveShareImages`、`receiveShareText`、`shareDeliveryMode`、`sharePromptBeforeUse`)。见[接收分享内容](/zh/guide/more-features/share-receive)。
 
 ## JavaScript 与窗口
