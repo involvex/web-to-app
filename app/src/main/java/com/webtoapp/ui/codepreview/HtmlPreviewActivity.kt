@@ -47,6 +47,9 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 
+/** Bounded console buffer: page console spam must not grow state without limit. */
+private const val CONSOLE_LOG_CAP = 500
+
 class HtmlPreviewActivity : ComponentActivity() {
 
     companion object {
@@ -60,7 +63,7 @@ class HtmlPreviewActivity : ComponentActivity() {
 
         val filePath = intent.getStringExtra(EXTRA_FILE_PATH)
         val htmlContent = intent.getStringExtra(EXTRA_HTML_CONTENT)
-        val title = intent.getStringExtra(EXTRA_TITLE) ?: "预览"
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: Strings.preview
 
         setContent {
             WebToAppTheme { _ ->
@@ -120,17 +123,17 @@ private fun HtmlPreviewScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.Default.Close, "Close")
+                        Icon(Icons.Default.Close, Strings.close)
                     }
                 },
                 actions = {
 
                     IconButton(onClick = { showSourceDialog = true }) {
-                        Icon(Icons.Outlined.Description, "查看源代码")
+                        Icon(Icons.Outlined.Description, Strings.viewSourceCode)
                     }
 
                     IconButton(onClick = { webView?.reload() }) {
-                        Icon(Icons.Default.Refresh, "Refresh")
+                        Icon(Icons.Default.Refresh, Strings.refresh)
                     }
 
                     IconButton(onClick = { showDevTools = !showDevTools }) {
@@ -143,7 +146,7 @@ private fun HtmlPreviewScreen(
                         ) {
                             Icon(
                                 if (showDevTools) Icons.Filled.Code else Icons.Outlined.Code,
-                                "开发者工具"
+                                Strings.developerTools
                             )
                         }
                     }
@@ -199,7 +202,7 @@ private fun HtmlPreviewScreen(
 
                 AndroidView(
                     factory = { ctx ->
-                        WebView(ctx).apply {
+                        com.webtoapp.core.webview.WtaWebView(ctx).apply {
                             webView = this
 
                             setBackgroundColor(android.graphics.Color.WHITE)
@@ -249,7 +252,7 @@ private fun HtmlPreviewScreen(
                                     isLoading = false
                                 },
                                 onConsoleMessage = { entry ->
-                                    consoleMessages = consoleMessages + entry
+                                    consoleMessages = (consoleMessages + entry).takeLast(CONSOLE_LOG_CAP)
                                 }
                             )
 
@@ -291,13 +294,13 @@ private fun HtmlPreviewScreen(
                     onClear = { consoleMessages = emptyList() },
                     onRunScript = { script ->
                         webView?.evaluateJavascript(script) { result ->
-                            consoleMessages = consoleMessages + ConsoleLogEntry(
+                            consoleMessages = (consoleMessages + ConsoleLogEntry(
                                 level = ConsoleLevel.LOG,
                                 message = "=> $result",
                                 source = "eval",
                                 lineNumber = 0,
                                 timestamp = System.currentTimeMillis()
-                            )
+                            )).takeLast(CONSOLE_LOG_CAP)
                         }
                     },
                     modifier = if (isDevToolsExpanded) Modifier.fillMaxHeight(0.6f) else Modifier.heightIn(max = 200.dp)
@@ -343,6 +346,11 @@ private fun WebView.setupWebView(
         javaScriptCanOpenWindowsAutomatically = true
 
         databaseEnabled = true
+
+        // Local HTML preview: allow gesture-free media playback so <audio>/<video>
+        // (including data: sources and scripted play()) behaves like the app
+        // preview in WebViewActivity, which forces this off for HTML apps.
+        mediaPlaybackRequiresUserGesture = false
     }
 
     webViewClient = object : WebViewClient() {

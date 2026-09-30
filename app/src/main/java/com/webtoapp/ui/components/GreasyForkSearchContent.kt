@@ -20,16 +20,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
-import androidx.compose.material.icons.filled.StarHalf
+import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,23 +34,18 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.webtoapp.core.extension.ExtensionManager
 import com.webtoapp.core.extension.UserScriptParser
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
-import com.webtoapp.core.market.CwsTags
 import com.webtoapp.core.market.GfBrowseCategory
-import com.webtoapp.core.market.GfFavorite
 import com.webtoapp.core.market.GfSearchResult
 import com.webtoapp.core.market.GfSort
-import com.webtoapp.core.market.GreasyForkFavorites
 import com.webtoapp.core.market.GreasyForkSearch
 import com.webtoapp.core.market.InstallProgress
 import com.webtoapp.ui.design.WtaButton
@@ -79,17 +70,13 @@ fun GreasyForkSearchContent(
     onBrowseCategoryChange: (GfBrowseCategory) -> Unit = {},
     installingId: String?,
     installProgress: InstallProgress?,
-    favorites: List<GfFavorite>,
     installedUserScriptNames: Set<String>,
     onInstall: (GfSearchResult) -> Unit,
-    onToggleFavorite: (GfSearchResult) -> Unit,
     onOpenSource: (GfSearchResult) -> Unit,
     listState: LazyListState,
     onImportUserScript: (() -> Unit)? = null
 ) {
-    val favoriteIds = remember(favorites) { favorites.map { it.scriptId }.toSet() }
     val showBrowse = query.isBlank()
-    val showFavorites = showBrowse && !isSearching && errorMessage == null && favorites.isNotEmpty()
 
     if (isSearching && results.isEmpty()) {
         Box(
@@ -164,48 +151,6 @@ fun GreasyForkSearchContent(
             item(key = "gf-sort") {
                 GfSortRow(sortMode = sortMode, onSortModeChange = onSortModeChange)
             }
-            if (showFavorites) {
-                item(key = "gf-favorites-title") {
-                    Text(
-                        text = Strings.gfFavoritesSection,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                items(favorites, key = { "fav-${it.scriptId}" }) { fav ->
-                    val favResult = GfSearchResult(
-                        id = fav.scriptId,
-                        name = fav.name,
-                        description = fav.description,
-                        version = fav.version,
-                        codeUrl = fav.codeUrl,
-                        pageUrl = fav.pageUrl,
-                        author = fav.author,
-                        authorUrl = null,
-                        fanScore = fav.fanScore,
-                        totalInstalls = fav.totalInstalls,
-                        dailyInstalls = 0L,
-                        goodRatings = 0L,
-                        okRatings = 0L,
-                        badRatings = 0L,
-                        codeUpdatedAt = "",
-                        license = "",
-                        locale = "",
-                        codeSize = 0L
-                    )
-                    val id = "gf-${fav.scriptId}"
-                    GfResultCard(
-                        result = favResult,
-                        isFavorite = true,
-                        isInstalled = fav.name in installedUserScriptNames,
-                        isInstalling = installingId == id,
-                        installProgress = if (installingId == id) installProgress else null,
-                        onInstall = { onInstall(favResult) },
-                        onToggleFavorite = { onToggleFavorite(favResult) },
-                        onOpenSource = { onOpenSource(favResult) }
-                    )
-                }
-            }
             item(key = "gf-section-title") {
                 Text(
                     text = if (browseCategory == GfBrowseCategory.HOT) {
@@ -254,12 +199,10 @@ fun GreasyForkSearchContent(
             val id = "gf-${result.id}"
             GfResultCard(
                 result = result,
-                isFavorite = result.id in favoriteIds,
                 isInstalled = result.name in installedUserScriptNames,
                 isInstalling = installingId == id,
                 installProgress = if (installingId == id) installProgress else null,
                 onInstall = { onInstall(result) },
-                onToggleFavorite = { onToggleFavorite(result) },
                 onOpenSource = { onOpenSource(result) }
             )
         }
@@ -315,12 +258,10 @@ private fun gfSortLabel(mode: GfSort): String = when (mode) {
 @Composable
 private fun GfResultCard(
     result: GfSearchResult,
-    isFavorite: Boolean,
     isInstalled: Boolean,
     isInstalling: Boolean,
     installProgress: InstallProgress?,
     onInstall: () -> Unit,
-    onToggleFavorite: () -> Unit,
     onOpenSource: () -> Unit
 ) {
     WtaCard(
@@ -337,9 +278,11 @@ private fun GfResultCard(
                 modifier = Modifier.size(52.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = "🐵",
-                        style = MaterialTheme.typography.headlineSmall
+                    Icon(
+                        Icons.Outlined.Code,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
             }
@@ -352,22 +295,8 @@ private fun GfResultCard(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (result.author.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        result.author,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (result.totalInstalls > 0L || result.dailyInstalls > 0L || result.fanScore > 0.0 || result.ratingsTotal > 0L) {
-                    Spacer(Modifier.height(6.dp))
-                    GfMetricsRow(result = result)
-                }
                 if (result.description.isNotBlank()) {
-                    Spacer(Modifier.height(6.dp))
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         result.description,
                         style = MaterialTheme.typography.bodySmall,
@@ -375,28 +304,6 @@ private fun GfResultCard(
                         maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
-                }
-                val tags = CwsTags.fromName(result.name + " " + result.description).map { it.label }
-                if (tags.isNotEmpty()) {
-                    Spacer(Modifier.height(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        tags.take(3).forEach { tag ->
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer
-                            ) {
-                                Text(
-                                    tag,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -418,13 +325,6 @@ private fun GfResultCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = onOpenSource, modifier = Modifier.size(36.dp)) {
                     Icon(Icons.Default.OpenInNew, contentDescription = Strings.moduleMarketViewSource)
-                }
-                IconButton(onClick = onToggleFavorite, modifier = Modifier.size(36.dp)) {
-                    Icon(
-                        imageVector = if (isFavorite) Icons.Default.Star else Icons.Default.StarBorder,
-                        contentDescription = if (isFavorite) Strings.gfUnfavorite else Strings.gfFavorite,
-                        tint = if (isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
                 }
                 Spacer(Modifier.weight(1f))
                 if (isInstalled) {
@@ -449,79 +349,6 @@ private fun GfResultCard(
                         leadingIcon = Icons.Default.CloudDownload
                     )
                 }
-            }
-        }
-    }
-}
-
-@Composable
-private fun GfMetricsRow(result: GfSearchResult) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (result.dailyInstalls > 0L) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    GreasyForkSearch.formatInstallCount(result.dailyInstalls) + "/d",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (result.totalInstalls > 0L) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Download,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    GreasyForkSearch.formatInstallCount(result.totalInstalls),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (result.fanScore > 0.0) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.Star,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.tertiary
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    GreasyForkSearch.formatScore(result.fanScore),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        if (result.ratingsTotal > 0L) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.StarHalf,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(Modifier.width(2.dp))
-                Text(
-                    result.ratingsTotal.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         }
     }
@@ -556,25 +383,21 @@ suspend fun installGreasyForkScript(
             AppLogger.w("GreasyForkInstall", "Script parsed with warnings: ${parsed.warnings}")
         }
 
-        val extensionManager = ExtensionManager.getInstance(appContext)
         val greasyForkModule = parsed.module.copy(sourceType = com.webtoapp.core.extension.ModuleSourceType.GREASYFORK)
-        val addResult = extensionManager.addModule(greasyForkModule)
-        addResult.onSuccess {
-            Toast.makeText(
-                appContext,
-                Strings.moduleMarketInstalled.replace("%s", result.name),
-                Toast.LENGTH_SHORT
-            ).show()
-        }.onFailure { e ->
-            snackbar.showSnackbar(Strings.gfInstallFailed.replace("%s", e.message ?: "unknown"))
+        when (val addResult = com.webtoapp.core.plugin.PluginImporter(appContext)
+            .installLegacyModule(greasyForkModule)
+        ) {
+            is com.webtoapp.core.plugin.PluginImporter.ImportResult.Success ->
+                Toast.makeText(
+                    appContext,
+                    Strings.moduleMarketInstalled.replace("%s", result.name),
+                    Toast.LENGTH_SHORT
+                ).show()
+            is com.webtoapp.core.plugin.PluginImporter.ImportResult.Error ->
+                snackbar.showSnackbar(Strings.gfInstallFailed.replace("%s", addResult.message))
         }
     } catch (e: Exception) {
         AppLogger.e("GreasyForkInstall", "install failed for ${result.id}", e)
         snackbar.showSnackbar(Strings.gfInstallFailed.replace("%s", e.message ?: "unknown"))
     }
-}
-
-@Composable
-fun rememberGreasyForkFavorites(context: android.content.Context): GreasyForkFavorites {
-    return remember(context) { GreasyForkFavorites.getInstance(context) }
 }

@@ -15,13 +15,17 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.data.model.*
 import com.webtoapp.ui.components.*
 import com.webtoapp.ui.design.*
@@ -30,6 +34,7 @@ import com.webtoapp.ui.animation.CardCollapseTransition
 import com.webtoapp.util.AppConstants
 import com.webtoapp.util.ConfigPresetStorage
 import com.webtoapp.util.NetworkTrustStorage
+import com.webtoapp.util.SavedNetworkTrustPreset
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 
@@ -84,16 +89,40 @@ fun ApkExportSection(
 
     Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)) {
 
-        WtaSection(
-            title = Strings.apkConfigNote,
-            headerStyle = WtaSectionHeaderStyle.Quiet
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = WtaSpacing.RowHorizontal),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            WtaSettingCard {
+            Icon(
+                Icons.Outlined.Info,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(16.dp)
+            )
+            Text(
+                text = Strings.apkConfigNote,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        WtaSection(
+            title = Strings.apkIdentityBuildSection,
+            headerStyle = WtaSectionHeaderStyle.Quiet,
+            collapsible = true,
+            initiallyExpanded = false
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier.padding(
-                        horizontal = WtaSpacing.RowHorizontal,
-                        vertical = WtaSpacing.ContentGap
-                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        ),
                     verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
                 ) {
                     OutlinedTextField(
@@ -174,21 +203,27 @@ fun ApkExportSection(
                         )
                     }
                 }
-            }
-        }
-
-        WtaSection(
-            title = Strings.apkArchitecture,
-            headerStyle = WtaSectionHeaderStyle.Quiet
-        ) {
-            WtaSettingCard {
+                WtaToggleRow(
+                    title = Strings.autoVersionBump,
+                    subtitle = Strings.autoVersionBumpHint.ifDescriptionsShown(),
+                    checked = config.autoVersionBump,
+                    onCheckedChange = { onConfigChange(config.copy(autoVersionBump = it)) }
+                )
+                WtaSectionDivider()
                 Column(
-                    modifier = Modifier.padding(
-                        horizontal = WtaSpacing.RowHorizontal,
-                        vertical = WtaSpacing.ContentGap
-                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        ),
                     verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
                 ) {
+                    Text(
+                        text = Strings.apkArchitecture,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
@@ -204,14 +239,96 @@ fun ApkExportSection(
                             )
                         }
                     }
-
                     Text(
                         text = config.architecture.description,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.deepLinkSetting,
+                    subtitle = Strings.deepLinkSettingHint.ifDescriptionsShown(),
+                    icon = Icons.Outlined.Link,
+                    checked = config.deepLinkEnabled,
+                    onCheckedChange = { onConfigChange(config.copy(deepLinkEnabled = it)) }
+                )
+                AnimatedVisibility(
+                    visible = config.deepLinkEnabled,
+                    enter = CardExpandTransition,
+                    exit = CardCollapseTransition
+                ) {
+                    var customHostsText by remember(config.customDeepLinkHosts) {
+                        mutableStateOf(config.customDeepLinkHosts.joinToString("\n"))
+                    }
+                    Column(
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        )
+                    ) {
+                        Text(
+                            text = Strings.deepLinkCustomHostsLabel,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        Text(
+                            text = Strings.deepLinkCustomHostsHint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        PremiumTextField(
+                            value = customHostsText,
+                            onValueChange = { newText ->
+                                customHostsText = newText
+                                val hosts = newText.split("\n", ",", " ")
+                                    .map { it.trim() }
+                                    .filter { it.isNotBlank() }
+                                onConfigChange(config.copy(customDeepLinkHosts = hosts))
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("api.example.com\ncdn.example.com") },
+                            minLines = 2,
+                            maxLines = 4,
+                            textStyle = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.apkLoggingTitle,
+                    subtitle = Strings.apkLoggingHint.ifDescriptionsShown(),
+                    icon = Icons.Outlined.Description,
+                    checked = config.loggingEnabled,
+                    onCheckedChange = { onConfigChange(config.copy(loggingEnabled = it)) }
+                )
+                if (canOverrideTargetSdk) {
+                    WtaSectionDivider()
+                    TargetSdkOverrideRows(
+                        config = config,
+                        onConfigChange = onConfigChange
+                    )
+                }
             }
+        }
+
+        WtaSettingCard {
+            WtaToggleRow(
+                title = Strings.saepPolicyTitle,
+                checked = config.saepEnabled,
+                onCheckedChange = { onConfigChange(config.copy(saepEnabled = it)) }
+            )
+            Text(
+                text = Strings.saepPolicyHint,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(
+                    horizontal = WtaSpacing.RowHorizontal,
+                    vertical = WtaSpacing.ContentGap
+                )
+            )
         }
 
         if (onOpenPermissionConfig != null) {
@@ -248,30 +365,15 @@ fun ApkExportSection(
         )
 
         WtaSection(
-            title = Strings.apkLoggingTitle,
-            headerStyle = WtaSectionHeaderStyle.Quiet
+            title = Strings.signingSectionTitle,
+            headerStyle = WtaSectionHeaderStyle.Quiet,
+            collapsible = true,
+            initiallyExpanded = false
         ) {
-            WtaSettingCard {
-                WtaToggleRow(
-                    title = Strings.apkLoggingTitle,
-                    subtitle = Strings.apkLoggingHint,
-                    icon = Icons.Outlined.Description,
-                    checked = config.loggingEnabled,
-                    onCheckedChange = { onConfigChange(config.copy(loggingEnabled = it)) }
-                )
-            }
+            CustomSigningSection()
+
+            SigningSchemeSection()
         }
-
-        if (canOverrideTargetSdk) {
-            TargetSdkOverrideSection(
-                config = config,
-                onConfigChange = onConfigChange
-            )
-        }
-
-        CustomSigningSection()
-
-        SigningSchemeSection()
     }
 }
 
@@ -282,9 +384,11 @@ private fun PerformanceOptimizationSection(
 ) {
     WtaSection(
         title = Strings.performanceOptimization,
-        headerStyle = WtaSectionHeaderStyle.Quiet
+        headerStyle = WtaSectionHeaderStyle.Quiet,
+        collapsible = true,
+        initiallyExpanded = false
     ) {
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaToggleRow(
                 title = Strings.performanceOptimization,
                 subtitle = if (config.performanceOptimization) Strings.perfEnabled else Strings.perfDisabled,
@@ -299,16 +403,21 @@ private fun PerformanceOptimizationSection(
             enter = CardExpandTransition,
             exit = CardCollapseTransition
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)) {
+            Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
 
-                WtaSection(
-                    title = Strings.perfResourceOptimize,
-                    headerStyle = WtaSectionHeaderStyle.Quiet
-                ) {
-                    WtaSettingCard {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = Strings.perfResourceOptimize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        )
+                    )
                         WtaToggleRow(
                             title = Strings.perfCompressImages,
-                            subtitle = Strings.perfCompressImagesHint,
+                            subtitle = Strings.perfCompressImagesHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.compressImages,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(compressImages = it)))
@@ -317,7 +426,7 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfConvertWebP,
-                            subtitle = Strings.perfConvertWebPHint,
+                            subtitle = Strings.perfConvertWebPHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.convertToWebP,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(convertToWebP = it)))
@@ -326,7 +435,7 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfMinifyCode,
-                            subtitle = Strings.perfMinifyCodeHint,
+                            subtitle = Strings.perfMinifyCodeHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.minifyCode,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(minifyCode = it)))
@@ -335,23 +444,27 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfRemoveUnused,
-                            subtitle = Strings.perfRemoveUnusedHint,
+                            subtitle = Strings.perfRemoveUnusedHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.removeUnusedResources,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(removeUnusedResources = it)))
                             }
                         )
-                    }
                 }
 
-                WtaSection(
-                    title = Strings.perfBuildOptimize,
-                    headerStyle = WtaSectionHeaderStyle.Quiet
-                ) {
-                    WtaSettingCard {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = Strings.perfBuildOptimize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        )
+                    )
                         WtaToggleRow(
                             title = Strings.perfParallelProcessing,
-                            subtitle = Strings.perfParallelProcessingHint,
+                            subtitle = Strings.perfParallelProcessingHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.parallelProcessing,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(parallelProcessing = it)))
@@ -360,23 +473,27 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfEnableCache,
-                            subtitle = Strings.perfEnableCacheHint,
+                            subtitle = Strings.perfEnableCacheHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.enableCache,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(enableCache = it)))
                             }
                         )
-                    }
                 }
 
-                WtaSection(
-                    title = Strings.perfLoadOptimize,
-                    headerStyle = WtaSectionHeaderStyle.Quiet
-                ) {
-                    WtaSettingCard {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = Strings.perfLoadOptimize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        )
+                    )
                         WtaToggleRow(
                             title = Strings.perfPreloadHints,
-                            subtitle = Strings.perfPreloadHintsHint,
+                            subtitle = Strings.perfPreloadHintsHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.injectPreloadHints,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectPreloadHints = it)))
@@ -385,7 +502,7 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfLazyLoading,
-                            subtitle = Strings.perfLazyLoadingHint,
+                            subtitle = Strings.perfLazyLoadingHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.injectLazyLoading,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectLazyLoading = it)))
@@ -394,29 +511,32 @@ private fun PerformanceOptimizationSection(
                         WtaSectionDivider()
                         WtaToggleRow(
                             title = Strings.perfOptimizeScripts,
-                            subtitle = Strings.perfOptimizeScriptsHint,
+                            subtitle = Strings.perfOptimizeScriptsHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.optimizeScripts,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(optimizeScripts = it)))
                             }
                         )
-                    }
                 }
 
-                WtaSection(
-                    title = Strings.perfRuntimeOptimize,
-                    headerStyle = WtaSectionHeaderStyle.Quiet
-                ) {
-                    WtaSettingCard {
-                        WtaToggleRow(
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = Strings.perfRuntimeOptimize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
+                        )
+                    )
+                    WtaToggleRow(
                             title = Strings.perfRuntimeScript,
-                            subtitle = Strings.perfRuntimeScriptHint,
+                            subtitle = Strings.perfRuntimeScriptHint.ifDescriptionsShown(),
                             checked = config.performanceConfig.injectPerformanceScript,
                             onCheckedChange = {
                                 onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectPerformanceScript = it)))
                             }
                         )
-                    }
                 }
             }
         }
@@ -433,19 +553,26 @@ private fun NetworkTrustConfigPanel(
     onImportCertificate: () -> Unit
 ) {
     val context = LocalContext.current
-    var presets by remember { mutableStateOf(ConfigPresetStorage.loadNetworkTrust(context)) }
+    // Load presets off the composition thread (#1095): getSharedPreferences + Gson
+    // parse on the main thread used to ride inside the first expand frame.
+    var presets by remember { mutableStateOf<List<SavedNetworkTrustPreset>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        presets = withContext(Dispatchers.IO) { ConfigPresetStorage.loadNetworkTrust(context) }
+    }
     var showSavePresetDialog by remember { mutableStateOf(false) }
     var presetName by remember { mutableStateOf("") }
 
     WtaSection(
         title = Strings.networkTrustTitle,
-        description = Strings.networkTrustHint,
-        headerStyle = WtaSectionHeaderStyle.Quiet
+        description = Strings.networkTrustHint.ifDescriptionsShown(),
+        headerStyle = WtaSectionHeaderStyle.Quiet,
+        collapsible = true,
+        initiallyExpanded = false
     ) {
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaToggleRow(
                 title = Strings.trustSystemCa,
-                subtitle = Strings.trustSystemCaHint,
+                subtitle = Strings.trustSystemCaHint.ifDescriptionsShown(),
                 icon = Icons.Outlined.Security,
                 checked = config.trustSystemCa,
                 onCheckedChange = { onConfigChange(config.copy(trustSystemCa = it)) }
@@ -453,7 +580,7 @@ private fun NetworkTrustConfigPanel(
             WtaSectionDivider()
             WtaToggleRow(
                 title = Strings.trustUserCa,
-                subtitle = Strings.trustUserCaHint,
+                subtitle = Strings.trustUserCaHint.ifDescriptionsShown(),
                 icon = Icons.Outlined.AdminPanelSettings,
                 checked = config.trustUserCa,
                 onCheckedChange = { onConfigChange(config.copy(trustUserCa = it)) }
@@ -461,7 +588,7 @@ private fun NetworkTrustConfigPanel(
             WtaSectionDivider()
             WtaToggleRow(
                 title = Strings.clientCertificateAuthTitle,
-                subtitle = Strings.clientCertificateAuthDescription,
+                subtitle = Strings.clientCertificateAuthDescription.ifDescriptionsShown(),
                 icon = Icons.Outlined.Badge,
                 checked = clientCertificateAuthEnabled,
                 onCheckedChange = onClientCertificateAuthEnabledChange
@@ -469,7 +596,7 @@ private fun NetworkTrustConfigPanel(
             WtaSectionDivider()
             WtaToggleRow(
                 title = Strings.cleartextTrafficAllowed,
-                subtitle = Strings.cleartextTrafficAllowedHint,
+                subtitle = Strings.cleartextTrafficAllowedHint.ifDescriptionsShown(),
                 icon = Icons.Outlined.Http,
                 checked = config.cleartextTrafficPermitted,
                 onCheckedChange = { onConfigChange(config.copy(cleartextTrafficPermitted = it)) }
@@ -494,7 +621,7 @@ private fun NetworkTrustConfigPanel(
             WtaSectionDivider()
             WtaSettingRow(
                 title = Strings.saveNetworkPreset,
-                subtitle = Strings.saveNetworkPresetHint,
+                subtitle = Strings.saveNetworkPresetHint.ifDescriptionsShown(),
                 icon = Icons.Outlined.BookmarkAdd,
                 onClick = {
                     presetName = ""
@@ -517,7 +644,7 @@ private fun NetworkTrustConfigPanel(
         }
 
         config.customCaCertificates.forEach { cert ->
-            WtaSettingCard {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 WtaSettingRow(
                     title = cert.displayName,
                     subtitle = "${Strings.sha256Prefix} ${cert.sha256.chunked(2).take(8).joinToString(":").uppercase()}...",
@@ -539,7 +666,7 @@ private fun NetworkTrustConfigPanel(
         }
 
         if (presets.isNotEmpty()) {
-            WtaSettingCard {
+            Column(modifier = Modifier.fillMaxWidth()) {
                 presets.forEachIndexed { index, preset ->
                     WtaSettingRow(
                         title = preset.name,
@@ -645,12 +772,12 @@ fun CustomSigningSection() {
         }
     }
 
-    WtaSection(
-        title = Strings.currentSigningStatus,
-        headerStyle = WtaSectionHeaderStyle.Quiet
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)
     ) {
 
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaSettingRow(
                 title = when (signerType) {
                     com.webtoapp.core.apkbuilder.JarSigner.SignerType.PKCS12_CUSTOM -> Strings.signingTypeCustom
@@ -670,7 +797,7 @@ fun CustomSigningSection() {
             tone = WtaStatusTone.Info
         )
 
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaSettingRow(
                 title = Strings.createKeystore,
                 subtitle = Strings.createKeystoreNote,
@@ -1045,19 +1172,26 @@ fun SigningSchemeSection() {
         persist(options.copy(v1Enabled = v1, v2Enabled = v2, v3Enabled = v3))
     }
 
-    WtaSection(
-        title = Strings.signingSchemeTitle,
-        headerStyle = WtaSectionHeaderStyle.Quiet
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)
     ) {
+        Text(
+            text = Strings.signingSchemeTitle,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = WtaSpacing.RowHorizontal)
+        )
+
         WtaStatusBanner(
             message = Strings.signingSchemeNote,
             tone = WtaStatusTone.Info
         )
 
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaToggleRow(
                 title = Strings.signingSchemeV1Title,
-                subtitle = Strings.signingSchemeV1Desc,
+                subtitle = Strings.signingSchemeV1Desc.ifDescriptionsShown(),
                 icon = Icons.Outlined.Layers,
                 checked = options.v1Enabled,
                 onCheckedChange = { toggleScheme(v1 = it) }
@@ -1065,7 +1199,7 @@ fun SigningSchemeSection() {
             WtaSectionDivider()
             WtaToggleRow(
                 title = Strings.signingSchemeV2Title,
-                subtitle = Strings.signingSchemeV2Desc,
+                subtitle = Strings.signingSchemeV2Desc.ifDescriptionsShown(),
                 icon = Icons.Outlined.Layers,
                 checked = options.v2Enabled,
                 onCheckedChange = { toggleScheme(v2 = it) }
@@ -1073,7 +1207,7 @@ fun SigningSchemeSection() {
             WtaSectionDivider()
             WtaToggleRow(
                 title = Strings.signingSchemeV3Title,
-                subtitle = Strings.signingSchemeV3Desc,
+                subtitle = Strings.signingSchemeV3Desc.ifDescriptionsShown(),
                 icon = Icons.Outlined.Layers,
                 checked = options.v3Enabled,
                 onCheckedChange = { toggleScheme(v3 = it) }
@@ -1087,10 +1221,10 @@ fun SigningSchemeSection() {
             )
         }
 
-        WtaSettingCard {
+        Column(modifier = Modifier.fillMaxWidth()) {
             WtaToggleRow(
                 title = Strings.signingSchemeAutoFallbackTitle,
-                subtitle = Strings.signingSchemeAutoFallbackDesc,
+                subtitle = Strings.signingSchemeAutoFallbackDesc.ifDescriptionsShown(),
                 icon = Icons.Outlined.Restore,
                 checked = options.autoFallback,
                 onCheckedChange = { persist(options.copy(autoFallback = it)) }
@@ -1098,14 +1232,15 @@ fun SigningSchemeSection() {
         }
 
         AnimatedVisibility(visible = options.v1Enabled) {
-            WtaSettingCard {
-                Column(
-                    modifier = Modifier.padding(
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
                         horizontal = WtaSpacing.RowHorizontal,
                         vertical = WtaSpacing.ContentGap
                     ),
-                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
-                ) {
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+            ) {
                     Text(
                         text = Strings.v1SignerNameTitle,
                         style = MaterialTheme.typography.titleSmall,
@@ -1153,7 +1288,6 @@ fun SigningSchemeSection() {
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-            }
         }
 
         savedHint?.let { msg ->
@@ -1405,51 +1539,46 @@ private fun copyToClipboard(context: android.content.Context, label: String, tex
 }
 
 @Composable
-private fun TargetSdkOverrideSection(
+private fun TargetSdkOverrideRows(
     config: ApkExportConfig,
     onConfigChange: (ApkExportConfig) -> Unit
 ) {
     val enabled = config.targetSdk != null
 
-    WtaSection(
-        title = Strings.targetSdkOverrideTitle,
-        headerStyle = WtaSectionHeaderStyle.Quiet
-    ) {
-        WtaSettingCard {
-            WtaToggleRow(
-                title = Strings.targetSdkOverrideTitle,
-                subtitle = if (enabled) Strings.targetSdkOverrideOnHint else Strings.targetSdkOverrideOffHint,
-                icon = Icons.Outlined.SystemUpdate,
-                checked = enabled,
-                onCheckedChange = { on ->
-                    onConfigChange(
-                        config.copy(targetSdk = if (on) TARGET_SDK_OVERRIDE_DEFAULT else null)
-                    )
-                }
-            )
+    Column(modifier = Modifier.fillMaxWidth()) {
+        WtaToggleRow(
+            title = Strings.targetSdkOverrideTitle,
+            subtitle = if (enabled) Strings.targetSdkOverrideOnHint else Strings.targetSdkOverrideOffHint,
+            icon = Icons.Outlined.SystemUpdate,
+            checked = enabled,
+            onCheckedChange = { on ->
+                onConfigChange(
+                    config.copy(targetSdk = if (on) TARGET_SDK_OVERRIDE_DEFAULT else null)
+                )
+            }
+        )
 
-            AnimatedVisibility(
-                visible = enabled,
-                enter = CardExpandTransition,
-                exit = CardCollapseTransition
+        AnimatedVisibility(
+            visible = enabled,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(
-                            horizontal = WtaSpacing.RowHorizontal,
-                            vertical = WtaSpacing.ContentGap
-                        ),
-                    horizontalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
-                ) {
-                    TARGET_SDK_OVERRIDE_CHOICES.forEach { value ->
-                        WtaChip(
-                            selected = config.targetSdk == value,
-                            onClick = { onConfigChange(config.copy(targetSdk = value)) },
-                            label = value.toString(),
-                            showSelectedCheck = false
-                        )
-                    }
+                TARGET_SDK_OVERRIDE_CHOICES.forEach { value ->
+                    WtaChip(
+                        selected = config.targetSdk == value,
+                        onClick = { onConfigChange(config.copy(targetSdk = value)) },
+                        label = value.toString(),
+                        showSelectedCheck = false
+                    )
                 }
             }
         }

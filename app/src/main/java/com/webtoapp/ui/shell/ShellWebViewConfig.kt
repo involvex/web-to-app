@@ -50,6 +50,10 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         showNavigationBarInFullscreen = config.webViewConfig.showNavigationBarInFullscreen,
         showToolbarInFullscreen = config.webViewConfig.showToolbarInFullscreen,
         fullscreenContentPaddingDp = config.webViewConfig.fullscreenContentPaddingDp,
+        fullscreenContentPaddingTopDp = config.webViewConfig.fullscreenContentPaddingTopDp,
+        fullscreenContentPaddingBottomDp = config.webViewConfig.fullscreenContentPaddingBottomDp,
+        fullscreenContentPaddingStartDp = config.webViewConfig.fullscreenContentPaddingStartDp,
+        fullscreenContentPaddingEndDp = config.webViewConfig.fullscreenContentPaddingEndDp,
         landscapeMode = config.webViewConfig.landscapeMode,
         orientationMode = try {
             com.webtoapp.data.model.OrientationMode.valueOf(config.webViewConfig.orientationMode)
@@ -58,7 +62,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             else com.webtoapp.data.model.OrientationMode.PORTRAIT
         },
 
-        statusBarColorMode = try { com.webtoapp.data.model.StatusBarColorMode.valueOf(config.webViewConfig.statusBarColorMode) } catch (e: Exception) { com.webtoapp.data.model.StatusBarColorMode.THEME },
+        statusBarColorMode = try { com.webtoapp.data.model.StatusBarColorMode.valueOf(config.webViewConfig.statusBarColorMode) } catch (e: Exception) { com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT },
         statusBarColor = config.webViewConfig.statusBarColor,
         statusBarDarkIcons = config.webViewConfig.statusBarDarkIcons,
         statusBarBackgroundType = try { com.webtoapp.data.model.StatusBarBackgroundType.valueOf(config.webViewConfig.statusBarBackgroundType) } catch (e: Exception) { com.webtoapp.data.model.StatusBarBackgroundType.COLOR },
@@ -66,7 +70,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         statusBarBackgroundAlpha = config.webViewConfig.statusBarBackgroundAlpha,
         statusBarHeightDp = config.webViewConfig.statusBarHeightDp,
 
-        statusBarColorModeDark = try { com.webtoapp.data.model.StatusBarColorMode.valueOf(config.webViewConfig.statusBarColorModeDark) } catch (e: Exception) { com.webtoapp.data.model.StatusBarColorMode.THEME },
+        statusBarColorModeDark = try { com.webtoapp.data.model.StatusBarColorMode.valueOf(config.webViewConfig.statusBarColorModeDark) } catch (e: Exception) { com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT },
         statusBarColorDark = config.webViewConfig.statusBarColorDark,
         statusBarDarkIconsDark = config.webViewConfig.statusBarDarkIconsDark ?: false,
         statusBarBackgroundTypeDark = try { com.webtoapp.data.model.StatusBarBackgroundType.valueOf(config.webViewConfig.statusBarBackgroundTypeDark) } catch (e: Exception) { com.webtoapp.data.model.StatusBarBackgroundType.COLOR },
@@ -86,6 +90,13 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         newWindowBehavior = try { com.webtoapp.data.model.NewWindowBehavior.valueOf(config.webViewConfig.newWindowBehavior) } catch (e: Exception) { com.webtoapp.data.model.NewWindowBehavior.SAME_WINDOW },
         enablePaymentSchemes = config.webViewConfig.enablePaymentSchemes,
         enableShareBridge = config.webViewConfig.enableShareBridge,
+        receiveShareImages = config.webViewConfig.receiveShareImages,
+        receiveShareText = config.webViewConfig.receiveShareText,
+        shareDeliveryMode = try {
+            com.webtoapp.data.model.ShareDeliveryMode.valueOf(config.webViewConfig.shareDeliveryMode)
+        } catch (e: Exception) { com.webtoapp.data.model.ShareDeliveryMode.BOTH },
+        sharePromptBeforeUse = config.webViewConfig.sharePromptBeforeUse,
+        openWithEnabled = config.webViewConfig.openWithEnabled,
         enableZoomPolyfill = config.webViewConfig.enableZoomPolyfill,
         enableCrossOriginIsolation = config.webViewConfig.enableCrossOriginIsolation,
         hideUrlPreview = config.webViewConfig.hideUrlPreview,

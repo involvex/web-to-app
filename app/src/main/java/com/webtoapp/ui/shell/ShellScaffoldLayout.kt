@@ -138,7 +138,10 @@ fun BoxScope.ShellScaffoldLayout(
         contentWindowInsets = if (hideToolbar && !showToolbar) {
             WindowInsets(0, 0, 0, 0)
         } else {
-            ScaffoldDefaults.contentWindowInsets
+            // #1075: the window-level IME padding already lifts the layout above
+            // the keyboard, so the navigation-bar inset must not stack on top of
+            // it — the double inset rendered as a black band above the IME.
+            ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime)
         },
         modifier = Modifier,
         topBar = {
@@ -162,7 +165,8 @@ fun BoxScope.ShellScaffoldLayout(
                     consoleErrorCount = consoleMessages.count { it.level == ConsoleLevel.ERROR },
                     showFindButton = toolbarVisibility.showFind,
                     showFindBar = showFindBar,
-                    onToggleFindBar = onToggleFindBar
+                    onToggleFindBar = onToggleFindBar,
+                    showPluginButton = config.pluginsEnabled
                 )
             }
         }
@@ -193,7 +197,11 @@ fun BoxScope.ShellScaffoldLayout(
 
         // 全屏模式下可选的内容内边距：把网页交互区从屏幕边缘内移，让角落按钮易于点按，
         // 同时缓解与系统返回手势边缘带的冲突。默认 0 → 向后兼容旧行为。
-        val contentPad = config.webViewConfig.fullscreenContentPaddingDp.dp
+        // #916: each side may override the uniform value; null follows the base.
+        val padTop = config.webViewConfig.fullscreenPadTop.dp
+        val padStart = config.webViewConfig.fullscreenPadStart.dp
+        val padEnd = config.webViewConfig.fullscreenPadEnd.dp
+        val padBottom = config.webViewConfig.fullscreenPadBottom.dp
 
         // Issue #771: transparent/image bars overlay the content (persistent
         // WeChat-style bar) instead of reserving a strip; solid bars keep the
@@ -212,15 +220,20 @@ fun BoxScope.ShellScaffoldLayout(
             hideToolbar && config.webViewConfig.showStatusBarInFullscreen -> {
 
                 Modifier.fillMaxSize().padding(
-                    top = if (shellOverlaysContent) 0.dp else actualStatusBarPadding,
-                    start = contentPad,
-                    end = contentPad,
-                    bottom = contentPad
+                    top = (if (shellOverlaysContent) 0.dp else actualStatusBarPadding) + padTop,
+                    start = padStart,
+                    end = padEnd,
+                    bottom = padBottom
                 )
             }
             hideToolbar -> {
 
-                Modifier.fillMaxSize().padding(contentPad)
+                Modifier.fillMaxSize().padding(
+                    top = padTop,
+                    start = padStart,
+                    end = padEnd,
+                    bottom = padBottom
+                )
             }
             else -> {
 
@@ -304,6 +317,18 @@ fun BoxScope.ShellScaffoldLayout(
                     onClose = onToggleFindBar
                 )
             }
+
+            // Unified plugin surface: sheet, panel host and the floating handle
+            // (entry style TOOLBAR mounts inside ShellTopAppBar instead).
+            if (config.pluginsEnabled) {
+                com.webtoapp.ui.plugin.PluginSurfaceHost(
+                    entryStyle = com.webtoapp.core.plugin.PluginEntryStyle.parse(config.pluginEntryStyle),
+                    toolbarVisible = showToolbar,
+                    floatingHandleModifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 24.dp)
+                )
+            }
         }
     }
 }
@@ -329,7 +354,8 @@ private fun ShellTopAppBar(
     consoleErrorCount: Int = 0,
     showFindButton: Boolean = true,
     showFindBar: Boolean = false,
-    onToggleFindBar: () -> Unit = {}
+    onToggleFindBar: () -> Unit = {},
+    showPluginButton: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -415,6 +441,13 @@ private fun ShellTopAppBar(
                     onClick = onToggleFindBar,
                     icon = if (showFindBar) Icons.Filled.Search else Icons.Outlined.Search,
                     contentDescription = Strings.nativeBridgeCapsFindInPage
+                )
+            }
+            // Plugin slot — per-plugin toolbar icons plus the sheet entry for
+            // menu/handle-style plugins.
+            if (showPluginButton) {
+                com.webtoapp.ui.plugin.PluginToolbarEntries(
+                    onOpenSheet = { com.webtoapp.core.plugin.PluginHostState.openPluginSheet() }
                 )
             }
         },

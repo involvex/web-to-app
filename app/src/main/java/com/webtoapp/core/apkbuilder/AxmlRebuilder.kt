@@ -33,6 +33,10 @@ class AxmlRebuilder {
         private const val ATTR_SCHEME = 0x01010027
         private const val ATTR_HOST = 0x01010028
 
+        /** `android:mimeType`. Only `<data>` inside an intent-filter uses this attribute. */
+        private const val ATTR_MIME_TYPE = 0x01010026
+        private const val ATTR_PATH_PATTERN = 0x0101002c
+
         private val CLASS_NAME_REGEX = Regex("^[A-Z][a-zA-Z0-9]*$")
 
         private val BASELINE_RUNTIME_PERMISSIONS = listOf(
@@ -393,7 +397,7 @@ class AxmlRebuilder {
             for (scheme in schemes) {
                 val schemeValueIndex = getOrAddString(parsed.stringPool, scheme)
 
-                newChunks.add(buildSchemeOnlyDataElement(androidNsIndex, dataNameIndex, currentSchemeAttrIndex, schemeValueIndex))
+                newChunks.add(buildSingleAttrDataElement(androidNsIndex, dataNameIndex, currentSchemeAttrIndex, schemeValueIndex))
                 newChunks.add(buildEndElement(androidNsIndex, dataNameIndex))
             }
             newChunks.add(buildEndElement(androidNsIndex, intentFilterNameIndex))
@@ -403,6 +407,235 @@ class AxmlRebuilder {
         if (currentEndIndex >= 0) {
             parsed.chunks.addAll(currentEndIndex, newChunks)
             AppLogger.d(TAG, "Inserted ${newChunks.size} chunks for deep link intent-filter")
+        }
+    }
+
+    /**
+     * Register the app as a system share-sheet target (issue #943).
+     *
+     * Appends, just before `ShellActivity`'s closing `</activity>`, one intent-filter per send
+     * action:
+     *
+     * ```xml
+     * <intent-filter>
+     *   <action android:name="android.intent.action.SEND" />
+     *   <category android:name="android.intent.category.DEFAULT" />
+     *   <data android:mimeType="image-wildcard" />
+     * </intent-filter>
+     * ```
+     *
+     * (The mime value is one of [shareReceiveMimeTypes], e.g. `"image" + "/" + "*"`; it is
+     * spelled out at the call site rather than inline here because a literal wildcard would
+     * open a nested block comment.)
+     *
+     * `CATEGORY_BROWSABLE` is deliberately absent — unlike the `ACTION_VIEW` deep link filter,
+     * a share target must not be reachable from a browser. Two separate filters (rather than
+     * one carrying both actions) mirror what Android Studio emits, and keep `SEND_MULTIPLE`
+     * from being offered by senders that only handle single-item payloads.
+     *
+     * `ShellActivity` is already `android:exported="true"`, which `ACTION_SEND` requires.
+     */
+    private fun addShareReceiveIntentFilter(parsed: ParsedAxml, mimeTypes: List<String>) {
+        if (mimeTypes.isEmpty()) return
+
+        val resourceMap = parsed.resourceMap
+        if (resourceMap == null) {
+            AppLogger.e(TAG, "No resource map found, cannot add share-receive intent-filter")
+            return
+        }
+
+        if (resourceMap.indexOf(ATTR_NAME) < 0) {
+            AppLogger.e(TAG, "android:name not in resource map, cannot add share-receive intent-filter")
+            return
+        }
+
+        if (findActivityEndIndex(parsed, "com.webtoapp.ui.shell.ShellActivity") < 0) {
+            AppLogger.e(TAG, "Cannot find ShellActivity </activity> element for share-receive")
+            return
+        }
+
+        // `android:mimeType` may not be present in the template's resource map: the shell
+        // manifest declares no <data> element. Same append-at-string-pool-index dance the
+        // deep link filter does for scheme/host.
+        var mimeAttrIndex = parsed.resourceMap!!.indexOf(ATTR_MIME_TYPE)
+        if (mimeAttrIndex < 0) {
+            mimeAttrIndex = parsed.resourceMap!!.size
+            parsed.stringPool.strings.add(mimeAttrIndex, "mimeType")
+            updateStringIndicesAfterInsert(parsed, mimeAttrIndex)
+            val extended = parsed.resourceMap!!.copyOf(parsed.resourceMap!!.size + 1)
+            extended[mimeAttrIndex] = ATTR_MIME_TYPE
+            parsed.resourceMap = extended
+            AppLogger.d(TAG, "Added mimeType to string pool and resource map at index $mimeAttrIndex")
+        }
+
+        // Indices moved when the string pool grew above; re-resolve everything we use.
+        val currentNameAttrIndex = parsed.resourceMap!!.indexOf(ATTR_NAME)
+        val currentMimeAttrIndex = parsed.resourceMap!!.indexOf(ATTR_MIME_TYPE)
+
+        val androidNsIndex = getOrAddString(parsed.stringPool, "http://schemas.android.com/apk/res/android")
+        val intentFilterNameIndex = getOrAddString(parsed.stringPool, "intent-filter")
+        val actionNameIndex = getOrAddString(parsed.stringPool, "action")
+        val categoryNameIndex = getOrAddString(parsed.stringPool, "category")
+        val dataNameIndex = getOrAddString(parsed.stringPool, "data")
+
+        val sendActionIndex = getOrAddString(parsed.stringPool, "android.intent.action.SEND")
+        val sendMultipleActionIndex = getOrAddString(parsed.stringPool, "android.intent.action.SEND_MULTIPLE")
+        val defaultCategoryIndex = getOrAddString(parsed.stringPool, "android.intent.category.DEFAULT")
+
+        val newChunks = mutableListOf<Chunk>()
+        for (actionIndex in listOf(sendActionIndex, sendMultipleActionIndex)) {
+            newChunks.add(buildSimpleStartElement(androidNsIndex, intentFilterNameIndex, 0))
+
+            newChunks.add(buildActionOrCategoryElement(androidNsIndex, actionNameIndex, currentNameAttrIndex, actionIndex))
+            newChunks.add(buildEndElement(androidNsIndex, actionNameIndex))
+
+            newChunks.add(buildActionOrCategoryElement(androidNsIndex, categoryNameIndex, currentNameAttrIndex, defaultCategoryIndex))
+            newChunks.add(buildEndElement(androidNsIndex, categoryNameIndex))
+
+            for (mimeType in mimeTypes) {
+                val mimeValueIndex = getOrAddString(parsed.stringPool, mimeType)
+                newChunks.add(buildSingleAttrDataElement(androidNsIndex, dataNameIndex, currentMimeAttrIndex, mimeValueIndex))
+                newChunks.add(buildEndElement(androidNsIndex, dataNameIndex))
+            }
+
+            newChunks.add(buildEndElement(androidNsIndex, intentFilterNameIndex))
+        }
+
+        val insertIndex = findActivityEndIndex(parsed, "com.webtoapp.ui.shell.ShellActivity")
+        if (insertIndex >= 0) {
+            parsed.chunks.addAll(insertIndex, newChunks)
+            AppLogger.d(TAG, "Inserted ${newChunks.size} chunks for share-receive intent-filter ($mimeTypes)")
+        }
+    }
+
+    /**
+     * Ensure [attrResId] has a slot in the manifest's resource map, appending its name to the
+     * string pool at the map boundary when absent (the same insert-and-shift dance the
+     * share-receive filter does inline for `mimeType`). Returns the attribute's index into
+     * the resource map — the value stored in the `name` field of attribute records.
+     */
+    private fun ensureAttrIndex(parsed: ParsedAxml, attrResId: Int, attrName: String): Int {
+        val map = parsed.resourceMap ?: return -1
+        val existing = map.indexOf(attrResId)
+        if (existing >= 0) return existing
+
+        val insertAt = map.size
+        parsed.stringPool.strings.add(insertAt, attrName)
+        updateStringIndicesAfterInsert(parsed, insertAt)
+        val extended = map.copyOf(map.size + 1)
+        extended[insertAt] = attrResId
+        parsed.resourceMap = extended
+        AppLogger.d(TAG, "Added $attrName to string pool and resource map at index $insertAt")
+        return insertAt
+    }
+
+    /**
+     * Register the app as an "open with" handler for text / config / code files
+     * (`WebViewConfig.openWithEnabled`).
+     *
+     * Two filters are appended before `ShellActivity`'s closing `</activity>`:
+     *
+     * ```xml
+     * <!-- mime-based: catches senders that label the file type -->
+     * <intent-filter>
+     *   <action android:name="android.intent.action.VIEW" />
+     *   <category android:name="android.intent.category.DEFAULT" />
+     *   <data android:mimeType="…" /> (one per ShareReceiveContract.OPEN_WITH_MIME_TYPES)
+     * </intent-filter>
+     *
+     * <!-- extension-based: catches senders declaring octet-stream or nothing -->
+     * <intent-filter>
+     *   <action android:name="android.intent.action.VIEW" />
+     *   <category android:name="android.intent.category.DEFAULT" />
+     *   <data android:scheme="file" android:host="*" android:pathPattern=".*\\.txt" /> …
+     * </intent-filter>
+     * ```
+     *
+     * The two MUST stay separate filters: data attributes across a filter form an AND
+     * across dimensions, so declaring mimeTypes and pathPatterns together would mean "files
+     * whose mime matches AND whose path matches" — the octet-stream case would never fire.
+     *
+     * `CATEGORY_BROWSABLE` is deliberately absent — a file association must not be
+     * reachable from a browser link.
+     */
+    private fun addOpenWithIntentFilters(parsed: ParsedAxml) {
+        if (parsed.resourceMap == null) {
+            AppLogger.e(TAG, "No resource map found, cannot add open-with intent-filters")
+            return
+        }
+        if (findActivityEndIndex(parsed, "com.webtoapp.ui.shell.ShellActivity") < 0) {
+            AppLogger.e(TAG, "Cannot find ShellActivity </activity> element for open-with")
+            return
+        }
+
+        // Resource-map slots for every attribute we emit. scheme/host may already exist
+        // (deep link filter ran first); mimeType/pathPattern usually do not.
+        val mimeAttrIndex = ensureAttrIndex(parsed, ATTR_MIME_TYPE, "mimeType")
+        val schemeAttrIndex = ensureAttrIndex(parsed, ATTR_SCHEME, "scheme")
+        val hostAttrIndex = ensureAttrIndex(parsed, ATTR_HOST, "host")
+        val pathPatternAttrIndex = ensureAttrIndex(parsed, ATTR_PATH_PATTERN, "pathPattern")
+        val nameAttrIndex = parsed.resourceMap!!.indexOf(ATTR_NAME)
+        if (listOf(mimeAttrIndex, schemeAttrIndex, hostAttrIndex, pathPatternAttrIndex, nameAttrIndex).any { it < 0 }) {
+            AppLogger.e(TAG, "Missing resource-map slot for open-with attributes, skipping")
+            return
+        }
+
+        val pool = parsed.stringPool
+        val androidNsIndex = getOrAddString(pool, "http://schemas.android.com/apk/res/android")
+        val intentFilterNameIndex = getOrAddString(pool, "intent-filter")
+        val actionNameIndex = getOrAddString(pool, "action")
+        val categoryNameIndex = getOrAddString(pool, "category")
+        val dataNameIndex = getOrAddString(pool, "data")
+        val viewActionIndex = getOrAddString(pool, "android.intent.action.VIEW")
+        val defaultCategoryIndex = getOrAddString(pool, "android.intent.category.DEFAULT")
+        val fileSchemeIndex = getOrAddString(pool, "file")
+        val contentSchemeIndex = getOrAddString(pool, "content")
+        val wildcardHostIndex = getOrAddString(pool, "*")
+
+        fun MutableList<Chunk>.addFilterHead() {
+            add(buildSimpleStartElement(androidNsIndex, intentFilterNameIndex, 0))
+            add(buildActionOrCategoryElement(androidNsIndex, actionNameIndex, nameAttrIndex, viewActionIndex))
+            add(buildEndElement(androidNsIndex, actionNameIndex))
+            add(buildActionOrCategoryElement(androidNsIndex, categoryNameIndex, nameAttrIndex, defaultCategoryIndex))
+            add(buildEndElement(androidNsIndex, categoryNameIndex))
+        }
+
+        val newChunks = mutableListOf<Chunk>()
+
+        // Filter 1 — mime types.
+        newChunks.addFilterHead()
+        for (mimeType in com.webtoapp.core.share.ShareReceiveContract.OPEN_WITH_MIME_TYPES) {
+            val mimeValueIndex = getOrAddString(pool, mimeType)
+            newChunks.add(buildSingleAttrDataElement(androidNsIndex, dataNameIndex, mimeAttrIndex, mimeValueIndex))
+            newChunks.add(buildEndElement(androidNsIndex, dataNameIndex))
+        }
+        newChunks.add(buildEndElement(androidNsIndex, intentFilterNameIndex))
+
+        // Filter 2 — extension path patterns under both file and content schemes.
+        newChunks.addFilterHead()
+        for (schemeValueIndex in listOf(fileSchemeIndex, contentSchemeIndex)) {
+            for (ext in com.webtoapp.core.share.ShareReceiveContract.OPEN_WITH_EXTENSIONS) {
+                val patternValueIndex = getOrAddString(pool, ".*\\.$ext")
+                newChunks.add(
+                    buildMultiAttrDataElement(
+                        androidNsIndex,
+                        dataNameIndex,
+                        listOf(
+                            schemeAttrIndex to schemeValueIndex,
+                            hostAttrIndex to wildcardHostIndex,
+                            pathPatternAttrIndex to patternValueIndex
+                        )
+                    )
+                )
+                newChunks.add(buildEndElement(androidNsIndex, dataNameIndex))
+            }
+        }
+        newChunks.add(buildEndElement(androidNsIndex, intentFilterNameIndex))
+
+        val insertIndex = findActivityEndIndex(parsed, "com.webtoapp.ui.shell.ShellActivity")
+        if (insertIndex >= 0) {
+            parsed.chunks.addAll(insertIndex, newChunks)
+            AppLogger.d(TAG, "Inserted ${newChunks.size} chunks for open-with intent-filters")
         }
     }
 
@@ -724,11 +957,16 @@ class AxmlRebuilder {
         return Chunk(CHUNK_START_ELEMENT, 0, chunkSize, buffer.array())
     }
 
-    private fun buildSchemeOnlyDataElement(
+    /**
+     * `<data>` carrying exactly one string-typed attribute — `android:scheme` for the deep link
+     * filter, `android:mimeType` for the share-receive filter. The attribute's resource id is
+     * [attrNameIndex]; only its position in the resource map distinguishes the two uses.
+     */
+    private fun buildSingleAttrDataElement(
         androidNsIndex: Int,
         elementNameIndex: Int,
-        schemeAttrIndex: Int,
-        schemeValueIndex: Int
+        attrNameIndex: Int,
+        attrValueIndex: Int
     ): Chunk {
         val attrCount = 1
         val attrSize = 20
@@ -752,12 +990,56 @@ class AxmlRebuilder {
         buffer.putShort(0)
 
         buffer.putInt(androidNsIndex)
-        buffer.putInt(schemeAttrIndex)
-        buffer.putInt(schemeValueIndex)
+        buffer.putInt(attrNameIndex)
+        buffer.putInt(attrValueIndex)
         buffer.putShort(8)
         buffer.put(0)
         buffer.put(0x03)
-        buffer.putInt(schemeValueIndex)
+        buffer.putInt(attrValueIndex)
+
+        return Chunk(CHUNK_START_ELEMENT, 0, chunkSize, buffer.array())
+    }
+
+    /**
+     * `<data>` carrying an arbitrary list of string-typed attributes — used by the
+     * extension-based open-with filter, where one element combines `scheme`, `host`
+     * and `pathPattern`.
+     */
+    private fun buildMultiAttrDataElement(
+        androidNsIndex: Int,
+        elementNameIndex: Int,
+        attrs: List<Pair<Int, Int>>
+    ): Chunk {
+        val attrCount = attrs.size
+        val attrSize = 20
+        val headerSize = 16
+        val chunkSize = 36 + attrCount * attrSize
+
+        val buffer = ByteBuffer.allocate(chunkSize).order(ByteOrder.LITTLE_ENDIAN)
+
+        buffer.putShort(CHUNK_START_ELEMENT.toShort())
+        buffer.putShort(headerSize.toShort())
+        buffer.putInt(chunkSize)
+        buffer.putInt(0)
+        buffer.putInt(-1)
+        buffer.putInt(-1)
+        buffer.putInt(elementNameIndex)
+        buffer.putShort(20)
+        buffer.putShort(attrSize.toShort())
+        buffer.putShort(attrCount.toShort())
+        buffer.putShort(0)
+        buffer.putShort(0)
+        buffer.putShort(0)
+
+        for ((attrNameIndex, attrValueIndex) in attrs) {
+            buffer.putInt(androidNsIndex)
+            buffer.putInt(attrNameIndex)
+            buffer.putInt(attrValueIndex)
+            buffer.putShort(8)
+            buffer.put(0)
+            buffer.put(0x03)
+            buffer.putInt(attrValueIndex)
+        }
 
         return Chunk(CHUNK_START_ELEMENT, 0, chunkSize, buffer.array())
     }
@@ -934,14 +1216,17 @@ class AxmlRebuilder {
         }
     }
 
+    /**
+     * Rewrite package name + expand relative class names.
+     * FAIL-LOUD: an unparseable or unrewritable manifest throws instead of
+     * returning the original bytes — shipping an unmodified manifest would
+     * silently export/clone the template's identity.
+     */
     fun expandAndModify(axmlData: ByteArray, originalPackage: String, newPackage: String): ByteArray {
-        return try {
-            val parsed = parseAxml(axmlData)
-            if (parsed == null) {
-                AppLogger.e(TAG, "Failed to parse AXML")
-                return axmlData
-            }
+        val parsed = parseAxml(axmlData)
+            ?: throw IllegalStateException("Failed to parse AndroidManifest.xml (package rewrite)")
 
+        return try {
             val expansions = findRelativeClassNames(parsed, originalPackage)
             AppLogger.d(TAG, "Found ${expansions.size} relative class names to expand")
 
@@ -955,10 +1240,9 @@ class AxmlRebuilder {
 
             AppLogger.d(TAG, "AXML rebuild complete: original=${axmlData.size}, new=${result.size}")
             result
-
         } catch (e: Exception) {
             AppLogger.e(TAG, "AXML rebuild failed", e)
-            axmlData
+            throw IllegalStateException("AndroidManifest.xml rewrite failed: ${e.message}", e)
         }
     }
 
@@ -972,15 +1256,28 @@ class AxmlRebuilder {
         deepLinkSchemes: List<String> = emptyList(),
         permissions: List<String> = BASELINE_RUNTIME_PERMISSIONS,
         requiredComponents: Set<String> = DEFAULT_RUNTIME_COMPONENTS,
-        targetSdk: Int? = null
+        targetSdk: Int? = null,
+        /**
+         * Resolved mime filters for the inbound share channel (issue #943). Non-empty
+         * registers an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent-filter on
+         * `ShellActivity` so the exported app appears in the system share sheet. Empty
+         * leaves the manifest untouched.
+         *
+         * Declared last, after [targetSdk], purely so the existing callers keep compiling —
+         * it is conceptually a sibling of `deepLinkHosts` / `deepLinkSchemes`.
+         */
+        shareReceiveMimeTypes: List<String> = emptyList(),
+        /**
+         * `WebViewConfig.openWithEnabled` — registers `ACTION_VIEW` intent-filters for
+         * text/config/code files so the exported app appears in the system's "open with"
+         * sheet. The mime/extension sets are `ShareReceiveContract.OPEN_WITH_*` constants.
+         */
+        openWithEnabled: Boolean = false
     ): ByteArray {
-        return try {
-            val parsed = parseAxml(axmlData)
-            if (parsed == null) {
-                AppLogger.e(TAG, "Failed to parse AXML for full modification")
-                return axmlData
-            }
+        val parsed = parseAxml(axmlData)
+            ?: throw IllegalStateException("Failed to parse AndroidManifest.xml (full modification)")
 
+        return try {
             val expansions = findRelativeClassNames(parsed, originalPackage)
             AppLogger.d(TAG, "Found ${expansions.size} relative class names to expand")
 
@@ -1009,56 +1306,101 @@ class AxmlRebuilder {
                 AppLogger.d(TAG, "Added deep link intent-filter for hosts: $deepLinkHosts, schemes: $deepLinkSchemes")
             }
 
+            if (shareReceiveMimeTypes.isNotEmpty()) {
+                addShareReceiveIntentFilter(parsed, shareReceiveMimeTypes)
+                AppLogger.d(TAG, "Added share-receive intent-filter for mime types: $shareReceiveMimeTypes")
+            }
+
+            if (openWithEnabled) {
+                addOpenWithIntentFilters(parsed)
+                AppLogger.d(TAG, "Added open-with intent-filters")
+            }
+
             val result = rebuildAxml(parsed)
 
-            AppLogger.d(TAG, "AXML full rebuild complete: original=${axmlData.size}, new=${result.size}, deepLinkHosts=${deepLinkHosts.size}, deepLinkSchemes=${deepLinkSchemes.size}")
+            AppLogger.d(TAG, "AXML full rebuild complete: original=${axmlData.size}, new=${result.size}, deepLinkHosts=${deepLinkHosts.size}, deepLinkSchemes=${deepLinkSchemes.size}, shareReceiveMimeTypes=${shareReceiveMimeTypes.size}")
             result
-
         } catch (e: Exception) {
             AppLogger.e(TAG, "AXML full rebuild failed", e)
-            axmlData
+            throw IllegalStateException("AndroidManifest.xml full rewrite failed: ${e.message}", e)
         }
     }
 
-    fun expandAndModifyWithVersion(
-        axmlData: ByteArray,
-        originalPackage: String,
-        newPackage: String,
-        versionCode: Int,
-        versionName: String,
-        permissions: List<String> = BASELINE_RUNTIME_PERMISSIONS
-    ): ByteArray {
-        return try {
-            val parsed = parseAxml(axmlData)
-            if (parsed == null) {
-                AppLogger.e(TAG, "Failed to parse AXML for version modification")
-                return axmlData
+    /**
+     * Activates the template's real raw resource reference, or removes the opt-in.
+     * Never manufacture an ID or substitute an android:value string for android:resource.
+     */
+    internal fun rewriteSaepPolicyMetadata(axmlData: ByteArray, resourceId: Int?): ByteArray {
+        val parsed = checkNotNull(parseAxml(axmlData)) { "SAEP: invalid AndroidManifest.xml" }
+        val strings = parsed.stringPool.strings
+        val resourceMap = parsed.resourceMap ?: intArrayOf()
+        val androidNs = strings.indexOf("http://schemas.android.com/apk/res/android")
+        val matches = mutableListOf<Pair<Int, Int>>() // chunk index, android:name offset
+        var depth = 0
+        var inApplication = false
+
+        parsed.chunks.forEachIndexed { index, chunk ->
+            if (chunk.type == CHUNK_START_ELEMENT) {
+                check(chunk.data.size >= 36) { "SAEP: malformed manifest element" }
+                val buffer = ByteBuffer.wrap(chunk.data).order(ByteOrder.LITTLE_ENDIAN)
+                val element = strings.getOrNull(buffer.getInt(20))
+                if (depth == 1 && element == "application") inApplication = true
+                if (inApplication && depth == 2 && element == "meta-data") {
+                    val start = 16 + (buffer.getShort(24).toInt() and 0xFFFF)
+                    val size = buffer.getShort(26).toInt() and 0xFFFF
+                    val count = buffer.getShort(28).toInt() and 0xFFFF
+                    check(start >= 36 && size >= 20 &&
+                        start.toLong() + size.toLong() * count <= chunk.data.size
+                    ) { "SAEP: malformed metadata attributes" }
+                    fun attribute(id: Int): Int? = (0 until count)
+                        .map { start + it * size }
+                        .firstOrNull { offset ->
+                            androidNs >= 0 && buffer.getInt(offset) == androidNs &&
+                                resourceMap.getOrNull(buffer.getInt(offset + 4)) == id
+                        }
+                    val nameOffset = attribute(ATTR_NAME)
+                    val name = if (nameOffset != null &&
+                        buffer.get(nameOffset + 15).toInt() and 0xFF == 0x03
+                    ) strings.getOrNull(buffer.getInt(nameOffset + 16)) else null
+                    if (name == SaepPolicy.TEMPLATE_METADATA || name == SaepPolicy.POLICY_METADATA) {
+                        val end = parsed.chunks.getOrNull(index + 1)
+                        check(end != null && end.type == CHUNK_END_ELEMENT && end.data.size >= 24 &&
+                            ByteBuffer.wrap(end.data).order(ByteOrder.LITTLE_ENDIAN).getInt(20) == buffer.getInt(20)
+                        ) { "SAEP: policy metadata must have no child elements" }
+                        if (resourceId != null) {
+                            val refOffset = attribute(android.R.attr.resource)
+                            check(resourceId != 0 && refOffset != null &&
+                                buffer.get(refOffset + 15).toInt() and 0xFF == 0x01 &&
+                                buffer.getInt(refOffset + 16) == resourceId
+                            ) { "SAEP: policy metadata must contain the expected android:resource reference" }
+                            check(attribute(android.R.attr.value) == null) { "SAEP: ambiguous policy metadata" }
+                        }
+                        matches += index to checkNotNull(nameOffset)
+                    }
+                }
+                depth++
+            } else if (chunk.type == CHUNK_END_ELEMENT) {
+                if (depth == 2 && inApplication) inApplication = false
+                depth--
             }
-
-            val expansions = findRelativeClassNames(parsed, originalPackage)
-            AppLogger.d(TAG, "Found ${expansions.size} relative class names to expand")
-
-            if (expansions.isNotEmpty()) {
-                expandClassNames(parsed, expansions)
-            }
-
-            replacePackageString(parsed, originalPackage, newPackage)
-
-            modifyVersionInfo(parsed, versionCode, versionName)
-
-            stripTestOnlyFlag(parsed)
-
-            ensureUsesPermissions(parsed, permissions)
-
-            val result = rebuildAxml(parsed)
-
-            AppLogger.d(TAG, "AXML rebuild with version complete: original=${axmlData.size}, new=${result.size}")
-            result
-
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "AXML rebuild with version failed", e)
-            axmlData
         }
+
+        if (resourceId == null) {
+            if (matches.isEmpty()) return axmlData
+            matches.asReversed().forEach { (index, _) ->
+                parsed.chunks.removeAt(index + 1)
+                parsed.chunks.removeAt(index)
+            }
+        } else {
+            check(matches.size == 1) { "SAEP: expected exactly one policy resource marker; rebuild the shell template" }
+            val (index, nameOffset) = matches.single()
+            val nameIndex = getOrAddString(parsed.stringPool, SaepPolicy.POLICY_METADATA)
+            ByteBuffer.wrap(parsed.chunks[index].data).order(ByteOrder.LITTLE_ENDIAN).apply {
+                putInt(nameOffset + 8, nameIndex)
+                putInt(nameOffset + 16, nameIndex)
+            }
+        }
+        return rebuildAxml(parsed)
     }
 
     private fun modifyVersionInfo(parsed: ParsedAxml, versionCode: Int, versionName: String) {

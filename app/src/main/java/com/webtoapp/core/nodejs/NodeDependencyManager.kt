@@ -18,6 +18,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 object NodeDependencyManager {
 
@@ -30,6 +31,14 @@ object NodeDependencyManager {
     // capawesome-team fork: same Node 18.20.4 core, Android binaries pre-built with 16 KB page
     // alignment (upstream `release18-20-4+16kb-fix` branch) — no runtime ELF rewrite needed.
     private val NODE_GITHUB_URL = "https://github.com/capawesome-team/nodejs-mobile/releases/download/v18.20.4-capawesome.1/nodejs-mobile-v18.20.4-capawesome.1-android.zip"
+
+    /**
+     * SHA-256 of nodejs-mobile-v18.20.4-capawesome.1-android.zip.
+     * Verify with `shasum -a 256 <zip>` against the GitHub release when bumping
+     * [NODE_GITHUB_URL] / NODE_VERSION — mismatches fail the download loudly.
+     */
+    private const val NODE_ZIP_SHA256 =
+        "1b3c7979c81aec89a7f51b29af1f4875a5d637727ad6e2c392cdf2e127715da9"
 
     data class MirrorConfig(
 
@@ -61,6 +70,15 @@ object NodeDependencyManager {
 
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState
+
+    private val downloadCancelled = AtomicBoolean(false)
+
+    /** Abort the in-flight download; the .tmp partial file is kept for a later resume. */
+    fun cancelDownload() {
+        downloadCancelled.set(true)
+        DependencyDownloadEngine.cancel()
+        _downloadState.value = DownloadState.Idle
+    }
     private val runtimeDownloadMutex = Mutex()
 
     private var _userMirrorRegion: MirrorRegion? = null
@@ -260,6 +278,7 @@ object NodeDependencyManager {
                 DependencyDownloadEngine.state.collect { syncEngineState() }
             }
             try {
+                downloadCancelled.set(false)
                 runtimeDownloadMutex.withLock {
                     DependencyDownloadNotification.getInstance(context)
                     if (isNodeReady(context)) {
@@ -281,7 +300,7 @@ object NodeDependencyManager {
                         true
                     } catch (e: Exception) {
                         AppLogger.e(TAG, "Failed to download Node.js runtime", e)
-                        markError(e.message ?: "未知错误")
+                        markError(e.message ?: Strings.unknownError)
                         false
                     }
                 }
@@ -308,9 +327,11 @@ object NodeDependencyManager {
         urls: List<String>,
         destFile: File,
         displayName: String,
-        context: Context?
+        context: Context?,
+        expectedSha256: String? = null
     ): Boolean = DependencyDownloadEngine.downloadFileWithFallback(
-        urls, destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS
+        urls, destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS,
+        expectedSha256For = expectedSha256?.let { hash -> { _: String -> hash } }
     )
 
     private suspend fun downloadNode(context: Context, mirror: MirrorConfig): Boolean {
@@ -322,7 +343,7 @@ object NodeDependencyManager {
 
         AppLogger.i(TAG, "Downloading Node.js runtime (${nodeUrls.size} sources)")
 
-        val downloaded = downloadWithRetry(nodeUrls, archiveFile, "Node.js $NODE_VERSION ($abi)", context)
+        val downloaded = downloadWithRetry(nodeUrls, archiveFile, "Node.js $NODE_VERSION ($abi)", context, NODE_ZIP_SHA256)
         syncEngineState()
         if (!downloaded) return false
 
@@ -337,7 +358,7 @@ object NodeDependencyManager {
                 AppLogger.i(TAG, "Node.js runtime ready: ${nodeLib.absolutePath} (${nodeLib.length()} bytes)")
             } else {
                 AppLogger.e(TAG, "Not found after extraction: $NODE_BINARY_NAME (ABI: $abi)")
-                markError("解压后未找到 Node.js 运行时 (ABI: $abi)")
+                markError(Strings.nodeRuntimeNotFound(abi))
                 return false
             }
 
@@ -349,7 +370,7 @@ object NodeDependencyManager {
             return true
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to extract Node.js", e)
-            markError("解压 Node.js 失败: ${e.message}")
+            markError(Strings.nodeExtractFailed(e.message ?: ""))
             return false
         }
     }
@@ -423,7 +444,9 @@ object NodeDependencyManager {
                 )
             }
             is DependencyDownloadEngine.State.Error -> {
-                _downloadState.value = DownloadState.Error(es.message)
+                if (!downloadCancelled.get()) {
+                    _downloadState.value = DownloadState.Error(es.message)
+                }
             }
             else -> {}
         }
@@ -435,6 +458,10 @@ object NodeDependencyManager {
     }
 
     private fun markError(message: String, retryable: Boolean = true) {
+        if (downloadCancelled.get()) {
+            _downloadState.value = DownloadState.Idle
+            return
+        }
         _downloadState.value = DownloadState.Error(message, retryable = retryable)
         DependencyDownloadEngine.publishState(DependencyDownloadEngine.State.Error(message))
     }

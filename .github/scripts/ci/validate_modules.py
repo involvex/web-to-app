@@ -59,14 +59,6 @@ ALLOWED_PERMISSIONS: set[str] = {
     "NAVIGATION",
 }
 
-# `ConfigItemType` enum.
-ALLOWED_CONFIG_TYPES: set[str] = {
-    "TEXT", "TEXTAREA", "NUMBER", "BOOLEAN", "SELECT", "MULTI_SELECT",
-    "RADIO", "CHECKBOX", "COLOR", "URL", "EMAIL", "PASSWORD", "REGEX",
-    "CSS_SELECTOR", "JAVASCRIPT", "JSON", "RANGE", "DATE", "TIME",
-    "DATETIME", "FILE", "IMAGE",
-}
-
 ALLOWED_SOURCE_TYPES: set[str] = {"CUSTOM", "CHROME_EXTENSION"}
 STORE_ID_RE = re.compile(r"^[a-p]{32}$")
 
@@ -76,8 +68,8 @@ STORE_ID_RE = re.compile(r"^[a-p]{32}$")
 KEBAB_CASE_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SEMVER_RE = re.compile(r"^\d+(?:\.\d+){0,3}(?:[-+][\w.-]+)?$")
 
-# Files we let people drop in besides the three the runtime actually
-# downloads (module.json, main.js, style.css).
+# Files we let people drop in besides the ones the runtime actually
+# downloads (plugin.json, plugin.html; legacy main.js/style.css/panel.html).
 ALLOWED_EXTRA_FILES: set[str] = {
     "README.md",       # nice for module pages on GitHub
     "CHANGELOG.md",
@@ -86,7 +78,7 @@ ALLOWED_EXTRA_FILES: set[str] = {
     ".gitkeep",
 }
 
-# Image files contributors may drop next to `main.js` for use as the
+# Image files contributors may drop next to `plugin.html` for use as the
 # module icon. The CI generator does not download these — they are served
 # via the same GitHub raw / jsDelivr fallback the runtime already uses.
 ALLOWED_ICON_FILES: set[str] = {
@@ -187,105 +179,6 @@ def _validate_author(report: Report, where: str, author: Any) -> None:
             report.error(where, f"`author.{opt_key}` must be a string")
 
 
-# ───────────────────────── manifest checks ─────────────────────────────
-
-def _validate_module_json(
-    report: Report, folder: Path, manifest: dict[str, Any]
-) -> None:
-    """Validate a per-module `module.json`."""
-
-    where = f"modules/{folder.name}/module.json"
-
-    # Required fields.
-    if not _is_str(manifest.get("id")) or not manifest["id"].strip():
-        report.error(where, "`id` is required and must be a non-empty string")
-    if not _is_str(manifest.get("name")) or not manifest["name"].strip():
-        report.error(where, "`name` is required and must be a non-empty string")
-
-    # Enums (with a friendly hint when wrong).
-    category = manifest.get("category", "OTHER")
-    if not _is_str(category) or category not in ALLOWED_CATEGORIES:
-        report.error(
-            where,
-            f"`category` must be one of {sorted(ALLOWED_CATEGORIES)}, got {category!r}",
-        )
-
-    run_at = manifest.get("runAt", "DOCUMENT_END")
-    if not _is_str(run_at) or run_at not in ALLOWED_RUN_AT:
-        report.error(
-            where,
-            f"`runAt` must be one of {sorted(ALLOWED_RUN_AT)}, got {run_at!r}",
-        )
-
-    # Version (object form).
-    version = manifest.get("version")
-    if version is None:
-        report.error(where, "`version` is required (object with `code`, `name`, `changelog`)")
-    elif not isinstance(version, dict):
-        report.error(where, "`version` must be an object — see modules/README.md schema")
-    else:
-        v_code = version.get("code")
-        if not isinstance(v_code, int) or v_code < 1:
-            report.error(where, "`version.code` must be a positive integer")
-        v_name = version.get("name")
-        if not _is_str(v_name) or not SEMVER_RE.match(v_name or ""):
-            report.error(where, f"`version.name` must be semver-shaped, got {v_name!r}")
-        if "changelog" in version and version["changelog"] is not None and not _is_str(version["changelog"]):
-            report.error(where, "`version.changelog` must be a string")
-
-    # Permissions.
-    for perm in _expect_list_of_str(report, where, manifest.get("permissions"), "permissions"):
-        if perm not in ALLOWED_PERMISSIONS:
-            report.error(where, f"unknown permission {perm!r}")
-
-    # urlMatches and author.
-    _validate_url_matches(report, where, manifest.get("urlMatches"))
-    _validate_author(report, where, manifest.get("author"))
-
-    # configItems.
-    config_items = manifest.get("configItems", [])
-    if config_items is None:
-        config_items = []
-    if not isinstance(config_items, list):
-        report.error(where, "`configItems` must be a list")
-        return
-    seen_keys: set[str] = set()
-    for i, item in enumerate(config_items):
-        item_loc = f"{where}::configItems[{i}]"
-        if not isinstance(item, dict):
-            report.error(item_loc, "must be an object")
-            continue
-        key = item.get("key")
-        if not _is_str(key) or not key.strip():
-            report.error(item_loc, "`key` is required")
-        elif key in seen_keys:
-            report.error(item_loc, f"duplicate key {key!r}")
-        else:
-            seen_keys.add(key)
-
-        if not _is_str(item.get("name")) or not item["name"].strip():
-            report.error(item_loc, "`name` is required")
-
-        type_ = item.get("type", "TEXT")
-        if not _is_str(type_) or type_ not in ALLOWED_CONFIG_TYPES:
-            report.error(item_loc, f"`type` must be one of {sorted(ALLOWED_CONFIG_TYPES)}")
-
-        if "required" in item and not isinstance(item["required"], bool):
-            report.error(item_loc, "`required` must be a boolean")
-
-        for str_field in ("description", "defaultValue", "placeholder", "validation"):
-            if str_field in item and item[str_field] is not None and not _is_str(item[str_field]):
-                report.error(item_loc, f"`{str_field}` must be a string")
-
-        # SELECT / MULTI_SELECT / RADIO need `options`.
-        if type_ in {"SELECT", "MULTI_SELECT", "RADIO"}:
-            options = item.get("options")
-            if not isinstance(options, list) or not options:
-                report.error(item_loc, f"`options` is required for type {type_}")
-            elif not all(_is_str(o) for o in options):
-                report.error(item_loc, f"`options` for type {type_} must be a list of strings; the app parses ModuleConfigItem.options as List<String>, so object forms like [{{\"value\",\"label\"}}] fail Gson deserialization")
-
-
 # ───────────────────────── registry checks ─────────────────────────────
 
 def _validate_registry_entry(
@@ -380,69 +273,33 @@ def _validate_registry(report: Report, registry: dict[str, Any]) -> list[dict[st
 
 # ───────────────────────── cross-file consistency ─────────────────────
 
-def _validate_cross_consistency(
+def _validate_plugin_registry_consistency(
     report: Report,
     entry: dict[str, Any],
-    manifest: dict[str, Any],
+    plugin: dict[str, Any],
     folder: Path,
 ) -> None:
-    """`module.json` and `registry.json` must agree on the shared fields."""
+    """`plugin.json` and `registry.json` must agree on the shared fields."""
 
     where = f"modules/{folder.name}"
 
-    # id
-    if entry.get("id") != manifest.get("id"):
+    if entry.get("id") != plugin.get("id"):
         report.error(
             where,
-            f"`id` mismatch: registry says {entry.get('id')!r}, manifest says {manifest.get('id')!r}",
+            f"`id` mismatch: registry says {entry.get('id')!r}, plugin.json says {plugin.get('id')!r}",
         )
 
-    # name
-    if entry.get("name") != manifest.get("name"):
+    if entry.get("name") != plugin.get("name"):
         report.error(
             where,
-            f"`name` mismatch: registry says {entry.get('name')!r}, manifest says {manifest.get('name')!r}",
+            f"`name` mismatch: registry says {entry.get('name')!r}, plugin.json says {plugin.get('name')!r}",
         )
 
-    # version: registry stores the string, manifest stores an object.
     reg_version = entry.get("version")
-    man_version_obj = manifest.get("version") or {}
-    man_version = man_version_obj.get("name") if isinstance(man_version_obj, dict) else None
-    if reg_version != man_version:
+    if _is_str(reg_version) and plugin.get("version") != reg_version:
         report.error(
             where,
-            f"`version` mismatch: registry={reg_version!r}, module.json::version.name={man_version!r}",
-        )
-
-    # runAt
-    if entry.get("runAt") and manifest.get("runAt") and entry["runAt"] != manifest["runAt"]:
-        report.error(
-            where,
-            f"`runAt` mismatch: registry={entry['runAt']!r}, manifest={manifest['runAt']!r}",
-        )
-
-    # permissions: registry should be a superset (the listing surface) of manifest.
-    reg_perms = set(entry.get("permissions") or [])
-    man_perms = set(manifest.get("permissions") or [])
-    missing_in_registry = man_perms - reg_perms
-    if missing_in_registry:
-        report.error(
-            where,
-            f"manifest declares permissions {sorted(missing_in_registry)} that registry.json does not list",
-        )
-
-    # hasCss must match style.css presence on disk.
-    has_css_flag = bool(entry.get("hasCss"))
-    style_present = (folder / "style.css").is_file()
-    if has_css_flag and not style_present:
-        report.error(
-            where,
-            "registry says `hasCss: true` but no `style.css` file is present",
-        )
-    if style_present and not has_css_flag:
-        report.error(
-            where,
-            "`style.css` exists but registry has `hasCss: false` — it will not be downloaded",
+            f"`version` mismatch: registry={reg_version!r}, plugin.json={plugin.get('version')!r}",
         )
 
 
@@ -456,14 +313,26 @@ def _validate_folder_layout(report: Report, folder: Path) -> None:
     if not KEBAB_CASE_RE.match(folder.name):
         report.error(where, f"folder name must be kebab-case, got {folder.name!r}")
 
-    if not (folder / "module.json").is_file():
-        report.error(where, "missing required `module.json`")
+    if not (folder / "plugin.json").is_file():
+        report.error(where, "missing required `plugin.json`")
 
-    if not (folder / "main.js").is_file():
-        report.error(where, "missing required `main.js`")
+    if not (folder / "plugin.html").is_file():
+        if (folder / "main.js").is_file():
+            report.warning(
+                where,
+                "legacy multi-file layout (main.js/panel.html) — prefer a single `plugin.html` with a `<script type=\"hcj/page\">` block",
+            )
+        else:
+            report.error(where, "missing required `plugin.html`")
+
+    if (folder / "module.json").is_file():
+        report.error(
+            where,
+            "`module.json` is the retired extension-module manifest — remove it; the catalog is plugin.json-only",
+        )
 
     # Flag stray files. The runtime ignores them, so they only bloat the repo.
-    expected = {"module.json", "main.js", "style.css"}
+    expected = {"plugin.json", "plugin.html", "main.js", "style.css", "panel.html"}
     for child in folder.iterdir():
         if child.name in expected or child.name in ALLOWED_EXTRA_FILES:
             continue
@@ -551,20 +420,49 @@ def _validate_icon_coherence(
         )
 
 
-def _validate_main_js(report: Report, folder: Path) -> None:
-    """Cheap heuristics on `main.js`."""
-
+def _page_script_sources(report: Report, folder: Path) -> list[tuple[str, str]]:
+    """Page-side JS sources: the hcj/page block(s) in plugin.html, plus any
+    legacy main.js. Returns (where, content) pairs."""
+    out: list[tuple[str, str]] = []
+    plugin_html = folder / "plugin.html"
+    if plugin_html.is_file():
+        try:
+            html = plugin_html.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            report.error(f"modules/{folder.name}/plugin.html", "must be UTF-8")
+            html = ""
+        blocks = re.findall(
+            r'<script[^>]*type\s*=\s*["\']hcj/page["\'][^>]*>(.*?)</script>',
+            html, flags=re.DOTALL | re.IGNORECASE,
+        )
+        if plugin_html.is_file() and not blocks and "main.js" not in html:
+            report.warning(
+                f"modules/{folder.name}/plugin.html",
+                "has no `<script type=\"hcj/page\">` block — page-side code will not run",
+            )
+        if blocks:
+            out.append((f"modules/{folder.name}/plugin.html", "\n".join(blocks)))
     main_js = folder / "main.js"
-    if not main_js.is_file():
-        return
-    where = f"modules/{folder.name}/main.js"
+    if main_js.is_file():
+        try:
+            out.append((f"modules/{folder.name}/main.js", main_js.read_text(encoding="utf-8")))
+        except UnicodeDecodeError:
+            report.error(f"modules/{folder.name}/main.js", "must be UTF-8")
+    return out
 
-    try:
-        content = main_js.read_text(encoding="utf-8")
-    except UnicodeDecodeError:
-        report.error(where, "must be UTF-8")
+
+def _validate_main_js(report: Report, folder: Path) -> None:
+    """Cheap heuristics on the page-side script (hcj/page block / main.js)."""
+
+    sources = _page_script_sources(report, folder)
+    if not sources:
         return
 
+    for where, content in sources:
+        _check_page_js(report, folder, where, content)
+
+
+def _check_page_js(report: Report, folder: Path, where: str, content: str) -> None:
     if not content.strip():
         report.error(where, "is empty")
         return
@@ -586,20 +484,55 @@ def _validate_main_js(report: Report, folder: Path) -> None:
                 )
                 break
 
-    # If `getConfig` is referenced but no configItems are declared in the
-    # manifest, the user will see "undefined" defaults silently.
-    manifest_path = folder / "module.json"
-    if manifest_path.is_file() and "getConfig(" in content:
+    # Legacy globals (`getConfig`/`__MODULE_*`) only work when the plugin
+    # manifest opts into `legacyCompat` — flag code that assumes them
+    # unconditionally.
+    if ("getConfig(" in content or "__MODULE_" in content):
         try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            if not manifest.get("configItems"):
+            plugin = json.loads((folder / "plugin.json").read_text(encoding="utf-8"))
+            if plugin.get("legacyCompat") is not True:
                 report.warning(
                     where,
-                    "uses `getConfig(...)` but `module.json` declares no `configItems`",
+                    "uses legacy `getConfig`/`__MODULE_*` globals but `plugin.json` does not set `legacyCompat: true`",
                 )
         except (json.JSONDecodeError, OSError):
-            # The JSON-level checks elsewhere will report the actual cause.
             pass
+
+
+def _validate_plugin_json(
+    report: Report,
+    folder: Path,
+    plugin: dict[str, Any],
+) -> None:
+    """Validate a per-module `plugin.json` (the HCJ package manifest)."""
+    where = f"modules/{folder.name}/plugin.json"
+
+    for required in ("id", "name"):
+        if not _is_str(plugin.get(required)) or not str(plugin[required]).strip():
+            report.error(where, f"`{required}` is required and must be a non-empty string")
+
+    version = plugin.get("version")
+    if not _is_str(version) or not SEMVER_RE.match(version or ""):
+        report.error(where, f"`version` must be a semver string, got {version!r}")
+
+    matches = plugin.get("matches")
+    if matches is not None:
+        if not isinstance(matches, list) or not all(_is_str(m) for m in matches):
+            report.error(where, "`matches` must be a list of match-pattern strings")
+
+    run_at = plugin.get("runAt")
+    if run_at is not None and run_at not in ("document_start", "document_end", "document_idle"):
+        report.error(where, f"`runAt` must be document_start/document_end/document_idle, got {run_at!r}")
+
+    perms = plugin.get("permissions")
+    if perms is not None:
+        if not isinstance(perms, list) or not all(_is_str(p) for p in perms):
+            report.error(where, "`permissions` must be a list of strings")
+        else:
+            allowed = {"STORAGE", "FETCH", "NOTIFY", "BADGE", "CLIPBOARD", "DOWNLOAD"}
+            for p in perms:
+                if p not in allowed:
+                    report.warning(where, f"unknown permission {p!r} (allowed: {sorted(allowed)})")
 
 
 # ───────────────────────── entry point ─────────────────────────────────
@@ -647,20 +580,20 @@ def main(repo_root: Path) -> int:
     for ghost in custom_paths - folder_paths:
         report.error("registry.json", f"entry refers to missing folder modules/{ghost}/")
 
-    # 3. Per-folder validation + cross-file consistency.
+    # 3. Per-folder validation + registry consistency.
     entries_by_path = {e["path"]: e for e in registry_entries if _is_str(e.get("path")) and e.get("sourceType", "CUSTOM") != "CHROME_EXTENSION"}
     for folder in folders:
         _validate_folder_layout(report, folder)
         _validate_main_js(report, folder)
         _validate_icon_coherence(report, folder, entries_by_path.get(folder.name))
 
-        manifest_path = folder / "module.json"
-        manifest = _load_json(report, manifest_path, f"modules/{folder.name}/module.json")
-        if isinstance(manifest, dict):
-            _validate_module_json(report, folder, manifest)
+        plugin_path = folder / "plugin.json"
+        plugin_manifest = _load_json(report, plugin_path, f"modules/{folder.name}/plugin.json")
+        if isinstance(plugin_manifest, dict):
+            _validate_plugin_json(report, folder, plugin_manifest)
             entry = entries_by_path.get(folder.name)
             if entry:
-                _validate_cross_consistency(report, entry, manifest, folder)
+                _validate_plugin_registry_consistency(report, entry, plugin_manifest, folder)
 
     print(report.render())
     return 0 if report.ok() else 1

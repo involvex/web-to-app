@@ -92,6 +92,14 @@ import com.webtoapp.core.stats.AppUsageTracker
 import androidx.compose.ui.text.style.TextOverflow
 import com.webtoapp.ui.components.announcement.toUiTemplate
 
+/** Marker prefixes used by our own injected wrappers (userscripts, modules, bridges). */
+private fun isOwnInjectionMarker(message: String): Boolean =
+    message.startsWith("[UserScript:") || message.startsWith("[WebToApp") ||
+        message.startsWith("[WTA]") || message.startsWith("[wta-")
+
+/** Bounded console buffer: page console spam must not grow state without limit. */
+private const val CONSOLE_LOG_CAP = 500
+
 class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
 
     companion object {
@@ -132,7 +140,7 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
-    private var mediaSessionBridge: com.webtoapp.core.webview.MediaSessionBridge? = null
+    internal var mediaSessionBridge: com.webtoapp.core.webview.MediaSessionBridge? = null
     internal var geckoMediaAdapter: com.webtoapp.core.engine.GeckoMediaSessionAdapter? = null
     internal var previewNativeBridge: com.webtoapp.core.webview.NativeBridge? = null
 
@@ -184,12 +192,12 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     private var originalOrientationBeforeFullscreen: Int = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     internal var fullscreenVideoOrientation: com.webtoapp.data.model.FullscreenVideoOrientation = com.webtoapp.data.model.FullscreenVideoOrientation.AUTO_SENSOR_LANDSCAPE
 
-    private var statusBarColorMode: com.webtoapp.data.model.StatusBarColorMode = com.webtoapp.data.model.StatusBarColorMode.THEME
+    private var statusBarColorMode: com.webtoapp.data.model.StatusBarColorMode = com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT
     private var statusBarCustomColor: String? = null
     private var statusBarDarkIcons: Boolean? = null
     private var statusBarBackgroundType: com.webtoapp.data.model.StatusBarBackgroundType = com.webtoapp.data.model.StatusBarBackgroundType.COLOR
 
-    private var statusBarColorModeDark: com.webtoapp.data.model.StatusBarColorMode = com.webtoapp.data.model.StatusBarColorMode.THEME
+    private var statusBarColorModeDark: com.webtoapp.data.model.StatusBarColorMode = com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT
     private var statusBarCustomColorDark: String? = null
     private var statusBarDarkIconsDark: Boolean? = null
     private var statusBarBackgroundTypeDark: com.webtoapp.data.model.StatusBarBackgroundType = com.webtoapp.data.model.StatusBarBackgroundType.COLOR
@@ -757,6 +765,12 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     // ShellActivity, which already restores the WebView back-forward list.
     private var webViewStateBundle: Bundle? = null
     private val resumeStore by lazy { com.webtoapp.core.webview.WebViewResumeStore(this) }
+
+    /**
+     * External-pointer normalizer (#1031): same OEM button-event quirk handling
+     * as ShellActivity so preview and generated APKs behave alike.
+     */
+    private val mouseInputCompat = com.webtoapp.core.webview.MouseInputCompat()
     private var sessionKey: String? = null
     private var launchDirectUrl: String? = null
     private var launchPreviewApp: WebApp? = null
@@ -943,18 +957,7 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
                             this@WebViewActivity,
                             wv
                         )
-                        try {
-                            androidx.webkit.WebViewCompat.addDocumentStartJavaScript(
-                                wv,
-                                com.webtoapp.core.webview.MediaSessionBridge.INJECTION_SCRIPT,
-                                setOf("*")
-                            )
-                        } catch (e: Exception) {
-                            mediaBridge.injectNow()
-                        }
-                        // Fallback for pages that were already loaded before the
-                        // document-start script was registered (idempotent).
-                        mediaBridge.injectNow()
+                        mediaBridge.install()
                         mediaSessionBridge = mediaBridge
                     }
 
@@ -1023,13 +1026,8 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
                             // GeckoView engine: no WebView handle — walk the engine's own
                             // history through the surface. The Escape-key JS probe is skipped
                             // (it needs an eval result, which Gecko's javascript: URI path
-                            // cannot return); back used to exit the preview outright here.
-                            val surface = browserSurface
-                            if (surface != null && surface.canGoBack()) {
-                                surface.goBack()
-                            } else {
-                                finish()
-                            }
+                            // cannot return).
+                            ShellWebViewNavigation.goBackOrFinish(this@WebViewActivity, browserSurface)
                         }
                     }
                 }
@@ -1084,10 +1082,49 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Same Enter/modifier diagnostics as the shell path (#1032).
+        val isEnter = event.keyCode == KeyEvent.KEYCODE_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
         if (shouldForwardKeyToWebView(event) && isFocusInsideWebView() && webView?.dispatchKeyEvent(event) == true) {
+            if (isEnter) {
+                AppLogger.d(
+                    "WebViewActivity",
+                    "Enter key delivered to page: meta=0x${Integer.toHexString(event.metaState)}"
+                )
+            }
             return true
         }
+        if (isEnter) {
+            AppLogger.d(
+                "WebViewActivity",
+                "Enter key fell back to default dispatch (IME/focus path): meta=0x${Integer.toHexString(event.metaState)}"
+            )
+        }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        mouseInputCompat.noteTouchEvent(ev.source, ev.getToolType(0), ev.actionMasked)
+        return super.dispatchTouchEvent(ev)
+    }
+
+    override fun dispatchGenericMotionEvent(ev: MotionEvent): Boolean {
+        val translated = mouseInputCompat.translateButtonAction(
+            ev.source, ev.getToolType(0), ev.actionMasked, ev.actionButton
+        )
+        if (translated != null) {
+            AppLogger.d(
+                "WebViewActivity",
+                "Mouse primary button arrived via generic-motion path; re-dispatching as touch action=$translated"
+            )
+            val converted = com.webtoapp.core.webview.MouseInputCompat.copyWithAction(ev, translated)
+            return try {
+                dispatchTouchEvent(converted)
+            } finally {
+                converted.recycle()
+            }
+        }
+        return super.dispatchGenericMotionEvent(ev)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -1135,6 +1172,12 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
             }
         } catch (e: Exception) {
             AppLogger.w("WebViewActivity", "onConfigurationChanged: refresh dark mode failed", e)
+        }
+
+        // Rotating a classic-path window drops the hidden-bar flags (system
+        // re-evaluates bars for the new configuration); re-assert fullscreen.
+        if (customView != null || immersiveFullscreenEnabled) {
+            applyImmersiveFullscreen(true, isDarkTheme = currentIsDarkTheme)
         }
     }
 
@@ -1186,6 +1229,28 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     }
 
     /**
+     * Stash a WebView state bundle for the next creation — the composable-side
+     * memory teardown (#1033) hands the saved navigation stack here so the
+     * restored view picks it up exactly like process-death recovery.
+     */
+    internal fun stashWebViewState(bundle: Bundle) {
+        webViewStateBundle = bundle
+    }
+
+    /** Drop activity-level view refs after a composable-side teardown. */
+    internal fun clearWebViewRefs() {
+        webView = null
+        browserSurface = null
+    }
+
+    /** Drop activity-level refs that still point at [surface] — release order vs. recreation is not guaranteed. */
+    internal fun releaseSurfaceRefs(surface: BrowserSurface?) {
+        if (surface != null && browserSurface === surface) browserSurface = null
+        val wv = surface?.webView
+        if (wv != null && webView === wv) webView = null
+    }
+
+    /**
      * Mark the resume URL as used without reading it — after a successful bundle
      * restore, a later recreation (render-process-gone) must reload the start URL
      * rather than the page that may have crashed the renderer.
@@ -1201,11 +1266,26 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         return resumeStore.resumeUrl(sessionKey, sessionBaseUrl())
     }
 
+    /**
+     * The committed page that just handed off to an external app (#1030) — usually
+     * a one-shot OAuth/payment trampoline that must not become the restore target
+     * after process death.
+     */
+    internal fun persistExternalJump(sourceUrl: String?) {
+        resumeStore.persistExternalJump(sessionKey, sessionBaseUrl(), sourceUrl)
+    }
+
+    /** Read-and-clear the external-jump marker recorded by [persistExternalJump]. */
+    internal fun consumeExternalJump(): String? =
+        resumeStore.consumeExternalJump(sessionKey, sessionBaseUrl())
+
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
 
         if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW) {
-            com.webtoapp.core.logging.AppLogger.w("WebViewActivity", "Memory pressure (level=$level), skipped manual GC")
+            // The real work happens in the screen's ComponentCallbacks2 —
+            // it owns the recreation key needed to rebuild after a teardown.
+            com.webtoapp.core.logging.AppLogger.w("WebViewActivity", "Memory pressure (level=$level)")
         }
     }
 
@@ -1299,6 +1379,9 @@ fun WebViewScreen(
     var isActivationChecked by remember { mutableStateOf(false) }
 
     var webViewRecreationKey by remember { mutableIntStateOf(0) }
+    // #1033: set when memory pressure tore the WebView down while backgrounded;
+    // the next ON_RESUME recreates it instead of probing a dead view.
+    var memoryTeardownPending by remember { mutableStateOf(false) }
     var canGoBack by remember { mutableStateOf(false) }
     var canGoForward by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
@@ -1860,7 +1943,7 @@ fun WebViewScreen(
 
         if (!wpDir.exists() || !wpDir.isDirectory) {
             wordPressPreviewState = WordPressPreviewState.Error(
-                "WordPress 项目目录意外丢失: ${wpDir.absolutePath}"
+                Strings.wpProjectDirMissing(wpDir.absolutePath)
             )
             return@LaunchedEffect
         }
@@ -2620,6 +2703,9 @@ fun WebViewScreen(
                     }
                     statusBarColorTracker?.scheduleSample(80L)
                 }
+                // WebViews without document-start script support lose the
+                // polyfill on every navigation; re-inject it (idempotent).
+                (context as? WebViewActivity)?.mediaSessionBridge?.onPageFinishedFallback()
             }
 
             override fun onProgressChanged(progress: Int) {
@@ -2641,6 +2727,10 @@ fun WebViewScreen(
 
             override fun onSslError(error: String) {
                 errorMessage = Strings.sslError
+            }
+
+            override fun onExternalAppLaunch(url: String, sourceUrl: String?) {
+                (context as? WebViewActivity)?.persistExternalJump(sourceUrl)
             }
 
             override fun onExternalLink(url: String) {
@@ -2783,18 +2873,27 @@ fun WebViewScreen(
                                                 processSmall(blob, filename);
                                             }
                                         }
+                                        function reportFailure(err) {
+                                            console.error('[DownloadHelper] Blob fetch failed:', err);
+                                            if (window.AndroidDownload && window.AndroidDownload.showToast) {
+                                                window.AndroidDownload.showToast('${Strings.downloadFailedWithReason}' + (err && err.message ? err.message : 'blob unavailable'));
+                                            }
+                                        }
                                         if (cachedBlob) {
                                             dispatch(cachedBlob);
+                                        } else if (window.__wtaResolveBlob) {
+                                            // 跨上下文解析（sandboxed iframe / worker 里创建的 blob:null 等）
+                                            window.__wtaResolveBlob(blobUrl)
+                                                .then(function(blob) {
+                                                    if (blob) dispatch(blob);
+                                                    else reportFailure(new Error('blob not resolvable'));
+                                                })
+                                                .catch(reportFailure);
                                         } else {
                                             fetch(blobUrl)
                                                 .then(function(r) { return r.blob(); })
                                                 .then(dispatch)
-                                                .catch(function(err) {
-                                                    console.error('[DownloadHelper] Blob fetch failed:', err);
-                                                    if (window.AndroidDownload && window.AndroidDownload.showToast) {
-                                                        window.AndroidDownload.showToast('${Strings.downloadFailedWithReason}' + err.message);
-                                                    }
-                                                });
+                                                .catch(reportFailure);
                                         }
                                     }
                                 } catch(e) {
@@ -2860,13 +2959,19 @@ fun WebViewScreen(
                     else -> ConsoleLevel.LOG
                 }
                 AppLogger.d("WebViewConsole", "[$consoleLevel] $message ($sourceId:$lineNumber)")
-                consoleMessages = consoleMessages + ConsoleLogEntry(
+                // Marker-prefixed messages come from our injected wrappers (userscripts,
+                // modules, bridges) — without this they are only page-console noise.
+                if (level >= 3 && isOwnInjectionMarker(message)) {
+                    val line = "[$consoleLevel] $message ($sourceId:$lineNumber)"
+                    if (level >= 4) AppLogger.e("WebViewConsole", line) else AppLogger.w("WebViewConsole", line)
+                }
+                consoleMessages = (consoleMessages + ConsoleLogEntry(
                     level = consoleLevel,
                     message = message,
                     source = sourceId,
                     lineNumber = lineNumber,
                     timestamp = System.currentTimeMillis()
-                )
+                )).takeLast(CONSOLE_LOG_CAP)
             }
 
             override fun onRenderProcessGone(didCrash: Boolean) {
@@ -2890,6 +2995,75 @@ fun WebViewScreen(
     }
 
     val webViewManager = remember { WebViewManager(context, adBlocker) }
+
+    // Issue #1030 backstop: same renderer liveness probe as the shell — some OEM
+    // WebView builds never deliver onRenderProcessGone for a background kill,
+    // leaving a dead WebView that shows a permanent white page.
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                if (memoryTeardownPending) {
+                    memoryTeardownPending = false
+                    webViewRecreationKey++
+                    return@LifecycleEventObserver
+                }
+                val wv = webViewRef
+                if (wv != null && !isLoading) {
+                    com.webtoapp.core.webview.RendererLivenessProbe.probe(
+                        wv,
+                        stillCurrent = { webViewRef === wv }
+                    ) {
+                        AppLogger.w("WebViewActivity", "Renderer unresponsive after resume — recreating WebView")
+                        runCatching {
+                            wv.stopLoading()
+                            (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                            wv.destroy()
+                        }
+                        webViewManager.discardWebView(wv)
+                        webViewCallbacks.onRenderProcessGone(false)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Issue #1033: TRIM_MEMORY_COMPLETE means the process is next in line for
+    // LMK — and on a WebView app the renderer IS the memory. Shed it ourselves
+    // (navigation state stashed, recreated on resume) instead of letting the
+    // system starve lower-priority processes like the Launcher.
+    DisposableEffect(lifecycleOwner) {
+        val componentCallbacks = object : android.content.ComponentCallbacks2 {
+            override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+            override fun onLowMemory() {}
+            override fun onTrimMemory(level: Int) {
+                if (!com.webtoapp.core.webview.WebViewMemoryTrimmer.onTrimMemory(level, context)) return
+                val wv = webViewRef ?: return
+                if (memoryTeardownPending) return
+                val bundle = android.os.Bundle()
+                runCatching { wv.saveState(bundle) }
+                if (!bundle.isEmpty) {
+                    (context as? WebViewActivity)?.stashWebViewState(bundle)
+                }
+                AppLogger.w("WebViewActivity", "TRIM_MEMORY_COMPLETE — tearing down WebView, will rebuild on resume")
+                runCatching {
+                    wv.stopLoading()
+                    wv.onPause()
+                    (wv.parent as? android.view.ViewGroup)?.removeView(wv)
+                    wv.destroy()
+                }
+                webViewManager.discardWebView(wv)
+                webViewRef = null
+                browserSurfaceRef = null
+                (context as? WebViewActivity)?.clearWebViewRefs()
+                memoryTeardownPending = true
+            }
+        }
+        context.registerComponentCallbacks(componentCallbacks)
+        onDispose { context.unregisterComponentCallbacks(componentCallbacks) }
+    }
 
     val localHttpServer = remember { LocalHttpServer.getInstance(context) }
 
@@ -3053,6 +3227,13 @@ fun WebViewScreen(
         )
     }
 
+    // Plugin host surface: per-plugin styles ride on each plugin record; these
+    // are only the app-level fallbacks for plugins without their own choice.
+    val previewPluginEntryStyle = com.webtoapp.core.plugin.PluginEntryStyle.TOOLBAR
+    val previewPluginPanelStyle = com.webtoapp.core.plugin.PluginPanelStyle.BOTTOM_SHEET
+    val previewPluginsEnabled = webApp?.pluginsEnabled == true ||
+        (isTestMode && !testModuleIds.isNullOrEmpty())
+
     LaunchedEffect(hideToolbar) {
 
         onFullscreenModeChanged(hideToolbar)
@@ -3061,7 +3242,10 @@ fun WebViewScreen(
     Box(modifier = Modifier.fillMaxSize()) {
     Scaffold(
 
-        contentWindowInsets = if (hideToolbar && !showToolbarInPreview) WindowInsets(0) else if (hideToolbar && showToolbarInPreview) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets,
+        // #1075: exclude the IME-covered region — WindowHelper's manual IME
+        // padding already lifts the layout, and the nav-bar inset must not
+        // double-stack above the keyboard (same contract as ShellScaffoldLayout).
+        contentWindowInsets = if (hideToolbar && !showToolbarInPreview) WindowInsets(0) else if (hideToolbar && showToolbarInPreview) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
         modifier = if (hideToolbar && !showToolbarInPreview) Modifier.fillMaxSize() else if (hideToolbar) Modifier.fillMaxSize() else Modifier,
         topBar = {
             if (shouldShowTopBar) {
@@ -3154,6 +3338,13 @@ fun WebViewScreen(
                                 contentDescription = Strings.nativeBridgeCapsFindInPage
                             )
                         }
+                        // Plugin slot — per-plugin toolbar icons plus the sheet
+                        // entry for menu/handle-style plugins.
+                        if (previewPluginsEnabled) {
+                            com.webtoapp.ui.plugin.PluginToolbarEntries(
+                                onOpenSheet = { com.webtoapp.core.plugin.PluginHostState.openPluginSheet() }
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -3200,7 +3391,10 @@ fun WebViewScreen(
         // reserve the status-bar height on top when the bar is shown, pad the
         // remaining edges so corner controls stay tappable. Preview used to ignore
         // this setting entirely, so the slider appeared dead until export.
-        val contentPad = (webApp?.webViewConfig?.fullscreenContentPaddingDp ?: 0).dp
+        val padTop = (webApp?.webViewConfig?.fullscreenPadTop ?: 0).dp
+        val padStart = (webApp?.webViewConfig?.fullscreenPadStart ?: 0).dp
+        val padEnd = (webApp?.webViewConfig?.fullscreenPadEnd ?: 0).dp
+        val padBottom = (webApp?.webViewConfig?.fullscreenPadBottom ?: 0).dp
 
         val contentModifier = when {
             hideToolbar && showToolbarInPreview -> {
@@ -3210,15 +3404,20 @@ fun WebViewScreen(
             hideToolbar && webApp?.webViewConfig?.showStatusBarInFullscreen == true -> {
 
                 Modifier.fillMaxSize().padding(
-                    top = if (barOverlaysContent) 0.dp else actualStatusBarPadding,
-                    start = contentPad,
-                    end = contentPad,
-                    bottom = contentPad
+                    top = (if (barOverlaysContent) 0.dp else actualStatusBarPadding) + padTop,
+                    start = padStart,
+                    end = padEnd,
+                    bottom = padBottom
                 )
             }
             hideToolbar -> {
 
-                Modifier.fillMaxSize().padding(contentPad)
+                Modifier.fillMaxSize().padding(
+                    top = padTop,
+                    start = padStart,
+                    end = padEnd,
+                    bottom = padBottom
+                )
             }
             else -> {
 
@@ -3283,6 +3482,26 @@ fun WebViewScreen(
                 val mwApp = webApp
                 val multiWebConfig = mwApp?.multiWebConfig
                 if (mwApp != null && multiWebConfig != null && multiWebConfig.sites.isNotEmpty()) {
+                    // App-level plugins: resolve the multi-web app's attached
+                    // set into embedded records so site configs consume the same
+                    // payload shape as a generated APK.
+                    val mwEmbeddedPlugins by androidx.compose.runtime.produceState<List<com.webtoapp.core.shell.EmbeddedShellPlugin>?>(
+                        initialValue = null,
+                        mwApp.pluginIds
+                    ) {
+                        value = if (mwApp.pluginIds.isEmpty() || !mwApp.pluginsEnabled) {
+                            emptyList()
+                        } else {
+                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                val store = com.webtoapp.core.plugin.PluginStore.getInstance(context)
+                                store.awaitLoaded()
+                                store.resolveForInjection(mwApp.pluginIds)
+                                    .map { com.webtoapp.core.shell.EmbeddedShellPlugin.fromResolved(it) }
+                            }
+                        }
+                    }
+                    val readyEmbeddedPlugins = mwEmbeddedPlugins
+                    if (readyEmbeddedPlugins != null) {
                     val shellConfig = com.webtoapp.core.shell.ShellConfig(
                         appName = mwApp.name,
                         appType = "MULTI_WEB",
@@ -3314,6 +3533,7 @@ fun WebViewScreen(
                             displayMode = multiWebConfig.displayMode,
                             refreshInterval = multiWebConfig.refreshInterval,
                             showSiteIcons = multiWebConfig.showSiteIcons,
+                            sitesUseOwnConfig = multiWebConfig.sitesUseOwnConfig,
                             projectId = multiWebConfig.projectId
                         ),
                         // App-level userscripts: MultiWebShellMode merges them into
@@ -3329,8 +3549,11 @@ fun WebViewScreen(
                                 )
                             }
                         ),
-                        extensionModuleIds = mwApp.extensionModuleIds,
-                        extensionFabIcon = mwApp.extensionFabIcon.orEmpty(),
+                        pluginsEnabled = mwApp.pluginsEnabled,
+                        pluginIds = mwApp.pluginIds,
+                        embeddedPlugins = readyEmbeddedPlugins,
+                        pluginEntryStyle = previewPluginEntryStyle.name,
+                        pluginPanelStyle = previewPluginPanelStyle.name,
                         browserDisguiseConfig = mwApp.browserDisguiseConfig,
                         deviceDisguiseConfig = mwApp.deviceDisguiseConfig
                     )
@@ -3381,6 +3604,7 @@ fun WebViewScreen(
                             }
                         }
                     )
+                    }
                 } else {
 
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -3434,16 +3658,16 @@ fun WebViewScreen(
                                     WebScrollTracker.scrollUpBlocked(wv, wv.scrollY)
                                 }
 
-                                val moduleIds = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
+                                val pluginIds = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
                                     testModuleIds
                                 } else {
-                                    webApp?.extensionModuleIds ?: emptyList()
+                                    webApp?.pluginIds ?: emptyList()
                                 }
 
-                                val extensionMasterEnabled = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
+                                val pluginsEnabled = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
                                     true
                                 } else {
-                                    webApp?.extensionEnabled == true
+                                    webApp?.pluginsEnabled == true
                                 }
 
                                 val previewEngineType = webApp?.apkExportConfig?.engineType
@@ -3455,15 +3679,28 @@ fun WebViewScreen(
                                     webViewManager = webViewManager,
                                     callbacks = webViewCallbacks,
                                     adBlocker = com.webtoapp.WebToAppApplication.adBlock,
-                                    extensionModuleIds = moduleIds,
-                                    embeddedExtensionModules = emptyList(),
-                                    extensionFabIcon = webApp?.extensionFabIcon.orEmpty(),
-                                    allowGlobalModuleFallback = false,
-                                    extensionEnabled = extensionMasterEnabled,
+                                    pluginsEnabled = pluginsEnabled,
+                                    pluginEntryStyle = previewPluginEntryStyle,
+                                    pluginPanelStyle = previewPluginPanelStyle,
+                                    expectLatePluginPayloads = pluginsEnabled,
                                     browserDisguiseConfig = webApp?.browserDisguiseConfig,
                                     deviceDisguiseConfig = webApp?.deviceDisguiseConfig,
                                     appOriginUrl = webApp?.url.orEmpty()
                                 )
+                                // Plugin code resolution does package IO; resolve off the main
+                                // thread and push payloads into the session once ready. The
+                                // session is already attached so late payloads still inject.
+                                val previewWebView = surface.webView
+                                if (pluginsEnabled && pluginIds.isNotEmpty() && previewWebView != null) {
+                                    kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                        com.webtoapp.core.plugin.PluginStore.getInstance(ctx).awaitLoaded()
+                                        val payloads = com.webtoapp.core.plugin.PluginStore.getInstance(ctx)
+                                            .resolveForInjection(pluginIds)
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            webViewManager.updatePluginPayloads(previewWebView, payloads)
+                                        }
+                                    }
+                                }
                                 tag = surface
                                 browserSurfaceRef = surface
                                 (context as? WebViewActivity)?.browserSurface = surface
@@ -3545,19 +3782,38 @@ fun WebViewScreen(
 
                                     var lastTouchX = 0f
                                     var lastTouchY = 0f
+                                    var downFromFinger = false
                                     setOnTouchListener { view, event ->
-                                        when (event.action) {
-                                            MotionEvent.ACTION_DOWN,
+                                        when (event.actionMasked) {
+                                            MotionEvent.ACTION_DOWN -> {
+                                                lastTouchX = event.x
+                                                lastTouchY = event.y
+                                                downFromFinger =
+                                                    event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+                                                if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
+                                                    // See ShellBrowserView: force the focus
+                                                    // transfer a mouse click may skip (#1031).
+                                                    view.requestFocus()
+                                                }
+                                            }
                                             MotionEvent.ACTION_MOVE -> {
                                                 lastTouchX = event.x
                                                 lastTouchY = event.y
                                             }
-                                            MotionEvent.ACTION_UP -> view.performClick()
+                                            MotionEvent.ACTION_UP -> {
+                                                view.performClick()
+                                                downFromFinger = false
+                                            }
+                                            MotionEvent.ACTION_CANCEL -> downFromFinger = false
                                         }
                                         false
                                     }
                                     setOnLongClickListener {
-                                        webViewCallbacks.onLongPress(this, lastTouchX, lastTouchY)
+                                        if (downFromFinger) {
+                                            webViewCallbacks.onLongPress(this, lastTouchX, lastTouchY)
+                                        } else {
+                                            false
+                                        }
                                     }
 
                                     statusBarColorTracker?.detach()
@@ -3581,7 +3837,12 @@ fun WebViewScreen(
                                     tracker.scheduleSample(80L)
                                     val host = context as? WebViewActivity
                                     val savedState = host?.consumeWebViewState()
-                                    if (savedState != null && restoreState(savedState) != null) {
+                                    val restored = savedState?.let { restoreState(it) }
+                                    val externalJumpUrl = if (restored != null) host?.consumeExternalJump() else null
+                                    if (restored != null &&
+                                        com.webtoapp.core.webview.WebViewRestoreGuard
+                                            .isUsableRestoredUrl(restored.currentItem?.url, externalJumpUrl)
+                                    ) {
                                         // Bundle path: back-forward list restored — load the
                                         // current entry instead of the configured start URL
                                         // (same contract as ShellBrowserView's state_restored tag).
@@ -3623,6 +3884,17 @@ fun WebViewScreen(
                                 swipeLayout.isRefreshing = isRefreshing
                             }
                         },
+                        // Any drop of this composable (key bump, teardown,
+                        // disposal) must destroy the surface's WebView too —
+                        // otherwise the renderer outlives its view (#1033).
+                        onRelease = { swipeLayout ->
+                            val surface = swipeLayout.tag as? BrowserSurface
+                            surface?.webView?.let { webViewManager.discardWebView(it) }
+                            surface?.destroy()
+                            if (browserSurfaceRef === surface) browserSurfaceRef = null
+                            (context as? WebViewActivity)?.releaseSurfaceRefs(surface)
+                            swipeLayout.removeAllViews()
+                        },
                         modifier = Modifier.weight(weight = 1f, fill = true)
                     )
 
@@ -3641,13 +3913,13 @@ fun WebViewScreen(
                                 // (webViewRef stays null there; Gecko cannot return the eval
                                 // result, so the entry shows "=> null" but the script runs).
                                 val appendResult: (String?) -> Unit = { result ->
-                                    consoleMessages = consoleMessages + ConsoleLogEntry(
+                                    consoleMessages = (consoleMessages + ConsoleLogEntry(
                                         level = ConsoleLevel.LOG,
                                         message = "=> $result",
                                         source = "eval",
                                         lineNumber = 0,
                                         timestamp = System.currentTimeMillis()
-                                    )
+                                    )).takeLast(CONSOLE_LOG_CAP)
                                 }
                                 val surface = browserSurfaceRef
                                 if (surface != null) {
@@ -3827,6 +4099,19 @@ fun WebViewScreen(
                         }
                     }
                 }
+            }
+
+            // Unified plugin surface: sheet, panel host, floating handle.
+            // TOOLBAR/MENU entries live in the top app bar; FLOATING_HANDLE
+            // renders the draggable launcher here.
+            if (previewPluginsEnabled || webApp?.appType == com.webtoapp.data.model.AppType.MULTI_WEB) {
+                com.webtoapp.ui.plugin.PluginSurfaceHost(
+                    entryStyle = previewPluginEntryStyle,
+                    toolbarVisible = shouldShowTopBar,
+                    floatingHandleModifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(bottom = 24.dp)
+                )
             }
 
         }

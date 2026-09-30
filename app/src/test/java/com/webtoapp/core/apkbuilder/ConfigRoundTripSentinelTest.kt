@@ -273,12 +273,12 @@ class ConfigRoundTripSentinelTest {
     @Test
     fun `extension fields round-trip`() {
         val app = baseApp().copy(
-            extensionEnabled = true,
-            extensionModuleIds = listOf("sen-mod-1", "sen-mod-2")
+            pluginsEnabled = true,
+            pluginIds = listOf("sen-mod-1", "sen-mod-2")
         )
         val shell = roundTrip(app)
-        assertThat(shell.extensionEnabled).isTrue()
-        assertThat(shell.extensionModuleIds).containsExactly("sen-mod-1", "sen-mod-2").inOrder()
+        assertThat(shell.pluginsEnabled).isTrue()
+        assertThat(shell.pluginIds).containsExactly("sen-mod-1", "sen-mod-2").inOrder()
     }
 
     @Test
@@ -356,6 +356,25 @@ class ConfigRoundTripSentinelTest {
         val shell = roundTrip(app)
         assertThat(shell.engineType).isEqualTo("GECKOVIEW")
         assertThat(shell.isolationEnabled).isTrue()
+    }
+
+    @Test
+    fun `multi-web app propagates gecko engine selection to shell config`() {
+        // The build screen now offers GeckoView for MULTI_WEB (#1035); the
+        // selection must survive model -> ApkConfig JSON -> ShellConfig or the
+        // generated multi-web app silently stays on System WebView.
+        val app = baseApp(AppType.MULTI_WEB).copy(
+            apkExportConfig = ApkExportConfig(engineType = "GECKOVIEW"),
+            multiWebConfig = com.webtoapp.data.model.MultiWebConfig(
+                sites = listOf(
+                    com.webtoapp.data.model.MultiWebSite(
+                        id = "s1", name = "One", url = "https://one.example.com"
+                    )
+                )
+            )
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.engineType).isEqualTo("GECKOVIEW")
     }
 
     @Test

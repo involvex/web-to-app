@@ -112,6 +112,7 @@ class ApkBuildCache(private val context: Context) {
         forceFullRebuild: Boolean,
         manifestFingerprint: String? = null,
         perfFingerprint: String? = null,
+        signingFingerprint: String? = null,
         multiWebSiteGalleryItems: List<com.webtoapp.data.model.GalleryItem> = emptyList(),
         multiWebSiteMediaPaths: List<String> = emptyList()
     ): IncrementalPlan {
@@ -124,8 +125,10 @@ class ApkBuildCache(private val context: Context) {
             iconPath = webApp.iconPath,
             nativeLibsFingerprint = nativeLibsFingerprint,
             hostVersionCode = hostVersionCode,
-            manifestFingerprint = manifestFingerprint,
-            perfFingerprint = perfFingerprint
+            manifestFingerprint = manifestFingerprint.orEmpty() +
+                "|saep=${webApp.apkExportConfig?.saepEnabled == true}:${SaepPolicy.VERSION}",
+            perfFingerprint = perfFingerprint,
+            signingFingerprint = signingFingerprint
         )
         val content = contentFingerprint(
             config = config,
@@ -362,7 +365,8 @@ class ApkBuildCache(private val context: Context) {
         nativeLibsFingerprint: String? = null,
         hostVersionCode: Int = 0,
         manifestFingerprint: String? = null,
-        perfFingerprint: String? = null
+        perfFingerprint: String? = null,
+        signingFingerprint: String? = null
     ): String {
         val parts = mutableListOf<String>()
         parts += "shell=$shellTemplateId"
@@ -385,6 +389,13 @@ class ApkBuildCache(private val context: Context) {
         parts += "icon=${fileFingerprint(iconPath)}"
         parts += "deeplinkHosts=${config.deepLinkHosts.sorted().joinToString(",")}"
         parts += "deeplinkSchemes=${config.deepLinkSchemes.sorted().joinToString(",")}"
+        // Inbound share sheet (#943) also rewrites the manifest — the ACTION_SEND
+        // intent-filter. Without it in the key, flipping the toggle would reuse a cached
+        // unsigned APK that never became a share target.
+        parts += "shareReceive=${config.shareReceiveMimeTypes.sorted().joinToString(",")}"
+        // The open-with flag changes the manifest (extra VIEW intent-filters), so it must
+        // bust the manifest-fingerprinted cache just like the share/deep-link lists do.
+        parts += "openWith=${config.openWithEnabled}"
         parts += "runtimePerms=${config.runtimePermissions}"
         parts += "networkTrust=${config.networkTrustConfig}"
         // Native libs (libnode.so / libnode_bridge.so / libc++_shared.so) must participate
@@ -405,6 +416,10 @@ class ApkBuildCache(private val context: Context) {
         // asset re-optimization, wta_perf_optimize.js injection) without appearing in
         // ApkConfig — key them explicitly or REUSE_UNSIGNED serves the old setting.
         parts += "perf=${perfFingerprint ?: "off"}"
+        // The unsigned APK is not signer-agnostic: encrypted builds embed the signing cert
+        // hash in the encryption metadata. Switching between global and per-app signing
+        // (or a regenerated identity) must not serve a cached APK bound to the old cert.
+        parts += "signer=${signingFingerprint ?: "global"}"
         return sha256(parts.joinToString("\n"))
     }
 

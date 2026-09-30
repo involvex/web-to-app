@@ -21,6 +21,7 @@ import com.webtoapp.core.i18n.InitializeLanguage
 import com.webtoapp.data.model.HtmlLoadMode
 import com.webtoapp.ui.agent.AgentScreen
 import com.webtoapp.ui.screens.AboutScreen
+import com.webtoapp.ui.screens.SettingsScreen
 import com.webtoapp.ui.screens.AiSettingsScreen
 import com.webtoapp.ui.screens.AppModifierScreen
 import com.webtoapp.ui.screens.AppModifyFullScreen
@@ -38,12 +39,12 @@ import com.webtoapp.ui.screens.CreateOfflinePackScreen
 import com.webtoapp.ui.screens.CreatePhpAppScreen
 import com.webtoapp.ui.screens.CreatePythonAppScreen
 import com.webtoapp.ui.screens.CreateWordPressAppScreen
-import com.webtoapp.ui.screens.ExtensionModuleScreen
+import com.webtoapp.ui.screens.PluginManagerScreen
 import com.webtoapp.ui.screens.FileManagerScreen
 import com.webtoapp.ui.screens.HomeScreen
 import com.webtoapp.ui.screens.HostsAdBlockScreen
 import com.webtoapp.ui.screens.LinuxEnvironmentScreen
-import com.webtoapp.ui.screens.ModuleEditorScreen
+import com.webtoapp.ui.screens.PluginEditorScreen
 import com.webtoapp.ui.screens.ModuleMarketScreen
 import com.webtoapp.ui.screens.MoreScreen
 import com.webtoapp.ui.screens.PortManagerScreen
@@ -91,15 +92,16 @@ object Routes {
     const val AGENT = "agent"
     const val BROWSER_KERNEL = "browser_kernel"
     const val HOSTS_ADBLOCK = "hosts_adblock"
-    const val EXTENSION_MODULES = "extension_modules"
-    const val MODULE_MARKET = "module_market"
-    const val MODULE_MARKET_WITH_TAB = "module_market?initialTab={initialTab}"
-    const val MODULE_EDITOR = "module_editor"
-    const val MODULE_EDITOR_EDIT = "module_editor/{moduleId}"
+    const val PLUGINS = "plugins"
+    const val PLUGIN_MARKET = "plugin_market"
+    const val PLUGIN_MARKET_WITH_TAB = "plugin_market?initialTab={initialTab}"
+    const val PLUGIN_EDITOR = "plugin_editor"
+    const val PLUGIN_EDITOR_EDIT = "plugin_editor/{pluginId}"
     const val RUNTIME_DEPS = "runtime_deps"
     const val PORT_MANAGER = "port_manager"
     const val STATS = "stats"
     const val ABOUT = "about"
+    const val SETTINGS = "settings"
     const val PLAY_STORE = "play_store?appId={appId}&autoStart={autoStart}"
     const val FILE_MANAGER = "file_manager"
     const val BUILD_APK = "build_apk/{appId}"
@@ -110,7 +112,7 @@ object Routes {
     }
 
     fun buildApk(appId: Long) = "build_apk/$appId"
-    fun moduleMarket(tab: Int = 0) = "module_market?initialTab=$tab"
+    fun pluginMarket(tab: Int = 0) = "plugin_market?initialTab=$tab"
 
     fun editApp(appId: Long) = "edit_app/$appId"
     fun editWebApp(appId: Long) = "edit_web_app/$appId"
@@ -124,7 +126,7 @@ object Routes {
     fun editGoApp(appId: Long) = "edit_go_app/$appId"
     fun editMultiWebApp(appId: Long) = "edit_multi_web_app/$appId"
     fun preview(appId: Long) = "preview/$appId"
-    fun editModule(moduleId: String) = "module_editor/$moduleId"
+    fun editPlugin(pluginId: String) = "plugin_editor/$pluginId"
     fun appModifierModify(packageName: String) = "app_modifier/modify/$packageName"
 }
 
@@ -193,7 +195,7 @@ fun AppNavigation() {
                         onOpenAppModifier = { navController.navigate(Routes.APP_MODIFIER) },
                         onOpenAiSettings = { navController.navigate(Routes.AI_SETTINGS) },
                         onOpenAgent = { navController.navigate(Routes.AGENT) },
-                        onOpenExtensionModules = { navController.navigate(Routes.EXTENSION_MODULES) },
+                        onOpenPlugins = { navController.navigate(Routes.PLUGINS) },
                         onOpenLinuxEnvironment = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                         onOpenBrowserKernel = { navController.navigate(Routes.BROWSER_KERNEL) },
                         onOpenHostsAdBlock = { navController.navigate(Routes.HOSTS_ADBLOCK) },
@@ -201,6 +203,7 @@ fun AppNavigation() {
                         onOpenPortManager = { navController.navigate(Routes.PORT_MANAGER) },
                         onOpenStats = { navController.navigate(Routes.STATS) },
                         onOpenAbout = { navController.navigate(Routes.ABOUT) },
+                        onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                         onOpenPlayStore = { navController.navigate(Routes.playStore()) },
                         onExportAabForApp = { appId ->
                             navController.navigate(Routes.playStore(appId = appId, autoStart = true))
@@ -733,23 +736,26 @@ fun AppNavigation() {
                 AboutScreen(onBack = { navController.popBackStack() })
             }
 
-            composable(Routes.EXTENSION_MODULES) {
-                ExtensionModuleScreen(
+            composable(Routes.SETTINGS) {
+                SettingsScreen(onBack = { navController.popBackStack() })
+            }
+
+            composable(Routes.PLUGINS) {
+                PluginManagerScreen(
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToEditor = { moduleId ->
-                        if (moduleId == null) {
-                            navController.navigate(Routes.MODULE_EDITOR)
+                    onNavigateToEditor = { pluginId ->
+                        if (pluginId == null) {
+                            navController.navigate(Routes.PLUGIN_EDITOR)
                         } else {
-                            navController.navigate(Routes.editModule(moduleId))
+                            navController.navigate(Routes.editPlugin(pluginId))
                         }
                     },
-                    onNavigateToAiDeveloper = { navController.navigate(Routes.AGENT) },
-                    onNavigateToMarket = { tab -> navController.navigate(Routes.moduleMarket(tab)) }
+                    onNavigateToMarket = { navController.navigate(Routes.pluginMarket(0)) }
                 )
             }
 
             composable(
-                route = "${Routes.MODULE_MARKET}?initialTab={initialTab}",
+                route = "${Routes.PLUGIN_MARKET}?initialTab={initialTab}",
                 arguments = listOf(
                     navArgument("initialTab") {
                         type = androidx.navigation.NavType.StringType
@@ -767,20 +773,20 @@ fun AppNavigation() {
                 )
             }
 
-            composable(Routes.MODULE_EDITOR) {
-                ModuleEditorScreen(
-                    moduleId = null,
+            composable(Routes.PLUGIN_EDITOR) {
+                PluginEditorScreen(
+                    pluginId = null,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
 
             composable(
-                route = Routes.MODULE_EDITOR_EDIT,
-                arguments = listOf(navArgument("moduleId") { type = NavType.StringType })
+                route = Routes.PLUGIN_EDITOR_EDIT,
+                arguments = listOf(navArgument("pluginId") { type = NavType.StringType })
             ) { backStackEntry ->
-                val moduleId = backStackEntry.arguments?.getString("moduleId")
-                ModuleEditorScreen(
-                    moduleId = moduleId,
+                val pluginId = backStackEntry.arguments?.getString("pluginId")
+                PluginEditorScreen(
+                    pluginId = pluginId,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

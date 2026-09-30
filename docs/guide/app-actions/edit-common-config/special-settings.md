@@ -25,6 +25,7 @@ Compatibility polyfills, bridges, and other specialized toggles. This card colle
 - **Back-state preservation** — `enableBackStatePreservation`.
 - **Blob download interception** — with scope and size threshold (`enableBlobDownloadInterception`, `blobInterceptThresholdMb`).
 - **Streaming PiP** — enable **Video Enhance** (picture-in-picture, speed control, background play) or **Streaming PiP** (auto-detect video playback and auto-enter PiP for HLS/DASH/YouTube) under **Extension Modules**. See [Streaming PiP](/guide/app-actions/edit-common-config/streaming-pip) for details.
+- **Receive shared content** — the generated app appears in the Android share sheet; incoming images/text arrive via the `wta:share` DOM event or prefill the page's file chooser (`receiveShareImages`, `receiveShareText`, `shareDeliveryMode`, `sharePromptBeforeUse`). See [Receive Shared Content](/guide/more-features/share-receive).
 
 ## JavaScript & windows
 

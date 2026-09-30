@@ -6,7 +6,7 @@ rest.
 
 > **English** · [简体中文](#贡献-webtoapp中文)
 
-This guide targets **WebToApp 2.6.3** (`versionCode 65`).
+This guide targets **WebToApp 2.6.9** (`versionCode 71`).
 
 ---
 
@@ -32,8 +32,8 @@ schema, field rules, reviewer checklist, and CI validation details. The short
 version here is only meant to help you pick the right contribution lane:
 
 1. Fork the repo.
-2. Add `modules/<your-module>/module.json` and `main.js` (plus `style.css` if
-   you need CSS).
+2. Add `modules/<your-plugin>/plugin.json` and `plugin.html` (one HTML file —
+   page script in a `<script type="hcj/page">` block, the rest is the panel UI).
 3. Add an entry to `modules/registry.json`.
 4. Open a PR.
 
@@ -165,8 +165,9 @@ codebase. A few rules worth calling out:
   layout grammar (see `AGENTS.md` recipe 12) — copy the neighbouring cards,
   don't invent your own, and verify on the emulator, not just by compiling.
 - **Strings must cover all 10 supported languages.** UI copy lives in
-  `core/i18n/Strings.kt` (facade `object Strings` + in-file `StringsA`…`StringsE`,
-  split only for the JVM constant pool). Supported: Chinese, English, Arabic,
+  `core/i18n/` (facade `object Strings` in `Strings.kt` + `StringsA`…`StringsE`,
+  one file per split object; split only for the JVM constant pool). Supported:
+  Chinese, English, Arabic,
   Portuguese, Spanish, French, German, Russian, Japanese, Korean.
   Every new or changed user-visible `when (Strings.lang)` block **must** have
   real translations for **all 10** branches with no `else ->` — do not leave
@@ -217,6 +218,8 @@ an hour as authoritative; the refresh button always bypasses the cache.
 ### Pull requests
 
 - Branch from `main`. Keep PRs focused — one logical change per PR.
+- Name branches `type/slug` (`fix/…`, `feat/…`, `refactor/…`, `docs/…`) —
+  no tool/agent namespaces like `codex/…`.
 - **Write Issues and PRs in English** — titles, bodies, and review threads.
 - Describe the user-visible effect in the PR body, not just the code change.
 - The standard loop is Issue → branch → PR (`Fixes #N`) → green CI → merge.
@@ -258,7 +261,7 @@ logged and otherwise disregarded.
 非常感谢你愿意花时间。WebToApp 的迭代速度取决于"小而聚焦"的贡献——下面三条路
 里挑一条走，其他的先忽略。
 
-本指南对应 **WebToApp 2.6.3**（`versionCode 65`）。
+本指南对应 **WebToApp 2.6.9**（`versionCode 71`）。
 
 ### 你想做什么？
 
@@ -278,13 +281,13 @@ CI 校验细节的主文档是 [`modules/README.md`](../modules/README.md)。这
 留一个极简入口，方便你先判断自己是不是走这条贡献路线：
 
 1. Fork 本仓库
-2. 新建 `modules/<你的模块>/module.json` 和 `main.js`（需要 CSS 时再加
-   `style.css`）
+2. 新建 `modules/<你的插件>/plugin.json` 和 `plugin.html`（单个 HTML 文件——
+   页面脚本放在 `<script type="hcj/page">` 块里，其余部分是面板界面）
 3. 在 `modules/registry.json` 里加一行索引
 4. 提 PR
 
 市场**没有后端**。客户端读取 `registry.json` 和 `submissions.json`，只有已合
-并的模块才会在市场出现。模块改动会经过 CI 的
+并的插件才会在市场出现。插件改动会经过 CI 的
 `.github/scripts/ci/validate_modules.py` 校验，提 PR 前建议先本地跑：
 
 ```bash
@@ -391,8 +394,8 @@ cd web-to-app
 - 复用 `ui/design/WtaTokens.kt` 里的设计 token（间距、圆角、透明度、高度），
   别硬编码数字。编辑器配置卡片共用一套排版语法（见 `AGENTS.md` recipe 12）——
   照抄相邻卡片，不要自创，跑模拟器验效果，不要只编译。
-- **字符串必须覆盖全部 10 种已支持语言**：文案在 `core/i18n/Strings.kt`
-  （facade `object Strings` + 同文件 `StringsA`…`StringsE`，拆分只为常量池）。
+- **字符串必须覆盖全部 10 种已支持语言**：文案在 `core/i18n/`
+  （facade `object Strings` 在 `Strings.kt` + `StringsA`…`StringsE`，每个拆分对象一个文件，拆分只为常量池）。
   已支持：中 / 英 / 阿 / 葡 / 西 / 法 / 德 / 俄 / 日 / 韩。
   新增或修改面向用户的 `when (Strings.lang)` **必须**为 10 个分支写真实翻译，
   且不许写 `else ->`；禁止把 pt/es/fr/de/ru/ja/ko 继续当英文占位。品牌名、

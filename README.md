@@ -20,6 +20,18 @@
   <a href="https://github.com/shiaho777/web-to-app/releases/latest">
     <img src="https://img.shields.io/github/v/release/shiaho777/web-to-app" alt="Latest Version">
   </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-Unlicense-blue?style=for-the-badge" alt="License: Unlicense">
+  </a>
+  <a href="https://github.com/shiaho777/web-to-app/releases">
+    <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 6.0+">
+  </a>
+  <a href="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml">
+    <img src="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml/badge.svg" alt="Android CI">
+  </a>
+  <a href="https://shiaho777.github.io/web-to-app/">
+    <img src="https://img.shields.io/badge/docs-online-blue?style=for-the-badge" alt="Documentation">
+  </a>
 </p>
 
 <p align="center">
@@ -27,6 +39,8 @@
     <img src="https://trendshift.io/api/badge/trendshift/repositories/22597/weekly?language=Kotlin" alt="shiaho777%2Fweb-to-app | Trendshift" width="250" height="55">
   </a>
 </p>
+
+</div>
 
 <p align="center">
   <a href="https://www.swiftproxy.net/?ref=shiaho">
@@ -36,21 +50,49 @@
 </p>
 
 <p align="center">
+  <a href="#screenshots">Screenshots</a> ·
   <a href="#what-makes-webtoapp-different">What's different</a> ·
-  <a href="#what-you-can-build">What you can build</a> ·
   <a href="#capability-overview">Capability overview</a> ·
+  <a href="#what-you-can-build">What you can build</a> ·
+  <a href="#quick-start">Quick start</a> ·
   <a href="#full-feature-map">Feature map</a> ·
+  <a href="#agent">Agent</a> ·
   <a href="#module-market">Module market</a> ·
-  <a href="#documentation">Documentation</a> ·
+  <a href="#documentation">Docs</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#build-from-source">Build</a>
 </p>
 
 ---
 
-<div align="center">
-<img src=".github/assets/social-preview.png" width="90%" alt="WebToApp: My Apps home, the app list with the main toolbox (Agent, Extension Modules, Port Manager), per-app APK actions (Edit, Create Shortcut, Build/Share/Export APK), and the About screen — all running on an Android phone" />
-</div>
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/01-home-empty.png" width="200" alt="My Apps home screen"><br><sub><b>My Apps</b> — your projects at a glance</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/02-app-types.png" width="200" alt="Create panel with 12 app types"><br><sub><b>Create</b> — pick from 12 app types</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/03-create-web.png" width="200" alt="Web app editor"><br><sub><b>Web app</b> — name, URL, analyze site</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/04-import-html.png" width="200" alt="HTML project import"><br><sub><b>HTML app</b> — files, ZIP, or write code</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/05-editor-basic.png" width="200" alt="Editor basic info card"><br><sub><b>Editor</b> — icon, name & core toggles</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/06-editor-toggles.png" width="200" alt="Editor feature toggles"><br><sub><b>Editor</b> — splash, BGM, translate & more</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/07-editor-advanced.png" width="200" alt="Editor advanced and export settings"><br><sub><b>Editor</b> — advanced & export settings</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/08-app-actions.png" width="200" alt="Per-app action menu"><br><sub><b>Actions</b> — build, share, export & more</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/09-toolbox.png" width="200" alt="Main toolbox menu"><br><sub><b>Toolbox</b> — Agent, modules, ports, engines</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/10-preview.png" width="200" alt="App preview with browser toolbar"><br><sub><b>Preview</b> — runs the real export runtime</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/11-build-options.png" width="200" alt="Build APK dialog options"><br><sub><b>Build</b> — engine & protection options</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/12-build-result.png" width="200" alt="Build summary with APK size analysis"><br><sub><b>Result</b> — signed APK, size analysis</sub></td>
+  </tr>
+  <tr>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/13-generated-app.png" width="200" alt="Generated app running"><br><sub><b>Output</b> — the generated app, running</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/14-about.png" width="200" alt="About page"><br><sub><b>About</b> — version & community links</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/15-agent.png" width="200" alt="Agent screen with build suggestions"><br><sub><b>Agent</b> — describe it, AI builds it</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/16-languages.png" width="200" alt="Language picker dialog"><br><sub><b>Languages</b> — 10 UI languages, incl. RTL</sub></td>
+  </tr>
+</table>
 
 ---
 
@@ -95,6 +137,20 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 | Images / video / galleries | Media-focused APK | Albums, course materials, portfolios, offline viewers |
 | Multiple sites | Tab/card/feed/drawer multi-web APK | Link hubs, portals, app collections |
 | Installed APK | Rebranded clone or shortcut disguise | Icon/name/package experiments, repackaging research |
+
+---
+
+## Quick start
+
+From a fresh install to your first signed APK in about a minute:
+
+1. **Install the builder** — get the APK from [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) onto a device running Android 6.0 (API 23) or newer.
+2. **Create an app** — on **My Apps**, tap **Create** and pick one of the 12 app types (Web · Multi-Site · HTML · Offline Pack · Frontend · PHP · WordPress · Node.js · Python · Go · Media App · Gallery).
+3. **Fill in the basics** — app name, target URL (or your project files), and an optional icon, then **Save**. Every other editor card is optional configuration.
+4. **Preview** — tap the app's card to run it in the same runtime code the export will use.
+5. **Build** — tap **⋮ → Build APK**, pick the engine and options, and get a signed APK ready to install or share. Shipping to Google Play? Use **⋮ → Google Play** instead — it builds the APK, converts it to a Play-ready signed AAB with `targetSdk` rewritten, and generates the Play metadata — all on-device.
+
+The full walkthrough — with the per-type notes and what happens under the hood — lives in the [Getting Started guide](https://shiaho777.github.io/web-to-app/guide/getting-started).
 
 ---
 
@@ -181,7 +237,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 
 - **Custom package name**, `versionName`, `versionCode`, icon, label, architecture target, and export format.
 - **Build-time permission injection** with unused permissions pruned from the template manifest.
-- **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build. Available for every app type except the server-runtime ones and encrypted builds — see [which apps can be published](docs/guide/more-features/google-play.md).
+- **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build. Available for every app type except the server-runtime ones and encrypted builds — see [which apps can be published](https://shiaho777.github.io/web-to-app/guide/more-features/google-play).
 - **Keystore management** — create, import, export, delete, and certificate-fingerprint viewing; PKCS12/PFX/JKS/BKS import including Android Studio upload-key cases where store and key passwords differ.
 - **Signature schemes** — V1, V2, V3 independently controlled, with auto-fallback for legacy certificates; custom V1 signer filename for `META-INF/<name>.SF` / `.RSA`.
 - **Performance options** — image compression, WebP conversion, code minification, lazy loading, DNS prefetch, and preload hints.
@@ -238,23 +294,23 @@ WebToApp ships a built-in AI agent (open from **⋮ → Agent**) that can operat
 
 ---
 
-## Module market
+## Plugin market
 
-WebToApp has a GitHub-backed module market for community JS/CSS extension modules. The catalog is just files in this repository, so contributions use a normal pull-request flow.
+WebToApp has a GitHub-backed plugin market for community HTML/CSS/JS plugins. The catalog is just files in this repository, so contributions use a normal pull-request flow.
 
 ```
 modules/
 ├── registry.json        # app-facing catalog
 ├── submissions.json     # CI-generated PR / contributor metadata
 ├── README.md            # contributor guide
-└── <module-folder>/     # each module
+└── <plugin-folder>/     # each plugin (plugin.json + main.js + …)
 ```
 
-The app fetches both `registry.json` and `submissions.json` and only shows modules present in both, keeping the in-app catalog aligned with actually-merged PRs. The submissions file also records every contributor per module, so the catalog shows stacked avatars and a contributors leaderboard. Catalog files and module icons route through a global mirror first, with `raw.githubusercontent.com` and jsDelivr as automatic fallbacks, so the store loads fast everywhere (including mainland China).
+The app fetches both `registry.json` and `submissions.json` and only shows plugins present in both, keeping the in-app catalog aligned with actually-merged PRs. The submissions file also records every contributor per plugin, so the catalog shows stacked avatars and a contributors leaderboard. Catalog files and plugin icons route through a global mirror first, with `raw.githubusercontent.com` and jsDelivr as automatic fallbacks, so the store loads fast everywhere (including mainland China).
 
-- Users open **Extension Modules** and tap the storefront icon.
+- Users open **Plugins** and tap the storefront icon.
 - Contributors add a folder under `modules/`, update `registry.json`, and open a PR.
-- The default client cache is one hour, so merged modules propagate without an app update.
+- The default client cache is one hour, so merged plugins propagate without an app update.
 
 The high-level architecture lives here; the canonical submission rules, field schemas, reviewer checklist, and CI validation details live in [`modules/README.md`](modules/README.md).
 
@@ -272,6 +328,16 @@ The official documentation site is published at **[shiaho777.github.io/web-to-ap
 | 简体中文 | [/zh/](https://shiaho777.github.io/web-to-app/zh/) | Full Chinese mirror of every page above |
 
 ## Architecture
+
+| Path | Role |
+| --- | --- |
+| `app/` | Full builder host: editor UI, export pipeline, runtimes, preview |
+| `shell/` | Runtime template — code synced from `app/`, built into `webview_shell.apk` |
+| `clone-host/` | Host-side APK clone / identity-reshape support library |
+| `modules/` | Module Market catalog (`registry.json` + per-module folders) |
+| `docs/` | VitePress documentation site source (EN + ZH) |
+| `scripts/` | Build helpers and CI gates (config drift, shell strings, bundles) |
+| `sample-bundles/` | Heavy sample dependency packs fetched on demand |
 
 - The repository has **three Gradle modules**: `app` (the full builder and host), `shell` (the runtime host embedded into generated APKs), and `clone-host` (host code for app cloning — compiled to a `classes.jar`, converted to DEX via d8, and bundled as an asset for `AppCloner`).
 - Runtime code is authored in `app` and synchronized into `shell`, so shared WebView/runtime behavior has one source of truth (`core/shell`, `core/webview`, `core/engine`, `core/extension`, `ui/shell`, etc.).
@@ -311,6 +377,18 @@ Requirements: Android Studio Hedgehog or newer, JDK 17. The Gradle wrapper pins 
 git clone https://github.com/shiaho777/web-to-app.git
 cd web-to-app
 ./gradlew assembleDebug
+```
+
+Two distribution flavors exist, sharing all code and build rules:
+
+| Flavor | `applicationId` | Use |
+| --- | --- | --- |
+| `standard` | `com.webtoapp` | GitHub / sideloaded releases |
+| `gplay` | `shiaho.webtoapp` | Google Play (`com.webtoapp` is already registered there by another party) |
+
+```bash
+./gradlew assembleStandardRelease   # signed release APK
+./gradlew bundleGplayRelease        # Play-ready signed AAB
 ```
 
 For release builds, configure signing through `local.properties` and `app/build.gradle.kts`.

@@ -7,6 +7,9 @@ import android.os.Looper
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
+import androidx.webkit.ScriptHandler
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 
 /**
@@ -56,11 +59,57 @@ class MediaSessionBridge(
         )
     }
 
+    /** Handle of the document-start script registration, for removal in [release]. */
+    private var documentStartScriptHandler: ScriptHandler? = null
+
     /**
-     * Install this script using WebViewCompat.addDocumentStartJavaScript().
+     * True when [INJECTION_SCRIPT] could not be registered at document start.
+     * An evaluateJavascript install is wiped by every navigation on such
+     * WebViews, so [onPageFinishedFallback] must re-run it per page load.
+     */
+    private var needsPageFinishedInjection = false
+
+    /**
+     * Install [INJECTION_SCRIPT] at document start via
+     * [WebViewCompat.addDocumentStartJavaScript], plus one immediate
+     * [injectNow] covering a page that was already loaded before registration
+     * (idempotent, harmless when the early install also landed).
      *
-     * Also call injectNow() from onPageFinished() as a fallback for pages that
-     * were already loaded before the document-start script was registered.
+     * Returns false on WebViews without [WebViewFeature.DOCUMENT_START_SCRIPT]
+     * support — the caller must then let [onPageFinishedFallback] re-inject
+     * the script after every finished navigation, or `navigator.mediaSession`
+     * stays undefined because the injected polyfill never survives a load.
+     */
+    fun install(): Boolean {
+        val installed = try {
+            if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                throw UnsupportedOperationException("DOCUMENT_START_SCRIPT unsupported")
+            }
+            documentStartScriptHandler = WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                INJECTION_SCRIPT,
+                setOf("*")
+            )
+            true
+        } catch (_: Exception) {
+            false
+        }
+        needsPageFinishedInjection = !installed
+        injectNow()
+        return installed
+    }
+
+    /**
+     * `onPageFinished` hook: re-injects the polyfill when document-start
+     * registration was unavailable ([install] returned false). No-op otherwise.
+     */
+    fun onPageFinishedFallback() {
+        if (needsPageFinishedInjection) injectNow()
+    }
+
+    /**
+     * Directly evaluates [INJECTION_SCRIPT] into the current main frame. The
+     * script is idempotent (`__wtaMediaBridgeInstalled` guard).
      */
     fun injectNow() {
         webView.post {
@@ -184,6 +233,9 @@ class MediaSessionBridge(
     fun release() {
         core.release()
 
+        documentStartScriptHandler?.let { runCatching { it.remove() } }
+        documentStartScriptHandler = null
+
         try {
             webView.removeJavascriptInterface(
                 JAVASCRIPT_INTERFACE_NAME
@@ -226,7 +278,11 @@ class MediaSessionBridge(
                   "f" + Math.random().toString(36).slice(2, 10));
 
               const registeredHandlers = Object.create(null);
-              const boundElements = new WeakSet();
+              // boundElements = observer-maintained set of in-DOM media (iterate in
+              // synchronize); listenerBound = WeakSet so a re-inserted element never
+              // gets its event listeners attached twice.
+              const boundElements = new Set();
+              const listenerBound = new WeakSet();
 
               const hadNativeSession =
                 !!(navigator.mediaSession && navigator.mediaSession);
@@ -404,7 +460,13 @@ class MediaSessionBridge(
               }
 
               function getActiveMedia() {
-                const elements = getMediaElements();
+                // Prefer the observer-maintained set; a full-document rescan is
+                // only the lazy fallback for a claimed session with no bound
+                // element yet (e.g. shadow-DOM media added after install).
+                if (boundElements.size === 0) {
+                  getMediaElements().forEach(bindElement);
+                }
+                const elements = Array.from(boundElements);
 
                 let best = null;
                 let bestScore = -1;
@@ -427,7 +489,7 @@ class MediaSessionBridge(
                * real player's session (#566).
                */
               function frameOwnsMedia() {
-                if (getMediaElements().length > 0) return true;
+                if (boundElements.size > 0) return true;
 
                 if (mediaSession && mediaSession.metadata) return true;
 
@@ -557,16 +619,14 @@ class MediaSessionBridge(
                 sendPosition(element);
                 sendMetadata(element);
                 sendPlaybackState(element);
-
-                getMediaElements().forEach(bindElement);
               }
 
               function bindElement(element) {
-                if (!element || boundElements.has(element)) {
-                  return;
-                }
+                if (!element) return;
 
                 boundElements.add(element);
+                if (listenerBound.has(element)) return;
+                listenerBound.add(element);
 
                 [
                   "play",
@@ -768,8 +828,48 @@ class MediaSessionBridge(
                   };
               }
 
-              const observer = new MutationObserver(() => {
-                getMediaElements().forEach(bindElement);
+              /*
+               * Bind media inside just the mutated subtrees instead of
+               * rescanning the whole document (incl. every shadow root) on
+               * each mutation batch — DOM-busy pages otherwise pay a full
+               * querySelectorAll('*') sweep per mutation.
+               */
+              function bindSubtree(node) {
+                if (!node || node.nodeType !== 1) return;
+                try {
+                  if (node.matches && node.matches("audio, video")) {
+                    bindElement(node);
+                  }
+                  if (node.shadowRoot) {
+                    collectMedia(node.shadowRoot, []).forEach(bindElement);
+                  }
+                  if (node.querySelectorAll) {
+                    node.querySelectorAll("audio, video").forEach(bindElement);
+                    node.querySelectorAll("*").forEach(el => {
+                      if (el.shadowRoot) {
+                        collectMedia(el.shadowRoot, []).forEach(bindElement);
+                      }
+                    });
+                  }
+                } catch (_) {}
+              }
+              function unbindSubtree(node) {
+                if (!node || node.nodeType !== 1) return;
+                try {
+                  if (boundElements.has(node)) boundElements.delete(node);
+                  if (node.querySelectorAll) {
+                    node.querySelectorAll("audio, video").forEach(el => {
+                      boundElements.delete(el);
+                    });
+                  }
+                } catch (_) {}
+              }
+
+              const observer = new MutationObserver(mutations => {
+                for (const mutation of mutations) {
+                  mutation.addedNodes.forEach(bindSubtree);
+                  mutation.removedNodes.forEach(unbindSubtree);
+                }
               });
 
               observer.observe(

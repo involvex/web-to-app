@@ -20,6 +20,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import com.webtoapp.ui.animation.CardExpandTransition
 import com.webtoapp.ui.animation.CardCollapseTransition
+import com.webtoapp.ui.animation.WtaPersistentExpandedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.relocation.BringIntoViewRequester
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.data.model.*
 import com.webtoapp.ui.components.ActivationCodeCard
 import com.webtoapp.ui.components.AppNameTextField
@@ -458,13 +460,11 @@ fun CreateAppScreen(
             }
 
             item {
-                com.webtoapp.ui.components.ExtensionModuleCard(
-                    enabled = editState.extensionModuleEnabled,
-                    selectedModuleIds = editState.extensionModuleIds,
-                    extensionFabIcon = editState.extensionFabIcon,
-                    onEnabledChange = { viewModel.updateEditState { copy(extensionModuleEnabled = it) } },
-                    onModuleIdsChange = { viewModel.updateEditState { copy(extensionModuleIds = it) } },
-                    onFabIconChange = { viewModel.updateEditState { copy(extensionFabIcon = it) } }
+                com.webtoapp.ui.components.PluginPickerCard(
+                    enabled = editState.pluginsEnabled,
+                    selectedPluginIds = editState.pluginIds,
+                    onEnabledChange = { viewModel.updateEditState { copy(pluginsEnabled = it) } },
+                    onPluginIdsChange = { viewModel.updateEditState { copy(pluginIds = it) } }
                 )
             }
 
@@ -622,11 +622,10 @@ private fun ExportAndPermissionDrawer(
                 onClick = { expanded = !expanded }
             )
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = CardExpandTransition,
-                exit = CardCollapseTransition
-            ) {
+            // Persistent container (#1095): AnimatedVisibility would dispose the whole
+            // export-config subtree on collapse and pay full recomposition on every
+            // cold open; keeping it composed makes each open a pure layout animation.
+            WtaPersistentExpandedContent(expanded = expanded) {
                 Column(
                     modifier = Modifier.padding(
                         horizontal = WtaSpacing.RowHorizontal,
@@ -643,12 +642,19 @@ private fun ExportAndPermissionDrawer(
                         canOverrideTargetSdk = !appType.requiresProcessExec
                     )
 
-                    PermissionConfigPanel(
-                        permissions = exportConfig.runtimePermissions,
-                        onPermissionsTransform = onRuntimePermissionsTransform,
-                        showDescription = false,
-                        featureReasons = featureReasons
-                    )
+                    WtaSection(
+                        title = Strings.capabilityPermissions,
+                        headerStyle = WtaSectionHeaderStyle.Quiet,
+                        collapsible = true,
+                        initiallyExpanded = false
+                    ) {
+                        PermissionConfigPanel(
+                            permissions = exportConfig.runtimePermissions,
+                            onPermissionsTransform = onRuntimePermissionsTransform,
+                            showDescription = false,
+                            featureReasons = featureReasons
+                        )
+                    }
                 }
             }
         }
@@ -1276,53 +1282,28 @@ fun TranslateCard(
 
     val engineOptions = TranslateEngine.entries.toList()
 
-    EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(
-                                if (enabled) MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
-                                else MaterialTheme.colorScheme.surfaceVariant
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Outlined.Translate,
-                            null,
-                            tint = if (enabled) MaterialTheme.colorScheme.primary
-                                   else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = Strings.autoTranslate,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                }
-                WtaSwitch(
-                    checked = enabled,
-                    onCheckedChange = onEnabledChange
-                )
-            }
+    WtaSettingCard(modifier = Modifier.fillMaxWidth()) {
+        WtaToggleRow(
+            icon = Icons.Outlined.Translate,
+            title = Strings.autoTranslate,
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
 
-            AnimatedVisibility(
-                visible = enabled,
-                enter = CardExpandTransition,
-                exit = CardCollapseTransition
-            ) {
-              Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Spacer(Modifier.height(12.dp))
+        AnimatedVisibility(
+            visible = enabled,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
+        ) {
+            Column {
+                WtaSectionDivider()
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                 Text(
                     text = Strings.autoTranslateHint,
                     style = MaterialTheme.typography.bodySmall,
@@ -1421,44 +1402,25 @@ fun TranslateCard(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
-                        Text(Strings.showTranslateButton, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = Strings.showTranslateButtonHint,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    WtaSwitch(
-                        checked = config.showFloatingButton,
-                        onCheckedChange = { onConfigChange(config.copy(showFloatingButton = it)) }
-                    )
                 }
+                WtaSectionDivider()
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
-                        Text(Strings.autoTranslateOnLoad, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            text = Strings.autoTranslateOnLoadHint,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    WtaSwitch(
-                        checked = config.autoTranslateOnLoad,
-                        onCheckedChange = { onConfigChange(config.copy(autoTranslateOnLoad = it)) }
-                    )
-                }
-              }
+                WtaToggleRow(
+                    icon = Icons.Outlined.SmartButton,
+                    title = Strings.showTranslateButton,
+                    subtitle = Strings.showTranslateButtonHint.ifDescriptionsShown(),
+                    checked = config.showFloatingButton,
+                    onCheckedChange = { onConfigChange(config.copy(showFloatingButton = it)) }
+                )
+                WtaSectionDivider()
+
+                WtaToggleRow(
+                    icon = Icons.Outlined.Sync,
+                    title = Strings.autoTranslateOnLoad,
+                    subtitle = Strings.autoTranslateOnLoadHint.ifDescriptionsShown(),
+                    checked = config.autoTranslateOnLoad,
+                    onCheckedChange = { onConfigChange(config.copy(autoTranslateOnLoad = it)) }
+                )
             }
         }
     }

@@ -19,6 +19,7 @@ import androidx.core.app.NotificationCompat
 import com.webtoapp.R
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.util.SafeNotificationChannels
+import com.webtoapp.util.WakeLockCompat
 
 class BackgroundRunService : Service() {
 
@@ -31,13 +32,14 @@ class BackgroundRunService : Service() {
         private const val ACTION_STOP = "com.webtoapp.action.STOP_BACKGROUND_RUN"
         private const val ACTION_RESTART = "com.webtoapp.action.RESTART_BACKGROUND_RUN"
         private const val PREFS_NAME = "background_run_config"
+        private const val PREFS_ONCE = "background_run_once"
+        private const val KEY_BATTERY_EXEMPTION_ASKED = "battery_exemption_asked"
         private const val RESTART_REQUEST_CODE = 41001
         private const val RESTART_DELAY_MS = 60_000L
 
         private const val EXTRA_APP_NAME = "app_name"
         private const val EXTRA_NOTIFICATION_TITLE = "notification_title"
         private const val EXTRA_NOTIFICATION_CONTENT = "notification_content"
-        private const val EXTRA_SHOW_NOTIFICATION = "show_notification"
         private const val EXTRA_KEEP_CPU_AWAKE = "keep_cpu_awake"
 
         private var isRunning = false
@@ -47,7 +49,6 @@ class BackgroundRunService : Service() {
             appName: String = "",
             notificationTitle: String? = null,
             notificationContent: String? = null,
-            showNotification: Boolean = true,
             keepCpuAwake: Boolean = true
         ) {
             if (isRunning) {
@@ -59,7 +60,6 @@ class BackgroundRunService : Service() {
                 putExtra(EXTRA_APP_NAME, appName)
                 putExtra(EXTRA_NOTIFICATION_TITLE, notificationTitle)
                 putExtra(EXTRA_NOTIFICATION_CONTENT, notificationContent)
-                putExtra(EXTRA_SHOW_NOTIFICATION, showNotification)
                 putExtra(EXTRA_KEEP_CPU_AWAKE, keepCpuAwake)
             }
 
@@ -110,19 +110,36 @@ class BackgroundRunService : Service() {
             }
         }
 
+        /**
+         * 生成 APK 首次启动后台服务时请求一次电池优化豁免。
+         * 已白名单/已询问过则跳过——避免每次冷启动都弹系统框骚扰用户。
+         */
+        fun maybeRequestBatteryExemption(context: Context) {
+            try {
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+                val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+                    ?: return
+                if (powerManager.isIgnoringBatteryOptimizations(context.packageName)) return
+                val oncePrefs = context.getSharedPreferences(PREFS_ONCE, Context.MODE_PRIVATE)
+                if (oncePrefs.getBoolean(KEY_BATTERY_EXEMPTION_ASKED, false)) return
+                oncePrefs.edit().putBoolean(KEY_BATTERY_EXEMPTION_ASKED, true).apply()
+                requestIgnoreBatteryOptimizations(context)
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "电池豁免请求失败", e)
+            }
+        }
+
         private fun persistConfig(
             context: Context,
             appName: String,
             notificationTitle: String?,
             notificationContent: String?,
-            showNotification: Boolean,
             keepCpuAwake: Boolean
         ) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
                 .putString(EXTRA_APP_NAME, appName)
                 .putString(EXTRA_NOTIFICATION_TITLE, notificationTitle)
                 .putString(EXTRA_NOTIFICATION_CONTENT, notificationContent)
-                .putBoolean(EXTRA_SHOW_NOTIFICATION, showNotification)
                 .putBoolean(EXTRA_KEEP_CPU_AWAKE, keepCpuAwake)
                 .apply()
         }
@@ -134,7 +151,6 @@ class BackgroundRunService : Service() {
         private fun restoreIntent(context: Context): Intent? {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val appName = prefs.getString(EXTRA_APP_NAME, "") ?: ""
-            val showNotification = prefs.getBoolean(EXTRA_SHOW_NOTIFICATION, true)
             val keepCpuAwake = prefs.getBoolean(EXTRA_KEEP_CPU_AWAKE, true)
             val notificationTitle = prefs.getString(EXTRA_NOTIFICATION_TITLE, null)
             val notificationContent = prefs.getString(EXTRA_NOTIFICATION_CONTENT, null)
@@ -148,7 +164,6 @@ class BackgroundRunService : Service() {
                 putExtra(EXTRA_APP_NAME, appName)
                 putExtra(EXTRA_NOTIFICATION_TITLE, notificationTitle)
                 putExtra(EXTRA_NOTIFICATION_CONTENT, notificationContent)
-                putExtra(EXTRA_SHOW_NOTIFICATION, showNotification)
                 putExtra(EXTRA_KEEP_CPU_AWAKE, keepCpuAwake)
             }
         }
@@ -245,16 +260,12 @@ class BackgroundRunService : Service() {
             ?: prefs.getString(EXTRA_NOTIFICATION_TITLE, null)
         val notificationContent = intent?.getStringExtra(EXTRA_NOTIFICATION_CONTENT)
             ?: prefs.getString(EXTRA_NOTIFICATION_CONTENT, null)
-        val showNotification = when {
-            intent?.hasExtra(EXTRA_SHOW_NOTIFICATION) == true -> intent.getBooleanExtra(EXTRA_SHOW_NOTIFICATION, true)
-            else -> prefs.getBoolean(EXTRA_SHOW_NOTIFICATION, true)
-        }
         keepCpuAwake = when {
             intent?.hasExtra(EXTRA_KEEP_CPU_AWAKE) == true -> intent.getBooleanExtra(EXTRA_KEEP_CPU_AWAKE, true)
             else -> prefs.getBoolean(EXTRA_KEEP_CPU_AWAKE, true)
         }
 
-        persistConfig(this, appName, notificationTitle, notificationContent, showNotification, keepCpuAwake)
+        persistConfig(this, appName, notificationTitle, notificationContent, keepCpuAwake)
         cancelRestart(this)
         allowAutoRestart = true
 
@@ -369,21 +380,18 @@ class BackgroundRunService : Service() {
     }
 
     private fun acquireWakeLock() {
-        if (wakeLock == null) {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK,
-                "WebToApp:BackgroundRunWakeLock"
-            ).apply {
-                setReferenceCounted(false)
-            }
-        }
+        if (wakeLock?.isHeld == true) return
 
-        wakeLock?.let {
-            if (!it.isHeld) {
-                it.acquire(WAKELOCK_TIMEOUT_MS)
-                AppLogger.w(TAG, "WakeLock 已获取 (超时=${WAKELOCK_TIMEOUT_MS}ms)")
-            }
+        // WakeLockCompat returns null when WAKE_LOCK is missing or revoked —
+        // background run degrades to "foreground service without wake lock"
+        // instead of crashing (#1034).
+        wakeLock = WakeLockCompat.acquire(
+            this,
+            "WebToApp:BackgroundRunWakeLock",
+            WAKELOCK_TIMEOUT_MS
+        )
+        if (wakeLock?.isHeld == true) {
+            AppLogger.w(TAG, "WakeLock 已获取 (超时=${WAKELOCK_TIMEOUT_MS}ms)")
         }
     }
 
@@ -398,16 +406,10 @@ class BackgroundRunService : Service() {
     }
 
     private fun releaseWakeLock() {
-        wakeLock?.let {
-            if (it.isHeld) {
-                try {
-                    it.release()
-                    AppLogger.w(TAG, "WakeLock 已释放")
-                } catch (e: Exception) {
-                    AppLogger.e(TAG, "WakeLock 释放异常", e)
-                }
-            }
+        if (wakeLock?.isHeld == true) {
+            AppLogger.w(TAG, "WakeLock 已释放")
         }
+        WakeLockCompat.release(wakeLock)
         wakeLock = null
     }
 }

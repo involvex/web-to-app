@@ -1,5 +1,6 @@
 package com.webtoapp.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -114,8 +115,18 @@ data class WebApp(
     val translateEnabled: Boolean = false,
     val translateConfig: TranslateConfig? = null,
 
-    val extensionEnabled: Boolean = false,
-    val extensionModuleIds: List<String> = emptyList(),
+    // Plugin attachments. Column names keep the legacy `extension*` spelling so
+    // existing databases migrate without a schema change.
+    @ColumnInfo(name = "extensionEnabled")
+    val pluginsEnabled: Boolean = false,
+    @ColumnInfo(name = "extensionModuleIds")
+    val pluginIds: List<String> = emptyList(),
+    /**
+     * Retired: the old injected floating-button icon. Plugin entries are now
+     * native (toolbar/menu/floating handle). The column stays so shipped v45
+     * databases open without a schema bump — Room verifies the table shape.
+     */
+    @Deprecated("Plugin entries are native; the injected FAB no longer exists.")
     val extensionFabIcon: String? = null,
 
     val autoStartConfig: AutoStartConfig? = null,
@@ -339,10 +350,17 @@ data class WebViewConfig(
     val showNavigationBarInFullscreen: Boolean = false,
     val showToolbarInFullscreen: Boolean = false,
     val fullscreenContentPaddingDp: Int = 0,
+    // Per-side overrides (#916). Nullable on purpose: stored JSON predating these
+    // fields deserializes to null, which means "follow fullscreenContentPaddingDp"
+    // — existing apps keep their uniform padding without a migration.
+    val fullscreenContentPaddingTopDp: Int? = null,
+    val fullscreenContentPaddingBottomDp: Int? = null,
+    val fullscreenContentPaddingStartDp: Int? = null,
+    val fullscreenContentPaddingEndDp: Int? = null,
     val landscapeMode: Boolean = false,
     val orientationMode: OrientationMode = OrientationMode.PORTRAIT,
     val injectScripts: List<UserScript> = emptyList(),
-    val statusBarColorMode: StatusBarColorMode = StatusBarColorMode.THEME,
+    val statusBarColorMode: StatusBarColorMode = StatusBarColorMode.TRANSPARENT,
     val statusBarColor: String? = null,
     val statusBarDarkIcons: Boolean? = null,
     val statusBarBackgroundType: StatusBarBackgroundType = StatusBarBackgroundType.COLOR,
@@ -351,7 +369,7 @@ data class WebViewConfig(
 
     val statusBarHeightDp: Int = -1,
 
-    val statusBarColorModeDark: StatusBarColorMode = StatusBarColorMode.THEME,
+    val statusBarColorModeDark: StatusBarColorMode = StatusBarColorMode.TRANSPARENT,
     val statusBarColorDark: String? = null,
     val statusBarDarkIconsDark: Boolean? = null,
     val statusBarBackgroundTypeDark: StatusBarBackgroundType = StatusBarBackgroundType.COLOR,
@@ -395,6 +413,54 @@ data class WebViewConfig(
      */
     val customAppReturnSchemes: List<String> = emptyList(),
     val enableShareBridge: Boolean = true,
+
+    /**
+     * Inbound counterpart of [enableShareBridge] (issue #943).
+     *
+     * `enableShareBridge` lets the *page* push content **out** to the system sheet via
+     * `navigator.share`. These fields let other apps push content **in** through the sheet:
+     * the exported APK gains an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent-filter on
+     * `ShellActivity`, so the app shows up as a share target for images (and, when opted in,
+     * plain text/links).
+     *
+     * Both default to OFF: registering a share target changes the manifest (an extra
+     * exported entry point) and carries the same antivirus-reputation cost that keeps
+     * `geolocationEnabled` / `enableNotificationPolyfill` opt-in. The intent-filter is
+     * injected at export time in `AxmlRebuilder`, so `false` omits it entirely.
+     */
+    val receiveShareImages: Boolean = false,
+    val receiveShareText: Boolean = false,
+
+    /**
+     * `ACTION_VIEW` "open with" registration for text / config / code files.
+     *
+     * When on, `AxmlRebuilder` adds two intent-filters to `ShellActivity`: one matching the
+     * mime types in `ShareReceiveContract.OPEN_WITH_MIME_TYPES`, one matching the extension
+     * list via `pathPattern` (senders that label a `.conf` file `application/octet-stream`
+     * are still reachable by suffix). Received files land in the same share inbox as
+     * `ACTION_SEND` payloads and are delivered through the same channels.
+     *
+     * Off by default for the same reason as the share filters: an exported entry point is a
+     * manifest-visible capability, and anti-virus reputation treats broad file associations
+     * conservatively.
+     */
+    val openWithEnabled: Boolean = false,
+
+    /**
+     * How a received item reaches the page. `BOTH` is the default because the two
+     * channels cover disjoint cases: the DOM event is zero-tap but only reaches pages
+     * (or extension modules) that listen for it, while the file-chooser pre-fill works
+     * on any third-party site but needs the user to tap the page's own upload control.
+     */
+    val shareDeliveryMode: ShareDeliveryMode = ShareDeliveryMode.BOTH,
+
+    /**
+     * When pre-filling a file chooser, ask first instead of silently substituting the
+     * received file for the system picker. Opt-out (`false`) gives a fully automatic
+     * hand-off, at the cost of the user no longer being able to pick something else.
+     */
+    val sharePromptBeforeUse: Boolean = true,
+
     val enableZoomPolyfill: Boolean = true,
     val enableCrossOriginIsolation: Boolean = false,
     val hideUrlPreview: Boolean = false,
@@ -526,7 +592,29 @@ data class WebViewConfig(
     val ratingEnabled: Boolean = false,
     val ratingTriggerDays: Int = 7,
     val ratingTriggerLaunches: Int = 5,
-)
+) {
+    // Resolved per-side fullscreen content padding: an unset (null) side follows
+    // the uniform fullscreenContentPaddingDp base.
+    val fullscreenPadTop: Int get() = fullscreenContentPaddingTopDp ?: fullscreenContentPaddingDp
+    val fullscreenPadBottom: Int get() = fullscreenContentPaddingBottomDp ?: fullscreenContentPaddingDp
+    val fullscreenPadStart: Int get() = fullscreenContentPaddingStartDp ?: fullscreenContentPaddingDp
+    val fullscreenPadEnd: Int get() = fullscreenContentPaddingEndDp ?: fullscreenContentPaddingDp
+
+    /**
+     * Any inbound share channel enabled. A derived property, not a stored field — the export
+     * pipeline keeps the two filters separate so the intent-filter only advertises the types
+     * the app actually accepts (issue #943).
+     */
+    val enableShareReceive: Boolean get() = receiveShareImages || receiveShareText
+
+    /** Whether a chooser may be pre-filled with a received file. */
+    val prefillsFileChooser: Boolean get() = enableShareReceive &&
+        shareDeliveryMode != ShareDeliveryMode.JS_EVENT
+
+    /** Whether received content is announced to the page as a DOM event. */
+    val broadcastsShareEvent: Boolean get() = enableShareReceive &&
+        shareDeliveryMode != ShareDeliveryMode.FILE_CHOOSER_PREFILL
+}
 
 data class HostMappingEntry(
     val host: String = "",
@@ -937,6 +1025,9 @@ data class MultiWebConfig(
     val displayMode: String = "TABS",
     val refreshInterval: Int = 30,
     val showSiteIcons: Boolean = true,
+    // Inverted storage: stored JSON predating this field deserializes to false,
+    // so existing and new apps both default to "sites follow the parent config".
+    val sitesUseOwnConfig: Boolean = false,
     val projectId: String = ""
 )
 
@@ -1202,6 +1293,8 @@ data class ApkExportConfig(
     val notificationEnabled: Boolean = false,
     val notificationConfig: NotificationExportConfig = NotificationExportConfig(),
     val loggingEnabled: Boolean = false,
+    /** Optional static policy metadata; false omits metadata rather than declaring deny. */
+    val saepEnabled: Boolean = false,
     /**
      * Override the generated APK's `targetSdkVersion` (manifest `<uses-sdk>`).
      *
@@ -1213,7 +1306,34 @@ data class ApkExportConfig(
      * Enforced: server-runtime app types (`AppType.requiresProcessExec`) ignore this field
      * and always stay at 28. `null`/`<= 0` means "leave the template's 28 alone".
      */
-    val targetSdk: Int? = null
+    val targetSdk: Int? = null,
+
+    /**
+     * Sign this app with a dedicated, per-package identity instead of the host-wide signer.
+     *
+     * The identity is generated once per package name (RSA-3072 PKCS12 under
+     * `filesDir/app_signing/`, managed by `PerAppSigningIdentity`) and reused on every
+     * rebuild, so updates install cleanly while two different package names never share a
+     * certificate. When the flag is off the build behaves exactly as before.
+     */
+    val perAppSigningEnabled: Boolean = false,
+
+    /**
+     * Remembered state of the build screen's "force full rebuild" toggle. Build-invocation
+     * behavior only: consumed host-side by `ApkBuilder.buildApk` and never serialized into
+     * the generated app's shell config JSON.
+     */
+    val forceFullRebuild: Boolean = false,
+
+    /**
+     * When the target package is already installed on this device with a higher
+     * versionCode, raise the build's version so the update can install
+     * (`ApkBuilder.suggestedVersionForInstall`). When false the build ships exactly
+     * [customVersionCode] / [customVersionName] — useful for pinned versions, at the
+     * cost of a downgrade install failing on devices that already have a higher
+     * versionCode. Build-invocation only; never serialized into the shell config.
+     */
+    val autoVersionBump: Boolean = true
 )
 
 data class NetworkTrustConfig(
@@ -1361,13 +1481,17 @@ data class PerformanceOptimizationConfig(
 data class BackgroundRunExportConfig(
     val notificationTitle: String = "",
     val notificationContent: String = "",
-    val showNotification: Boolean = true,
     val keepCpuAwake: Boolean = true
 )
 
 data class ApkEncryptionConfig(
     val enabled: Boolean = false,
     val customPassword: String? = null,
+    // Nullable on purpose: stored JSON predating this field deserializes to null,
+    // which must keep the signature-bound behavior existing apps were built with.
+    // "EMBEDDED" stores a build-time random key inside the APK (obfuscated), making
+    // encryption survive Play App Signing / any re-sign (#917).
+    val keyMode: String? = null,
     val threatResponse: ThreatResponse = ThreatResponse.LOG_ONLY
 ) {
     enum class ThreatResponse {
@@ -1387,11 +1511,16 @@ data class ApkEncryptionConfig(
     }
 
     companion object {
+        const val KEY_MODE_SIGNATURE = "SIGNATURE"
+        const val KEY_MODE_EMBEDDED = "EMBEDDED"
         val DISABLED = ApkEncryptionConfig(enabled = false)
     }
 
     fun toEncryptionConfig(): com.webtoapp.core.crypto.EncryptionConfig {
-        return if (enabled) com.webtoapp.core.crypto.EncryptionConfig.MAXIMUM.copy(customPassword = customPassword)
+        return if (enabled) com.webtoapp.core.crypto.EncryptionConfig.MAXIMUM.copy(
+            customPassword = customPassword,
+            keyMode = keyMode ?: KEY_MODE_SIGNATURE
+        )
         else com.webtoapp.core.crypto.EncryptionConfig.DISABLED
     }
 }
@@ -1419,12 +1548,21 @@ data class ApkEncryptionConfig(
     POLISH("pl", "Polski")
 }
 
-enum class TranslateEngine(val displayName: String) {
-    AUTO("自动选择"),
-    GOOGLE("Google Translate"),
-    MYMEMORY("MyMemory"),
-    LIBRE("LibreTranslate"),
-    LINGVA("Lingva Translate")
+enum class TranslateEngine {
+    AUTO,
+    GOOGLE,
+    MYMEMORY,
+    LIBRE,
+    LINGVA;
+
+    val displayName: String
+        get() = when (this) {
+            AUTO -> com.webtoapp.core.i18n.Strings.translateEngineAuto
+            GOOGLE -> "Google Translate"
+            MYMEMORY -> "MyMemory"
+            LIBRE -> "LibreTranslate"
+            LINGVA -> "Lingva Translate"
+        }
 }
 
 data class TranslateConfig(
@@ -1555,6 +1693,21 @@ enum class Base64DeepLinkMode {
     GESTURE_ONLY,
 
     ALWAYS,
+}
+
+/**
+ * How content received from the Android share sheet (issue #943) is handed to the page.
+ */
+enum class ShareDeliveryMode {
+
+    /** Only queue + broadcast the `wta:share` DOM event; the page or an extension module opts in. */
+    JS_EVENT,
+
+    /** Only pre-fill the next WebView file chooser with the received file. */
+    FILE_CHOOSER_PREFILL,
+
+    /** Both: broadcast the event *and* pre-fill the next file chooser. */
+    BOTH,
 }
 
 enum class JsOpenWindowsPolicy {

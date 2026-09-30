@@ -25,6 +25,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -104,14 +106,23 @@ private fun SiteContent(
     // App-level inject scripts apply to every site; a site's own script wins on
     // a name collision so a more specific override is possible per site.
     val parentScripts = config.webViewConfig.injectScripts
+    val siteScripts = siteCfg?.webViewConfig?.injectScripts.orEmpty()
+    val mergedScripts = siteScripts +
+        parentScripts.filter { parent -> siteScripts.none { it.name == parent.name } }
+    // Sites contribute content (URL, HTML project, media, module assets), not
+    // settings: by default the parent's WebView config governs every site, so
+    // app-level fields baked into siteShellConfig can't fight the parent.
+    // `sitesUseOwnConfig` opts back into each site keeping its baked config.
+    val baseWvConfig = if (config.multiWebConfig?.sitesUseOwnConfig == true) {
+        siteCfg?.webViewConfig
+    } else {
+        config.webViewConfig
+    }
     val effectiveConfig = siteCfg?.copy(
         engineType = siteCfg.engineType.takeIf { it.isNotBlank() && it != "SYSTEM_WEBVIEW" }
             ?: config.engineType,
-        webViewConfig = siteCfg.webViewConfig.copy(
-            injectScripts = siteCfg.webViewConfig.injectScripts +
-                parentScripts.filter { parent ->
-                    siteCfg.webViewConfig.injectScripts.none { it.name == parent.name }
-                }
+        webViewConfig = (baseWvConfig ?: config.webViewConfig).copy(
+            injectScripts = mergedScripts
         )
     ) ?: ShellConfig(
         appName = site.name,
@@ -119,8 +130,10 @@ private fun SiteContent(
         targetUrl = site.url,
         packageName = config.packageName,
         engineType = config.engineType,
-        webViewConfig = com.webtoapp.core.shell.WebViewShellConfig(
-            injectScripts = parentScripts
+        // A site without baked config (custom URL site, deleted source) still
+        // inherits the parent WebView config — same rule as sitesUseOwnConfig.
+        webViewConfig = config.webViewConfig.copy(
+            injectScripts = mergedScripts
         )
     )
     val siteWvCfg = remember(site.id) { buildWebViewConfig(effectiveConfig) }
@@ -135,7 +148,12 @@ private fun SiteContent(
         swipeRefreshEnabled = swipeRefreshEnabled,
         isRefreshing = isRefreshing,
         onRefresh = onRefresh,
-        onWebViewCreated = onWebViewCreated,
+        onWebViewCreated = { wv ->
+            // Stamp the site so the activity's WebView-state bundle only lands
+            // on the surface it was saved from (#1036).
+            (wv as? com.webtoapp.core.webview.WtaWebView)?.siteId = site.id
+            onWebViewCreated(wv)
+        },
         onWebViewRefUpdated = { },
         onActivityFinish = { },
         // Without this the activity never sees per-site surfaces: on a Gecko site the
@@ -164,6 +182,24 @@ private class SiteRuntimeRegistry {
     }
 }
 
+/**
+ * Shared selected-site store for the three display modes. Keyed by the app's
+ * package/name pair — the record is only a site id, and callers always
+ * validate it against the current site list, so a stale entry from a renamed
+ * or re-edited app simply falls back to the default selection (#1036).
+ */
+@Composable
+private fun rememberResumeStore(
+    config: ShellConfig
+): Pair<com.webtoapp.core.webview.MultiWebResumeStore, String> {
+    val context = LocalContext.current
+    val store = remember { com.webtoapp.core.webview.MultiWebResumeStore(context) }
+    val key = remember(config.packageName, config.appName) {
+        "${config.packageName}/${config.appName}"
+    }
+    return store to key
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TabsMode(
@@ -179,13 +215,33 @@ private fun TabsMode(
     onRefresh: () -> Unit,
     onBrowserSurfaceCreated: (com.webtoapp.core.engine.BrowserSurface) -> Unit = {}
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val (resumeStore, resumeKey) = rememberResumeStore(config)
+    // Selected site persists by id: rememberSaveable covers config-change and
+    // process-death recreation, the store covers cold relaunch — the recorded
+    // id is validated against the current site list before use (#1036).
+    var selectedTab by rememberSaveable {
+        mutableIntStateOf(
+            resumeStore.resumeSiteId(resumeKey)
+                ?.let { savedId -> sites.indexOfFirst { it.id == savedId }.takeIf { it >= 0 } }
+                ?: 0
+        )
+    }
+    LaunchedEffect(selectedTab) {
+        resumeStore.persistSelectedSiteId(resumeKey, sites.getOrNull(selectedTab)?.id)
+    }
     val tabsListState = rememberLazyListState()
     val registry = remember { SiteRuntimeRegistry() }
 
     LaunchedEffect(selectedTab, sites.size) {
         val site = sites.getOrNull(selectedTab)
         if (site != null) {
+            // Visited tabs stay composed for session restore, but a hidden
+            // WebView has no reason to keep running layout/JS/media at full
+            // speed — per-view onPause keeps the page, sheds the work (#1033).
+            registry.webViews.forEach { (id, wv) ->
+                if (id != site.id) runCatching { wv.onPause() }
+            }
+            registry.webViews[site.id]?.let { wv -> runCatching { wv.onResume() } }
             registry.pushCurrent(site.id, onWebViewCreated, onBrowserSurfaceCreated)
             webViewCallbacks.onTitleChanged(site.name.ifBlank { extractDomain(site.url) })
             // onUrlChanged (not onPageStarted): the tab's page is already loaded;
@@ -211,9 +267,12 @@ private fun TabsMode(
                     color = MaterialTheme.colorScheme.surface,
                     // contentWindowInsets(0) leaves the bar under the gesture
                     // nav strip — lift it so the last row stays tappable.
+                    // #1075: but not while the IME is open — the window-level
+                    // IME padding already sits the bar above the keyboard, and
+                    // a second nav-bar inset would leave a dead band in between.
                     modifier = Modifier
                         .fillMaxWidth()
-                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .windowInsetsPadding(WindowInsets.navigationBars.exclude(WindowInsets.ime))
                 ) {
                     // 站点少时每个 tab 平分整条底栏（对称布局，回归 #597 报告的行为）；
                     // 平分后不足 72dp（站点多）则保持 #283 的最小宽度 + 横向滚动。
@@ -288,30 +347,58 @@ private fun TabsMode(
         // 把网页交互区从屏幕边缘内移，让角落按钮易于点按，并缓解与系统返回手势边缘带的冲突。
         // Issue #771: transparent/image 状态栏覆盖在内容上（常驻微信式），顶部不预留；
         // 实色栏保留预留，避免遮挡页面顶部控件。
-        val contentPad = webViewConfig.fullscreenContentPaddingDp.dp
+        // #916: per-side overrides; an unset side follows the uniform base.
+        val padTop = webViewConfig.fullscreenPadTop.dp
+        val padStart = webViewConfig.fullscreenPadStart.dp
+        val padEnd = webViewConfig.fullscreenPadEnd.dp
+        val padBottom = webViewConfig.fullscreenPadBottom.dp
         val multiDark = androidx.compose.foundation.isSystemInDarkTheme()
         val multiBgType = if (multiDark) webViewConfig.statusBarBackgroundTypeDark else webViewConfig.statusBarBackgroundType
         val multiMode = if (multiDark) webViewConfig.statusBarColorModeDark else webViewConfig.statusBarColorMode
         val multiOverlaysContent = multiBgType == com.webtoapp.data.model.StatusBarBackgroundType.IMAGE ||
             multiMode == com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT
         val topPad = if (webViewConfig.hideToolbar && webViewConfig.showStatusBarInFullscreen) {
-            if (multiOverlaysContent) 0.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            (if (multiOverlaysContent) 0.dp else WindowInsets.statusBars.asPaddingValues().calculateTopPadding()) + padTop
         } else {
-            contentPad
+            padTop
         }
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
                 .padding(
-                    start = contentPad,
-                    end = contentPad,
-                    bottom = contentPad,
-                    top = if (webViewConfig.hideToolbar) topPad else contentPad
+                    start = padStart,
+                    end = padEnd,
+                    bottom = padBottom,
+                    top = if (webViewConfig.hideToolbar) topPad else padTop
                 )
         ) {
             val visitedTabs = remember { mutableStateMapOf<Int, Boolean>() }
             visitedTabs[selectedTab] = true
+
+            // Under kill-list pressure (TRIM_MEMORY_COMPLETE) drop every hidden
+            // tab's composable — AndroidView.onRelease destroys each surface,
+            // and the tab simply reloads from its site URL on next select (#1033).
+            val trimContext = androidx.compose.ui.platform.LocalContext.current
+            DisposableEffect(Unit) {
+                val componentCallbacks = object : android.content.ComponentCallbacks2 {
+                    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {}
+                    override fun onLowMemory() {}
+                    override fun onTrimMemory(level: Int) {
+                        if (!com.webtoapp.core.webview.WebViewMemoryTrimmer.shouldTeardownWebView(level)) return
+                        visitedTabs.keys.filter { it != selectedTab }.forEach { index ->
+                            val site = sites.getOrNull(index)
+                            visitedTabs.remove(index)
+                            if (site != null) {
+                                registry.webViews.remove(site.id)
+                                registry.surfaces.remove(site.id)
+                            }
+                        }
+                    }
+                }
+                trimContext.registerComponentCallbacks(componentCallbacks)
+                onDispose { trimContext.unregisterComponentCallbacks(componentCallbacks) }
+            }
 
             sites.forEachIndexed { index, site ->
                 val isVisited = visitedTabs.containsKey(index)
@@ -368,11 +455,23 @@ private fun CardsMode(
     onRefresh: () -> Unit,
     onBrowserSurfaceCreated: (com.webtoapp.core.engine.BrowserSurface) -> Unit = {}
 ) {
-    var openSite by remember { mutableStateOf<MultiWebSiteShellConfig?>(null) }
+    val (resumeStore, resumeKey) = rememberResumeStore(config)
+    // Persist the open site by id; null = the user is on the card grid and a
+    // cold start must reopen the grid, not a site they already left (#1036).
+    var openSiteId by rememberSaveable {
+        mutableStateOf(
+            resumeStore.resumeSiteId(resumeKey)
+                ?.takeIf { savedId -> sites.any { it.id == savedId } }
+        )
+    }
+    LaunchedEffect(openSiteId) {
+        resumeStore.persistSelectedSiteId(resumeKey, openSiteId)
+    }
+    val openSite = sites.find { it.id == openSiteId }
     val registry = remember { SiteRuntimeRegistry() }
 
     fun closeSite() {
-        openSite = null
+        openSiteId = null
         webViewCallbacks.onTitleChanged(config.appName)
     }
 
@@ -435,7 +534,7 @@ private fun CardsMode(
             sites = sites,
             appName = config.appName,
             showIcons = multiWebConfig.showSiteIcons,
-            onSiteClicked = { openSite = it }
+            onSiteClicked = { openSiteId = it.id }
         )
     }
 }
@@ -472,7 +571,12 @@ private fun CardsHomeGrid(
     ) {
         item {
             Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                Text("🌐", fontSize = 40.sp)
+                Icon(
+                    Icons.Outlined.Language,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     appName.ifBlank { Strings.multiWebSiteList },
@@ -619,8 +723,11 @@ private fun FeedMode(
     val scope = rememberCoroutineScope()
     var feedItems by remember { mutableStateOf<List<FeedItem>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
-    var openUrl by remember { mutableStateOf<String?>(null) }
-    var openTitle by remember { mutableStateOf("") }
+    // Article overlay state is saveable so config-change/process-death
+    // recreation reopens the article instead of dropping to the feed (#1036).
+    // The feed list itself is refetched anyway, so it stays plain remember.
+    var openUrl by rememberSaveable { mutableStateOf<String?>(null) }
+    var openTitle by rememberSaveable { mutableStateOf("") }
     var articleWebView by remember { mutableStateOf<WebView?>(null) }
     var articleSurface by remember { mutableStateOf<com.webtoapp.core.engine.BrowserSurface?>(null) }
 
@@ -818,7 +925,21 @@ private fun DrawerMode(
     onRefresh: () -> Unit,
     onBrowserSurfaceCreated: (com.webtoapp.core.engine.BrowserSurface) -> Unit = {}
 ) {
-    var selectedSite by remember { mutableStateOf(sites.firstOrNull()) }
+    val (resumeStore, resumeKey) = rememberResumeStore(config)
+    // Selected site persists by id (same store contract as TabsMode) —
+    // falling back to the first enabled site when nothing valid was
+    // recorded (#1036).
+    var selectedSiteId by rememberSaveable {
+        mutableStateOf(
+            resumeStore.resumeSiteId(resumeKey)
+                ?.takeIf { savedId -> sites.any { it.id == savedId } }
+                ?: sites.firstOrNull()?.id
+        )
+    }
+    LaunchedEffect(selectedSiteId) {
+        resumeStore.persistSelectedSiteId(resumeKey, selectedSiteId)
+    }
+    val selectedSite = sites.find { it.id == selectedSiteId }
     var drawerVisible by remember { mutableStateOf(false) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
@@ -835,7 +956,12 @@ private fun DrawerMode(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            ModalDrawerSheet(modifier = Modifier.width(300.dp)) {
+            // #1075: the IME padding at window level already lifts the sheet
+            // above the keyboard — keep the nav inset from double-stacking.
+            ModalDrawerSheet(
+                modifier = Modifier.width(300.dp),
+                windowInsets = DrawerDefaults.windowInsets.exclude(WindowInsets.ime)
+            ) {
                 Column(
                     modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.primaryContainer).padding(24.dp)
                 ) {
@@ -854,13 +980,17 @@ private fun DrawerMode(
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
                     items(sites) { site ->
-                        val isSelected = selectedSite?.id == site.id
-                        DrawerSiteItem(site = site, isSelected = isSelected, onClick = { selectedSite = site; drawerVisible = false })
+                        val isSelected = selectedSiteId == site.id
+                        DrawerSiteItem(site = site, isSelected = isSelected, onClick = { selectedSiteId = site.id; drawerVisible = false })
                     }
                 }
             }
         },
-        gesturesEnabled = true
+        // Edge-swipe-to-open fights the WebView's own horizontal gestures (page
+        // carousels, image swipes, diagonal scrolls all intercepted as drawer
+        // opens). Open via the toolbar menu button only; once open the drawer
+        // still accepts swipe-to-close.
+        gesturesEnabled = drawerState.isOpen
     ) {
         val currentSite = selectedSite ?: sites.firstOrNull()
 

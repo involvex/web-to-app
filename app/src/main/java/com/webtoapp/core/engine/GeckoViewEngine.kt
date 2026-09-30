@@ -49,6 +49,16 @@ class GeckoViewEngine(
         @Volatile
         private var sharedRuntime: GeckoRuntime? = null
 
+        /**
+         * Every GeckoSession opened on [sharedRuntime] across all engine
+         * instances. Multi-web apps run several sessions on one shared runtime
+         * — recreating the runtime for a config change would kill every live
+         * session, so [ensureRuntimeForConfig] defers the recreate while any
+         * are open (#1035).
+         */
+        private val liveSessions =
+            java.util.Collections.synchronizedSet(mutableSetOf<GeckoSession>())
+
         @Volatile
         private var runtimeConfigFingerprint: String = ""
 
@@ -131,6 +141,17 @@ class GeckoViewEngine(
                     return
                 }
                 if (want != runtimeConfigFingerprint) {
+                    if (liveSessions.isNotEmpty()) {
+                        // Multi-web: a recreate would kill the sessions other
+                        // sites are using. Keep the existing runtime — the new
+                        // global config applies on next process start (#1035).
+                        AppLogger.w(
+                            TAG,
+                            "GeckoRuntime config change (want=$want, current=$runtimeConfigFingerprint) " +
+                                "skipped: ${liveSessions.size} live session(s) would be killed"
+                        )
+                        return
+                    }
                     AppLogger.i(
                         TAG,
                         "Recreating GeckoRuntime to apply config change (want=$want, current=$runtimeConfigFingerprint)"
@@ -464,6 +485,20 @@ class GeckoViewEngine(
         config: WebViewConfig,
         callback: BrowserEngineCallback
     ): View {
+        // Retire a pre-existing session first: an engine reused for a second
+        // createView must not orphan the earlier session — it would stay open
+        // and pinned in liveSessions forever, permanently deferring runtime
+        // recreation via ensureRuntimeForConfig (#1035 skip logic counts it).
+        // Doing this before ensureRuntimeForConfig also keeps a stale session
+        // owned by this engine from counting against the recreate decision.
+        session?.let { old ->
+            try { old.close() } catch (_: Exception) {}
+            liveSessions.remove(old)
+            session = null
+        }
+        geckoView?.releaseSession()
+        geckoView = null
+
         this.callback = callback
         this.lastConfig = config
 
@@ -541,6 +576,7 @@ class GeckoViewEngine(
         setupDelegates(newSession, callback, context, config)
 
         newSession.open(runtime)
+        liveSessions.add(newSession)
         session = newSession
 
         val view = GeckoView(context)
@@ -764,7 +800,7 @@ class GeckoViewEngine(
             /**
              * HTTP Basic/Digest auth and proxy auth — the Gecko counterpart of
              * onReceivedHttpAuthRequest. Mirrors the WebView path's dialog (same strings,
-             * same TextInputLayout shape); Gecko has no cached-credential store exposed
+             * same field shape); Gecko has no cached-credential store exposed
              * here, so credentials are requested on every challenge.
              */
             override fun onAuthPrompt(
@@ -786,16 +822,12 @@ class GeckoViewEngine(
                             setPadding(64, 32, 64, 0)
 
                             if (!onlyPassword) {
-                                addView(com.google.android.material.textfield.TextInputLayout(activity).apply {
+                                addView(android.widget.EditText(activity).apply {
+                                    tag = "auth_username"
                                     hint = com.webtoapp.core.i18n.Strings.httpAuthUsername
-                                    boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
-                                    setBoxCornerRadii(12f, 12f, 12f, 12f)
-                                    addView(com.google.android.material.textfield.TextInputEditText(activity).apply {
-                                        tag = "auth_username"
-                                        inputType = android.text.InputType.TYPE_CLASS_TEXT
-                                        isSingleLine = true
-                                        setText(options.username ?: "")
-                                    })
+                                    inputType = android.text.InputType.TYPE_CLASS_TEXT
+                                    isSingleLine = true
+                                    setText(options.username ?: "")
                                 })
                                 addView(android.view.View(activity).apply {
                                     layoutParams = android.widget.LinearLayout.LayoutParams(
@@ -804,18 +836,24 @@ class GeckoViewEngine(
                                 })
                             }
 
-                            addView(com.google.android.material.textfield.TextInputLayout(activity).apply {
+                            val passwordInput = android.widget.EditText(activity).apply {
+                                tag = "auth_password"
                                 hint = com.webtoapp.core.i18n.Strings.httpAuthPassword
-                                boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
-                                setBoxCornerRadii(12f, 12f, 12f, 12f)
-                                endIconMode = com.google.android.material.textfield.TextInputLayout.END_ICON_PASSWORD_TOGGLE
-                                addView(com.google.android.material.textfield.TextInputEditText(activity).apply {
-                                    tag = "auth_password"
-                                    inputType = android.text.InputType.TYPE_CLASS_TEXT or
-                                        android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                                    isSingleLine = true
-                                    setText(options.password ?: "")
-                                })
+                                inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                                    android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                                isSingleLine = true
+                                setText(options.password ?: "")
+                            }
+                            addView(passwordInput)
+
+                            addView(android.widget.CheckBox(activity).apply {
+                                text = com.webtoapp.core.i18n.Strings.httpAuthShowPassword
+                                setOnCheckedChangeListener { _, checked ->
+                                    passwordInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                                        if (checked) android.text.InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD
+                                        else android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                                    passwordInput.setSelection(passwordInput.length())
+                                }
                             })
                         }
 
@@ -1195,7 +1233,10 @@ class GeckoViewEngine(
 
         try {
 
-            try { session?.close() } catch (_: Exception) { }
+            session?.let { old ->
+                try { old.close() } catch (_: Exception) { }
+                liveSessions.remove(old)
+            }
             session = null
 
             val runtime = getRuntime(context)
@@ -1216,6 +1257,7 @@ class GeckoViewEngine(
                 config = lastConfig ?: WebViewConfig()
             )
             newSession.open(runtime)
+            liveSessions.add(newSession)
 
             lastUserAgentOverride?.let {
                 newSession.settings.userAgentOverride = it
@@ -1283,10 +1325,13 @@ class GeckoViewEngine(
     override fun getView(): View? = geckoView
 
     override fun destroy() {
-        try {
-            session?.close()
-        } catch (e: Exception) {
-            AppLogger.e(TAG, "Error closing session", e)
+        session?.let { s ->
+            try {
+                s.close()
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Error closing session", e)
+            }
+            liveSessions.remove(s)
         }
         session = null
         geckoView = null

@@ -1,5 +1,7 @@
 package com.webtoapp.core.golang
 
+import com.webtoapp.core.i18n.Strings
+
 import android.content.Context
 import android.os.Build
 import com.webtoapp.core.download.DependencyDownloadEngine
@@ -37,6 +39,14 @@ object GoToolchainManager {
     private val OFFSHORE_GO_ARCHIVE_URLS = listOf(OFFICIAL_GO_ARCHIVE_URL)
 
     private const val GO_ARCHIVE_SIZE_BYTES = 63_740_285L
+
+    /**
+     * SHA-256 of go1.26.4.linux-arm64.tar.gz (dl.google.com `.sha256` sidecar;
+     * USTC mirrors the same bytes). Verify against the sidecar when bumping
+     * [GO_VERSION] — mismatches fail the download loudly.
+     */
+    private const val GO_ARCHIVE_SHA256 =
+        "ef758ae7c6cf9267c9c0ef080b8965f453d89ab2d25d9eb22de4405925238768"
 
     private const val MAX_RETRY_PER_URL = 2
     private const val RETRY_DELAY_MS = 2_000L
@@ -212,7 +222,7 @@ object GoToolchainManager {
             if (abi != "arm64-v8a") {
 
                 AppLogger.e(TAG, "Go 工具链当前仅支持 arm64-v8a，设备 ABI: $abi")
-                markError("当前设备架构 ($abi) 暂不支持 Go 工具链，仅支持 arm64-v8a")
+                markError(Strings.goToolchainUnsupportedAbi(abi))
                 return@withLock false
             }
 
@@ -225,7 +235,7 @@ object GoToolchainManager {
                 val archiveFile = File(depsDir, "go-${GO_VERSION}.linux-arm64.tar.gz")
 
                 val urlList = selectGoArchiveUrls(resolvePreferChinaMirror(context))
-                val ok = downloadWithFallback(urlList, archiveFile, "Go $GO_VERSION ($abi)", context)
+                val ok = downloadWithFallback(urlList, archiveFile, "Go $GO_VERSION ($abi)", context, GO_ARCHIVE_SHA256)
                 syncEngineState()
                 if (!ok) {
                     AppLogger.e(TAG, "Go 归档下载失败")
@@ -259,7 +269,7 @@ object GoToolchainManager {
                         TAG,
                         "解压完成但 go binary 不可用: 路径=${goBin.absolutePath} 存在=${goBin.exists()} 大小=${goBin.length()} 可执行=${goBin.canExecute()}"
                     )
-                    markError("Go 工具链解压不完整，请重试")
+                    markError(Strings.goToolchainExtractIncomplete)
                     return@withLock false
                 }
 
@@ -287,7 +297,7 @@ object GoToolchainManager {
 
     suspend fun verifyGoToolchain(context: Context): Result<String> = withContext(Dispatchers.IO) {
         if (!isGoReady(context)) {
-            return@withContext Result.failure(IllegalStateException("Go 工具链未安装"))
+            return@withContext Result.failure(IllegalStateException(Strings.goToolchainNotInstalled))
         }
         val goBin = getGoBinary(context)
         try {
@@ -327,8 +337,10 @@ object GoToolchainManager {
         destFile: File,
         displayName: String,
         context: Context?,
+        expectedSha256: String? = null
     ): Boolean = DependencyDownloadEngine.downloadFileWithFallback(
-        listOf(url), destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS
+        listOf(url), destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS,
+        expectedSha256For = expectedSha256?.let { hash -> { _: String -> hash } }
     )
 
     internal fun selectGoArchiveUrls(preferChinaMirror: Boolean): List<String> {
@@ -361,13 +373,15 @@ object GoToolchainManager {
         destFile: File,
         displayName: String,
         context: Context?,
+        expectedSha256: String? = null
     ): Boolean {
         if (urls.isEmpty()) {
             AppLogger.e(TAG, "$displayName 没有可用的下载源")
             return false
         }
         return DependencyDownloadEngine.downloadFileWithFallback(
-            urls, destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS
+            urls, destFile, displayName, context, MAX_RETRY_PER_URL, RETRY_DELAY_MS,
+            expectedSha256For = expectedSha256?.let { hash -> { _: String -> hash } }
         )
     }
 

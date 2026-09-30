@@ -30,12 +30,16 @@ class AabSigner(private val context: Context) {
         private const val SIGNATURE_VERSION = "1.0"
     }
 
-    fun sign(inputAab: File, outputAab: File): Boolean {
+    fun sign(
+        inputAab: File,
+        outputAab: File,
+        identity: JarSigner.SigningIdentity? = null
+    ): Boolean {
         require(inputAab.exists()) { "Input AAB not found: ${inputAab.absolutePath}" }
         outputAab.parentFile?.mkdirs()
         if (outputAab.exists()) outputAab.delete()
 
-        val (privateKey, certificate) = loadKeyAndCert() ?: run {
+        val (privateKey, certificate) = loadKeyAndCert(identity) ?: run {
             AppLogger.e(TAG, "无法加载签名密钥/证书")
             return false
         }
@@ -113,9 +117,18 @@ class AabSigner(private val context: Context) {
         }
     }
 
-    private fun loadKeyAndCert(): Pair<PrivateKey, X509Certificate>? {
-        val tempPassword = "wta_aab_export_${System.currentTimeMillis()}"
-        val tempFile = File(context.cacheDir, "aab_signer_keystore.p12")
+    private fun loadKeyAndCert(
+        identity: JarSigner.SigningIdentity? = null
+    ): Pair<PrivateKey, X509Certificate>? {
+        // A supplied per-app identity needs no round-trip through a temp keystore at all.
+        if (identity != null) return identity.privateKey to identity.certificate
+
+        // Random per-export password (never a guessable timestamp) and a
+        // noBackupFilesDir location so a crash between export and the
+        // finally-delete can never leak the PKCS12 via cloud backups.
+        val tempPassword = java.math.BigInteger(130, java.security.SecureRandom()).toString(32)
+        val tempDir = context.noBackupFilesDir.also { it.mkdirs() }
+        val tempFile = File.createTempFile("aab_signer_", ".p12", tempDir)
 
         return try {
             val signer = JarSigner(context)

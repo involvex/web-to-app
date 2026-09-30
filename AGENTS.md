@@ -16,6 +16,7 @@ Instructions for coding agents working in this repository.
 | `shell/` | Runtime template. Built to `app/src/main/assets/template/webview_shell.apk` via `:shell:assembleRelease` + `:app:syncShellTemplateApk`. |
 | `clone-host/` | Host-side APK clone / identity reshape support library. Its DEX asset generation (`syncCloneHostDex`) is deliberately disabled (`enabled = false`, AV false-positive mitigation, e0d2d4d6) — `AppCloner` runs fail-soft without the asset. |
 | `modules/` | Module Market catalog (`registry.json` + per-module folders). |
+| `sample-bundles/` | Heavy sample dependency packs (`python-*-shared.zip` + sha256-pinned `manifest.json`) fetched on demand by `SampleSharedPackManager` — deliberately NOT in `app/assets` (saves ~30MB raw / ~7MB compressed from the host APK). Regenerate via `scripts/build_sample_bundles.py`. |
 | `docs/` | VitePress documentation site (guide / developer / extensions, EN + ZH), published to https://shiaho777.github.io/web-to-app/ by `.github/workflows/docs-deploy.yml`. Site URL paths map 1:1 to files under `docs/` (`/zh/...` → `docs/zh/...`). |
 | `scripts/` | Build helpers and gates (`check_config_field_drift.py`). |
 
@@ -47,11 +48,12 @@ Mental model:
 
 ## i18n
 
-- Host UI strings live in `app/src/main/java/com/webtoapp/core/i18n/Strings.kt` (split across `Strings` / `StringsA` … `StringsE`).
+- Host UI strings live under `app/src/main/java/com/webtoapp/core/i18n/` (facade `object Strings` in `Strings.kt`, delegating to `StringsA` … `StringsE`, one file per split object).
 - **All** user-visible strings must be inline `when (Strings.lang)` blocks covering all 10 languages: Chinese, English, Arabic, Portuguese, Spanish, French, German, Russian, Japanese, Korean. `when(lang)` blocks may never use `else ->` — `AppStringsResourceConsistencyTest` and `StringsKtTranslationParityTest` enforce this.
 - **Never** load user-visible text via `context.getString(R.string.*)` / `stringResource(R.string.*)`. `res/values/strings.xml` holds only `translatable="false"` resources (e.g. `app_name`) and no locale `values-*/` directories exist, so a localized resource string could never cover the 10 languages and would silently fall back to the default `values/` (Chinese). Use `Strings.xxx` (or `Strings.funName(arg)` for parameterised strings — see `linuxEnvInstalledToast(name)` for the pattern). Tests gate this: `kotlin source never references R string for user-visible text`, plus `values strings xml only holds non-localised resources` and `no locale values dirs or grouped app strings files exist` which block resurrecting resource-based strings.
 - `R.string` is reserved for `translatable="false"` non-localised resources only (e.g. `app_name`).
-- Prefer adding properties on the existing split objects; match surrounding style.
+- Prefer adding properties on the existing split objects (`StringsA` … `StringsE`, one object per file); match surrounding style.
+- **Shell gets generated string subsets, not the synced files.** `syncShellRuntimeSources` excludes `core/i18n/Strings*.kt`; `generateShellStrings` (→ `scripts/generate_shell_strings.py`) scans the synced runtime sources for `Strings.x` / `StringsX.y` references (aliases `val S = Strings` handled) and emits reduced `Strings.kt` / `StringsA-E.kt` under `shell/build/generated/shellStrings` carrying only referenced members plus the facade infrastructure — editor-only strings never reach the shell template or generated APKs (~0.75 MB compressed saved per APK). Missing references fail the shell compile loudly; nothing fails silently. Author strings in `app/` exactly as before — no extra step needed.
 
 ## Android and packaging constraints
 
@@ -72,6 +74,9 @@ Mental model:
 - Large runtime downloads use `NetworkModule.downloadClient` (extended timeouts), not the default short-lived client.
 - HTML / FRONTEND packaged shells need file-scheme access via `ShellWebViewConfig` (`allowFileAccess` / local-file detection). Do not regress pure file-based HTML loads.
 - Node.js export must embed `libnode_bridge.so`, `libnode.so` (16KB-aligned), and `libc++_shared.so` as native libs. Go export must embed `libgo_exec_loader.so`.
+- **C++ STL asymmetry (deliberate):** shell builds `c++_static` so the template drops `libc++_shared.so` entirely (all shell natives self-contained); the host keeps `c++_shared` because `injectNodeJsNativeLibs` copies `libc++_shared.so` from the host `nativeLibraryDir` into NODEJS_APP exports. Do not "unify" the two without rerouting that injection source.
+- **Shell keeps `com.google.android.material`:** removing the material widgets library from the shell template regressed generated-app launcher icons on Android 16 (rounded source icons rendered as an inner tile over a solid frame; bisected to `7c8bdc2f`, E-good/F-bad/G-good). The shared `app/src/main/res/values/themes.xml` references `Theme.Material3.*` parents and M3 color attrs, which must resolve from the real library at template build time. Do not remove the dep or reintroduce a local compat shim without device-testing generated icons on Android 16.
+- **Shell release is obfuscated** (`shell/proguard-rules.pro`): `com.webtoapp.**` members are kept from shrinking but renamed; field names are pinned (`<fields>` keepclassmembers) so un-annotated Gson model fields keep working. JNI-callback classes and manifest components keep explicit name-preserving rules. Template carries no v1 signature (re-signed at export anyway); `apksigner verify` on the raw template fails on that basis alone — verify with `--min-sdk-version 24`.
 - Gradle custom tasks (`syncCloneHostDex`, etc.) must be configuration-cache safe: capture `File`/`Provider` values at configuration time, do not reference `Project`/`android.sdkDirectory` inside task closures.
 
 ## Workflow
@@ -88,6 +93,8 @@ Default target: [shiaho777/web-to-app](https://github.com/shiaho777/web-to-app).
 **Language (required):** GitHub **Issues and PRs must be written in English** — titles, bodies, labels text you author, and delivery comments on the Issue/PR. Local chat with the user may be Chinese or any language; do not copy that language into Issue/PR text.
 
 When the user asks to deliver a change, run the Issue → branch → PR → CI → merge loop end-to-end. Do not close the Issue until the PR is merged and CI is green.
+
+**Branch naming:** use plain `type/slug` names — `fix/…`, `feat/…`, `refactor/…`, `docs/…`, `perf/…`, `chore/…`. Do not use tool/agent namespaces (`codex/…`, `devin/…`, etc.); the branch belongs to the repo, not the agent.
 
 ---
 
@@ -114,6 +121,7 @@ Most common failure: preview works; exported APK silently skips the feature beca
 | Concern | Path |
 |---------|------|
 | What enters shell | `shell/build.gradle.kts` → `syncShellRuntimeSources` include/exclude |
+| Shell string subset | `:shell:generateShellStrings` → `scripts/generate_shell_strings.py` |
 | Shell template build | `:shell:assembleRelease` + `:app:syncShellTemplateApk` |
 | Template output | `app/src/main/assets/template/webview_shell.apk` |
 | Config → shell JSON | `app/.../apkbuilder/ApkConfigJsonFactory.kt` |

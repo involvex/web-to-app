@@ -361,7 +361,7 @@ private fun PreviewWebView(
     AndroidView(
         modifier = modifier,
         factory = { ctx ->
-            WebView(ctx).apply {
+            com.webtoapp.core.webview.WtaWebView(ctx).apply {
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
@@ -369,6 +369,9 @@ private fun PreviewWebView(
                     allowFileAccess = true
                     setSupportZoom(true)
                     builtInZoomControls = false
+                    // Local file preview: allow gesture-free media playback (parity
+                    // with WebViewActivity's HTML-app preview and generated shells).
+                    mediaPlaybackRequiresUserGesture = false
                 }
                 webViewClient = WebViewClient()
                 webChromeClient = object : WebChromeClient() {

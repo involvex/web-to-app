@@ -19,6 +19,7 @@ import android.graphics.Bitmap
 import android.graphics.Bitmap.CompressFormat
 import android.graphics.Canvas
 import android.os.Build
+import android.os.Looper
 import android.os.PowerManager
 import android.os.Process
 import android.provider.Settings
@@ -63,6 +64,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
 import java.net.URI
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class NativeBridge(
@@ -93,8 +95,25 @@ class NativeBridge(
     private val callerPageUrlProvider: (() -> String?)? = null
 ) {
     /** The URL of the page currently calling into the bridge, across both engines. */
-    private fun resolveCallerPageUrl(): String =
-        webViewProvider()?.url ?: callerPageUrlProvider?.invoke().orEmpty()
+    private fun resolveCallerPageUrl(): String {
+        val webView = webViewProvider() ?: return callerPageUrlProvider?.invoke().orEmpty()
+        // @JavascriptInterface entry points run on the JavaBridge thread, where
+        // any WebView method — getUrl() included — throws a Throwable. Read the
+        // URL on the view's own thread and block briefly; a timeout just
+        // degrades to the Gecko-side provider result.
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            return webView.url ?: callerPageUrlProvider?.invoke().orEmpty()
+        }
+        val latch = CountDownLatch(1)
+        var pageUrl: String? = null
+        if (webView.post {
+                pageUrl = runCatching { webView.url }.getOrNull()
+                latch.countDown()
+            }) {
+            latch.await(2, TimeUnit.SECONDS)
+        }
+        return pageUrl ?: callerPageUrlProvider?.invoke().orEmpty()
+    }
 
     companion object {
         const val JS_INTERFACE_NAME = "NativeBridge"
@@ -109,7 +128,7 @@ class NativeBridge(
         fun getApiDocumentation(): String = """
 ## NativeBridge API 文档
 
-扩展模块可以通过 `window.NativeBridge` 调用以下原生能力：
+插件可以通过 `window.NativeBridge` 调用以下原生能力：
 
 ### 基础功能
 
@@ -644,6 +663,23 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
         }
 
         /**
+         * Whether a resolved [InetAddress] lands in private/loopback/link-local
+         * territory — the DNS-rebinding counterpart to [isPrivateNetworkUrl],
+         * which can only classify the hostname string. `InetAddress` covers
+         * loopback/any-local/link-local/site-local/multicast; [isPrivateNetworkHost]
+         * adds the IPv6 ULA range (fc00::/7) that `isSiteLocalAddress` misses.
+         */
+        internal fun isRebindingBlockedAddress(addr: java.net.InetAddress): Boolean {
+            if (addr.isAnyLocalAddress || addr.isLoopbackAddress || addr.isLinkLocalAddress ||
+                addr.isSiteLocalAddress || addr.isMulticastAddress
+            ) {
+                return true
+            }
+            // Scoped literal suffix ("fe80::1%eth0") must not reach the classifier.
+            return isPrivateNetworkHost(addr.hostAddress?.substringBefore('%'))
+        }
+
+        /**
          * Whether [pageUrl] belongs to the app's configured origin ([appOriginUrl] — the
          * target URL, or the local server base for packaged/server app types). Same host
          * or a subdomain counts; anything else is a foreign page riding the WebView.
@@ -678,6 +714,23 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
     private var screenCaptureQuality: Int = 80
     private var screenCaptureInterval: Long = 100
     private var screenCaptureCallback: String? = null
+    /**
+     * Fail-closed DNS for remote-page callers: a hostname that resolves to a
+     * private/loopback/link-local address is refused before any byte leaves the
+     * device — the URL-string gate cannot see resolutions (DNS rebinding would
+     * otherwise launder a public-looking name into a local target).
+     */
+    private val publicOnlyDns = object : okhttp3.Dns {
+        override fun lookup(hostname: String): List<java.net.InetAddress> {
+            val resolved = okhttp3.Dns.SYSTEM.lookup(hostname)
+            resolved.firstOrNull { isRebindingBlockedAddress(it) }?.let { blocked ->
+                throw java.net.UnknownHostException(
+                    "Blocked DNS rebinding: $hostname resolves to private address ${blocked.hostAddress}"
+                )
+            }
+            return resolved
+        }
+    }
 
     private fun isAppOriginCallerPage(pageUrl: String): Boolean {
         val origin = appOriginUrl.takeIf { it.isNotBlank() } ?: return false
@@ -1247,7 +1300,6 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
                 appName = getAppLabel(),
                 notificationTitle = title,
                 notificationContent = body,
-                showNotification = true,
                 keepCpuAwake = true
             )
             true
@@ -1483,6 +1535,11 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
             // follow-up request by a network interceptor so a redirect chain cannot
             // cross the private/public boundary the initial URL was classified against.
             var redirectGate: ((okhttp3.HttpUrl) -> Boolean)? = null
+            // DNS-rebinding guard for remote-page callers: the URL gate classifies
+            // the hostname string, but a public-looking name can resolve to a
+            // private address (127.0.0.1, LAN, cloud metadata). When set, the
+            // request's Dns rejects any resolution landing on a private address.
+            var requirePublicResolution = false
             if (corsBypass) {
                 if (!isHttpUrl(url)) {
                     AppLogger.w("NativeBridge", "Blocked CORS-bypass request to non-HTTP(S) URL: $url")
@@ -1528,6 +1585,7 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
                 // the same rule to every follow-up request.
                 if (!pageIsLocal) {
                     redirectGate = { target -> !isPrivateNetworkUrl(target.toString()) }
+                    requirePublicResolution = true
                 }
             } else if (!isPrivateNetworkUrl(url)) {
                 AppLogger.w("NativeBridge", "Blocked private-network bridge request to non-private URL: $url")
@@ -1579,19 +1637,24 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
             builder.header("X-WebToApp-Private-Network-Bridge", "1")
             builder.method(method, requestBody)
 
-            val client = redirectGate?.let { gate ->
-                privateNetworkHttpClient.newBuilder()
-                    .addNetworkInterceptor { chain ->
-                        val followUp = chain.request()
-                        if (!gate(followUp.url)) {
-                            throw RedirectBlockedByGateException(
-                                "Blocked redirect to ${followUp.url.host}: target class changed mid-chain"
-                            )
+            val client = if (redirectGate != null || requirePublicResolution) {
+                privateNetworkHttpClient.newBuilder().apply {
+                    if (requirePublicResolution) dns(publicOnlyDns)
+                    redirectGate?.let { gate ->
+                        addNetworkInterceptor { chain ->
+                            val followUp = chain.request()
+                            if (!gate(followUp.url)) {
+                                throw RedirectBlockedByGateException(
+                                    "Blocked redirect to ${followUp.url.host}: target class changed mid-chain"
+                                )
+                            }
+                            chain.proceed(followUp)
                         }
-                        chain.proceed(followUp)
                     }
-                    .build()
-            } ?: privateNetworkHttpClient
+                }.build()
+            } else {
+                privateNetworkHttpClient
+            }
 
             client.newCall(builder.build()).execute().use { response ->
                 val responseBody = response.body
@@ -1634,6 +1697,32 @@ NativeBridge.googleSignIn('sign-in-' + Date.now());
         } catch (e: Exception) {
             AppLogger.e("NativeBridge", "Private network HTTP bridge request failed", e)
             privateNetworkBridgeError("REQUEST_FAILED", e.message ?: e::class.java.simpleName)
+        }
+    }
+
+    /**
+     * Async variant of [httpRequest]: identical semantics, but the network call runs on
+     * the IO dispatcher and the result is delivered back into the page through
+     * `window.__wtaNativeHttpResponse(callbackId, json)`. The synchronous variant blocks
+     * the calling JS thread for the entire HTTP round-trip — pages polling APIs through
+     * the bridge froze for the duration of every request.
+     */
+    @JavascriptInterface
+    fun httpRequestAsync(requestJson: String, callbackId: String) {
+        scope.launch(Dispatchers.IO) {
+            val result = httpRequest(requestJson)
+            val quotedId = com.webtoapp.util.JsStrings.quote(callbackId)
+            val quotedResult = com.webtoapp.util.JsStrings.quote(result)
+            withContext(Dispatchers.Main) {
+                try {
+                    webViewProvider()?.evaluateJavascript(
+                        "window.__wtaNativeHttpResponse && window.__wtaNativeHttpResponse($quotedId, $quotedResult);",
+                        null
+                    )
+                } catch (e: Exception) {
+                    AppLogger.w("NativeBridge", "Failed to deliver async bridge response", e)
+                }
+            }
         }
     }
 
@@ -2571,5 +2660,10 @@ class PrivateNetworkNativeBridgeAdapter(
     @JavascriptInterface
     fun httpRequest(requestJson: String): String {
         return delegate.httpRequest(requestJson)
+    }
+
+    @JavascriptInterface
+    fun httpRequestAsync(requestJson: String, callbackId: String) {
+        delegate.httpRequestAsync(requestJson, callbackId)
     }
 }

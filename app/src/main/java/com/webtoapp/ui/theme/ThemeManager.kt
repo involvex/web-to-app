@@ -56,11 +56,15 @@ class ThemeManager(private val context: Context) {
 
     companion object {
         private val KEY_DARK_MODE = stringPreferencesKey("dark_mode")
+        private val KEY_ACCENT = stringPreferencesKey("accent_color")
         private val KEY_ENABLE_ANIMATIONS = booleanPreferencesKey("enable_animations")
         private val KEY_ENABLE_PARTICLES = booleanPreferencesKey("enable_particles")
         private val KEY_ENABLE_HAPTICS = booleanPreferencesKey("enable_haptics")
         private val KEY_ENABLE_SOUND = booleanPreferencesKey("enable_sound")
         private val KEY_ANIMATION_SPEED = stringPreferencesKey("animation_speed")
+        private val KEY_FONT_SIZE = stringPreferencesKey("font_size")
+        private val KEY_CORNER_STYLE = stringPreferencesKey("corner_style")
+        private val KEY_SHOW_DESCRIPTIONS = booleanPreferencesKey("show_descriptions")
 
         @Volatile
         private var instance: ThemeManager? = null
@@ -98,6 +102,32 @@ class ThemeManager(private val context: Context) {
         }
     }
 
+    enum class FontSize(val scale: Float) {
+        SMALL(0.9f),
+        STANDARD(1.0f),
+        LARGE(1.15f),
+        EXTRA_LARGE(1.3f);
+
+        fun getDisplayName(): String = when (this) {
+            SMALL -> Strings.fontSizeSmall
+            STANDARD -> Strings.fontSizeStandard
+            LARGE -> Strings.fontSizeLarge
+            EXTRA_LARGE -> Strings.fontSizeXLarge
+        }
+    }
+
+    enum class CornerStyle(val scale: Float) {
+        SHARP(0.6f),
+        STANDARD(1.0f),
+        ROUNDED(1.5f);
+
+        fun getDisplayName(): String = when (this) {
+            SHARP -> Strings.cornerSharp
+            STANDARD -> Strings.cornerStandard
+            ROUNDED -> Strings.cornerRounded
+        }
+    }
+
     val themeTypeFlow: StateFlow<AppThemeType> = kotlinx.coroutines.flow.MutableStateFlow(AppThemeType.KIMI_NO_NAWA)
 
     val darkModeFlow: StateFlow<DarkModeSettings> = context.themeDataStore.data.map { prefs ->
@@ -111,6 +141,19 @@ class ThemeManager(private val context: Context) {
         scope = scope,
         started = SharingStarted.Eagerly,
         initialValue = DarkModeSettings.SYSTEM
+    )
+
+    val accentFlow: StateFlow<AppAccent> = context.themeDataStore.data.map { prefs ->
+        val accentName = prefs[KEY_ACCENT] ?: AppAccent.DEFAULT.name
+        try {
+            AppAccent.valueOf(accentName)
+        } catch (e: Exception) {
+            AppAccent.DEFAULT
+        }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = AppAccent.DEFAULT
     )
 
     val enableAnimationsFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
@@ -145,6 +188,14 @@ class ThemeManager(private val context: Context) {
         initialValue = true
     )
 
+    val showDescriptionsFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
+        prefs[KEY_SHOW_DESCRIPTIONS] ?: true
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = true
+    )
+
     val animationSpeedFlow: StateFlow<AnimationSpeed> = context.themeDataStore.data.map { prefs ->
         val speedName = prefs[KEY_ANIMATION_SPEED] ?: AnimationSpeed.NORMAL.name
         try {
@@ -169,6 +220,50 @@ class ThemeManager(private val context: Context) {
         cachedDarkMode = mode
     }
 
+    suspend fun setAccent(accent: AppAccent) {
+        context.themeDataStore.edit { prefs ->
+            prefs[KEY_ACCENT] = accent.name
+        }
+    }
+
+    val fontSizeFlow: StateFlow<FontSize> = context.themeDataStore.data.map { prefs ->
+        val name = prefs[KEY_FONT_SIZE] ?: FontSize.STANDARD.name
+        try {
+            FontSize.valueOf(name)
+        } catch (e: Exception) {
+            FontSize.STANDARD
+        }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = FontSize.STANDARD
+    )
+
+    val cornerStyleFlow: StateFlow<CornerStyle> = context.themeDataStore.data.map { prefs ->
+        val name = prefs[KEY_CORNER_STYLE] ?: CornerStyle.STANDARD.name
+        try {
+            CornerStyle.valueOf(name)
+        } catch (e: Exception) {
+            CornerStyle.STANDARD
+        }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = CornerStyle.STANDARD
+    )
+
+    suspend fun setFontSize(size: FontSize) {
+        context.themeDataStore.edit { prefs ->
+            prefs[KEY_FONT_SIZE] = size.name
+        }
+    }
+
+    suspend fun setCornerStyle(style: CornerStyle) {
+        context.themeDataStore.edit { prefs ->
+            prefs[KEY_CORNER_STYLE] = style.name
+        }
+    }
+
     suspend fun setEnableAnimations(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[KEY_ENABLE_ANIMATIONS] = enabled
@@ -190,6 +285,12 @@ class ThemeManager(private val context: Context) {
     suspend fun setEnableSound(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[KEY_ENABLE_SOUND] = enabled
+        }
+    }
+
+    suspend fun setShowDescriptions(enabled: Boolean) {
+        context.themeDataStore.edit { prefs ->
+            prefs[KEY_SHOW_DESCRIPTIONS] = enabled
         }
     }
 

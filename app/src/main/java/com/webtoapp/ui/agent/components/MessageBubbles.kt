@@ -48,6 +48,7 @@ import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Extension
+import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.ExpandLess
@@ -80,6 +81,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.gson.JsonParser
@@ -136,7 +138,7 @@ internal fun formatMessageForCopy(message: AgentMessage, includeDetails: Boolean
     // Tool calls with their result previews.
     message.toolCalls.forEach { tc ->
         if (sb.isNotEmpty()) sb.append("\n\n")
-        sb.append("🔧 ").append(tc.name)
+        sb.append(tc.name)
         val args = tc.argumentsJson.trim()
         if (args.isNotEmpty()) sb.append("(").append(args).append(")")
         val result = tc.resultPreview.trim()
@@ -323,13 +325,18 @@ fun ThinkingBlock(
     initiallyExpanded: Boolean = isLive,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember(content.hashCode()) { mutableStateOf(initiallyExpanded && isLive) }
+    // Key on composition position, not content: a live segment's content grows with
+    // every delta, so a content-derived key would reset this state per token — for
+    // `appeared` that meant the fade-in could never finish (the block stayed
+    // invisible for the whole stream), and for `expanded` it meant a manual collapse
+    // was undone by the next delta.
+    var expanded by remember { mutableStateOf(initiallyExpanded && isLive) }
     LaunchedEffect(isLive) {
         if (!isLive) expanded = false
         else expanded = true
     }
     // Live thinking blocks materialize with a small fade+rise; settled ones stay static.
-    var appeared by remember(content.hashCode()) { mutableStateOf(!isLive) }
+    var appeared by remember { mutableStateOf(!isLive) }
     LaunchedEffect(Unit) { appeared = true }
     val appearAlpha by animateFloatAsState(if (appeared) 1f else 0f, tween(220), label = "appear-alpha")
     val appearDy by animateDpAsState(if (appeared) 0.dp else 8.dp, tween(220), label = "appear-dy")
@@ -1406,8 +1413,8 @@ private fun AttachmentList(paths: List<String>) {
 
 @Composable
 private fun UserAttachmentList(attachments: List<UserAttachment>) {
-    Row(horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
-        attachments.take(8).forEach { att ->
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+        items(attachments.take(8), key = { "uatt-${it.path}" }) { att ->
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.secondaryContainer
@@ -1420,7 +1427,11 @@ private fun UserAttachmentList(attachments: List<UserAttachment>) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = if (att.isImage) Icons.Outlined.Image else Icons.Outlined.AttachFile,
+                        imageVector = when {
+                            att.path.endsWith("/") -> Icons.Outlined.Folder
+                            att.isImage -> Icons.Outlined.Image
+                            else -> Icons.Outlined.AttachFile
+                        },
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.size(WtaSize.IconSmall)
@@ -1430,7 +1441,9 @@ private fun UserAttachmentList(attachments: List<UserAttachment>) {
                         text = att.displayName,
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        maxLines = 1
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 160.dp)
                     )
                 }
             }

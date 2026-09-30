@@ -9,7 +9,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,8 +34,7 @@ import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TextField
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -51,6 +49,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -73,28 +72,10 @@ fun WtaTextField(
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
     textStyle: TextStyle = LocalTextStyle.current,
-    shape: Shape = RoundedCornerShape(
-        topStart = WtaRadius.Control,
-        topEnd = WtaRadius.Control,
-        bottomStart = 4.dp,
-        bottomEnd = 4.dp
-    ),
+    shape: Shape = RoundedCornerShape(WtaRadius.Control),
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() }
 ) {
-    val colors = MaterialTheme.colorScheme
-    val isFocused by interactionSource.collectIsFocusedAsState()
-
-    val indicatorColor by animateColorAsState(
-        targetValue = when {
-            isError -> colors.error
-            isFocused -> colors.primary
-            else -> Color.Transparent
-        },
-        animationSpec = WtaMotion.standardTween(),
-        label = "wtaTextFieldIndicator"
-    )
-
-    TextField(
+    OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
@@ -117,24 +98,7 @@ fun WtaTextField(
         minLines = minLines,
         interactionSource = interactionSource,
         shape = shape,
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = colors.surfaceContainerHighest,
-            unfocusedContainerColor = colors.surfaceContainerHighest,
-            disabledContainerColor = colors.surfaceContainerHighest.copy(alpha = 0.5f),
-            errorContainerColor = colors.errorContainer,
-            focusedIndicatorColor = indicatorColor,
-            unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent,
-            errorIndicatorColor = indicatorColor,
-            cursorColor = colors.primary,
-            focusedLabelColor = colors.onSurface,
-            unfocusedLabelColor = colors.onSurfaceVariant,
-            errorLabelColor = colors.error,
-            focusedLeadingIconColor = colors.onSurface,
-            unfocusedLeadingIconColor = colors.onSurfaceVariant,
-            focusedTrailingIconColor = colors.onSurface,
-            unfocusedTrailingIconColor = colors.onSurfaceVariant
-        )
+        colors = WtaDefaults.outlinedTextFieldColors()
     )
 }
 
@@ -207,7 +171,7 @@ fun WtaChip(
         leadingContent = leadingContent,
         trailingContent = trailingContent
     ) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(label, style = MaterialTheme.typography.labelLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
