@@ -38,6 +38,8 @@ import kotlinx.coroutines.withContext
 import java.io.*
 import java.util.zip.*
 import javax.crypto.SecretKey
+import com.webtoapp.core.plugin.PluginStore
+import com.webtoapp.core.plugin.hasPanelMarkup
 import com.webtoapp.util.AppConstants
 import com.webtoapp.util.NetworkTrustStorage
 import com.webtoapp.util.TextFileClassifier
@@ -215,10 +217,12 @@ class ApkBuilder(private val context: Context) {
         }
 
         /**
-         * Android refuses to install over an existing package unless versionCode
-         * is strictly greater, so rebuilds targeting an already-installed
-         * package bump the version. An explicit higher version set by the user
-         * is left alone — we only step in when the build would not install.
+         * Android refuses to install over an existing package when versionCode
+         * is lower, so rebuilds that would land as a downgrade get their
+         * version bumped. Equal-or-higher versions set by the user are left
+         * alone — reinstalling the same versionCode is a valid update — and
+         * [ApkExportConfig.autoVersionBump] = false pins the configured
+         * version exactly, downgrade or not.
          */
         internal fun withInstallAwareVersion(context: Context, webApp: WebApp): WebApp {
             val (code, name) = suggestedVersionForInstall(context, webApp) ?: return webApp
@@ -240,11 +244,12 @@ class ApkBuilder(private val context: Context) {
          * bump identically).
          */
         fun suggestedVersionForInstall(context: Context, webApp: WebApp): Pair<Int, String>? {
+            val config = webApp.apkExportConfig
+            if (config?.autoVersionBump == false) return null
             val installed = findInstalledVersionCode(context, resolvePackageName(webApp))
                 ?: return null
-            val config = webApp.apkExportConfig
             val configured = config?.customVersionCode ?: 1
-            if (configured > installed) return null
+            if (configured >= installed) return null
 
             val bumpedCode = (installed + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
             val currentName = config?.customVersionName?.takeIf { it.isNotBlank() }
@@ -355,17 +360,27 @@ class ApkBuilder(private val context: Context) {
         // Serialize builds of the same package across all entry points (export screen,
         // home share, agent tools): the build writes deterministic temp paths keyed by
         // package name, so two overlapping builds would corrupt each other's files.
-        lockFor(resolvePackageName(webApp)).withLock {
-            val versioned = withInstallAwareVersion(context, webApp)
-            if (versioned !== webApp) {
-                AppLogger.i(
-                    "ApkBuilder",
-                    "Bumped version for ${resolvePackageName(webApp)}: " +
-                        "${webApp.apkExportConfig?.customVersionCode ?: 1} -> " +
-                        "${versioned.apkExportConfig?.customVersionCode}"
-                )
+        // The foreground service + wake lock covers the whole section — a long build must
+        // survive the app being backgrounded, and progress updates ride the same channel.
+        ApkBuildService.start(context, webApp.name)
+        try {
+            lockFor(resolvePackageName(webApp)).withLock {
+                val versioned = withInstallAwareVersion(context, webApp)
+                if (versioned !== webApp) {
+                    AppLogger.i(
+                        "ApkBuilder",
+                        "Bumped version for ${resolvePackageName(webApp)}: " +
+                            "${webApp.apkExportConfig?.customVersionCode ?: 1} -> " +
+                            "${versioned.apkExportConfig?.customVersionCode}"
+                    )
+                }
+                buildApkInternal(versioned, forceFullRebuild) { percent, text ->
+                    ApkBuildService.updateProgress(context, percent, text)
+                    onProgress(percent, text)
+                }
             }
-            buildApkInternal(versioned, forceFullRebuild, onProgress)
+        } finally {
+            ApkBuildService.stop(context)
         }
     }
 
@@ -378,6 +393,7 @@ class ApkBuilder(private val context: Context) {
         var currentPackageName: String? = null
         var currentUnsignedApkPath: String? = null
         var currentSignedApkPath: String? = null
+        val buildStartMs = System.currentTimeMillis()
 
         logger.startNewLog(webApp.name)
 
@@ -389,6 +405,29 @@ class ApkBuilder(private val context: Context) {
 
             val encryptionExportConfig = webApp.apkExportConfig?.encryptionConfig
                 ?: com.webtoapp.data.model.ApkEncryptionConfig()
+
+            // Per-app signing (opt-in). Resolved before the encryption-key derivation
+            // below: password-less encrypted builds mix the signing certificate hash into
+            // the key, so the hash must be the identity that will actually sign the APK.
+            // Failing to produce it fails the build — silently falling back to the global
+            // key would mint an APK the per-app identity can never update.
+            val perAppIdentity = if (webApp.apkExportConfig?.perAppSigningEnabled == true) {
+                try {
+                    PerAppSigningIdentity.identityFor(context, resolvePackageName(webApp))
+                } catch (e: Exception) {
+                    return@withContext failBuild(
+                        stage = BuildStage.PREPARE,
+                        cause = BuildFailureCause.SIGNING_EXCEPTION,
+                        message = "Per-app signing identity unavailable: ${e.message ?: "unknown error"}",
+                        throwable = e,
+                        details = mapOf("packageName" to resolvePackageName(webApp))
+                    )
+                }
+            } else null
+
+            val signingCertHash: () -> ByteArray = {
+                perAppIdentity?.certSha256() ?: signer.getCertificateSignatureHash()
+            }
 
             val perfOptEnabled = webApp.apkExportConfig?.performanceOptimization == true
             val perfConfig = if (perfOptEnabled) {
@@ -477,10 +516,10 @@ class ApkBuilder(private val context: Context) {
             val config = webApp.toApkConfigWithModules(packageName, context)
             logger.logKeyValue("versionCode", config.versionCode)
             logger.logKeyValue("versionName", config.versionName)
-            logger.logKeyValue("embeddedExtensionModules.size", config.embeddedExtensionModules.size)
+            logger.logKeyValue("embeddedPlugins.size", config.embeddedPlugins.size)
 
-            config.embeddedExtensionModules.forEachIndexed { index, module ->
-                logger.log("  embeddedModule[$index]: id=${module.id}, name=${module.name}, enabled=${module.enabled}, runAt=${module.runAt}, codeLength=${module.code.length}")
+            config.embeddedPlugins.forEachIndexed { index, plugin ->
+                logger.log("  embeddedPlugin[$index]: id=${plugin.id}, name=${plugin.name}, kind=${plugin.kind}, runAt=${plugin.runAt}, jsLength=${plugin.mainJs.length}")
             }
 
             onProgress(10, "Checking template...")
@@ -526,11 +565,27 @@ class ApkBuilder(private val context: Context) {
 
                 val encKeyDeferred = async {
                     if (encryptionConfig.enabled) {
-                        val signatureHash = signer.getCertificateSignatureHash()
-                        keyManager.generateKeyForPackage(
-                            packageName, signatureHash,
-                            encryptionConfig.customPassword
-                        )
+                        if (encryptionConfig.keyMode == "EMBEDDED") {
+                            // #917: random key baked into the APK — the signing
+                            // cert is never consulted, so Play App Signing /
+                            // re-signing cannot break decryption.
+                            javax.crypto.spec.SecretKeySpec(
+                                com.webtoapp.core.crypto.EmbeddedKey.generate(), "AES"
+                            )
+                        } else {
+                            // Password mode derives from the password alone — the
+                            // cert must not be mixed in or every re-signed copy
+                            // (incl. Play App Signing) would fail to decrypt.
+                            val signatureHash = if (encryptionConfig.customPassword.isNullOrBlank()) {
+                                signingCertHash()
+                            } else {
+                                ByteArray(0)
+                            }
+                            keyManager.generateKeyForPackage(
+                                packageName, signatureHash,
+                                encryptionConfig.customPassword
+                            )
+                        }
                     } else null
                 }
 
@@ -868,6 +923,11 @@ class ApkBuilder(private val context: Context) {
                 perfFingerprint = webApp.apkExportConfig?.let { ec ->
                     "opt=${ec.performanceOptimization}|cfg=${ec.performanceConfig}"
                 },
+                // Encrypted builds embed the signing cert hash in the metadata, so the
+                // unsigned bytes depend on which identity signs. Key it explicitly.
+                signingFingerprint = runCatching {
+                    signingCertHash().joinToString("") { "%02x".format(it) }
+                }.getOrNull(),
                 multiWebSiteGalleryItems = mwSiteMedia.galleryItems.values.flatten(),
                 multiWebSiteMediaPaths = mwSiteMedia.mediaPaths.values.toList()
             )
@@ -930,7 +990,9 @@ class ApkBuilder(private val context: Context) {
                             errorPageMediaPath = errorPageMediaPath,
                             announcementIconPath = announcementIconPath,
                             perfConfig = perfConfig,
-                            mode = ModifyApkMode.CONTENT_OVERLAY
+                            mode = ModifyApkMode.CONTENT_OVERLAY,
+                            saepEnabled = webApp.apkExportConfig?.saepEnabled == true,
+                            signingCertHash = signingCertHash
                         ) { progress, stageMessage ->
                             if (stageMessage.isNotBlank()) {
                                 progressMessage.set(stageMessage)
@@ -971,7 +1033,9 @@ class ApkBuilder(private val context: Context) {
                             errorPageMediaPath = errorPageMediaPath,
                             announcementIconPath = announcementIconPath,
                             perfConfig = perfConfig,
-                            mode = ModifyApkMode.FULL
+                            mode = ModifyApkMode.FULL,
+                            saepEnabled = webApp.apkExportConfig?.saepEnabled == true,
+                            signingCertHash = signingCertHash
                         ) { progress, stageMessage ->
                             if (stageMessage.isNotBlank()) {
                                 progressMessage.set(stageMessage)
@@ -1015,7 +1079,9 @@ class ApkBuilder(private val context: Context) {
                         errorPageMediaPath = errorPageMediaPath,
                         announcementIconPath = announcementIconPath,
                         perfConfig = perfConfig,
-                        mode = ModifyApkMode.FULL
+                        mode = ModifyApkMode.FULL,
+                        saepEnabled = webApp.apkExportConfig?.saepEnabled == true,
+                        signingCertHash = signingCertHash
                     ) { progress, stageMessage ->
                         if (stageMessage.isNotBlank()) {
                             progressMessage.set(stageMessage)
@@ -1124,12 +1190,23 @@ class ApkBuilder(private val context: Context) {
 
             logger.section("Sign APK")
             currentStage = BuildStage.SIGN
-            logger.logKeyValue("signerType", signer.getSignerType().name)
+            logger.logKeyValue(
+                "signerType",
+                if (perAppIdentity != null) "PER_APP" else signer.getSignerType().name
+            )
+            perAppIdentity?.let {
+                logger.logKeyValue("perAppCertSha256", it.certSha256Hex())
+                logger.logKeyValue("perAppKeystore", it.storeFile.name)
+            }
 
             // JarSigner.sign either returns true or throws; output validity is checked
             // right below, which is the real failure path.
             try {
-                signer.sign(unsignedApk, signedApk, targetSdk = config.targetSdkOverride ?: 28)
+                signer.sign(
+                    unsignedApk, signedApk,
+                    targetSdk = config.targetSdkOverride ?: 28,
+                    identity = perAppIdentity?.toSigningIdentity()
+                )
             } catch (e: Exception) {
                 return@withContext failBuild(
                     stage = BuildStage.SIGN,
@@ -1206,19 +1283,41 @@ class ApkBuilder(private val context: Context) {
             } else {
                 IncrementalBuildMode.FULL.name
             }
+            val resolvedReason = if (usedIncremental) {
+                incrementalPlan.reason
+            } else if (incrementalPlan.mode == IncrementalBuildMode.FULL) {
+                incrementalPlan.reason
+            } else {
+                "fallbackFull:" + incrementalPlan.reason
+            }
+
+            // Machine-readable release metadata next to the APK: which host version, which
+            // signing certificate, and the output's own SHA-256. Best-effort sidecar.
+            val certSha256Hex = runCatching {
+                (perAppIdentity?.certSha256() ?: signer.getCertificateSignatureHash())
+                    .joinToString(":") { "%02X".format(it) }
+            }.getOrNull()
+            val metadataFile = BuildMetadataWriter.write(
+                context = context,
+                webApp = webApp,
+                config = config,
+                apkFile = signedApk,
+                signerType = if (perAppIdentity != null) "PER_APP" else signer.getSignerType().name,
+                certSha256Hex = certSha256Hex,
+                buildMode = resolvedMode,
+                buildReason = resolvedReason,
+                durationMs = System.currentTimeMillis() - buildStartMs,
+                logPath = logger.getCurrentLogPath()
+            )
+
             BuildResult.Success(
                 apkFile = signedApk,
                 logPath = logger.getCurrentLogPath(),
                 analysisReport = analysisReport,
                 incremental = usedIncremental,
                 buildMode = resolvedMode,
-                buildReason = if (usedIncremental) {
-                    incrementalPlan.reason
-                } else if (incrementalPlan.mode == IncrementalBuildMode.FULL) {
-                    incrementalPlan.reason
-                } else {
-                    "fallbackFull:" + incrementalPlan.reason
-                }
+                buildReason = resolvedReason,
+                metadataPath = metadataFile?.absolutePath
             )
 
         } catch (e: Exception) {
@@ -1329,6 +1428,8 @@ class ApkBuilder(private val context: Context) {
         announcementIconPath: String? = null,
         perfConfig: com.webtoapp.core.linux.PerformanceOptimizer.OptimizeConfig? = null,
         mode: ModifyApkMode = ModifyApkMode.FULL,
+        saepEnabled: Boolean = false,
+        signingCertHash: () -> ByteArray = { signer.getCertificateSignatureHash() },
         onProgress: (Int, String) -> Unit
     ) {
         logger.log(
@@ -1370,6 +1471,24 @@ class ApkBuilder(private val context: Context) {
         val assetEncryptor = if (encryptionConfig.enabled && encryptionKey != null) {
             AssetEncryptor(encryptionKey)
         } else null
+
+        // Policy changes are structural cache identities: overlays preserve the same
+        // already-written policy. Encrypted exports always take the FULL path.
+        // Disabled exports resolve the marker too (best effort) so its inert
+        // placeholder file can be dropped; templates predating it have nothing
+        // to remove and must not fail.
+        val saepResource = when {
+            mode != ModifyApkMode.FULL -> null
+            saepEnabled -> SaepPolicy.resolveTemplate(context, sourceApk)
+            else -> runCatching { SaepPolicy.findTemplateResource(context, sourceApk) }
+                .onFailure { logger.log("SAEP placeholder cleanup skipped: ${it.message}") }
+                .getOrNull()
+        }
+        val saepBytes = saepResource?.activity?.let {
+            SaepPolicy.generate(
+                config.packageName, it, config.appName, System.currentTimeMillis()
+            )
+        }
 
         ZipFile(sourceApk).use { zipIn ->
             ZipOutputStream(FileOutputStream(outputApk)).use { zipOut ->
@@ -1438,9 +1557,14 @@ class ApkBuilder(private val context: Context) {
 
                         entry.name == "AndroidManifest.xml" -> {
                             val originalData = zipIn.getInputStream(entry).readBytes()
+                            // Resolve the template marker before package rewriting: its
+                            // com.webtoapp prefix is otherwise renamed with the app ID.
+                            val policyAdjustedData = axmlRebuilder.rewriteSaepPolicyMetadata(
+                                originalData, saepBytes?.let { saepResource?.id }
+                            )
 
                             val modifiedData = axmlRebuilder.expandAndModifyFull(
-                                originalData,
+                                policyAdjustedData,
                                 originalPackageName,
                                 config.packageName,
                                 config.versionCode,
@@ -1449,9 +1573,18 @@ class ApkBuilder(private val context: Context) {
                                 config.deepLinkSchemes,
                                 buildRequiredPermissions(config),
                                 buildRequiredComponents(config),
-                                targetSdk = config.targetSdkOverride
+                                targetSdk = config.targetSdkOverride,
+                                shareReceiveMimeTypes = config.shareReceiveMimeTypes,
+                                openWithEnabled = config.openWithEnabled
                             )
                             writeEntryDeflated(zipOut, entry.name, modifiedData)
+                        }
+
+                        // Enabled: replace the resolved raw resource before any generic
+                        // optimizer — the platform reads this policy without the app's
+                        // decryption key. Disabled: drop the inert placeholder entirely.
+                        saepResource != null && entry.name == saepResource.path -> {
+                            saepBytes?.let { writeEntryDeflated(zipOut, entry.name, it) }
                         }
 
                         entry.name == "resources.arsc" -> {
@@ -1581,8 +1714,15 @@ class ApkBuilder(private val context: Context) {
 
                 if (encryptionConfig.enabled) {
 
-                    val signatureHash = signer.getCertificateSignatureHash()
-                    encryptedApkBuilder.writeEncryptionMetadata(zipOut, encryptionConfig, config.packageName, signatureHash)
+                    val signatureHash = signingCertHash()
+                    encryptedApkBuilder.writeEncryptionMetadata(
+                        zipOut, encryptionConfig, config.packageName, signatureHash,
+                        // Embedded mode: the encryption key IS the random baked key,
+                        // so SecretKeySpec.encoded carries the raw bytes to store.
+                        embeddedKey = if (encryptionConfig.keyMode == "EMBEDDED") {
+                            encryptionKey?.encoded
+                        } else null
+                    )
                     logger.log("Encryption metadata written")
                 }
 
@@ -3749,7 +3889,10 @@ builtins.__import__ = _w2a_import
             permissions += "android.permission.FOREGROUND_SERVICE"
             permissions += "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
             permissions += "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
-            if (config.bgmEnabled) {
+            // WebMediaPlaybackService (enableMediaSession) and BgmService both run
+            // as mediaPlayback foreground services — without this, startForeground
+            // throws SecurityException on Android 10+.
+            if (config.bgmEnabled || config.enableMediaSession) {
                 permissions += "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
             }
         }
@@ -3968,11 +4111,13 @@ fun WebApp.toApkConfig(packageName: String, context: android.content.Context? = 
         gallery = buildGalleryBlock(),
         bgm = buildBgmBlock(),
         translate = buildTranslateBlock(),
-        extension = buildExtensionBlock(),
+        plugin = buildPluginBlock(context),
         autoStart = buildAutoStartBlock(),
         optionalServices = buildOptionalServicesBlock(),
         disguise = buildDisguiseBlock(),
         deepLink = buildDeepLinkBlock(packageName),
+        shareReceive = buildShareReceiveBlock(),
+        openWith = buildOpenWithBlock(),
         wordpress = buildWordpressBlock(),
         nodejs = buildNodejsBlock(),
         phpApp = buildPhpAppBlock(),
@@ -4169,6 +4314,11 @@ private fun com.webtoapp.data.model.WebViewConfig.toWebViewBlock(context: androi
         hideStatusBarInVideoFullscreen = hideStatusBarInVideoFullscreen,
         showNavigationBarInFullscreen = showNavigationBarInFullscreen,
         showToolbarInFullscreen = showToolbarInFullscreen,
+        fullscreenContentPaddingDp = fullscreenContentPaddingDp,
+        fullscreenContentPaddingTopDp = fullscreenContentPaddingTopDp,
+        fullscreenContentPaddingBottomDp = fullscreenContentPaddingBottomDp,
+        fullscreenContentPaddingStartDp = fullscreenContentPaddingStartDp,
+        fullscreenContentPaddingEndDp = fullscreenContentPaddingEndDp,
         landscapeMode = landscapeMode,
         orientationMode = orientationMode.name,
         injectScripts = resolvedInjectScripts,
@@ -4553,11 +4703,12 @@ private fun WebApp.buildTranslateBlock(): TranslateBlock = TranslateBlock(
     showButton = translateConfig?.showFloatingButton ?: true
 )
 
-private fun WebApp.buildExtensionBlock(): ExtensionBlock = ExtensionBlock(
-    enabled = extensionEnabled,
-    moduleIds = extensionModuleIds,
-    embeddedModules = emptyList(),
-    fabIcon = extensionFabIcon ?: ""
+private fun WebApp.buildPluginBlock(context: android.content.Context?): PluginBlock = PluginBlock(
+    enabled = pluginsEnabled,
+    pluginIds = pluginIds,
+    embeddedPlugins = emptyList(),
+    entryStyle = com.webtoapp.core.plugin.PluginEntryStyle.TOOLBAR.name,
+    panelStyle = com.webtoapp.core.plugin.PluginPanelStyle.BOTTOM_SHEET.name
 )
 
 private fun WebApp.buildAutoStartBlock(): AutoStartBlock = AutoStartBlock(
@@ -4578,7 +4729,6 @@ private fun WebApp.buildOptionalServicesBlock(): OptionalServicesBlock = Optiona
         BackgroundRunConfig(
             notificationTitle = it.notificationTitle,
             notificationContent = it.notificationContent,
-            showNotification = it.showNotification,
             keepCpuAwake = it.keepCpuAwake
         )
     },
@@ -4627,6 +4777,39 @@ private fun WebApp.buildDeepLinkBlock(packageName: String): DeepLinkBlock = Deep
         customSchemes = webViewConfig.customAppReturnSchemes
     )
 )
+
+/**
+ * Resolve the inbound share sheet registration (issue #943).
+ *
+ * The two toggles collapse into one resolved mime list: an app that receives neither images
+ * nor text gets `enabled = false`, which makes `AxmlRebuilder` skip the intent-filter
+ * injection entirely and leaves the exported manifest identical to a build made before this
+ * feature existed.
+ */
+private fun WebApp.buildShareReceiveBlock(): ShareReceiveBlock {
+    val images = webViewConfig.receiveShareImages
+    val text = webViewConfig.receiveShareText
+    val mimeTypes = buildList {
+        if (images) add(com.webtoapp.core.share.ShareReceiveContract.MIME_IMAGES)
+        if (text) add(com.webtoapp.core.share.ShareReceiveContract.MIME_TEXT)
+    }
+    return ShareReceiveBlock(
+        enabled = mimeTypes.isNotEmpty(),
+        images = images,
+        text = text,
+        deliveryMode = webViewConfig.shareDeliveryMode.name,
+        promptBeforeUse = webViewConfig.sharePromptBeforeUse,
+        mimeTypes = mimeTypes
+    )
+}
+
+/**
+ * The "open with" registration is a single flag: the concrete mime/extension lists are
+ * contract constants (`ShareReceiveContract.OPEN_WITH_*`), so the block only carries the
+ * resolved enabled state that drives both manifest injection and the runtime gate.
+ */
+private fun WebApp.buildOpenWithBlock(): OpenWithBlock =
+    OpenWithBlock(enabled = webViewConfig.openWithEnabled)
 
 private fun WebApp.buildWordpressBlock(): WordpressBlock = WordpressBlock(
     siteTitle = wordpressConfig?.siteTitle ?: "",
@@ -4744,6 +4927,7 @@ private fun WebApp.buildMultiWebBlock(context: android.content.Context?, package
         displayMode = multiWebConfig?.displayMode ?: "TABS",
         refreshInterval = multiWebConfig?.refreshInterval ?: 30,
         showSiteIcons = multiWebConfig?.showSiteIcons ?: true,
+        sitesUseOwnConfig = multiWebConfig?.sitesUseOwnConfig ?: false,
         projectId = multiWebConfig?.projectId ?: ""
     )
 }
@@ -5098,107 +5282,78 @@ fun WebApp.toApkConfigWithModules(packageName: String, context: android.content.
     val baseConfig = toApkConfig(packageName, context)
     val extensionFileManager = com.webtoapp.core.extension.ExtensionFileManager(context)
 
-    val embeddedModules = if (extensionModuleIds.isNotEmpty()) {
+    val embeddedPlugins = if (pluginIds.isNotEmpty()) {
         try {
-            val extensionManager = com.webtoapp.core.extension.ExtensionManager.getInstance(context)
+            val pluginStore = com.webtoapp.core.plugin.PluginStore.getInstance(context)
 
             kotlinx.coroutines.runBlocking {
                 kotlinx.coroutines.withTimeoutOrNull(5000L) {
-                    extensionManager.awaitLoaded()
+                    pluginStore.awaitLoaded()
                 }
             }
 
-            val resolvedModules = extensionManager.getModulesByIds(extensionModuleIds)
+            val resolvedPlugins = pluginStore.getPluginsByIds(pluginIds)
 
-            if (resolvedModules.size < extensionModuleIds.size) {
-                val foundIds = resolvedModules.map { it.id }.toSet()
-                val missingIds = extensionModuleIds.filter { it !in foundIds }
+            if (resolvedPlugins.size < pluginIds.size) {
+                val foundIds = resolvedPlugins.map { it.id }.toSet()
+                val missingIds = pluginIds.filter { it !in foundIds }
                 AppLogger.w(
                     "ApkBuilder",
-                    "Extension module resolution: requested ${extensionModuleIds.size}, found ${resolvedModules.size}. " +
+                    "Plugin resolution: requested ${pluginIds.size}, found ${resolvedPlugins.size}. " +
                         "Missing IDs (will NOT be embedded in APK): $missingIds"
                 )
             }
 
-            resolvedModules.map { module ->
+            resolvedPlugins.map { plugin ->
+                val code = pluginStore.loadPackageCode(plugin)
                 val resolvedRequireContents = linkedMapOf<String, String>()
-                module.requireUrls.forEach { url ->
+                plugin.requireUrls.forEach { url ->
                     extensionFileManager.getCachedRequire(url)?.let { resolvedRequireContents[url] = it }
                 }
 
                 val resolvedResources = linkedMapOf<String, String>()
-                module.resources.forEach { (name, url) ->
+                plugin.resources.forEach { (name, url) ->
                     resolvedResources[name] = extensionFileManager.getCachedResource(name, url) ?: url
                 }
 
-                val resolvedCode: String
-                val resolvedCss: String
-                if (module.codeFiles.isNotEmpty()) {
-                    val entryNames = setOf("main.js", "index.js", "app.js", "init.js", "bundle.js", "dist.js")
-                    val jsFiles = module.codeFiles.entries
-                        .filter { it.key.endsWith(".js", true) }
-                        .sortedWith(compareByDescending<Map.Entry<String, String>> {
-                            it.key.substringAfterLast("/") in entryNames
-                        }.thenBy { it.key })
-                    val cssFiles = module.codeFiles.entries
-                        .filter { it.key.endsWith(".css", true) }
-                    resolvedCode = jsFiles.joinToString("\n\n") { (path, content) ->
-                        "// === $path ===\n$content"
-                    }
-                    resolvedCss = if (cssFiles.isNotEmpty()) {
-                        val baseCss = module.cssCode
-                        val mergedCss = cssFiles.joinToString("\n\n") { (path, content) ->
-                            "/* === $path === */\n$content"
-                        }
-                        if (baseCss.isNotBlank()) "$baseCss\n\n$mergedCss" else mergedCss
-                    } else {
-                        module.cssCode
-                    }
-                } else {
-                    resolvedCode = module.code
-                    resolvedCss = module.cssCode
-                }
-
-                EmbeddedExtensionModule(
-                    id = module.id,
-                    name = module.name,
-                    description = module.description,
-                    icon = module.icon,
-                    category = module.category.name,
-                    versionName = module.version.name,
-                    authorName = module.author?.name.orEmpty(),
-                    code = resolvedCode,
-                    cssCode = resolvedCss,
-                    runAt = module.runAt.name,
-                    sourceType = module.sourceType.name,
-                    runMode = module.runMode.name,
-                    uiConfig = EmbeddedExtensionModuleUiConfig(
-                        type = module.uiConfig.type.name,
-                        autoHide = module.uiConfig.autoHide,
-                        autoHideDelay = module.uiConfig.autoHideDelay,
-                        initiallyHidden = module.uiConfig.initiallyHidden,
-                        showOnlyOnMatch = module.uiConfig.showOnlyOnMatch
-                    ),
-                    urlMatches = module.urlMatches.map { rule ->
-                        EmbeddedUrlMatchRule(
+                EmbeddedPlugin(
+                    id = plugin.id,
+                    name = plugin.name,
+                    kind = plugin.kind.name,
+                    description = plugin.description,
+                    icon = plugin.icon,
+                    versionName = plugin.versionName,
+                    authorName = plugin.authorName,
+                    matches = plugin.matches.map { rule ->
+                        EmbeddedMatchPattern(
                             pattern = rule.pattern,
-                            isRegex = rule.isRegex,
+                            regex = rule.isRegex,
                             exclude = rule.exclude
                         )
                     },
-                    configValues = module.configValues,
-                    configItemCount = module.configItems.size,
-                    gmGrants = module.gmGrants,
-                    requireUrls = module.requireUrls,
+                    runAt = plugin.runAt.name,
+                    permissions = plugin.permissions.map { it.name },
+                    toolbar = plugin.showInToolbar,
+                    hasPanel = hasPanelMarkup(code.panelHtml),
+                    entryStyle = plugin.entryStyle.name,
+                    panelStyle = plugin.panelStyle.name,
+                    mainJs = code.mainJs,
+                    css = code.css,
+                    panelHtml = code.panelHtml,
+                    gmGrants = plugin.gmGrants,
+                    requireUrls = plugin.requireUrls,
                     requireContents = resolvedRequireContents,
                     resources = resolvedResources,
-                    noframes = module.noframes,
-
-                    enabled = true
+                    chromeExtId = plugin.chromeExtId,
+                    manifestJson = plugin.manifestJson,
+                    backgroundScript = plugin.backgroundScript,
+                    popupPath = plugin.popupPath,
+                    optionsPagePath = plugin.optionsPagePath,
+                    legacyCompat = plugin.legacyCompat
                 )
             }
         } catch (e: Exception) {
-            AppLogger.e("ApkBuilder", "Failed to get extension module data", e)
+            AppLogger.e("ApkBuilder", "Failed to resolve plugin data", e)
             emptyList()
         }
     } else {
@@ -5206,7 +5361,7 @@ fun WebApp.toApkConfigWithModules(packageName: String, context: android.content.
     }
 
     return baseConfig.copy(
-        extension = baseConfig.extension.copy(embeddedModules = embeddedModules)
+        plugin = baseConfig.plugin.copy(embeddedPlugins = embeddedPlugins)
     )
 }
 
@@ -5249,7 +5404,9 @@ sealed class BuildResult {
         val analysisReport: ApkAnalyzer.AnalysisReport? = null,
         val incremental: Boolean = false,
         val buildMode: String = "FULL",
-        val buildReason: String = ""
+        val buildReason: String = "",
+        /** Absolute path of the `<name>.build.json` release-metadata sidecar, if written. */
+        val metadataPath: String? = null
     ) : BuildResult()
     data class Error(
         val message: String,

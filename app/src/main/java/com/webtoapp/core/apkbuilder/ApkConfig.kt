@@ -24,11 +24,13 @@ data class ApkConfig(
     val gallery: GalleryBlock = GalleryBlock(),
     val bgm: BgmBlock = BgmBlock(),
     val translate: TranslateBlock = TranslateBlock(),
-    val extension: ExtensionBlock = ExtensionBlock(),
+    val plugin: PluginBlock = PluginBlock(),
     val autoStart: AutoStartBlock = AutoStartBlock(),
     val optionalServices: OptionalServicesBlock = OptionalServicesBlock(),
     val disguise: DisguiseBlock = DisguiseBlock(),
     val deepLink: DeepLinkBlock = DeepLinkBlock(),
+    val shareReceive: ShareReceiveBlock = ShareReceiveBlock(),
+    val openWith: OpenWithBlock = OpenWithBlock(),
     val wordpress: WordpressBlock = WordpressBlock(),
     val nodejs: NodejsBlock = NodejsBlock(),
     val phpApp: PhpAppBlock = PhpAppBlock(),
@@ -119,6 +121,10 @@ data class ApkConfig(
     val showNavigationBarInFullscreen: Boolean get() = webView.showNavigationBarInFullscreen
     val showToolbarInFullscreen: Boolean get() = webView.showToolbarInFullscreen
     val fullscreenContentPaddingDp: Int get() = webView.fullscreenContentPaddingDp
+    val fullscreenContentPaddingTopDp: Int? get() = webView.fullscreenContentPaddingTopDp
+    val fullscreenContentPaddingBottomDp: Int? get() = webView.fullscreenContentPaddingBottomDp
+    val fullscreenContentPaddingStartDp: Int? get() = webView.fullscreenContentPaddingStartDp
+    val fullscreenContentPaddingEndDp: Int? get() = webView.fullscreenContentPaddingEndDp
     val landscapeMode: Boolean get() = webView.landscapeMode
     val orientationMode: String get() = webView.orientationMode
     val injectScripts: List<com.webtoapp.data.model.UserScript> get() = webView.injectScripts
@@ -313,10 +319,11 @@ data class ApkConfig(
     val translateTargetLanguage: String get() = translate.targetLanguage
     val translateShowButton: Boolean get() = translate.showButton
 
-    val extensionEnabled: Boolean get() = extension.enabled
-    val extensionModuleIds: List<String> get() = extension.moduleIds
-    val embeddedExtensionModules: List<EmbeddedExtensionModule> get() = extension.embeddedModules
-    val extensionFabIcon: String get() = extension.fabIcon
+    val pluginsEnabled: Boolean get() = plugin.enabled
+    val pluginIds: List<String> get() = plugin.pluginIds
+    val embeddedPlugins: List<EmbeddedPlugin> get() = plugin.embeddedPlugins
+    val pluginEntryStyle: String get() = plugin.entryStyle
+    val pluginPanelStyle: String get() = plugin.panelStyle
 
     val autoStartEnabled: Boolean get() = autoStart.enabled
     val bootStartEnabled: Boolean get() = autoStart.bootStartEnabled
@@ -340,6 +347,14 @@ data class ApkConfig(
     val deepLinkEnabled: Boolean get() = deepLink.enabled
     val deepLinkHosts: List<String> get() = deepLink.hosts
     val deepLinkSchemes: List<String> get() = deepLink.schemes
+
+    val shareReceiveEnabled: Boolean get() = shareReceive.enabled
+    val shareReceiveImages: Boolean get() = shareReceive.images
+    val shareReceiveText: Boolean get() = shareReceive.text
+    val shareDeliveryMode: String get() = shareReceive.deliveryMode
+    val sharePromptBeforeUse: Boolean get() = shareReceive.promptBeforeUse
+    val shareReceiveMimeTypes: List<String> get() = shareReceive.mimeTypes
+    val openWithEnabled: Boolean get() = openWith.enabled
 
     val wordpressSiteTitle: String get() = wordpress.siteTitle
     val wordpressAdminUser: String get() = wordpress.adminUser
@@ -488,6 +503,10 @@ data class WebViewBlock(
     val showNavigationBarInFullscreen: Boolean = false,
     val showToolbarInFullscreen: Boolean = false,
     val fullscreenContentPaddingDp: Int = 0,
+    val fullscreenContentPaddingTopDp: Int? = null,
+    val fullscreenContentPaddingBottomDp: Int? = null,
+    val fullscreenContentPaddingStartDp: Int? = null,
+    val fullscreenContentPaddingEndDp: Int? = null,
     val landscapeMode: Boolean = false,
     val orientationMode: String = "PORTRAIT",
     val injectScripts: List<com.webtoapp.data.model.UserScript> = emptyList(),
@@ -622,14 +641,14 @@ data class ScreenAwakeBlock(
 )
 
 data class StatusBarBlock(
-    val colorMode: String = "THEME",
+    val colorMode: String = "TRANSPARENT",
     val color: String? = null,
     val darkIcons: Boolean? = null,
     val backgroundType: String = "COLOR",
     val backgroundImage: String? = null,
     val backgroundAlpha: Float = 1.0f,
     val heightDp: Int = -1,
-    val colorModeDark: String = "THEME",
+    val colorModeDark: String = "TRANSPARENT",
     val colorDark: String? = null,
     val darkIconsDark: Boolean? = null,
     val backgroundTypeDark: String = "COLOR",
@@ -772,11 +791,12 @@ data class TranslateBlock(
     val showButton: Boolean = true
 )
 
-data class ExtensionBlock(
+data class PluginBlock(
     val enabled: Boolean = false,
-    val moduleIds: List<String> = emptyList(),
-    val embeddedModules: List<EmbeddedExtensionModule> = emptyList(),
-    val fabIcon: String = ""
+    val pluginIds: List<String> = emptyList(),
+    val embeddedPlugins: List<EmbeddedPlugin> = emptyList(),
+    val entryStyle: String = "TOOLBAR",
+    val panelStyle: String = "BOTTOM_SHEET"
 )
 
 data class AutoStartBlock(
@@ -809,6 +829,33 @@ data class DeepLinkBlock(
     val enabled: Boolean = false,
     val hosts: List<String> = emptyList(),
     val schemes: List<String> = emptyList()
+)
+
+/**
+ * Inbound share sheet registration (issue #943).
+ *
+ * [enabled] drives the `ACTION_SEND` intent-filter injection in [AxmlRebuilder]; when it is
+ * false no manifest change happens at all, so exported APKs are byte-identical to builds
+ * made before this block existed. [mimeTypes] is the resolved list the filter declares.
+ */
+data class ShareReceiveBlock(
+    val enabled: Boolean = false,
+    val images: Boolean = false,
+    val text: Boolean = false,
+    val deliveryMode: String = "BOTH",
+    val promptBeforeUse: Boolean = true,
+    val mimeTypes: List<String> = emptyList()
+)
+
+/**
+ * `ACTION_VIEW` "open with" registration (`WebViewConfig.openWithEnabled`).
+ *
+ * [enabled] drives the intent-filter injection in [AxmlRebuilder]; the actual mime/extension
+ * lists live in `ShareReceiveContract` (shell-synced, so the runtime inbox check uses the
+ * same constants the manifest declared). When disabled the manifest is left untouched.
+ */
+data class OpenWithBlock(
+    val enabled: Boolean = false
 )
 
 data class WordpressBlock(
@@ -873,13 +920,13 @@ data class MultiWebBlock(
     val displayMode: String = "TABS",
     val refreshInterval: Int = 30,
     val showSiteIcons: Boolean = true,
+    val sitesUseOwnConfig: Boolean = false,
     val projectId: String = ""
 )
 
 data class BackgroundRunConfig(
     val notificationTitle: String = "",
     val notificationContent: String = "",
-    val showNotification: Boolean = true,
     val keepCpuAwake: Boolean = true
 )
 
@@ -911,42 +958,44 @@ data class GalleryShellItemConfig(
     val thumbnailPath: String? = null
 )
 
-data class EmbeddedExtensionModule(
+/**
+ * Self-contained plugin payload embedded in the export config — the generated
+ * APK runs plugins without the host's plugin store. Field names mirror
+ * [com.webtoapp.core.plugin.Plugin] so shell-side conversion is mechanical.
+ */
+data class EmbeddedPlugin(
     val id: String,
     val name: String,
+    val kind: String = "HCJ",
     val description: String = "",
-    val icon: String = "package",
-    val category: String = "OTHER",
+    val icon: String = "",
     val versionName: String = "1.0.0",
     val authorName: String = "",
-    val code: String = "",
-    val cssCode: String = "",
+    val matches: List<EmbeddedMatchPattern> = emptyList(),
     val runAt: String = "DOCUMENT_END",
-    val sourceType: String = "CUSTOM",
-    val runMode: String = "INTERACTIVE",
-    val uiConfig: EmbeddedExtensionModuleUiConfig = EmbeddedExtensionModuleUiConfig(),
-    val urlMatches: List<EmbeddedUrlMatchRule> = emptyList(),
-    val configValues: Map<String, String> = emptyMap(),
-    val configItemCount: Int = 0,
+    val permissions: List<String> = emptyList(),
+    val toolbar: Boolean = true,
+    val hasPanel: Boolean = false,
+    val entryStyle: String = "",
+    val panelStyle: String = "",
+    val mainJs: String = "",
+    val css: String = "",
+    val panelHtml: String = "",
     val gmGrants: List<String> = emptyList(),
     val requireUrls: List<String> = emptyList(),
     val requireContents: Map<String, String> = emptyMap(),
     val resources: Map<String, String> = emptyMap(),
-    val noframes: Boolean = false,
-    val enabled: Boolean = true
+    val chromeExtId: String = "",
+    val manifestJson: String = "",
+    val backgroundScript: String = "",
+    val popupPath: String = "",
+    val optionsPagePath: String = "",
+    val legacyCompat: Boolean = false
 )
 
-data class EmbeddedExtensionModuleUiConfig(
-    val type: String = "FLOATING_BUTTON",
-    val autoHide: Boolean = false,
-    val autoHideDelay: Int = 3000,
-    val initiallyHidden: Boolean = false,
-    val showOnlyOnMatch: Boolean = true
-)
-
-data class EmbeddedUrlMatchRule(
+data class EmbeddedMatchPattern(
     val pattern: String,
-    val isRegex: Boolean = false,
+    val regex: Boolean = false,
     val exclude: Boolean = false
 )
 

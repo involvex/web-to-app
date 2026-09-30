@@ -77,7 +77,7 @@ class ShellModeManager(private val context: Context) {
             if (isDebuggable) {
                 AppLogger.d(TAG, "WebView UA配置: userAgentMode=${config?.webViewConfig?.userAgentMode}")
                 AppLogger.d(TAG, "注入脚本: ${config?.webViewConfig?.injectScripts?.size ?: 0} 个")
-                AppLogger.d(TAG, "扩展模块: extensionModuleIds=${config?.extensionModuleIds?.size ?: 0}, embeddedExtensionModules=${config?.embeddedExtensionModules?.size ?: 0}")
+                AppLogger.d(TAG, "插件: pluginIds=${config?.pluginIds?.size ?: 0}, embeddedPlugins=${config?.embeddedPlugins?.size ?: 0}")
             }
             val isValid = when {
                 normalizedAppType == "HTML" || normalizedAppType == "FRONTEND" -> {
@@ -361,17 +361,20 @@ data class ShellConfig(
     @SerializedName("translateShowButton")
     val translateShowButton: Boolean = true,
 
-    @SerializedName("extensionEnabled")
-    val extensionEnabled: Boolean = false,
+    @SerializedName("pluginsEnabled")
+    val pluginsEnabled: Boolean = false,
 
-    @SerializedName("extensionFabIcon")
-    val extensionFabIcon: String = "",
+    @SerializedName("pluginIds")
+    val pluginIds: List<String> = emptyList(),
 
-    @SerializedName("extensionModuleIds")
-    val extensionModuleIds: List<String> = emptyList(),
+    @SerializedName("embeddedPlugins")
+    val embeddedPlugins: List<EmbeddedShellPlugin> = emptyList(),
 
-    @SerializedName("embeddedExtensionModules")
-    val embeddedExtensionModules: List<EmbeddedShellModule> = emptyList(),
+    @SerializedName("pluginEntryStyle")
+    val pluginEntryStyle: String = "TOOLBAR",
+
+    @SerializedName("pluginPanelStyle")
+    val pluginPanelStyle: String = "BOTTOM_SHEET",
 
     @SerializedName("autoStartConfig")
     val autoStartConfig: AutoStartShellConfig? = null,
@@ -459,21 +462,21 @@ data class ShellConfig(
     val previewMediaPath: String? = null
 )
 
-data class EmbeddedShellModule(
+data class EmbeddedShellPlugin(
     @SerializedName("id")
     val id: String = "",
 
     @SerializedName("name")
     val name: String = "",
 
+    @SerializedName("kind")
+    val kind: String = "HCJ",
+
     @SerializedName("description")
     val description: String = "",
 
     @SerializedName("icon")
-    val icon: String = "package",
-
-    @SerializedName("category")
-    val category: String = "OTHER",
+    val icon: String = "",
 
     @SerializedName("versionName")
     val versionName: String = "1.0.0",
@@ -481,32 +484,35 @@ data class EmbeddedShellModule(
     @SerializedName("authorName")
     val authorName: String = "",
 
-    @SerializedName("code")
-    val code: String = "",
-
-    @SerializedName("cssCode")
-    val cssCode: String = "",
+    @SerializedName("matches")
+    val matches: List<EmbeddedMatchPattern> = emptyList(),
 
     @SerializedName("runAt")
     val runAt: String = "DOCUMENT_END",
 
-    @SerializedName("sourceType")
-    val sourceType: String = "CUSTOM",
+    @SerializedName("permissions")
+    val permissions: List<String> = emptyList(),
 
-    @SerializedName("runMode")
-    val runMode: String = "INTERACTIVE",
+    @SerializedName("toolbar")
+    val toolbar: Boolean = true,
 
-    @SerializedName("uiConfig")
-    val uiConfig: EmbeddedShellModuleUiConfig = EmbeddedShellModuleUiConfig(),
+    @SerializedName("hasPanel")
+    val hasPanel: Boolean = false,
 
-    @SerializedName("urlMatches")
-    val urlMatches: List<EmbeddedUrlMatch> = emptyList(),
+    @SerializedName("entryStyle")
+    val entryStyle: String = "",
 
-    @SerializedName("configValues")
-    val configValues: Map<String, String> = emptyMap(),
+    @SerializedName("panelStyle")
+    val panelStyle: String = "",
 
-    @SerializedName("configItemCount")
-    val configItemCount: Int = 0,
+    @SerializedName("mainJs")
+    val mainJs: String = "",
+
+    @SerializedName("css")
+    val css: String = "",
+
+    @SerializedName("panelHtml")
+    val panelHtml: String = "",
 
     @SerializedName("gmGrants")
     val gmGrants: List<String> = emptyList(),
@@ -520,207 +526,123 @@ data class EmbeddedShellModule(
     @SerializedName("resources")
     val resources: Map<String, String> = emptyMap(),
 
-    @SerializedName("noframes")
-    val noframes: Boolean = false,
+    @SerializedName("chromeExtId")
+    val chromeExtId: String = "",
 
-    @SerializedName("enabled")
-    val enabled: Boolean = true
+    @SerializedName("manifestJson")
+    val manifestJson: String = "",
+
+    @SerializedName("backgroundScript")
+    val backgroundScript: String = "",
+
+    @SerializedName("popupPath")
+    val popupPath: String = "",
+
+    @SerializedName("optionsPagePath")
+    val optionsPagePath: String = "",
+
+    @SerializedName("legacyCompat")
+    val legacyCompat: Boolean = false
 ) {
     companion object {
-        private val GSON = com.webtoapp.util.GsonProvider.gson
-
-        private val regexCache = android.util.LruCache<String, Regex>(32)
-    }
-
-    fun matchesUrl(url: String): Boolean {
-        if (urlMatches.isEmpty()) return true
-
-        val includeRules = urlMatches.filter { !it.exclude }
-        val excludeRules = urlMatches.filter { it.exclude }
-
-        for (rule in excludeRules) {
-            if (matchRule(url, rule)) return false
-        }
-
-        if (includeRules.isEmpty()) return true
-
-        return includeRules.any { matchRule(url, it) }
-    }
-
-    private fun matchRule(url: String, rule: EmbeddedUrlMatch): Boolean {
-        return try {
-            val cacheKey = if (rule.isRegex) rule.pattern else "glob:${rule.pattern}"
-            val regex = regexCache.get(cacheKey) ?: run {
-                val r = if (rule.isRegex) {
-                    Regex(rule.pattern)
-                } else {
-
-                    val regexPattern = rule.pattern
-                        .replace(".", "\\.")
-                        .replace("*", ".*")
-                        .replace("?", ".")
-                    Regex(regexPattern, RegexOption.IGNORE_CASE)
-                }
-                regexCache.put(cacheKey, r)
-                r
-            }
-            regex.containsMatchIn(url)
-        } catch (e: Exception) {
-            url.contains(rule.pattern, ignoreCase = true)
-        }
-    }
-
-    @Transient
-    @Volatile
-    private var _cachedCode: String? = null
-
-    fun isUserscript(): Boolean = sourceType == "USERSCRIPT" || sourceType == "GREASYFORK"
-
-    fun shouldRegisterInPanel(): Boolean {
-        return !(isUserscript() && configItemCount == 0)
-    }
-
-    fun generateExecutableCode(): String {
-        _cachedCode?.let { return it }
-        val configJson = GSON.toJson(configValues)
-        val urlMatchesJson = GSON.toJson(urlMatches)
-        val uiConfigJson = GSON.toJson(
-            mapOf(
-                "type" to uiConfig.type,
-                "autoHide" to uiConfig.autoHide,
-                "autoHideDelay" to uiConfig.autoHideDelay,
-                "initiallyHidden" to uiConfig.initiallyHidden,
-                "showOnlyOnMatch" to uiConfig.showOnlyOnMatch
+        /** Host preview direction: a resolved package payload → embedded record. */
+        fun fromResolved(resolved: com.webtoapp.core.plugin.PluginSession.Resolved): EmbeddedShellPlugin {
+            val p = resolved.plugin
+            return EmbeddedShellPlugin(
+                id = p.id,
+                name = p.name,
+                kind = p.kind.name,
+                description = p.description,
+                icon = p.icon,
+                versionName = p.versionName,
+                authorName = p.authorName,
+                matches = p.matches.map {
+                    EmbeddedMatchPattern(
+                        pattern = it.pattern,
+                        regex = it.isRegex,
+                        exclude = it.exclude
+                    )
+                },
+                runAt = p.runAt.name,
+                permissions = p.permissions.map { it.name },
+                toolbar = p.showInToolbar,
+                entryStyle = p.entryStyle.name,
+                panelStyle = p.panelStyle.name,
+                hasPanel = com.webtoapp.core.plugin.hasPanelMarkup(resolved.panelHtml) ||
+                    p.hasPanel,
+                mainJs = resolved.mainJs,
+                css = resolved.css,
+                panelHtml = resolved.panelHtml,
+                gmGrants = p.gmGrants,
+                requireUrls = p.requireUrls,
+                requireContents = resolved.requireContents,
+                resources = p.resources,
+                chromeExtId = p.chromeExtId,
+                manifestJson = p.manifestJson,
+                backgroundScript = p.backgroundScript,
+                popupPath = p.popupPath,
+                optionsPagePath = p.optionsPagePath,
+                legacyCompat = p.legacyCompat
             )
-        )
-        return """
-            (function() {
-                'use strict';
-                const __MODULE_CONFIG__ = $configJson;
-                const __MODULE_UI_CONFIG__ = $uiConfigJson;
-                const __MODULE_RUN_MODE__ = '${runMode.escapeForJsSingleQuote()}';
-                // URL匹配规则（与 matchesUrl 语义一致）：面板据此显示 Active/Inactive
-                const __MODULE_URL_MATCHES__ = $urlMatchesJson;
-                function __moduleMatchesUrl__() {
-                    try {
-                        var href = location.href;
-                        if (!__MODULE_URL_MATCHES__ || __MODULE_URL_MATCHES__.length === 0) return true;
-                        function __escapeReChar__(c) {
-                            return '.+?^${'$'}()|[]/'.indexOf(c) !== -1 ? '\\' + c : c;
-                        }
-                        function __ruleToRegExp__(rule) {
-                            var p = rule.pattern;
-                            if (rule.isRegex) return new RegExp(p, 'i');
-                            if (p === '*' || p === '<all_urls>') return null;
-                            var re = '^';
-                            var i = 0;
-                            while (i < p.length) {
-                                var c = p[i];
-                                if (c === '*' && p.startsWith('*://', i)) { re += '(https?|ftp|file)://'; i += 4; }
-                                else if (c === '*') { re += '.*'; i++; }
-                                else { re += __escapeReChar__(c); i++; }
-                            }
-                            re += '${'$'}';
-                            return new RegExp(re, 'i');
-                        }
-                        var excludes = __MODULE_URL_MATCHES__.filter(function(r) { return r.exclude; });
-                        for (var j = 0; j < excludes.length; j++) {
-                            var er = __ruleToRegExp__(excludes[j]);
-                            if (er && er.test(href)) return false;
-                        }
-                        var includes = __MODULE_URL_MATCHES__.filter(function(r) { return !r.exclude; });
-                        if (includes.length === 0) return true;
-                        for (var k = 0; k < includes.length; k++) {
-                            var ir = __ruleToRegExp__(includes[k]);
-                            if (!ir || ir.test(href)) return true;
-                        }
-                        return false;
-                    } catch (e) { return true; }
-                }
-                const __MODULE_INFO__ = {
-                    id: '${id.escapeForJsSingleQuote()}',
-                    name: '${name.escapeForJsSingleQuote()}',
-                    icon: '${icon.escapeForJsSingleQuote()}',
-                    version: '${versionName.escapeForJsSingleQuote()}',
-                    uiConfig: __MODULE_UI_CONFIG__,
-                    runMode: __MODULE_RUN_MODE__
-                };
-
-                function getConfig(key, defaultValue) {
-                    return __MODULE_CONFIG__[key] !== undefined ? __MODULE_CONFIG__[key] : defaultValue;
-                }
-
-                ${if (cssCode.isNotBlank()) """
-                (function() {
-                    const style = document.createElement('style');
-                    style.id = 'ext-module-${id}';
-                    style.textContent = `${cssCode.escapeForJsTemplate()}`;
-                    (document.head || document.documentElement).appendChild(style);
-                })();
-                """ else ""}
-
-                try {
-                    $code
-                } catch(e) {
-                    console.error('[ExtModule: ${name.escapeForJsSingleQuote()}] Error:', e);
-                }
-
-                ${if (shouldRegisterInPanel()) """
-                (function __autoRegister__() {
-                    if (typeof __WTA_MODULE_UI__ === 'undefined') {
-                        setTimeout(__autoRegister__, 100);
-                        return;
-                    }
-                    var panel = window.__WTA_PANEL__;
-                    if (!panel || !panel._initialized) {
-                        setTimeout(__autoRegister__, 100);
-                        return;
-                    }
-                    if (panel.modules) {
-                        var existing = panel.modules.find(function(m) { return m.id === __MODULE_INFO__.id; });
-                        if (existing && existing.uiConfig && existing.uiConfig.type) {
-                            return;
-                        }
-                    }
-                    __WTA_MODULE_UI__.register({
-                        id: __MODULE_INFO__.id,
-                        name: __MODULE_INFO__.name,
-                        icon: __MODULE_INFO__.icon,
-                        uiConfig: __MODULE_UI_CONFIG__,
-                        runMode: __MODULE_RUN_MODE__,
-                        active: __moduleMatchesUrl__(),
-                        urlMatches: __MODULE_URL_MATCHES__
-                    });
-                })();
-                """ else ""}
-            })();
-        """.trimIndent().also { _cachedCode = it }
+        }
     }
+
+    /** Package payload → injectable session record (embedded == attached). */
+    fun toResolved(): com.webtoapp.core.plugin.PluginSession.Resolved =
+        com.webtoapp.core.plugin.PluginSession.Resolved(
+            plugin = toPlugin(),
+            mainJs = mainJs,
+            css = css,
+            panelHtml = panelHtml,
+            requireContents = requireContents,
+            attached = true
+        )
+
+    fun toPlugin(): com.webtoapp.core.plugin.Plugin = com.webtoapp.core.plugin.Plugin(
+        id = id,
+        name = name,
+        kind = runCatching {
+            com.webtoapp.core.plugin.PluginKind.valueOf(kind)
+        }.getOrDefault(com.webtoapp.core.plugin.PluginKind.HCJ),
+        description = description,
+        icon = icon,
+        versionName = versionName,
+        authorName = authorName,
+        matches = matches.map {
+            com.webtoapp.core.plugin.PluginMatchRule(
+                pattern = it.pattern,
+                exclude = it.exclude,
+                isRegex = it.regex
+            )
+        },
+        runAt = runCatching {
+            com.webtoapp.core.plugin.PluginRunAt.valueOf(runAt)
+        }.getOrDefault(com.webtoapp.core.plugin.PluginRunAt.DOCUMENT_END),
+        permissions = permissions.mapNotNull { name ->
+            com.webtoapp.core.plugin.PluginPermission.parse(name)
+        },
+        showInToolbar = toolbar,
+        entryStyle = com.webtoapp.core.plugin.PluginEntryStyle.parse(entryStyle),
+        panelStyle = com.webtoapp.core.plugin.PluginPanelStyle.parse(panelStyle),
+        hasPanel = hasPanel || com.webtoapp.core.plugin.hasPanelMarkup(panelHtml),
+        gmGrants = gmGrants,
+        requireUrls = requireUrls,
+        resources = resources,
+        chromeExtId = chromeExtId,
+        manifestJson = manifestJson,
+        backgroundScript = backgroundScript,
+        popupPath = popupPath,
+        optionsPagePath = optionsPagePath,
+        legacyCompat = legacyCompat
+    )
 }
 
-data class EmbeddedShellModuleUiConfig(
-    @SerializedName("type")
-    val type: String = "FLOATING_BUTTON",
-
-    @SerializedName("autoHide")
-    val autoHide: Boolean = false,
-
-    @SerializedName("autoHideDelay")
-    val autoHideDelay: Int = 3000,
-
-    @SerializedName("initiallyHidden")
-    val initiallyHidden: Boolean = false,
-
-    @SerializedName("showOnlyOnMatch")
-    val showOnlyOnMatch: Boolean = true
-)
-
-data class EmbeddedUrlMatch(
+data class EmbeddedMatchPattern(
     @SerializedName("pattern")
     val pattern: String = "",
 
-    @SerializedName("isRegex")
-    val isRegex: Boolean = false,
+    @SerializedName("regex")
+    val regex: Boolean = false,
 
     @SerializedName("exclude")
     val exclude: Boolean = false
@@ -968,6 +890,9 @@ data class MultiWebShellConfig(
     @SerializedName("showSiteIcons")
     val showSiteIcons: Boolean = true,
 
+    @SerializedName("sitesUseOwnConfig")
+    val sitesUseOwnConfig: Boolean = false,
+
     @SerializedName("projectId")
     val projectId: String = ""
 )
@@ -1170,6 +1095,18 @@ data class WebViewShellConfig(
     @SerializedName("fullscreenContentPaddingDp")
     val fullscreenContentPaddingDp: Int = 0,
 
+    @SerializedName("fullscreenContentPaddingTopDp")
+    val fullscreenContentPaddingTopDp: Int? = null,
+
+    @SerializedName("fullscreenContentPaddingBottomDp")
+    val fullscreenContentPaddingBottomDp: Int? = null,
+
+    @SerializedName("fullscreenContentPaddingStartDp")
+    val fullscreenContentPaddingStartDp: Int? = null,
+
+    @SerializedName("fullscreenContentPaddingEndDp")
+    val fullscreenContentPaddingEndDp: Int? = null,
+
     @SerializedName("landscapeMode")
     val landscapeMode: Boolean = false,
 
@@ -1180,7 +1117,7 @@ data class WebViewShellConfig(
     val injectScripts: List<ShellUserScript> = emptyList(),
 
     @SerializedName("statusBarColorMode")
-    val statusBarColorMode: String = "THEME",
+    val statusBarColorMode: String = "TRANSPARENT",
 
     @SerializedName("statusBarColor")
     val statusBarColor: String? = null,
@@ -1201,7 +1138,7 @@ data class WebViewShellConfig(
     val statusBarHeightDp: Int = -1,
 
     @SerializedName("statusBarColorModeDark")
-    val statusBarColorModeDark: String = "THEME",
+    val statusBarColorModeDark: String = "TRANSPARENT",
 
     @SerializedName("statusBarColorDark")
     val statusBarColorDark: String? = null,
@@ -1255,6 +1192,26 @@ data class WebViewShellConfig(
 
     @SerializedName("enableShareBridge")
     val enableShareBridge: Boolean = true,
+
+    // Inbound share sheet (#943). Names must match ApkConfigJsonFactory.toShellConfigJson
+    // exactly — Gson drops unknown keys silently, so a rename here without the factory (or
+    // vice versa) turns the feature off in exported APKs with no error anywhere.
+    @SerializedName("receiveShareImages")
+    val receiveShareImages: Boolean = false,
+
+    @SerializedName("receiveShareText")
+    val receiveShareText: Boolean = false,
+
+    @SerializedName("shareDeliveryMode")
+    val shareDeliveryMode: String = "BOTH",
+
+    @SerializedName("sharePromptBeforeUse")
+    val sharePromptBeforeUse: Boolean = true,
+
+    // "Open with" file association (ACTION_VIEW file/content intents). Must match
+    // ApkConfigJsonFactory.webViewConfigPayload exactly — Gson drops unknown keys silently.
+    @SerializedName("openWithEnabled")
+    val openWithEnabled: Boolean = false,
 
     @SerializedName("enableZoomPolyfill")
     val enableZoomPolyfill: Boolean = true,
@@ -1615,7 +1572,14 @@ data class WebViewShellConfig(
 
     @SerializedName("dnsConfig")
     val dnsConfig: DnsShellConfig = DnsShellConfig()
-)
+) {
+    // Resolved per-side fullscreen content padding: an unset (null) side follows
+    // the uniform fullscreenContentPaddingDp base (#916).
+    val fullscreenPadTop: Int get() = fullscreenContentPaddingTopDp ?: fullscreenContentPaddingDp
+    val fullscreenPadBottom: Int get() = fullscreenContentPaddingBottomDp ?: fullscreenContentPaddingDp
+    val fullscreenPadStart: Int get() = fullscreenContentPaddingStartDp ?: fullscreenContentPaddingDp
+    val fullscreenPadEnd: Int get() = fullscreenContentPaddingEndDp ?: fullscreenContentPaddingDp
+}
 
 data class FloatingWindowShellConfig(
     @SerializedName("enabled")
@@ -1813,15 +1777,6 @@ data class IsolationShellConfig(
     @SerializedName("fingerprintConfig")
     val fingerprintConfig: FingerprintShellConfig = FingerprintShellConfig(),
 
-    @SerializedName("headerConfig")
-    val headerConfig: HeaderShellConfig = HeaderShellConfig(),
-
-    @SerializedName("ipSpoofConfig")
-    val ipSpoofConfig: IpSpoofShellConfig = IpSpoofShellConfig(),
-
-    @SerializedName("storageIsolation")
-    val storageIsolation: Boolean = true,
-
     @SerializedName("blockWebRTC")
     val blockWebRTC: Boolean = true,
 
@@ -1856,7 +1811,10 @@ data class IsolationShellConfig(
     val customScreenWidth: Int? = null,
 
     @SerializedName("customScreenHeight")
-    val customScreenHeight: Int? = null
+    val customScreenHeight: Int? = null,
+
+    @SerializedName("customDevicePixelRatio")
+    val customDevicePixelRatio: Float? = null
 ) {
     fun toIsolationConfig(): com.webtoapp.core.privacy.IsolationConfig {
         return com.webtoapp.core.privacy.IsolationConfig(
@@ -1868,36 +1826,6 @@ data class IsolationShellConfig(
                 randomUserAgent = fingerprintConfig.randomUserAgent,
                 fingerprintId = fingerprintConfig.fingerprintId
             ),
-            headerConfig = com.webtoapp.core.privacy.HeaderConfig(
-                enabled = headerConfig.enabled,
-                randomizeOnRequest = headerConfig.randomizeOnRequest,
-                dnt = headerConfig.dnt,
-                spoofClientHints = headerConfig.spoofClientHints,
-                refererPolicy = try {
-                    com.webtoapp.core.privacy.RefererPolicy.valueOf(headerConfig.refererPolicy)
-                } catch (e: Exception) {
-                    com.webtoapp.core.privacy.RefererPolicy.STRICT_ORIGIN
-                }
-            ),
-            ipSpoofConfig = com.webtoapp.core.privacy.IpSpoofConfig(
-                enabled = ipSpoofConfig.enabled,
-                spoofMethod = try {
-                    com.webtoapp.core.privacy.IpSpoofMethod.valueOf(ipSpoofConfig.spoofMethod)
-                } catch (e: Exception) {
-                    com.webtoapp.core.privacy.IpSpoofMethod.HEADER
-                },
-                customIp = ipSpoofConfig.customIp,
-                randomIpRange = try {
-                    com.webtoapp.core.privacy.IpRange.valueOf(ipSpoofConfig.randomIpRange)
-                } catch (e: Exception) {
-                    com.webtoapp.core.privacy.IpRange.GLOBAL
-                },
-                searchKeyword = ipSpoofConfig.searchKeyword,
-                xForwardedFor = ipSpoofConfig.xForwardedFor,
-                xRealIp = ipSpoofConfig.xRealIp,
-                clientIp = ipSpoofConfig.clientIp
-            ),
-            storageIsolation = storageIsolation,
             blockWebRTC = blockWebRTC,
             protectCanvas = protectCanvas,
             protectAudio = protectAudio,
@@ -1909,7 +1837,8 @@ data class IsolationShellConfig(
             customLanguage = customLanguage,
             spoofScreen = spoofScreen,
             customScreenWidth = customScreenWidth,
-            customScreenHeight = customScreenHeight
+            customScreenHeight = customScreenHeight,
+            customDevicePixelRatio = customDevicePixelRatio
         )
     }
 }
@@ -1931,58 +1860,12 @@ data class FingerprintShellConfig(
     val fingerprintId: String = java.util.UUID.randomUUID().toString()
 )
 
-data class HeaderShellConfig(
-    @SerializedName("enabled")
-    val enabled: Boolean = false,
-
-    @SerializedName("randomizeOnRequest")
-    val randomizeOnRequest: Boolean = false,
-
-    @SerializedName("dnt")
-    val dnt: Boolean = true,
-
-    @SerializedName("spoofClientHints")
-    val spoofClientHints: Boolean = true,
-
-    @SerializedName("refererPolicy")
-    val refererPolicy: String = "STRICT_ORIGIN"
-)
-
-data class IpSpoofShellConfig(
-    @SerializedName("enabled")
-    val enabled: Boolean = false,
-
-    @SerializedName("spoofMethod")
-    val spoofMethod: String = "HEADER",
-
-    @SerializedName("customIp")
-    val customIp: String? = null,
-
-    @SerializedName("randomIpRange")
-    val randomIpRange: String = "GLOBAL",
-
-    @SerializedName("searchKeyword")
-    val searchKeyword: String? = null,
-
-    @SerializedName("xForwardedFor")
-    val xForwardedFor: Boolean = true,
-
-    @SerializedName("xRealIp")
-    val xRealIp: Boolean = true,
-
-    @SerializedName("clientIp")
-    val clientIp: Boolean = true
-)
-
 data class BackgroundRunShellConfig(
     @SerializedName("notificationTitle")
     val notificationTitle: String = "",
 
     @SerializedName("notificationContent")
     val notificationContent: String = "",
-
-    @SerializedName("showNotification")
-    val showNotification: Boolean = true,
 
     @SerializedName("keepCpuAwake")
     val keepCpuAwake: Boolean = true

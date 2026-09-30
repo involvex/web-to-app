@@ -8,7 +8,7 @@ type Lang = "en" | "zh";
 
 const t = {
   en: {
-    nav: { guide: "Guide", developer: "Developer", extensions: "Extensions" },
+    nav: { guide: "Guide", developer: "Developer", extensions: "Plugins" },
     cc: {
       title: "Common Config",
       basicInfo: "Basic Info",
@@ -23,7 +23,6 @@ const t = {
       configTemplates: "Config Templates",
       urlWebpage: "URL / Webpage",
       activation: "Activation Code",
-      hideToolbar: "Hide Browser Toolbar",
       browserToolbar: "Browser Toolbar",
       fullscreen: "Fullscreen Mode",
       orientation: "Screen Orientation",
@@ -34,7 +33,7 @@ const t = {
       bgm: "Background Music",
       announcement: "Popup Announcement",
       translate: "Auto Translation",
-      extensionModules: "Extension Modules",
+      extensionModules: "Plugins",
       adBlocking: "Ad Blocking",
       customDns: "Custom DNS",
       deviceDisguise: "Device Disguise",
@@ -87,13 +86,14 @@ const t = {
       moreSystem: "System",
       agent: "Agent",
       aiSettings: "AI Settings",
-      extensionModules: "Extension Modules",
+      extensionModules: "Plugins",
       appModifier: "App Modifier",
       linuxEnvironment: "Linux Environment",
       runtimeManagement: "Runtime Management",
       portManager: "Port Manager",
       browserKernel: "Browser Kernel",
       hostsAdblock: "Hosts Ad Blocking",
+      shareReceive: "Receive Shared Content",
       usageStats: "Usage Stats",
       googlePlay: "Google Play",
       fileManager: "File Manager",
@@ -121,8 +121,8 @@ const t = {
     ext: {
       title: "Extension Authoring",
       overview: "Overview",
-      jsModule: "JS Modules",
-      cssModule: "CSS Modules",
+      jsModule: "HCJ Plugins",
+      cssModule: "CSS Plugins",
       userscript: "Userscripts",
       chromeMv3: "Chrome MV3 Extensions",
       apiRef: "API Reference",
@@ -130,7 +130,7 @@ const t = {
     },
   },
   zh: {
-    nav: { guide: "使用手册", developer: "开发者", extensions: "扩展开发" },
+    nav: { guide: "使用手册", developer: "开发者", extensions: "插件" },
     cc: {
       title: "通用配置",
       basicInfo: "基本信息",
@@ -145,7 +145,6 @@ const t = {
       configTemplates: "配置模板",
       urlWebpage: "网址/网页",
       activation: "激活码验证",
-      hideToolbar: "隐藏浏览器工具栏",
       browserToolbar: "浏览器工具栏",
       fullscreen: "全屏模式",
       orientation: "屏幕方向",
@@ -156,7 +155,7 @@ const t = {
       bgm: "背景音乐",
       announcement: "弹窗公告",
       translate: "网页自动翻译",
-      extensionModules: "拓展模块",
+      extensionModules: "插件",
       adBlocking: "广告拦截",
       customDns: "自定义DNS",
       deviceDisguise: "设备伪装",
@@ -209,13 +208,14 @@ const t = {
       moreSystem: "系统",
       agent: "Agent",
       aiSettings: "AI 设置",
-      extensionModules: "扩展模块",
+      extensionModules: "插件",
       appModifier: "应用修改器",
       linuxEnvironment: "Linux 环境",
       runtimeManagement: "运行时管理",
       portManager: "端口管理",
       browserKernel: "浏览器内核",
       hostsAdblock: "Hosts 拦截",
+      shareReceive: "接收分享内容",
       usageStats: "使用统计",
       googlePlay: "Google Play",
       fileManager: "文件管理",
@@ -243,8 +243,8 @@ const t = {
     ext: {
       title: "扩展开发",
       overview: "总览",
-      jsModule: "JS 模块",
-      cssModule: "CSS 模块",
+      jsModule: "HCJ 插件",
+      cssModule: "CSS 插件",
       userscript: "油猴脚本",
       chromeMv3: "Chrome MV3 扩展",
       apiRef: "API 参考",
@@ -397,10 +397,6 @@ function sidebar(lang: Lang, prefix: string) {
             text: s.cc.browserUi,
             collapsed: false,
             items: [
-              {
-                text: s.cc.hideToolbar,
-                link: `${prefix}/guide/app-actions/edit-common-config/hide-toolbar`,
-              },
               {
                 text: s.cc.browserToolbar,
                 link: `${prefix}/guide/app-actions/edit-common-config/browser-toolbar`,
@@ -566,6 +562,10 @@ function sidebar(lang: Lang, prefix: string) {
                 text: s.guide.hostsAdblock,
                 link: `${prefix}/guide/more-features/hosts-adblock`,
               },
+              {
+                text: s.guide.shareReceive,
+                link: `${prefix}/guide/more-features/share-receive`,
+              },
             ],
           },
           {
@@ -676,7 +676,7 @@ function themeConfig(lang: Lang, prefix: string) {
       formatOptions: { dateStyle: "medium" },
     },
     editLink: {
-      pattern: "https://github.com/involvex/web-to-app/edit/main/docs/:path",
+      pattern: "https://github.com/shiaho777/web-to-app/edit/main/docs/:path",
       text: isZh ? "在 GitHub 上编辑此页" : "Edit this page on GitHub",
     },
   };
@@ -744,7 +744,7 @@ export default defineConfig({
       },
     },
     socialLinks: [
-      { icon: "github", link: "https://github.com/involvex/web-to-app" },
+      { icon: "github", link: "https://github.com/shiaho777/web-to-app" },
       { icon: "x", link: "https://x.com/shiaho777" },
     ],
     footer: {

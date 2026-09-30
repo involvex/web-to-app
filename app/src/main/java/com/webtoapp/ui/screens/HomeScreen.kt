@@ -45,9 +45,7 @@ import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
 import coil.request.ImageRequest
 import com.webtoapp.core.apkbuilder.ApkBuilder
-import com.webtoapp.core.apkbuilder.ApkExportPreflight
 import com.webtoapp.core.apkbuilder.ExportRuntimeEnsure
-import com.webtoapp.core.apkbuilder.ApkExportPreflightReport
 import com.webtoapp.core.apkbuilder.BuildResult
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
@@ -58,7 +56,6 @@ import com.webtoapp.data.model.WebApp
 import com.webtoapp.ui.components.CategoryEditorDialog
 import com.webtoapp.ui.components.CategoryTabRow
 import com.webtoapp.ui.components.EnhancedElevatedCard
-import com.webtoapp.ui.components.ApkExportPreflightPanel
 import com.webtoapp.ui.components.PremiumTextField
 import com.webtoapp.ui.components.LanguageSelectorButton
 import com.webtoapp.ui.components.MoveToCategoryDialog
@@ -124,7 +121,7 @@ fun HomeScreen(
     onOpenAppModifier: () -> Unit = {},
     onOpenAiSettings: () -> Unit = {},
     onOpenAgent: () -> Unit = {},
-    onOpenExtensionModules: () -> Unit = {},
+    onOpenPlugins: () -> Unit = {},
     onOpenLinuxEnvironment: () -> Unit = {},
     onOpenBrowserKernel: () -> Unit = {},
     onOpenHostsAdBlock: () -> Unit = {},
@@ -132,6 +129,7 @@ fun HomeScreen(
     onOpenPortManager: () -> Unit = {},
     onOpenStats: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onOpenMore: () -> Unit = {},
     onOpenPlayStore: () -> Unit = {},
     onExportAabForApp: (Long) -> Unit = {},
@@ -340,8 +338,8 @@ fun HomeScreen(
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text(Strings.menuExtensionModules) },
-                                onClick = { showMoreMenu = false; onOpenExtensionModules() },
+                                text = { Text(Strings.pluginsTitle) },
+                                onClick = { showMoreMenu = false; onOpenPlugins() },
                                 leadingIcon = { Icon(Icons.Outlined.Extension, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
@@ -395,6 +393,11 @@ fun HomeScreen(
                                 text = { Text(Strings.menuBatchImport) },
                                 onClick = { showMoreMenu = false; showBatchImportDialog = true },
                                 leadingIcon = { Icon(Icons.Outlined.Bookmarks, null, Modifier.size(20.dp)) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.uiConfig) },
+                                onClick = { showMoreMenu = false; onOpenSettings() },
+                                leadingIcon = { Icon(Icons.Outlined.Palette, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
                                 text = { Text(Strings.menuAbout) },
@@ -486,6 +489,42 @@ fun HomeScreen(
 
                     val screenshotVersions = remember { mutableStateMapOf<Long, Int>() }
                     val screenshotLoadingStates = remember { mutableStateMapOf<Long, Boolean>() }
+                    // Apps already offered a capture this session; auto-capture never retries
+                    // (manual tap still re-captures). Reset when HomeScreen state resets.
+                    val autoCaptureAttempted = remember { mutableSetOf<Long>() }
+
+                    val runCapture: (WebAppSummary, AppPreviewSpec) -> Unit = { cardApp, spec ->
+                        val resolvedService = screenshotService ?: resolveScreenshotService()
+                        if (resolvedService == null) {
+                            val unavailableMessage = "capture aborted: service unavailable, appId=${cardApp.id}, name=${cardApp.name}"
+                            com.webtoapp.core.logging.AppLogger.i("ScreenshotFlow", unavailableMessage)
+                            android.util.Log.i("ScreenshotFlow", unavailableMessage)
+                        } else {
+                            sharedScope.launch {
+                                screenshotLoadingStates[cardApp.id] = true
+                                try {
+                                    val fullApp = viewModel.getWebApp(cardApp.id)
+                                    if (fullApp != null) {
+                                        com.webtoapp.ui.screens.captureAppThumbnail(
+                                            context = listContext.applicationContext,
+                                            screenshotService = resolvedService,
+                                            app = fullApp,
+                                            spec = spec,
+                                        )
+                                    } else {
+                                        spec.captureUrl?.let { resolvedService.captureScreenshot(cardApp.id, it) }
+                                    }
+                                } catch (e: Exception) {
+                                    val errorMessage = "capture exception: appId=${cardApp.id}, error=${e.message}"
+                                    com.webtoapp.core.logging.AppLogger.e("ScreenshotFlow", errorMessage, e)
+                                    android.util.Log.e("ScreenshotFlow", errorMessage, e)
+                                } finally {
+                                    screenshotLoadingStates[cardApp.id] = false
+                                    screenshotVersions[cardApp.id] = (screenshotVersions[cardApp.id] ?: 0) + 1
+                                }
+                            }
+                        }
+                    }
 
                     val previewSpecs = remember { mutableStateMapOf<Long, AppPreviewSpec>() }
                     LaunchedEffect(apps.map { it.id }, listContext) {
@@ -525,6 +564,21 @@ fun HomeScreen(
                         val exporter = sharedExporter
                         val scope = sharedScope
                         val previewSpec = previewSpecs[app.id] ?: AppPreviewSpec()
+
+                        // Auto-capture the card thumbnail once per session when the card
+                        // is composed and no cached screenshot exists yet; tapping the
+                        // thumbnail still forces a recapture.
+                        LaunchedEffect(app.id, previewSpec.captureUrl) {
+                            if (previewSpec.captureUrl == null || app.id in autoCaptureAttempted) {
+                                return@LaunchedEffect
+                            }
+                            val svc = screenshotService ?: resolveScreenshotService()
+                                ?: return@LaunchedEffect
+                            autoCaptureAttempted += app.id
+                            if (!svc.hasScreenshot(app.id)) {
+                                runCapture(app, previewSpec)
+                            }
+                        }
 
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { value ->
@@ -708,55 +762,7 @@ fun HomeScreen(
                             screenshotVersion = screenshotVersions[app.id] ?: 0,
                             isScreenshotLoading = screenshotLoadingStates[app.id] == true,
                             onCaptureScreenshot = if (previewSpec.captureUrl != null) {
-                                {
-                                    val resolvedService = screenshotService ?: resolveScreenshotService()
-                                    if (resolvedService == null) {
-                                        val unavailableMessage = "manual capture aborted: service unavailable, appId=${app.id}, name=${app.name}"
-                                        com.webtoapp.core.logging.AppLogger.i("ScreenshotFlow", unavailableMessage)
-                                        android.util.Log.i("ScreenshotFlow", unavailableMessage)
-                                    } else {
-                                        val tapMessage = "HomeScreen callback entered: appId=${app.id}, name=${app.name}, hasScreenshot=${resolvedService.hasScreenshot(app.id)}"
-                                        com.webtoapp.core.logging.AppLogger.i("ScreenshotFlow", tapMessage)
-                                        android.util.Log.i("ScreenshotFlow", tapMessage)
-                                        scope.launch {
-                                            screenshotLoadingStates[app.id] = true
-                                            val startMessage = "manual capture coroutine start: appId=${app.id}, name=${app.name}, target=${previewSpec.captureUrl}"
-                                            com.webtoapp.core.logging.AppLogger.i("ScreenshotFlow", startMessage)
-                                            android.util.Log.i("ScreenshotFlow", startMessage)
-                                            try {
-                                                com.webtoapp.core.logging.AppLogger.d(
-                                                    "HomeScreen",
-                                                    "manual screenshot requested: appId=${app.id}, name=${app.name}, target=${previewSpec.captureUrl}"
-                                                )
-                                                val fullApp = viewModel.getWebApp(app.id)
-                                                val result = if (fullApp != null) {
-                                                    com.webtoapp.ui.screens.captureAppThumbnail(
-                                                        context = listContext.applicationContext,
-                                                        screenshotService = resolvedService,
-                                                        app = fullApp,
-                                                        spec = previewSpec,
-                                                    )
-                                                } else {
-                                                    previewSpec.captureUrl?.let { resolvedService.captureScreenshot(app.id, it) }
-                                                }
-                                                val finishMessage = "manual capture finished: appId=${app.id}, path=$result, exists=${resolvedService.hasScreenshot(app.id)}"
-                                                com.webtoapp.core.logging.AppLogger.i("ScreenshotFlow", finishMessage)
-                                                android.util.Log.i("ScreenshotFlow", finishMessage)
-                                                com.webtoapp.core.logging.AppLogger.d(
-                                                    "HomeScreen",
-                                                    "manual screenshot finished: appId=${app.id}, path=$result, exists=${resolvedService.hasScreenshot(app.id)}"
-                                                )
-                                            } catch (e: Exception) {
-                                                val errorMessage = "manual capture exception: appId=${app.id}, error=${e.message}"
-                                                com.webtoapp.core.logging.AppLogger.e("ScreenshotFlow", errorMessage, e)
-                                                android.util.Log.e("ScreenshotFlow", errorMessage, e)
-                                            } finally {
-                                                screenshotLoadingStates[app.id] = false
-                                                screenshotVersions[app.id] = (screenshotVersions[app.id] ?: 0) + 1
-                                            }
-                                        }
-                                    }
-                                }
+                                { runCapture(app, previewSpec) }
                             } else null
                         )
                         }
@@ -1151,7 +1157,7 @@ fun AppCard(
                     modifier = Modifier
                         .size(52.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(colors.surfaceContainerHigh),
+                        .background(colors.secondaryContainer),
                     contentAlignment = Alignment.Center
                 ) {
                     if (app.iconPath != null) {
@@ -1183,7 +1189,7 @@ fun AppCard(
                             painter = painterResource(defaultIconRes),
                             contentDescription = null,
                             modifier = Modifier.size(26.dp),
-                            tint = colors.onSurfaceVariant
+                            tint = colors.onSecondaryContainer
                         )
                     }
                 }
@@ -1571,16 +1577,16 @@ private fun CreateActionTile(
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                .size(48.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.secondaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 painter = painterResource(iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onSurface
+                modifier = Modifier.size(24.dp),
+                tint = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

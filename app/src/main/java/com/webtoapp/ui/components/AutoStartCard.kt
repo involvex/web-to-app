@@ -24,6 +24,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.webtoapp.core.autostart.AutoStartManager
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.AutoStartConfig
+import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaSettingCard
 import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaToggleRow
@@ -246,9 +247,10 @@ fun AutoStartCard(
                                 modifier = Modifier.padding(bottom = 8.dp)
                             )
 
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceEvenly
+                                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 val dayNames = listOf(
                                     Strings.dayMon, Strings.dayTue, Strings.dayWed,
@@ -471,10 +473,11 @@ fun TimePickerDialog(
         is24Hour = true
     )
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(Strings.selectLaunchTime) },
-        text = {
+        icon = Icons.Outlined.Schedule,
+        title = Strings.selectLaunchTime,
+        content = {
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center

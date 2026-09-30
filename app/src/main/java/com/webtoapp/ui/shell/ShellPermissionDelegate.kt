@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.webkit.GeolocationPermissions
@@ -18,6 +19,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.util.DownloadHelper
@@ -25,6 +27,8 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private const val KEY_PENDING_CAMERA_PHOTO = "wta_pending_camera_photo"
 
 class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
@@ -62,6 +66,21 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
     private var cameraPhotoUri: Uri? = null
 
     private var pendingFilePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
+
+    /**
+     * A pending FilePathCallback cannot survive process death — when the camera
+     * app gets us killed, the restored activity re-receives the chooser result
+     * with no callback to answer, and the captured temp file would leak in
+     * cacheDir. Persist the URI so [onRestoreInstanceState] can drop it (#1030).
+     */
+    fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(KEY_PENDING_CAMERA_PHOTO, cameraPhotoUri?.toString())
+    }
+
+    fun onRestoreInstanceState(state: Bundle?) {
+        val uri = state?.getString(KEY_PENDING_CAMERA_PHOTO)?.let(Uri::parse) ?: return
+        runCatching { activity.contentResolver.delete(uri, null, null) }
+    }
 
     private val fileChooserActivityLauncher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -120,20 +139,154 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
         if (filePathCallback == null) return false
 
+        // Issue #943: content the user just shared into the app is a better answer than the
+        // system picker, and it is what they shared it for. This branch owns the callback
+        // from here on — it always answers it, either with the shared file or by handing the
+        // flow back to continueWithSystemPicker().
+        if (tryUseSharedContent(fileChooserParams)) return true
+
+        continueWithSystemPicker(fileChooserParams)
+
+        return true
+    }
+
+    /**
+     * Resume the normal picker flow: camera runtime permission first when the page asked for
+     * something the camera can supply, then the chooser itself.
+     */
+    private fun continueWithSystemPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
         val needsCamera = isCameraRequired(fileChooserParams)
         val hasCameraPermission = ContextCompat.checkSelfPermission(
             activity, Manifest.permission.CAMERA
         ) == PackageManager.PERMISSION_GRANTED
 
         if (needsCamera && !hasCameraPermission) {
-
             pendingFileChooserParams = fileChooserParams
             cameraForFileChooserPermLauncher.launch(Manifest.permission.CAMERA)
         } else {
             launchFileChooserIntent(fileChooserParams)
         }
+    }
+
+    /**
+     * Offer the newest queued share that matches what the page is asking for (issue #943).
+     *
+     * @return true when this call took ownership of [pendingFilePathCallback]. It answers the
+     *   callback in every branch, so a page never ends up stuck in its upload state — the
+     *   failure mode this whole delegate exists to avoid.
+     */
+    private fun tryUseSharedContent(fileChooserParams: WebChromeClient.FileChooserParams?): Boolean {
+        val config = try {
+            com.webtoapp.WebToAppApplication.shellMode.getConfig()
+        } catch (e: Exception) {
+            null
+        }
+        val wv = config?.webViewConfig ?: return false
+        // Both inbound channels feed the same inbox: an "open with" file should reach a
+        // page's upload control even when share-sheet receiving itself is off.
+        if (!wv.receiveShareImages && !wv.openWithEnabled) return false
+
+        val mode = try {
+            com.webtoapp.data.model.ShareDeliveryMode.valueOf(wv.shareDeliveryMode)
+        } catch (e: Exception) {
+            com.webtoapp.data.model.ShareDeliveryMode.BOTH
+        }
+        if (mode == com.webtoapp.data.model.ShareDeliveryMode.JS_EVENT) return false
+
+        val acceptTypes = fileChooserParams?.acceptTypes
+            ?.filter { !it.isNullOrBlank() }
+            ?.map { it.trim() }
+
+        activity.lifecycleScope.launch {
+            // The callback has already been taken over, so *every* exit from here must answer
+            // it — an exception escaping this coroutine would both leave the page stuck and
+            // crash the process (uncaught exceptions in a lifecycle scope propagate).
+            try {
+                val item = com.webtoapp.core.share.SharedContentInbox.findForFileChooser(
+                    activity,
+                    acceptTypes
+                )
+                if (item == null) {
+                    continueWithSystemPicker(fileChooserParams)
+                } else if (wv.sharePromptBeforeUse) {
+                    promptForSharedContent(item, fileChooserParams)
+                } else {
+                    answerWithSharedContent(item)
+                }
+            } catch (e: Exception) {
+                AppLogger.e("ShellPermission", "Shared-content file chooser path failed", e)
+                // Only fall back while the callback is still unanswered; a failure *after*
+                // answerWithSharedContent() has already replied must not reply twice.
+                if (pendingFilePathCallback != null) {
+                    continueWithSystemPicker(fileChooserParams)
+                }
+            }
+        }
 
         return true
+    }
+
+    /**
+     * Ask before substituting the shared file, so the user keeps the option of picking
+     * something else. The item is still in the queue at this point — it is only claimed once
+     * the user commits.
+     */
+    private fun promptForSharedContent(
+        item: com.webtoapp.core.share.SharedItem,
+        fileChooserParams: WebChromeClient.FileChooserParams?
+    ) {
+        androidx.appcompat.app.AlertDialog.Builder(activity)
+            .setTitle(Strings.shareReceivedPickTitle)
+            .setMessage(
+                if (item.name.isBlank()) Strings.shareReceivedPickMessage
+                else Strings.shareReceivedPickMessageNamed(item.name)
+            )
+            .setPositiveButton(Strings.shareReceivedPickUse) { _, _ ->
+                answerWithSharedContent(item)
+            }
+            .setNegativeButton(Strings.shareReceivedPickChoose) { _, _ ->
+                continueWithSystemPicker(fileChooserParams)
+            }
+            .setOnCancelListener {
+                // A dismissed dialog must still unblock the page.
+                pendingFilePathCallback?.onReceiveValue(null)
+                pendingFilePathCallback = null
+            }
+            .show()
+    }
+
+    /** Hand the shared file to the page and drop it from the queue. */
+    private fun answerWithSharedContent(item: com.webtoapp.core.share.SharedItem) {
+        val callback = pendingFilePathCallback
+        pendingFilePathCallback = null
+        // No camera capture is in flight on this path; clear any stale URI so a later
+        // cancellation cannot resurrect it (see fileChooserActivityLauncher).
+        cameraPhotoUri = null
+
+        activity.lifecycleScope.launch {
+            com.webtoapp.core.share.SharedContentInbox.claim(activity, item.id)
+        }
+
+        val uri = sharedItemUri(item)
+        if (uri == null) {
+            AppLogger.w("ShellPermission", "Shared item ${item.id} vanished before the chooser used it")
+            callback?.onReceiveValue(null)
+            return
+        }
+        AppLogger.i("ShellPermission", "Answered file chooser with shared item ${item.name}")
+        callback?.onReceiveValue(arrayOf(uri))
+    }
+
+    private fun sharedItemUri(item: com.webtoapp.core.share.SharedItem): Uri? = try {
+        val file = item.path?.let { File(it) }
+        if (file == null || !file.exists()) {
+            null
+        } else {
+            FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
+        }
+    } catch (e: Exception) {
+        AppLogger.e("ShellPermission", "Failed to expose shared item to the chooser", e)
+        null
     }
 
     private fun isCameraRequired(params: WebChromeClient.FileChooserParams?): Boolean {
@@ -762,18 +915,28 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                                     processSmall(blob, filename);
                                 }
                             }
+                            function reportFailure(err) {
+                                console.error('[DownloadHelper] Blob fetch failed:', err);
+                                if (window.AndroidDownload && window.AndroidDownload.showToast) {
+                                    window.AndroidDownload.showToast('${Strings.downloadFailedPrefix}' + (err && err.message ? err.message : 'blob unavailable'));
+                                }
+                            }
                             if (cachedBlob) {
                                 dispatch(cachedBlob);
+                            } else if (window.__wtaResolveBlob) {
+                                // Cross-context resolution (sandboxed iframe / worker blobs,
+                                // blob:null opaque origins) — broadcast lookup before fetch.
+                                window.__wtaResolveBlob(blobUrl)
+                                    .then(function(blob) {
+                                        if (blob) dispatch(blob);
+                                        else reportFailure(new Error('blob not resolvable'));
+                                    })
+                                    .catch(reportFailure);
                             } else {
                                 fetch(blobUrl)
                                     .then(function(r) { return r.blob(); })
                                     .then(dispatch)
-                                    .catch(function(err) {
-                                        console.error('[DownloadHelper] Blob fetch failed:', err);
-                                        if (window.AndroidDownload && window.AndroidDownload.showToast) {
-                                            window.AndroidDownload.showToast('${Strings.downloadFailedPrefix}' + err.message);
-                                        }
-                                    });
+                                    .catch(reportFailure);
                             }
                         }
                     } catch(e) {

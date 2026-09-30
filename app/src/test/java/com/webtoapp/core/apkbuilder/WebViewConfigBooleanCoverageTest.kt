@@ -62,6 +62,8 @@ class WebViewConfigBooleanCoverageTest {
             "enableCloudflareCompat", "enableCookiePersistence",
             "enablePrivateNetworkBridge", "enableNativeBridge",
             "enablePaymentSchemes", "enableShareBridge", "enableZoomPolyfill",
+            "receiveShareImages", "receiveShareText", "sharePromptBeforeUse",
+            "openWithEnabled",
             "enableAppReturn",
             "enableCrossOriginIsolation", "hideUrlPreview", "decodeBase64DeepLinks",
             "javaScriptCanOpenWindows", "mediaAutoplayEnabled",
@@ -70,7 +72,6 @@ class WebViewConfigBooleanCoverageTest {
             "hostsMappingEnabled", "autoRefreshEnabled", "autoRefreshShowCountdown",
             "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
             "tlsFingerprintEnabled", "forceHttp3",
-            "statusBarDarkIconsDark",
             "pictureInPictureEnabled", "ratingEnabled"
         )
 
@@ -216,6 +217,11 @@ class WebViewConfigBooleanCoverageTest {
                 blobInterceptThresholdMb = 10,
                 screenAwakeTimeoutMinutes = 15,
                 pageZoomPercent = 125,
+                fullscreenContentPaddingDp = 16,
+                fullscreenContentPaddingTopDp = 24,
+                fullscreenContentPaddingBottomDp = 8,
+                fullscreenContentPaddingStartDp = 4,
+                fullscreenContentPaddingEndDp = 12,
                 nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
                     googleSignIn = true,
                     googleSignInClientId = "test-client-id.apps.googleusercontent.com"
@@ -245,6 +251,13 @@ class WebViewConfigBooleanCoverageTest {
         readShell("blobInterceptThresholdMb", 10)
         readShell("screenAwakeTimeoutMinutes", 15)
         readShell("pageZoomPercent", 125)
+        // #916: uniform base plus every per-side override must reach the shell,
+        // or the sliders would only work in preview.
+        readShell("fullscreenContentPaddingDp", 16)
+        readShell("fullscreenContentPaddingTopDp", 24)
+        readShell("fullscreenContentPaddingBottomDp", 8)
+        readShell("fullscreenContentPaddingStartDp", 4)
+        readShell("fullscreenContentPaddingEndDp", 12)
         // Native Google sign-in: capability flag + the Web client ID both have to survive
         // the export, or the generated app silently falls back to the disabled state.
         readShell("nativeBridgeGoogleSignIn", true)
@@ -412,6 +425,26 @@ class WebViewConfigBooleanCoverageTest {
         assertThat(readRating(enabled)).isTrue()
     }
 
+    @Test
+    fun `unset per-side padding stays null so it follows the uniform base`() {
+        fun shellSideOf(config: WebViewConfig, field: String): Any? {
+            val shellWv = shellWvOf(roundTrip(WebApp(name = "t", url = "https://t.example.com", webViewConfig = config)))
+            val f = shellWv.javaClass.declaredFields.associateBy { it.name }[field]
+                ?: throw AssertionError("ShellWebViewConfig missing field '$field'")
+            f.isAccessible = true
+            return f.get(shellWv)
+        }
+
+        // Old JSON lacks the per-side keys; they must deserialize to null (follow
+        // uniform), not 0 — a coerced 0 would silently pin every side to zero.
+        for (side in listOf(
+            "fullscreenContentPaddingTopDp", "fullscreenContentPaddingBottomDp",
+            "fullscreenContentPaddingStartDp", "fullscreenContentPaddingEndDp"
+        )) {
+            assertThat(shellSideOf(WebViewConfig(fullscreenContentPaddingDp = 16), side)).isNull()
+        }
+    }
+
     // ────────────────────────────────────────────────────────────
     //  Helpers
     // ────────────────────────────────────────────────────────────
@@ -511,6 +544,10 @@ class WebViewConfigBooleanCoverageTest {
             // Export-time input with no shell counterpart; see knownDerivedOrIntentional.
             enableAppReturn = bool("enableAppReturn"),
             enableShareBridge = bool("enableShareBridge"),
+            receiveShareImages = bool("receiveShareImages"),
+            receiveShareText = bool("receiveShareText"),
+            sharePromptBeforeUse = bool("sharePromptBeforeUse"),
+            openWithEnabled = bool("openWithEnabled"),
             enableZoomPolyfill = bool("enableZoomPolyfill"),
             enableCrossOriginIsolation = bool("enableCrossOriginIsolation"),
             hideUrlPreview = bool("hideUrlPreview"),
@@ -529,7 +566,6 @@ class WebViewConfigBooleanCoverageTest {
             allowFileAccessFromFileURLs = bool("allowFileAccessFromFileURLs"),
             allowUniversalAccessFromFileURLs = bool("allowUniversalAccessFromFileURLs"),
             tlsFingerprintEnabled = bool("tlsFingerprintEnabled"),
-            statusBarDarkIconsDark = bool("statusBarDarkIconsDark"),
             pictureInPictureEnabled = bool("pictureInPictureEnabled"),
             ratingEnabled = bool("ratingEnabled"),
             forceHttp3 = bool("forceHttp3")

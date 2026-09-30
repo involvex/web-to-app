@@ -70,11 +70,11 @@ fun ShellBrowserAndroidView(
                         webViewManager = webViewManager,
                         callbacks = webViewCallbacks,
                         adBlocker = WebToAppApplication.adBlock,
-                        extensionModuleIds = config.extensionModuleIds,
-                        embeddedExtensionModules = config.embeddedExtensionModules,
-                        extensionFabIcon = config.extensionFabIcon,
-                        allowGlobalModuleFallback = false,
-                        extensionEnabled = config.extensionEnabled,
+                        pluginPayloads = config.embeddedPlugins
+                            .map { it.toResolved() },
+                        pluginsEnabled = config.pluginsEnabled,
+                        pluginEntryStyle = com.webtoapp.core.plugin.PluginEntryStyle.parse(config.pluginEntryStyle),
+                        pluginPanelStyle = com.webtoapp.core.plugin.PluginPanelStyle.parse(config.pluginPanelStyle),
                         browserDisguiseConfig = config.browserDisguiseConfig,
                         deviceDisguiseConfig = config.deviceDisguiseConfig,
                         appOriginUrl = config.targetUrl
@@ -87,19 +87,44 @@ fun ShellBrowserAndroidView(
                     if (wv != null && enableLongPress) {
                         var lastTouchX = 0f
                         var lastTouchY = 0f
+                        var downFromFinger = false
                         wv.setOnTouchListener { view, event ->
-                            when (event.action) {
-                                MotionEvent.ACTION_DOWN,
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    lastTouchX = event.x
+                                    lastTouchY = event.y
+                                    downFromFinger =
+                                        event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+                                    if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
+                                        // A mouse click does not always move focus
+                                        // by itself on every OEM path; make it
+                                        // explicit so a hardware keyboard lands in
+                                        // the page afterwards (#1031).
+                                        view.requestFocus()
+                                    }
+                                }
                                 MotionEvent.ACTION_MOVE -> {
                                     lastTouchX = event.x
                                     lastTouchY = event.y
                                 }
-                                MotionEvent.ACTION_UP -> view.performClick()
+                                MotionEvent.ACTION_UP -> {
+                                    view.performClick()
+                                    downFromFinger = false
+                                }
+                                MotionEvent.ACTION_CANCEL -> downFromFinger = false
                             }
                             false
                         }
                         wv.setOnLongClickListener {
-                            webViewCallbacks.onLongPress(wv, lastTouchX, lastTouchY)
+                            // A right-click also routes through performLongClick —
+                            // keep the touch menu finger-only so pointer/keyboard
+                            // long-clicks fall back to the default context menu
+                            // instead of a touch menu at a stale position (#1031).
+                            if (downFromFinger) {
+                                webViewCallbacks.onLongPress(wv, lastTouchX, lastTouchY)
+                            } else {
+                                false
+                            }
                         }
                     }
 
@@ -130,6 +155,16 @@ fun ShellBrowserAndroidView(
                 if (swipeLayout.isRefreshing != isRefreshing) {
                     swipeLayout.isRefreshing = isRefreshing
                 }
+            },
+            // Leaving composition — key bump, hidden multi-web tab eviction, or
+            // teardown — must destroy the surface's WebView too. The explicit
+            // recreation paths already do; this catches every other drop (#1033).
+            onRelease = { swipeLayout ->
+                val surface = swipeLayout.tag as? BrowserSurface
+                surface?.webView?.let { webViewManager.discardWebView(it) }
+                surface?.destroy()
+                (swipeLayout.context as? ShellActivity)?.releaseSurfaceRefs(surface)
+                swipeLayout.removeAllViews()
             },
             modifier = modifier
         )

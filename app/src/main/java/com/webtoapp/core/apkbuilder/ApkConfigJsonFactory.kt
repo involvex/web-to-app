@@ -110,10 +110,11 @@ internal object ApkConfigJsonFactory {
         "translateEnabled" to translate.enabled,
         "translateTargetLanguage" to translate.targetLanguage,
         "translateShowButton" to translate.showButton,
-        "extensionEnabled" to extension.enabled,
-        "extensionFabIcon" to extension.fabIcon,
-        "extensionModuleIds" to extension.moduleIds,
-        "embeddedExtensionModules" to extension.embeddedModules.map { it.toPayload() },
+        "pluginsEnabled" to plugin.enabled,
+        "pluginIds" to plugin.pluginIds,
+        "embeddedPlugins" to plugin.embeddedPlugins.map { it.toPayload() },
+        "pluginEntryStyle" to plugin.entryStyle,
+        "pluginPanelStyle" to plugin.panelStyle,
         "autoStartConfig" to autoStartConfigPayload(),
         "isolationEnabled" to optionalServices.isolationEnabled,
         "isolationConfig" to isolationConfigPayload(),
@@ -184,6 +185,10 @@ internal object ApkConfigJsonFactory {
         "showNavigationBarInFullscreen" to webView.showNavigationBarInFullscreen,
         "showToolbarInFullscreen" to webView.showToolbarInFullscreen,
         "fullscreenContentPaddingDp" to webView.fullscreenContentPaddingDp,
+        "fullscreenContentPaddingTopDp" to webView.fullscreenContentPaddingTopDp,
+        "fullscreenContentPaddingBottomDp" to webView.fullscreenContentPaddingBottomDp,
+        "fullscreenContentPaddingStartDp" to webView.fullscreenContentPaddingStartDp,
+        "fullscreenContentPaddingEndDp" to webView.fullscreenContentPaddingEndDp,
         "landscapeMode" to webView.landscapeMode,
         "injectScripts" to webView.injectScripts.map { script ->
             linkedMapOf(
@@ -223,6 +228,17 @@ internal object ApkConfigJsonFactory {
         "newWindowBehavior" to webViewBehavior.newWindowBehavior,
         "enablePaymentSchemes" to webViewBehavior.enablePaymentSchemes,
         "enableShareBridge" to webViewBehavior.enableShareBridge,
+        // Inbound share sheet (#943). Read by the runtime through ShellConfig.webViewConfig;
+        // the resolved mime list is baked into the manifest at export time and never
+        // consulted at runtime.
+        "receiveShareImages" to shareReceive.images,
+        "receiveShareText" to shareReceive.text,
+        "shareDeliveryMode" to shareReceive.deliveryMode,
+        "sharePromptBeforeUse" to shareReceive.promptBeforeUse,
+        // "Open with" file association — the runtime gate for ACTION_VIEW file/content
+        // intents. The declared mime/extension sets are contract constants, so only the
+        // boolean crosses the wire.
+        "openWithEnabled" to openWith.enabled,
         "enableZoomPolyfill" to webViewBehavior.enableZoomPolyfill,
         "enableCrossOriginIsolation" to webViewBehavior.enableCrossOriginIsolation,
         "hideUrlPreview" to webViewBehavior.hideUrlPreview,
@@ -452,24 +468,6 @@ internal object ApkConfigJsonFactory {
                 "randomUserAgent" to ic.fingerprintConfig.randomUserAgent,
                 "fingerprintId" to ic.fingerprintConfig.fingerprintId
             ),
-            "headerConfig" to linkedMapOf(
-                "enabled" to ic.headerConfig.enabled,
-                "randomizeOnRequest" to ic.headerConfig.randomizeOnRequest,
-                "dnt" to ic.headerConfig.dnt,
-                "spoofClientHints" to ic.headerConfig.spoofClientHints,
-                "refererPolicy" to ic.headerConfig.refererPolicy.name
-            ),
-            "ipSpoofConfig" to linkedMapOf(
-                "enabled" to ic.ipSpoofConfig.enabled,
-                "spoofMethod" to ic.ipSpoofConfig.spoofMethod.name,
-                "customIp" to ic.ipSpoofConfig.customIp,
-                "randomIpRange" to ic.ipSpoofConfig.randomIpRange.name,
-                "searchKeyword" to ic.ipSpoofConfig.searchKeyword,
-                "xForwardedFor" to ic.ipSpoofConfig.xForwardedFor,
-                "xRealIp" to ic.ipSpoofConfig.xRealIp,
-                "clientIp" to ic.ipSpoofConfig.clientIp
-            ),
-            "storageIsolation" to ic.storageIsolation,
             "blockWebRTC" to ic.blockWebRTC,
             "protectCanvas" to ic.protectCanvas,
             "protectAudio" to ic.protectAudio,
@@ -481,7 +479,8 @@ internal object ApkConfigJsonFactory {
             "customLanguage" to ic.customLanguage,
             "spoofScreen" to ic.spoofScreen,
             "customScreenWidth" to ic.customScreenWidth,
-            "customScreenHeight" to ic.customScreenHeight
+            "customScreenHeight" to ic.customScreenHeight,
+            "customDevicePixelRatio" to ic.customDevicePixelRatio
         )
     }
 
@@ -566,32 +565,38 @@ internal object ApkConfigJsonFactory {
         "displayMode" to multiWeb.displayMode,
         "refreshInterval" to multiWeb.refreshInterval,
         "showSiteIcons" to multiWeb.showSiteIcons,
+        "sitesUseOwnConfig" to multiWeb.sitesUseOwnConfig,
         "projectId" to multiWeb.projectId
     )
 
-    private fun EmbeddedExtensionModule.toPayload(): Map<String, Any?> = linkedMapOf(
+    private fun EmbeddedPlugin.toPayload(): Map<String, Any?> = linkedMapOf(
         "id" to id,
         "name" to name,
+        "kind" to kind,
         "description" to description,
         "icon" to icon,
-        "category" to category,
         "versionName" to versionName,
         "authorName" to authorName,
-        "code" to code,
-        "cssCode" to cssCode,
+        "matches" to matches,
         "runAt" to runAt,
-        "sourceType" to sourceType,
-        "runMode" to runMode,
-        "uiConfig" to uiConfig,
-        "urlMatches" to urlMatches,
-        "configValues" to configValues,
-        "configItemCount" to configItemCount,
+        "permissions" to permissions,
+        "toolbar" to toolbar,
+        "hasPanel" to hasPanel,
+        "entryStyle" to entryStyle,
+        "panelStyle" to panelStyle,
+        "mainJs" to mainJs,
+        "css" to css,
+        "panelHtml" to panelHtml,
         "gmGrants" to gmGrants,
         "requireUrls" to requireUrls,
         "requireContents" to requireContents,
         "resources" to resources,
-        "noframes" to noframes,
-        "enabled" to enabled
+        "chromeExtId" to chromeExtId,
+        "manifestJson" to manifestJson,
+        "backgroundScript" to backgroundScript,
+        "popupPath" to popupPath,
+        "optionsPagePath" to optionsPagePath,
+        "legacyCompat" to legacyCompat
     )
 }
 

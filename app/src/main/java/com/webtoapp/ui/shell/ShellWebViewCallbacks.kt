@@ -23,6 +23,11 @@ private fun isLocalRuntimeShellUrl(url: String?): Boolean {
         url.startsWith("http://localhost:", ignoreCase = true)
 }
 
+/** Marker prefixes used by our own injected wrappers (userscripts, modules, bridges). */
+private fun isOwnInjectionMarker(message: String): Boolean =
+    message.startsWith("[UserScript:") || message.startsWith("[WebToApp") ||
+        message.startsWith("[WTA]") || message.startsWith("[wta-")
+
 fun createShellWebViewCallbacks(
     context: android.content.Context,
     config: ShellConfig,
@@ -49,6 +54,9 @@ fun createShellWebViewCallbacks(
     return object : WebViewCallbacks {
         override fun onPageStarted(url: String?) {
             if (url == "about:blank") return
+            // Issue #943: a share arriving mid-navigation must not be pushed into the document
+            // that is on its way out.
+            (context as? ShellActivity)?.onShellPageStarted()
             updateLoading(true)
             updateUrl(url ?: "")
             webViewRefProvider()?.let { WebScrollTracker.reset(it) }
@@ -66,6 +74,18 @@ fun createShellWebViewCallbacks(
                 else -> ConsoleLevel.LOG
             }
             AppLogger.d("ShellConsole", "[$consoleLevel] $message ($sourceId:$lineNumber)")
+            // Errors thrown inside our injected wrappers (userscripts, modules, bridges)
+            // only ever reach the page console — users see "script does nothing" with no
+            // trace. Echo marker-prefixed messages into the shell log so the copied error
+            // report / log file carries them.
+            if (level >= 3 && isOwnInjectionMarker(message)) {
+                val line = "[$consoleLevel] $message ($sourceId:$lineNumber)"
+                if (level >= 4) {
+                    com.webtoapp.core.shell.ShellLogger.e("ShellConsole", line)
+                } else {
+                    com.webtoapp.core.shell.ShellLogger.w("ShellConsole", line)
+                }
+            }
             onConsoleLog(ConsoleLogEntry(consoleLevel, message, sourceId, lineNumber, System.currentTimeMillis()))
         }
 
@@ -112,6 +132,12 @@ fun createShellWebViewCallbacks(
                 }
 
             }
+            // WebViews without document-start script support lose the
+            // media-session polyfill on every navigation; re-inject it
+            // (idempotent). Runs for local runtime pages too.
+            (context as? ShellActivity)?.mediaSessionBridge?.onPageFinishedFallback()
+            // Issue #943: release any share that was queued while the page was still loading.
+            (context as? ShellActivity)?.onShellPageReady()
             scheduleStatusBarAutoColorSample()
         }
 
@@ -135,6 +161,12 @@ fun createShellWebViewCallbacks(
         override fun onSslError(error: String) {
             updateError(Strings.sslError)
             com.webtoapp.core.shell.ShellLogger.logWebView("SSL错误", currentUrlProvider(), error)
+        }
+
+        override fun onExternalAppLaunch(url: String, sourceUrl: String?) {
+            // The page that bounced out is usually a one-shot trampoline; flag it
+            // so a post-process-death restore never reloads it (#1030).
+            (context as? ShellActivity)?.noteExternalAppLaunch(sourceUrl)
         }
 
         override fun onExternalLink(url: String) {

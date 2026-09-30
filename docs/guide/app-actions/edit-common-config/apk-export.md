@@ -7,7 +7,8 @@ Packaging and identity settings for the generated APK. This is the export drawer
 ## Identity
 
 - **Custom package name** — the APK's application id (validated against a package-name pattern).
-- **Version code / version name** — the APK version; the builder can suggest the next version code if the package is already installed.
+- **Version code / version name** — the APK version.
+- **Auto-bump version** — when this package is already installed with a higher versionCode, the builder raises the version so the update can install. On by default; turn it off to always keep the version set above (a downgrade install may then fail).
 - **Engine type** — System WebView or GeckoView for the exported app.
 
 ## Signing
@@ -18,6 +19,12 @@ Packaging and identity settings for the generated APK. This is the export drawer
 ## Runtime permissions
 
 - Permissions are derived from the enabled features (feature-driven), and unused permissions are pruned from the template manifest at build time.
+
+## Static SAEP policy
+
+The optional **Static SAEP policy** switch is saved per app (`ApkExportConfig.saepEnabled`) in the export drawer and Build APK screen. It defaults to **OFF**, including for older saved configurations: OFF omits SAEP metadata, rather than declaring a deny policy. ON declares **no additional restrictions** through static policy metadata. It does not grant Android permissions, bypass authorization, or guarantee that an agent supports SAEP.
+
+This applies only to generated APKs, not the builder host. Export writes `com.obric.agentrobots.POLICY_JSON` as an Android resource reference, binds the policy to the final package name, and keeps it readable even with resource encryption enabled. Changing the switch forces a full rebuild. A newly built shell template is required; enabling SAEP with an older template fails explicitly instead of emitting a broken declaration. System/agent support and successful automation must still be verified on a compatible device. See the [official SAEP demo](https://github.com/bytedance/SAEP-demo).
 
 ## Network trust
 

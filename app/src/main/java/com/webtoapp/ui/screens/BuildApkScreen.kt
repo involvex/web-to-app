@@ -12,18 +12,18 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Cached
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.DeleteSweep
 import androidx.compose.material.icons.outlined.GetApp
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.PlayCircleOutline
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material.icons.outlined.SystemUpdateAlt
+import androidx.compose.material.icons.outlined.VerifiedUser
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
@@ -33,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -41,6 +42,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -51,14 +53,12 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.webtoapp.WebToAppApplication
 import com.webtoapp.core.apkbuilder.ApkBuilder
 import com.webtoapp.core.apkbuilder.ApkExportPreflight
-import com.webtoapp.core.apkbuilder.ApkExportPreflightReport
 import com.webtoapp.core.apkbuilder.BuildResult
 import com.webtoapp.core.apkbuilder.ExportRuntimeEnsure
 import com.webtoapp.core.i18n.Strings
@@ -66,9 +66,9 @@ import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.data.model.withRuntimePermissionsSyncedFromFeatures
-import com.webtoapp.ui.components.ApkExportPreflightPanel
 import com.webtoapp.ui.components.BackgroundRunConfigCard
 import com.webtoapp.ui.components.EncryptionConfigCard
+import com.webtoapp.ui.components.EnhancedElevatedCard
 import com.webtoapp.ui.components.IsolationConfigCard
 import com.webtoapp.ui.components.NotificationConfigCard
 import com.webtoapp.ui.components.PremiumButton
@@ -80,8 +80,10 @@ import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaLoadingState
 import com.webtoapp.ui.design.WtaRadius
 import com.webtoapp.ui.design.WtaScreen
-import com.webtoapp.ui.design.WtaSectionDivider
-import com.webtoapp.ui.design.WtaToggleRow
+import com.webtoapp.ui.design.WtaSettingRow
+import com.webtoapp.ui.design.WtaSpacing
+import com.webtoapp.ui.design.WtaSwitch
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -129,6 +131,7 @@ private fun BuildApkContent(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val repository = remember { WebToAppApplication.repository }
 
     // 双阶段渲染：先显示轻量骨架，等导航过渡动画结束（220ms）后再初始化重活，
     // 避免 ApkBuilder 构造（mkdirs）、包名查询、引擎检查、预检等与过渡动画抢主线程导致掉帧。
@@ -150,14 +153,15 @@ private fun BuildApkContent(
     var progressText by remember(webApp.id) { mutableStateOf(Strings.preparing) }
     var analysisReport by remember(webApp.id) { mutableStateOf<com.webtoapp.core.apkbuilder.ApkAnalyzer.AnalysisReport?>(null) }
     var buildFailureReport by remember(webApp.id) { mutableStateOf<BuildFailureReport?>(null) }
-    var preflightReport by remember(webApp.id) { mutableStateOf<ApkExportPreflightReport?>(null) }
     var isEnsuringRuntime by remember(webApp.id) { mutableStateOf(false) }
     var ensureRuntimeText by remember(webApp.id) { mutableStateOf<String?>(null) }
     // Runtime downloads under the ensure step report through the shared engine;
     // surface them so "preparing" shows real progress instead of a bare spinner.
     val depDownloadState by com.webtoapp.core.download.DependencyDownloadEngine.state
         .collectAsStateWithLifecycle()
-    var forceFullRebuild by remember(webApp.id) { mutableStateOf(false) }
+    var forceFullRebuild by remember(webApp.id) {
+        mutableStateOf(webApp.apkExportConfig?.forceFullRebuild ?: false)
+    }
     var lastBuildMode by remember(webApp.id) { mutableStateOf<String?>(null) }
     var lastBuildReason by remember(webApp.id) { mutableStateOf<String?>(null) }
     var cacheMessage by remember(webApp.id) { mutableStateOf<String?>(null) }
@@ -187,15 +191,23 @@ private fun BuildApkContent(
     var selectedEngineType by remember(webApp.id) {
         mutableStateOf(webApp.apkExportConfig?.engineType ?: "SYSTEM_WEBVIEW")
     }
+
+    var perAppSigningEnabled by remember(webApp.id) {
+        mutableStateOf(webApp.apkExportConfig?.perAppSigningEnabled ?: false)
+    }
+    var saepEnabled by remember(webApp.id) {
+        mutableStateOf(webApp.apkExportConfig?.saepEnabled ?: false)
+    }
     // Resolve the package exactly the way the builder does. That rule used to
     // live inside ApkBuilder, so the screen could not reproduce a derived
     // package name, never found the installed app, and never bumped the version.
     val resolvedPackageName = com.webtoapp.core.apkbuilder.ApkBuilder.resolvePackageName(webApp)
     val baseVersionCode = webApp.apkExportConfig?.customVersionCode ?: 1
+    val autoVersionBump = webApp.apkExportConfig?.autoVersionBump ?: true
     var suggestedVersion by remember(resolvedPackageName) {
         mutableStateOf<Pair<Int, String>?>(null)
     }
-    LaunchedEffect(resolvedPackageName, baseVersionCode, uiReady) {
+    LaunchedEffect(resolvedPackageName, baseVersionCode, autoVersionBump, uiReady) {
         if (!uiReady) return@LaunchedEffect
         suggestedVersion = withContext(Dispatchers.IO) {
             com.webtoapp.core.apkbuilder.ApkBuilder.suggestedVersionForInstall(context, webApp)
@@ -213,17 +225,30 @@ private fun BuildApkContent(
         }
     }
 
+    /**
+     * The build-screen-managed slice of [com.webtoapp.data.model.ApkExportConfig]: every
+     * option this screen edits, merged onto the app's stored config so untouched fields
+     * (package name, version, permissions, …) survive. Single source for both the build
+     * call and the persist path below.
+     */
+    fun buildScreenExportConfig(): com.webtoapp.data.model.ApkExportConfig {
+        return (webApp.apkExportConfig ?: com.webtoapp.data.model.ApkExportConfig()).copy(
+            encryptionConfig = encryptionConfig,
+            isolationConfig = isolationConfig,
+            backgroundRunEnabled = backgroundRunEnabled,
+            backgroundRunConfig = backgroundRunConfig,
+            notificationEnabled = notificationEnabled,
+            notificationConfig = notificationConfig,
+            engineType = selectedEngineType,
+            perAppSigningEnabled = perAppSigningEnabled,
+            saepEnabled = saepEnabled,
+            forceFullRebuild = forceFullRebuild
+        )
+    }
+
     fun currentBuildConfig(): WebApp {
         return webApp.copy(
-            apkExportConfig = (webApp.apkExportConfig ?: com.webtoapp.data.model.ApkExportConfig()).copy(
-                encryptionConfig = encryptionConfig,
-                isolationConfig = isolationConfig,
-                backgroundRunEnabled = backgroundRunEnabled,
-                backgroundRunConfig = backgroundRunConfig,
-                notificationEnabled = notificationEnabled,
-                notificationConfig = notificationConfig,
-                engineType = selectedEngineType
-            ).let { exportConfig ->
+            apkExportConfig = buildScreenExportConfig().let { exportConfig ->
                 val suggested = suggestedVersion
                 if (suggested != null && (exportConfig.customVersionCode ?: 1) < suggested.first) {
                     exportConfig.copy(
@@ -235,6 +260,32 @@ private fun BuildApkContent(
                 }
             }
         ).withRuntimePermissionsSyncedFromFeatures()
+    }
+
+    // Persist the build options onto the app row so a later visit restores them instead
+    // of resetting to defaults. The snapshot from first composition is the "clean"
+    // baseline — writes only run after the user actually changes something, and
+    // persistBuildScreenExportConfig itself skips no-op writes (updateWebApp bumps
+    // `updatedAt`, which would reshuffle the app list and re-emit into the collector).
+    val exportConfigSnapshot = buildScreenExportConfig()
+    val initialExportConfig = remember(webApp.id) { exportConfigSnapshot }
+    val latestExportConfig by rememberUpdatedState(exportConfigSnapshot)
+    LaunchedEffect(exportConfigSnapshot) {
+        if (exportConfigSnapshot == initialExportConfig) return@LaunchedEffect
+        delay(400)
+        persistBuildScreenExportConfig(repository, webApp.id, exportConfigSnapshot)
+    }
+    DisposableEffect(webApp.id) {
+        onDispose {
+            val pending = latestExportConfig
+            if (pending != initialExportConfig) {
+                // The composition scope is already gone by the time onDispose runs; flush
+                // on a detached IO scope so a change made right before leaving still lands.
+                CoroutineScope(Dispatchers.IO).launch {
+                    persistBuildScreenExportConfig(repository, webApp.id, pending)
+                }
+            }
+        }
     }
 
     fun launchBuild() {
@@ -279,9 +330,20 @@ private fun BuildApkContent(
                 isBuilding = false
                 return@launch
             }
-            val nextPreflight = ApkExportPreflight.check(context, webAppWithConfig)
-            preflightReport = nextPreflight
-            if (nextPreflight.hasErrors) {
+            // Preflight still gates the build, but without the removed on-screen panel
+            // a silent abort would leave no feedback — blocking issues go through the
+            // same failure dialog as real build errors instead.
+            val preflight = withContext(Dispatchers.IO) {
+                ApkExportPreflight.check(context, webAppWithConfig)
+            }
+            if (preflight.hasErrors) {
+                buildFailureReport = buildActionFailureReport(
+                    title = Strings.apkExportPreflightTitle,
+                    stage = "export_preflight",
+                    webApp = webAppWithConfig,
+                    summary = Strings.apkExportPreflightBlocked.format(preflight.errors.size),
+                    extraLines = preflight.issues.map { it.summary() }
+                )
                 isBuilding = false
                 return@launch
             }
@@ -363,9 +425,6 @@ private fun BuildApkContent(
             ensureRuntimeText = null
             isEnsuringRuntime = false
         }
-        preflightReport = withContext(Dispatchers.IO) {
-            ApkExportPreflight.check(context, config)
-        }
     }
 
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
@@ -430,7 +489,7 @@ private fun BuildApkContent(
                             Text(
                                 when {
                                     builtApk != null -> Strings.install
-                                    buildFailureReport != null || preflightReport?.hasErrors == true -> Strings.btnRetry
+                                    buildFailureReport != null -> Strings.btnRetry
                                     else -> Strings.btnStartBuild
                                 },
                                 maxLines = 1,
@@ -571,7 +630,9 @@ private fun BuildApkContent(
                 )
             }
 
-            if (webApp.appType == AppType.WEB) {
+            // GeckoView is offered for WEB and MULTI_WEB: multi-web surfaces share
+            // one GeckoRuntime across per-site GeckoSessions (#1035).
+            if (webApp.appType == AppType.WEB || webApp.appType == AppType.MULTI_WEB) {
                 item {
                     WtaCard {
                         EngineSelectionCard(
@@ -585,102 +646,78 @@ private fun BuildApkContent(
 
             if (analysisReport == null && !isBuilding) {
                 item {
-                    WtaCard(contentPadding = PaddingValues(vertical = 4.dp)) {
-                        WtaToggleRow(
-                            icon = Icons.Outlined.Cached,
-                            title = Strings.forceFullRebuild,
-                            subtitle = Strings.forceFullRebuildDesc,
-                            checked = forceFullRebuild,
-                            onCheckedChange = { forceFullRebuild = it }
-                        )
-                        WtaSectionDivider()
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                    EnhancedElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
                         ) {
-                            TextButton(
+                            Text(
+                                text = Strings.buildOptionsSection,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            WtaSettingRow(
+                                icon = Icons.Outlined.Cached,
+                                title = Strings.forceFullRebuild,
+                                subtitle = Strings.forceFullRebuildDesc,
+                                active = forceFullRebuild,
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
+                                onClick = { forceFullRebuild = !forceFullRebuild }
+                            ) {
+                                WtaSwitch(
+                                    checked = forceFullRebuild,
+                                    onCheckedChange = { forceFullRebuild = it }
+                                )
+                            }
+                            WtaSettingRow(
+                                icon = Icons.Outlined.VerifiedUser,
+                                title = Strings.perAppSigningTitle,
+                                subtitle = Strings.perAppSigningHint,
+                                active = perAppSigningEnabled,
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
+                                onClick = { perAppSigningEnabled = !perAppSigningEnabled }
+                            ) {
+                                WtaSwitch(
+                                    checked = perAppSigningEnabled,
+                                    onCheckedChange = { perAppSigningEnabled = it }
+                                )
+                            }
+                            WtaSettingRow(
+                                icon = Icons.Outlined.VerifiedUser,
+                                title = Strings.saepPolicyTitle,
+                                subtitle = Strings.saepPolicyHint,
+                                active = saepEnabled,
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
+                                onClick = { saepEnabled = !saepEnabled }
+                            ) {
+                                WtaSwitch(
+                                    checked = saepEnabled,
+                                    onCheckedChange = { saepEnabled = it }
+                                )
+                            }
+                            WtaSettingRow(
+                                icon = Icons.Outlined.DeleteSweep,
+                                title = Strings.clearIncrementalCache,
+                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
                                 onClick = {
                                     apkBuilderState?.clearIncrementalCache(currentBuildConfig())
                                     cacheMessage = Strings.incrementalCacheCleared
-                                },
-                                contentPadding = PaddingValues(horizontal = 8.dp)
+                                }
                             ) {
-                                Icon(
-                                    Icons.Outlined.DeleteSweep,
-                                    null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text(
-                                    Strings.clearIncrementalCache,
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                            }
-                            cacheMessage?.let { msg ->
-                                WtaBadge(
-                                    text = msg,
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (analysisReport == null) {
-                item {
-                    WtaCard {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Info,
-                                    null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    Strings.buildApkForApp.replace("%s", webApp.name),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium
-                                )
-                            }
-
-                            Text(
-                                Strings.buildCompleteInstallHint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            if (suggestedVersion != null) {
-                                Surface(
-                                    shape = RoundedCornerShape(WtaRadius.Control),
-                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Outlined.SystemUpdateAlt,
-                                            null,
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.primary
-                                        )
-                                        Text(
-                                            Strings.updateApkGuide.replace("%s", resolvedPackageName)
-                                                .replace("%d", (suggestedVersion?.first ?: baseVersionCode).toString()),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                                        )
-                                    }
+                                if (cacheMessage != null) {
+                                    WtaBadge(
+                                        text = cacheMessage!!,
+                                        compact = true,
+                                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                } else {
+                                    Icon(
+                                        Icons.Default.ChevronRight,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         }
@@ -731,14 +768,6 @@ private fun BuildApkContent(
                                 }
                             }
                         }
-                    }
-                }
-            }
-
-            if (!isEnsuringRuntime) {
-                preflightReport?.let { report ->
-                    item {
-                        ApkExportPreflightPanel(report = report)
                     }
                 }
             }
@@ -949,6 +978,22 @@ private fun resolveBuildIsolationDefault(
     config: com.webtoapp.core.privacy.IsolationConfig?
 ): com.webtoapp.core.privacy.IsolationConfig {
     return config ?: com.webtoapp.core.privacy.IsolationConfig.DISABLED
+}
+
+/**
+ * Write the build screen's export config back onto the stored app row, preserving fields
+ * the screen doesn't manage. Skips the update entirely when the stored row already
+ * matches — [WebAppRepository.updateWebApp] bumps `updatedAt`, so even a no-op write
+ * would reshuffle the app list and feed this screen's collector another emission.
+ */
+internal suspend fun persistBuildScreenExportConfig(
+    repository: com.webtoapp.data.repository.WebAppRepository,
+    appId: Long,
+    exportConfig: com.webtoapp.data.model.ApkExportConfig
+) {
+    val base = repository.getWebApp(appId) ?: return
+    if (base.apkExportConfig == exportConfig) return
+    repository.updateWebApp(base.copy(apkExportConfig = exportConfig))
 }
 
 
@@ -1200,14 +1245,6 @@ fun EngineSelectionCard(
                         color = if (isGeckoDownloaded) MaterialTheme.colorScheme.onSurface
                                 else MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (isGeckoDownloaded) {
-                        Spacer(Modifier.width(6.dp))
-                        WtaBadge(
-                            text = Strings.engineReady,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
                 }
                 if (!isGeckoDownloaded) {
                     Text(

@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Tag
 import androidx.compose.material3.CircularProgressIndicator
@@ -86,6 +87,8 @@ import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.components.DataBackupCard
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaSettingRow
+import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.design.WtaRadius
 import com.webtoapp.ui.design.WtaScreen
 import com.webtoapp.ui.design.WtaSection
@@ -94,6 +97,9 @@ import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.rememberHapticClick
 import com.webtoapp.ui.design.wtaPressScale
 import com.webtoapp.ui.theme.LocalIsDarkTheme
+import com.webtoapp.ui.theme.LocalShowDescriptions
+import com.webtoapp.ui.theme.ThemeManager
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 
 @Composable
@@ -126,7 +132,7 @@ fun AboutScreen(onBack: () -> Unit) {
 
             ContactGrid()
 
-            OtherProjectsSection()
+            DescriptionsToggleCard()
 
             WtaSection(
                 title = Strings.dataBackupTitle,
@@ -135,10 +141,41 @@ fun AboutScreen(onBack: () -> Unit) {
                 DataBackupCard()
             }
 
+            OtherProjectsSection()
+
             LegalTabContent()
 
             MadeWithLoveFooter()
         }
+    }
+}
+
+@Composable
+private fun DescriptionsToggleCard() {
+    val context = LocalContext.current
+    val themeManager = remember { ThemeManager.getInstance(context) }
+    val showDescriptions by themeManager.showDescriptionsFlow.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    WtaCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = WtaCardTone.Elevated,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) {
+        WtaSettingRow(
+            icon = Icons.Outlined.Subtitles,
+            title = Strings.showDescriptions,
+            subtitle = Strings.showDescriptionsHint,
+            onClick = { scope.launch { themeManager.setShowDescriptions(!showDescriptions) } },
+            trailing = {
+                WtaSwitch(
+                    checked = showDescriptions,
+                    onCheckedChange = {
+                        scope.launch { themeManager.setShowDescriptions(it) }
+                    }
+                )
+            }
+        )
     }
 }
 
@@ -285,24 +322,28 @@ private fun AuthorHeroCard(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(Modifier.height(4.dp))
+            AnimatedVisibility(visible = LocalShowDescriptions.current) {
+                Column {
+                    Spacer(Modifier.height(4.dp))
 
-            Text(
-                text = byLine,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center
-            )
+                    Text(
+                        text = byLine,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
 
-            Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(12.dp))
 
-            Text(
-                text = Strings.aboutAppDescription,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 8.dp)
-            )
+                    Text(
+                        text = Strings.aboutAppDescription,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+            }
 
             Spacer(Modifier.height(18.dp))
 
@@ -576,14 +617,16 @@ private fun GitHubRepoCard(onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = "github.com/shiaho777/web-to-app",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontFamily = FontFamily.Monospace,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                AnimatedVisibility(visible = LocalShowDescriptions.current) {
+                    Text(
+                        text = "github.com/shiaho777/web-to-app",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             Box(
@@ -645,13 +688,15 @@ private fun SwiftproxySponsorCard() {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(
-                    text = Strings.sponsorSwiftproxyDesc,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                AnimatedVisibility(visible = LocalShowDescriptions.current) {
+                    Text(
+                        text = Strings.sponsorSwiftproxyDesc,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
             Spacer(Modifier.width(8.dp))
             Box(
@@ -1575,6 +1620,8 @@ private fun versionCopiedToast(): String = when (Strings.currentLanguage.value) 
 
 private enum class RepoSortMode { STARS, RECENT }
 
+private const val COLLAPSED_REPO_COUNT = 5
+
 /**
  * "More projects" section: lists the author's public GitHub repos (forks and
  * this app filtered out). Cached JSON renders instantly on revisit while a
@@ -1592,6 +1639,7 @@ private fun OtherProjectsSection() {
     var refreshing by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var sortMode by remember { mutableStateOf(RepoSortMode.STARS) }
+    var showAllRepos by remember { mutableStateOf(false) }
 
     fun load() {
         scope.launch {
@@ -1682,8 +1730,37 @@ private fun OtherProjectsSection() {
                     }
                 }
                 else -> {
-                    sorted.forEach { repo ->
+                    val visibleRepos = if (showAllRepos) sorted else sorted.take(COLLAPSED_REPO_COUNT)
+                    visibleRepos.forEach { repo ->
                         RepoCard(repo = repo, onClick = { context.openUrl(repo.url) })
+                    }
+                    if (sorted.size > COLLAPSED_REPO_COUNT) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(WtaRadius.Control))
+                                .clickable { showAllRepos = !showAllRepos }
+                                .padding(vertical = 6.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                if (showAllRepos) {
+                                    showLessProjectsLabel()
+                                } else {
+                                    showMoreProjectsLabel(sorted.size - COLLAPSED_REPO_COUNT)
+                                },
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                if (showAllRepos) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = null,
+                                modifier = Modifier.size(13.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                     Row(
                         modifier = Modifier
@@ -1801,15 +1878,17 @@ private fun RepoCard(
                 )
             }
 
-            Text(
-                text = repo.description.ifBlank { repoNoDescription() },
-                style = MaterialTheme.typography.bodySmall,
-                color = if (repo.description.isBlank()) MaterialTheme.colorScheme.outline
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 44.dp)
-            )
+            AnimatedVisibility(visible = LocalShowDescriptions.current) {
+                Text(
+                    text = repo.description.ifBlank { repoNoDescription() },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (repo.description.isBlank()) MaterialTheme.colorScheme.outline
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(start = 44.dp)
+                )
+            }
 
             Row(
                 modifier = Modifier.padding(start = 44.dp),
@@ -2111,4 +2190,32 @@ private fun viewAllOnGitHub(): String = when (Strings.currentLanguage.value) {
     AppLanguage.RUSSIAN -> "Смотреть все на GitHub"
     AppLanguage.JAPANESE -> "GitHub ですべて見る"
     AppLanguage.KOREAN -> "GitHub에서 모두 보기"
+}
+
+@Composable
+private fun showMoreProjectsLabel(count: Int): String = when (Strings.currentLanguage.value) {
+    AppLanguage.CHINESE -> "展开其余 $count 个项目"
+    AppLanguage.ENGLISH -> "Show $count more"
+    AppLanguage.ARABIC -> "عرض $count إضافية"
+    AppLanguage.PORTUGUESE -> "Mostrar mais $count"
+    AppLanguage.SPANISH -> "Mostrar $count más"
+    AppLanguage.FRENCH -> "Afficher $count de plus"
+    AppLanguage.GERMAN -> "$count weitere anzeigen"
+    AppLanguage.RUSSIAN -> "Показать ещё $count"
+    AppLanguage.JAPANESE -> "あと $count 件を表示"
+    AppLanguage.KOREAN -> "${count}개 더 보기"
+}
+
+@Composable
+private fun showLessProjectsLabel(): String = when (Strings.currentLanguage.value) {
+    AppLanguage.CHINESE -> "收起"
+    AppLanguage.ENGLISH -> "Show less"
+    AppLanguage.ARABIC -> "عرض أقل"
+    AppLanguage.PORTUGUESE -> "Mostrar menos"
+    AppLanguage.SPANISH -> "Mostrar menos"
+    AppLanguage.FRENCH -> "Afficher moins"
+    AppLanguage.GERMAN -> "Weniger anzeigen"
+    AppLanguage.RUSSIAN -> "Свернуть"
+    AppLanguage.JAPANESE -> "折りたたむ"
+    AppLanguage.KOREAN -> "접기"
 }
