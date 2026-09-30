@@ -72,7 +72,6 @@ class WebViewConfigBooleanCoverageTest {
             "hostsMappingEnabled", "autoRefreshEnabled", "autoRefreshShowCountdown",
             "allowFileAccessFromFileURLs", "allowUniversalAccessFromFileURLs",
             "tlsFingerprintEnabled", "forceHttp3",
-            "statusBarDarkIconsDark",
             "pictureInPictureEnabled", "ratingEnabled"
         )
 
@@ -567,7 +566,6 @@ class WebViewConfigBooleanCoverageTest {
             allowFileAccessFromFileURLs = bool("allowFileAccessFromFileURLs"),
             allowUniversalAccessFromFileURLs = bool("allowUniversalAccessFromFileURLs"),
             tlsFingerprintEnabled = bool("tlsFingerprintEnabled"),
-            statusBarDarkIconsDark = bool("statusBarDarkIconsDark"),
             pictureInPictureEnabled = bool("pictureInPictureEnabled"),
             ratingEnabled = bool("ratingEnabled"),
             forceHttp3 = bool("forceHttp3")
