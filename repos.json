@@ -2,8 +2,8 @@
   {
     "name": "WebToApp",
     "description": "Turn any website into an installable app across iOS, Android, Windows, macOS and Linux, and generate a sharing link.",
-    "stargazers_count": 120,
-    "forks_count": 27,
+    "stargazers_count": 122,
+    "forks_count": 28,
     "language": "Python",
     "pushed_at": "2026-09-14T14:42:06Z",
     "html_url": "https://github.com/shiaho777/WebToApp"
@@ -11,7 +11,7 @@
   {
     "name": "jseek",
     "description": "The fastest way to pull values out of JSON in Go — zero allocations, no structs, no full parse",
-    "stargazers_count": 39,
+    "stargazers_count": 40,
     "forks_count": 2,
     "language": "Go",
     "pushed_at": "2026-07-16T13:18:14Z",
@@ -20,7 +20,7 @@
   {
     "name": "turn-mcp",
     "description": "Achieve infinite conversation turns in a single API request via turn-mcp.             Self-hosted MCP server with browser console for human-in-the-loop AI agents.",
-    "stargazers_count": 38,
+    "stargazers_count": 39,
     "forks_count": 9,
     "language": "JavaScript",
     "pushed_at": "2026-05-02T08:31:52Z",
@@ -45,6 +45,15 @@
     "html_url": "https://github.com/shiaho777/andmx"
   },
   {
+    "name": "zv-codec",
+    "description": "Tiny video/audio codec optimized for screen recordings. 24% smaller than x265 lossless RGB at the same speed, ~1100 lines of C, no NN, no external deps.",
+    "stargazers_count": 18,
+    "forks_count": 0,
+    "language": "Python",
+    "pushed_at": "2026-05-22T17:43:02Z",
+    "html_url": "https://github.com/shiaho777/zv-codec"
+  },
+  {
     "name": "revx",
     "description": "Rust reverse-engineering toolkit with CLI and local MCP server.",
     "stargazers_count": 17,
@@ -61,15 +70,6 @@
     "language": "Kotlin",
     "pushed_at": "2026-09-17T04:00:45Z",
     "html_url": "https://github.com/shiaho777/NexFiles"
-  },
-  {
-    "name": "zv-codec",
-    "description": "Tiny video/audio codec optimized for screen recordings. 24% smaller than x265 lossless RGB at the same speed, ~1100 lines of C, no NN, no external deps.",
-    "stargazers_count": 17,
-    "forks_count": 0,
-    "language": "Python",
-    "pushed_at": "2026-05-22T17:43:02Z",
-    "html_url": "https://github.com/shiaho777/zv-codec"
   },
   {
     "name": "wgsql",
@@ -99,6 +99,24 @@
     "html_url": "https://github.com/shiaho777/MacBottle"
   },
   {
+    "name": "echomind",
+    "description": "A non-attention LM recipe with proven small-scale ICL and Chinchilla-style scaling law (R²=0.995). Reproducible in 25 minutes on a MacBook.",
+    "stargazers_count": 14,
+    "forks_count": 0,
+    "language": "Python",
+    "pushed_at": "2026-05-28T10:56:43Z",
+    "html_url": "https://github.com/shiaho777/echomind"
+  },
+  {
+    "name": "anthropic-ui-skill",
+    "description": "A Skill that allows AI to generate the UI design style of Anthropic Company. Its aesthetics are very good.",
+    "stargazers_count": 14,
+    "forks_count": 1,
+    "language": null,
+    "pushed_at": "2026-05-28T08:50:31Z",
+    "html_url": "https://github.com/shiaho777/anthropic-ui-skill"
+  },
+  {
     "name": "qsyy",
     "description": "汽水音乐第三方 Web 播放器 · 全端可用 · 本地缓存直读 / 在线播放 / 逐字歌词 / 音效 / 下载",
     "stargazers_count": 13,
@@ -126,30 +144,12 @@
     "html_url": "https://github.com/shiaho777/clipshelf"
   },
   {
-    "name": "echomind",
-    "description": "A non-attention LM recipe with proven small-scale ICL and Chinchilla-style scaling law (R²=0.995). Reproducible in 25 minutes on a MacBook.",
-    "stargazers_count": 13,
-    "forks_count": 0,
-    "language": "Python",
-    "pushed_at": "2026-05-28T10:56:43Z",
-    "html_url": "https://github.com/shiaho777/echomind"
-  },
-  {
-    "name": "anthropic-ui-skill",
-    "description": "A Skill that allows AI to generate the UI design style of Anthropic Company. Its aesthetics are very good.",
-    "stargazers_count": 13,
-    "forks_count": 1,
-    "language": null,
-    "pushed_at": "2026-05-28T08:50:31Z",
-    "html_url": "https://github.com/shiaho777/anthropic-ui-skill"
-  },
-  {
     "name": "pyj-j",
     "description": "J as a tensor engine inside Python — zero-copy numpy bridge, reverse-mode autodiff written in J, tape-to-J compiler",
     "stargazers_count": 11,
     "forks_count": 0,
     "language": "Python",
-    "pushed_at": "2026-10-03T22:17:35Z",
+    "pushed_at": "2026-10-04T13:17:30Z",
     "html_url": "https://github.com/shiaho777/pyj-j"
   },
   {
@@ -169,6 +169,15 @@
     "language": null,
     "pushed_at": "2026-08-19T02:15:54Z",
     "html_url": "https://github.com/shiaho777/zcode-exports"
+  },
+  {
+    "name": "float-android",
+    "description": "一部装在 Android 里的 AI 虚拟手机：拟真桌面、聊天、朋友圈、查手机、地图定位、语音/视频通话、日记日历。AI 角色有作息、日程、位置和长期记忆，会主动发消息、发帖互动。数据全在设备本地，联网只调你自己配置的 LLM/生图/语音 API。",
+    "stargazers_count": 10,
+    "forks_count": 2,
+    "language": "TypeScript",
+    "pushed_at": "2026-10-04T16:07:22Z",
+    "html_url": "https://github.com/shiaho777/float-android"
   },
   {
     "name": "LogSleuth",
@@ -216,13 +225,13 @@
     "html_url": "https://github.com/shiaho777/esp-overlay"
   },
   {
-    "name": "float-android",
-    "description": "一部装在 Android 里的 AI 虚拟手机：拟真桌面、聊天、朋友圈、查手机、地图定位、语音/视频通话、日记日历。AI 角色有作息、日程、位置和长期记忆，会主动发消息、发帖互动。数据全在设备本地，联网只调你自己配置的 LLM/生图/语音 API。",
-    "stargazers_count": 9,
-    "forks_count": 1,
-    "language": "TypeScript",
-    "pushed_at": "2026-10-04T05:29:27Z",
-    "html_url": "https://github.com/shiaho777/float-android"
+    "name": "issue-pr-ci-delivery",
+    "description": "Bootstrap & run an Issue → PR → CI → merge delivery loop for any GitHub repo",
+    "stargazers_count": 10,
+    "forks_count": 0,
+    "language": null,
+    "pushed_at": "2026-07-31T07:26:23Z",
+    "html_url": "https://github.com/shiaho777/issue-pr-ci-delivery"
   },
   {
     "name": "pocket-linux-images",
@@ -241,14 +250,5 @@
     "language": "Kotlin",
     "pushed_at": "2026-09-10T05:36:50Z",
     "html_url": "https://github.com/shiaho777/charter"
-  },
-  {
-    "name": "issue-pr-ci-delivery",
-    "description": "Bootstrap & run an Issue → PR → CI → merge delivery loop for any GitHub repo",
-    "stargazers_count": 9,
-    "forks_count": 0,
-    "language": null,
-    "pushed_at": "2026-07-31T07:26:23Z",
-    "html_url": "https://github.com/shiaho777/issue-pr-ci-delivery"
   }
 ]
