@@ -5,6 +5,7 @@ Instructions for coding agents working in this repository.
 ## Code style
 
 - Do what you believe is right. Make the change complete and correct, not the smallest possible diff. If a fix calls for refactoring, renaming, or touching multiple files, do it.
+- Fix root causes, not symptoms. Do not paper over a defect with catch-and-swallow, degraded fallbacks, or UI workarounds that leave the underlying behavior broken. Trace the failure to where it originates and repair it there — even when that is harder.
 - Match the patterns and conventions already in the surrounding code.
 - Do not add copyright or license headers unless asked.
 
@@ -14,6 +15,7 @@ Instructions for coding agents working in this repository.
 |------|------|
 | `app/` | Full builder host: editor UI, export pipeline, runtimes, preview. |
 | `shell/` | Runtime template. Built to `app/src/main/assets/template/webview_shell.apk` via `:shell:assembleRelease` + `:app:syncShellTemplateApk`. |
+| `feature-stacks/` | Optional-dependency modules bundled as graftable packages (`dex/` + `stack.arsc` at package-id 0x80+ + `res/` + curated `manifest.xml` fragment + `stack.json`). Built by each module's `bundle*Stack` task, synced to `app/src/main/assets/stacks/` by `:app:syncStackBundles`, injected into generated APKs only when the export config enables the feature (#1115). |
 | `clone-host/` | Host-side APK clone / identity reshape support library. Its DEX asset generation (`syncCloneHostDex`) is deliberately disabled (`enabled = false`, AV false-positive mitigation, e0d2d4d6) — `AppCloner` runs fail-soft without the asset. |
 | `modules/` | Module Market catalog (`registry.json` + per-module folders). |
 | `sample-bundles/` | Heavy sample dependency packs (`python-*-shared.zip` + sha256-pinned `manifest.json`) fetched on demand by `SampleSharedPackManager` — deliberately NOT in `app/assets` (saves ~30MB raw / ~7MB compressed from the host APK). Regenerate via `scripts/build_sample_bundles.py`. |
@@ -57,13 +59,19 @@ Mental model:
 
 ## Android and packaging constraints
 
-- Generated apps keep a low `targetSdk` (28) on the shell path because they rely on on-device fork+exec runtimes. Do not raise shell targetSdk casually.
-- The host app targets SDK 36 (antivirus reputation); SELinux W^X therefore blocks host-side exec of downloaded runtimes. `RuntimeExecPolicy` (`core/linux`) gates those previews by probing the installed targetSdk — generated APKs (always 28) pass unconditionally. Node preview (JNI via native libs) is unaffected.
-- Launch runtime / toolchain processes through `HostProcessLauncher` (`core/linux`): plain `ProcessBuilder` fork+exec where the platform allows it (generated APKs, targetSdk 28), the user-mode static exec loader (`StaticExecProcess`, memfd-based) on W^X hosts (targetSdk ≥ 29), or a degraded error when no static exec bridge is available. A raw `Runtime.exec` on a downloaded binary crashes the host app on W^X devices (#795).
+- Generated apps ship `minSdk` 23 / `targetSdk` 35 (the shell template). `ApkExportConfig.targetSdk` can pin another target (whitelist chips; process-exec types stay 28) and the AAB path forces `DEFAULT_PLAY_TARGET_SDK` (36). `ApkExportConfig.minSdk` can raise the floor only (`23..effectiveTargetSdk`); lowering below 23 is rejected because the packed DEX requires API 23. The shell runtime is already adapted to 35 (POST_NOTIFICATIONS gating, FGS types, exact-alarm fallback, `enableEdgeToEdge`) — keep those paths working if the value moves again.
+- The host app targets SDK 36 (antivirus reputation). Host-side exec of app-data binaries is SELinux W^X-blocked, so downloaded toolchains (esbuild, via `NativeNodeEngine`) must launch through `HostProcessLauncher` (`core/linux`) — it picks ProcessBuilder where exec is allowed or the memfd static exec bridge (`StaticExecProcess`/`RuntimeExecPolicy`) on W^X hosts, and returns a clear error when neither is available. A raw `Runtime.exec`/`ProcessBuilder` on a downloaded binary fails on the host (#795). The exec bridge is host-only — generated APKs exec nothing, and the bridge classes are excluded from the shell sync.
 - Avoid new third-party dependencies unless strongly justified (`app/build.gradle.kts` / `shell/build.gradle.kts`). Prefer platform APIs and existing modules.
 - Notification push channels: Web Notification polyfill, polling, WebSocket, FCM (developer-owned Firebase config). Do not add OEM vendor push SDKs by default.
 - Foreground services and notification helpers must use `SafeNotificationChannels` (or equivalent fail-soft create). Channel creation failures must not crash FGS startup.
 - **One shell template:** `webview_shell.apk` from `:shell` release. Do not introduce a second template APK.
+- **Feature stacks (optional deps, #1115):** heavy optional SDKs (admob, …) live in `feature-stacks/<id>` and graft into the generated APK at export: `FeatureStacks.enabledFor(config)` gates inclusion, `FeatureStackGrafter` appends `classesN.dex` + namespaced `res/` + merges the manifest fragment (`AxmlRebuilder.mergeManifestFragment`) + grafts the stack's `resources.arsc` package (`ArscPackageGrafter`, package-id ≥ 0x80). Disabled stacks cost zero bytes. Rules for new stacks:
+  - The runtime contract (interface + gates) is authored under `app/` so it syncs into the shell; the stack implements it and is reached via `Class.forName` + fail-soft fallback.
+  - Contract types must be name-pinned in `shell/proguard-rules.pro` (`-keep class com.webtoapp.core.ads.api.** { *; }`) — shell R8 renames `com.webtoapp.**`, and a renamed interface resolves to the stack's own copy, silently breaking casts.
+  - Contract signatures must carry **only framework types or contract-owned types**. Kotlin function types (`() -> Unit` → `kotlin.Function0`) compile to library classes that shell R8 renames — the interface method then desugars to a renamed parameter type and the stack impl hits `AbstractMethodError`. Use a `fun interface` inside the kept api package instead.
+  - Stacks must be **self-contained**: `stackEmbedGroups` must cover every non-framework dependency the stack's code touches (gms, ump, `org.jetbrains.kotlin`). The template's kotlin-stdlib is an R8-processed subset with renamed classes AND inlined helpers — a stack referencing `kotlin/jvm/internal/Intrinsics` gets NCDFE/NoSuchMethodError at runtime. Do NOT "fix" it with `-keepnames` in shell (names-only doesn't restore inlined methods, and a kept-name partial copy shadows the stack's complete one).
+  - `mergeManifestFragment` writes attributes sorted by attribute **resource id** — PackageParser's TypedArray lookup requires ascending ids and rejects install (`INSTALL_PARSE_FAILED_MANIFEST_MALFORMED: <activity> does not specify android:name`) even though aapt2 parses the disorder fine.
+  - Stack ids/registry live in `FeatureStacks`; bundle sha256 feeds the incremental `manifestFingerprint`.
 - Export incremental rebuild lives in `app/.../apkbuilder` (`ApkBuildCache` + `ApkBuilder`):
   - Modes: `FULL` / `CONTENT_OVERLAY` / `REUSE_UNSIGNED`.
   - Template / entry identities must be **content-stable** (no mtime-based keys).
@@ -92,7 +100,14 @@ Default target: [shiaho777/web-to-app](https://github.com/shiaho777/web-to-app).
 
 **Language (required):** GitHub **Issues and PRs must be written in English** — titles, bodies, labels text you author, and delivery comments on the Issue/PR. Local chat with the user may be Chinese or any language; do not copy that language into Issue/PR text.
 
-When the user asks to deliver a change, run the Issue → branch → PR → CI → merge loop end-to-end. Do not close the Issue until the PR is merged and CI is green.
+When the user asks to deliver a change, run the Issue → branch → PR → CI → merge loop end-to-end. Opening the PR is not the end of the task. Stay with it until the merge is done:
+
+1. Watch the required `check` job in "Android CI Build" until it finishes. `package-apks` skips on PRs; do not wait on it.
+2. If `check` fails, fix it on the same branch and push. Do not open a second PR for the fix.
+3. Squash-merge only after `check` is green. Then confirm the Issue is closed by the merge and the head branch is deleted.
+4. Do not tell the user the delivery is done while the PR is still open, CI is still running or red, or the Issue is still open.
+
+Do not close the Issue yourself before the PR is merged and CI is green.
 
 **Branch naming:** use plain `type/slug` names — `fix/…`, `feat/…`, `refactor/…`, `docs/…`, `perf/…`, `chore/…`. Do not use tool/agent namespaces (`codex/…`, `devin/…`, etc.); the branch belongs to the repo, not the agent.
 
@@ -177,7 +192,7 @@ Missing any step usually yields: editor shows the switch, export ignores it, or 
 1. Edit the source under `app/` (shared runtime).
 2. Confirm the file is included by `syncShellRuntimeSources`.
 3. Rebuild shell template if you need to validate packaging.
-4. Keep changes surgical; shell has a low targetSdk and a thin dependency set.
+4. Keep changes surgical; shell ships a thin dependency set and a curated source sync.
 5. If you touch FGS / notification channel creation, fail soft via `SafeNotificationChannels`.
 
 ### 4. Add a host-only feature (editor, market, tooling)
@@ -229,7 +244,7 @@ Checklist in order:
 
 ### 11. Change a feature that has an Agent tool
 
-The in-app Agent exposes up to 57 tools — 52 base + 2 plan-mode + 3 imagery (imagery only load with an image-capable model; see `ToolRegistryFactory.build()`) — that wrap host service classes. When you change a feature, trace the tool chain:
+The in-app Agent exposes up to 68 tools — 63 base + 2 plan-mode + 3 imagery (imagery only load with an image-capable model; see `ToolRegistryFactory.build()`) — that wrap host service classes. When you change a feature, trace the tool chain:
 
 ```text
 LLM response (tool_calls)
@@ -288,6 +303,17 @@ Hard rules learned the hard way:
 6. **Conditional sub-blocks** (mode swaps, dependent fields) use `AnimatedVisibility` with `CardExpandTransition` / `CardCollapseTransition`, never bare `if` inside the card body.
 7. **Compile ≠ verified.** After any card UI change, build + install on the emulator and check the rendered card: `uiautomator dump` element bounds, compare left edges / row heights of the changed card against its neighbours on the same screen (they must share the same content columns), plus a screenshot pass. Content a few dp off the grid is invisible in code review and obvious on screen.
 8. **If a UI rework PR gets "this doesn't match the other cards" feedback**, the fix is realignment to these patterns, not further invention.
+9. **Description text follows the About switch.** After the card change, apply the host-UI description rule below to every new subtitle or hint on the card.
+
+### Host UI descriptions (About → 显示说明文字)
+
+The About screen switch `Strings.showDescriptions` stores `ThemeManager.showDescriptions` and is read in Compose as `LocalShowDescriptions`. It hides helper copy. The default is on, so a missed gate still looks fine until the user turns descriptions off.
+
+After every host UI change — editor cards, dialogs, About, home, not only config cards — look at the new prose and decide:
+
+- **Gate it** when it is secondary explanation: a row subtitle, a "what this does" paragraph, a hint under a title. Row subtitles use `subtitle = Strings.xxx.ifDescriptionsShown()`. A block of explanatory text uses `AnimatedVisibility(visible = LocalShowDescriptions.current)` or `if (LocalShowDescriptions.current)`, the same way neighbouring screens already do.
+- **Do not gate** titles, the control's current value, errors, confirmation buttons, or status that is the only feedback the user has. `ifDescriptionsShown` exists so important status stays visible.
+- **Shell / generated-APK UI does not read this preference.** It is a host display setting. Do not thread it into shell-synced screens.
 
 ---
 
@@ -296,7 +322,7 @@ Hard rules learned the hard way:
 - **Keyboard avoidance below API 30 requires the classic window path.** Android 10 and lower have no native IME-inset dispatch: an edge-to-edge window (`decorFitsSystemWindows = false`) is never resized for the keyboard and reports zero IME insets, so no `softInputMode` value helps there. `WindowHelper.applyImmersiveFullscreen` therefore keeps the decor fitting system windows on the RESIZE keyboard path below API 30 (system `SOFT_INPUT_ADJUST_RESIZE` works) and degrades TRANSPARENT/IMAGE status-bar styles to solid colors on that path. Do not re-enable edge-to-edge unconditionally for those devices (#613; #634 flipped only the softInputMode bits and fixed nothing — its Robolectric test passed because it never asserted the layout flags).
 - **Shared sources are authored in `app/`.** Editing only a file under `shell/src` is usually wrong; it will be overwritten on sync or diverge from host.
 - **Config field names drift.** Editor model, `ApkConfig`, JSON factory, and shell config must stay aligned; Gson silently drops unknown/missing fields. Run `checkConfigFieldDrift`.
-- **Low targetSdk (28) and fork/exec runtimes** constrain "modernize the shell SDK" changes.
+- **Shell `targetSdk` 35 is now the baseline** — behavior differences (runtime perms, FGS types, BAL, exact alarms) are already handled in synced code; keep the audit items green when touching shell startup/notifications.
 - **Incremental export cache** keys must be content-based; mtime and resigned APKs create false hits/misses.
 - **HTML/FRONTEND file access.** Packaged local-file shells must have `allowFileAccess = true` (forced in `buildWebViewBlock` and `ShellWebViewConfig`); do not regress pure file-based HTML loads.
 - **Node native libs.** Exported NODEJS_APP needs `libnode_bridge.so` + `libnode.so` + `libc++_shared.so`; missing any causes `loadNode` / `loadJniBridge` failure at runtime.
@@ -310,6 +336,7 @@ Hard rules learned the hard way:
 - **Port conflict policy.** Local server runtimes must allocate through `PortManager` and clean up on stop; do not bind ports directly.
 - **Agent tool ↔ service drift.** When a service class API changes, the corresponding Agent tool in `core/agent/tool/builtin/` must be updated in the same PR. A stale tool either fails to compile or silently passes wrong arguments at runtime. Check `ToolRegistryFactory.baseTools()` for the full tool list.
 - **Editor card UI grammar.** Config-screen cards share one layout grammar (recipe 12): rows are full-bleed, non-row content sits in 16dp-padded zones, expansion never toggles the feature, and card UI is verified on the emulator — not just compiled.
+- **About "显示说明文字".** Helper copy on host UI is gated by the About switch (`Strings.showDescriptions` → `ThemeManager.showDescriptions` → `LocalShowDescriptions`). After every host UI change, decide whether new prose is that kind of helper text and gate it if it is. See "Host UI descriptions" under the card-UI recipe.
 
 ---
 
@@ -338,6 +365,9 @@ Hard rules learned the hard way:
 ./gradlew :app:compileStandardDebugKotlin -x syncCloneHostDex --no-configuration-cache
 ./gradlew :app:checkConfigFieldDrift --no-configuration-cache
 python3 scripts/check_config_field_drift.py
+./gradlew --no-configuration-cache -PskipShellTemplateSync=true -Pfdroid=true \
+  :app:compileStandardReleaseKotlin :shell:compileReleaseKotlin \
+  :app:processStandardReleaseManifest :shell:processReleaseManifest
 ```
 
 Use these when you change shell membership, export packaging, or config fields. For host-only UI/string work, targeted compile on `:app` is usually enough.
@@ -375,4 +405,4 @@ Landed:
 - Module Market: Chrome Web Store live search + GreasyFork browse
 - Code editor find-and-replace
 - Security hardening sweep: TLS-fingerprint bridge validates upstream certs (system + custom CAs + hostname) and its local CA is signature-verified with no error-type fallback; JS bridges are caller/origin/scheme-gated (NativeBridge CORS bypass, GM bridge, MV3 `ChromeHostPermissions`); MITM proxy host-allowlisted and CA key wrapped at rest; zip extraction routed through `util/SafeZip`; concurrent exports serialized per package with per-package work dirs; multi-web server-runtime site sources degrade to URL; PHP/Python/WP embed failures fail the build; error pages and `TranslateBridge` callbacks JSON-escaped; keystore password sidecars excluded from backups
-- Agent tool system: up to 57 tools — 52 base + 2 plan-mode + 3 imagery (image-capable models only) — covering app lifecycle, config templates, ports/engine, hosts/runtime, stats/modifier/import, build env/Play, modules, files, and imagery, with Channel-based permission prompting, per-section SSE parse resilience, and plan mode; runtime/build-env tools surface `localExecAllowed` so the LLM knows targetSdk>=29 hosts cannot exec app-storage binaries
+- Agent tool system: up to 68 tools — 63 base + 2 plan-mode + 3 imagery (image-capable models only) — covering app lifecycle, config templates, ports/engine, hosts/runtime, stats/modifier/import, build env/Play, modules, files, and imagery, with Channel-based permission prompting, per-section SSE parse resilience, and plan mode; runtime/build-env tools surface `localExecAllowed` so the LLM knows targetSdk>=29 hosts cannot exec app-storage binaries

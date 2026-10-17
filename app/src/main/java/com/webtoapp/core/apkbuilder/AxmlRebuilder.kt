@@ -37,6 +37,103 @@ class AxmlRebuilder {
         private const val ATTR_MIME_TYPE = 0x01010026
         private const val ATTR_PATH_PATTERN = 0x0101002c
 
+        // Typed-value dataType codes (android.util.TypedValue).
+        private const val TYPE_REFERENCE = 0x01
+        private const val TYPE_STRING = 0x03
+        private const val TYPE_INT_DEC = 0x10
+        private const val TYPE_INT_HEX = 0x11
+        private const val TYPE_INT_BOOLEAN = 0x12
+
+        private const val ANDROID_NS = "http://schemas.android.com/apk/res/android"
+
+        /** android:* attribute name -> framework resource id (fragment merge). */
+        private val ANDROID_ATTR_IDS = mapOf(
+            "name" to 0x01010003,
+            "label" to 0x01010001,
+            "icon" to 0x01010002,
+            "permission" to 0x01010006,
+            "readPermission" to 0x01010007,
+            "writePermission" to 0x01010008,
+            "enabled" to 0x0101000e,
+            "exported" to 0x01010010,
+            "process" to 0x01010011,
+            "taskAffinity" to 0x01010012,
+            "multiprocess" to 0x01010013,
+            "order" to 0x01010015,
+            "excludeFromRecents" to 0x01010017,
+            "authorities" to 0x01010018,
+            "syncable" to 0x01010019,
+            "initOrder" to 0x0101001a,
+            "grantUriPermissions" to 0x0101001b,
+            "priority" to 0x0101001c,
+            "launchMode" to 0x0101001d,
+            "screenOrientation" to 0x0101001e,
+            "configChanges" to 0x0101001f,
+            "description" to 0x01010020,
+            "value" to 0x01010024,
+            "resource" to 0x01010025,
+            "mimeType" to 0x01010026,
+            "scheme" to 0x01010027,
+            "host" to 0x01010028,
+            "port" to 0x01010029,
+            "path" to 0x0101002a,
+            "pathPrefix" to 0x0101002b,
+            "pathPattern" to 0x0101002c,
+            "pathSuffix" to 0x0101028b,
+            "pathAdvancedPattern" to 0x0101042d,
+            "theme" to 0x01010000,
+            "windowSoftInputMode" to 0x0101022b,
+            "hardwareAccelerated" to 0x010100d3,
+            "targetActivity" to 0x01010202,
+            "minSdkVersion" to 0x0101020c,
+            "maxSdkVersion" to 0x01010271,
+            "required" to 0x0101028e,
+            "requiredForAllUsers" to 0x010103f2,
+            "directBootAware" to 0x01010505,
+            "usesNonSdkApi" to 0x01010514,
+            "enableOnBackInvokedCallback" to 0x01010640,
+            "usesPermissionFlags" to 0x010104ef
+        )
+
+        /** `@android:<type>/<name>` references used by stack fragments. */
+        private val ANDROID_RES_IDS = mapOf(
+            "style/Theme.Translucent" to 0x0103000f,
+            "style/Theme.Translucent.NoTitleBar" to 0x01030010,
+            "style/Theme.Dialog" to 0x01030011,
+            "style/Theme.NoTitleBar" to 0x01030007,
+            "attr/windowIsTranslucent" to 0x0101005e
+        )
+
+        private val CONFIG_CHANGE_FLAGS = mapOf(
+            "mcc" to 0x0001, "mnc" to 0x0002, "locale" to 0x0004,
+            "touchscreen" to 0x0008, "keyboard" to 0x0010,
+            "keyboardHidden" to 0x0020, "navigation" to 0x0040,
+            "orientation" to 0x0080, "screenLayout" to 0x0100,
+            "uiMode" to 0x0200, "screenSize" to 0x0400,
+            "smallestScreenSize" to 0x0800, "density" to 0x1000,
+            "layoutDirection" to 0x2000, "colorMode" to 0x4000,
+            "fontScale" to 0x40000000, "fontWeightAdjustment" to 0x8000000
+        )
+
+        private val LAUNCH_MODES = mapOf(
+            "standard" to 0, "singleTop" to 1, "singleTask" to 2,
+            "singleInstance" to 3, "singleInstancePerTask" to 17
+        )
+
+        private val SCREEN_ORIENTATIONS = mapOf(
+            "unspecified" to -1, "landscape" to 0, "portrait" to 1,
+            "user" to 2, "behind" to 3, "sensor" to 4, "nosensor" to 5,
+            "sensorLandscape" to 6, "sensorPortrait" to 7,
+            "reverseLandscape" to 8, "reversePortrait" to 9,
+            "fullSensor" to 10, "userLandscape" to 11, "userPortrait" to 12,
+            "fullUser" to 13, "locked" to 14
+        )
+
+        /** Fragment attributes whose numeric literals encode as TYPE_INT_DEC. */
+        private val INT_ATTRS = setOf(
+            "initOrder", "priority", "order", "minSdkVersion", "maxSdkVersion"
+        )
+
         private val CLASS_NAME_REGEX = Regex("^[A-Z][a-zA-Z0-9]*$")
 
         private val BASELINE_RUNTIME_PERMISSIONS = listOf(
@@ -1216,6 +1313,232 @@ class AxmlRebuilder {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Feature-stack manifest fragment merge (issue #1115)
+    //
+    // `mergeManifestFragment` grafts a curated TEXT XML fragment (shipped inside
+    // each feature-stack bundle) into the binary AndroidManifest of the output
+    // APK. Fragment root is <fragment>: its <application> child's elements are
+    // appended inside the manifest's <application>, every other top-level
+    // element (<uses-permission>, <queries>, <uses-feature>, …) lands at
+    // manifest level directly before <application>.
+    //
+    // Attribute values are literal strings except:
+    //   true / false            -> TYPE_INT_BOOLEAN
+    //   @android:<type>/<name>  -> TYPE_REFERENCE via ANDROID_RES_IDS
+    //   @ref:0xNN / @int:N / @hex:0xNN -> explicit typed values
+    //   configChanges           -> flag names OR-ed into TYPE_INT_HEX
+    //   launchMode etc          -> enum tables into TYPE_INT_DEC
+    //   ${applicationId}        -> substituted from [vars] before encoding
+    // -----------------------------------------------------------------------
+
+    /**
+     * Merge [fragmentXml] (a curated `<fragment>` document) into [axmlData].
+     * [vars] substitutes `${key}` placeholders inside attribute values
+     * (e.g. `applicationId` for provider authorities).
+     * Returns the original bytes untouched when the fragment is empty/invalid.
+     */
+    fun mergeManifestFragment(
+        axmlData: ByteArray,
+        fragmentXml: ByteArray,
+        vars: Map<String, String> = emptyMap()
+    ): ByteArray {
+        val parsed = parseAxml(axmlData) ?: return axmlData
+        if (parsed.resourceMap == null) {
+            AppLogger.e(TAG, "fragment merge: no resource map, skipping")
+            return axmlData
+        }
+        val root = try {
+            val dbf = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+            dbf.isNamespaceAware = true
+            dbf.newDocumentBuilder()
+                .parse(java.io.ByteArrayInputStream(fragmentXml))
+                .documentElement
+        } catch (e: Exception) {
+            AppLogger.e(TAG, "fragment merge: XML parse failed", e)
+            return axmlData
+        }
+        if (root == null || root.tagName != "fragment") {
+            AppLogger.e(TAG, "fragment merge: root is not <fragment>")
+            return axmlData
+        }
+
+        val appStart = findApplicationStartIndex(parsed)
+        if (appStart < 0) {
+            AppLogger.e(TAG, "fragment merge: no <application> element")
+            return axmlData
+        }
+        val appEnd = findMatchingEndElementIndex(parsed, appStart)
+        if (appEnd < 0) {
+            AppLogger.e(TAG, "fragment merge: no </application> element")
+            return axmlData
+        }
+
+        // Collect elements first, then pre-register every attribute name via
+        // ensureAttrIndex (it inserts into the string pool mid-list and fixes
+        // all EXISTING chunk indices — chunk buffers built afterwards are safe).
+        val manifestEls = mutableListOf<org.w3c.dom.Element>()
+        val appEls = mutableListOf<org.w3c.dom.Element>()
+        for (node in root.childNodes.elementIterator()) {
+            if (node.tagName == "application") {
+                node.childNodes.elementIterator().forEach { appEls += it }
+            } else {
+                manifestEls += node
+            }
+        }
+        if (manifestEls.isEmpty() && appEls.isEmpty()) return axmlData
+
+        fun registerAttrs(el: org.w3c.dom.Element) {
+            val attrs = el.attributes
+            for (i in 0 until attrs.length) {
+                val attr = attrs.item(i) as? org.w3c.dom.Attr ?: continue
+                if (attr.namespaceURI == ANDROID_NS) {
+                    ANDROID_ATTR_IDS[attr.localName]
+                        ?.let { ensureAttrIndex(parsed, it, attr.localName) }
+                }
+            }
+            el.childNodes.elementIterator().forEach { registerAttrs(it) }
+        }
+        manifestEls.forEach { registerAttrs(it) }
+        appEls.forEach { registerAttrs(it) }
+
+        // ensureAttrIndex inserts attribute names mid-pool (at the resource-map
+        // boundary) and shifts every index after the insertion point, so the ns
+        // index must be resolved AFTER registration — a value captured earlier
+        // goes stale and lands on an unrelated pool string.
+        val androidNsIndex =
+            getOrAddString(parsed.stringPool, "http://schemas.android.com/apk/res/android")
+
+        val appChunks = appEls.flatMap { buildFragmentElement(parsed, it, androidNsIndex, vars) }
+        if (appChunks.isNotEmpty()) parsed.chunks.addAll(appEnd, appChunks)
+
+        // Skip uses-permission entries the manifest already has.
+        val nameAttrIndex = parsed.resourceMap!!.indexOf(ATTR_NAME)
+        val manifestChunks = manifestEls.filter {
+            it.tagName != "uses-permission" || nameAttrIndex < 0 ||
+                !hasUsesPermission(
+                    parsed,
+                    it.getAttributeNS(ANDROID_NS, "name"),
+                    nameAttrIndex
+                )
+        }.flatMap { buildFragmentElement(parsed, it, androidNsIndex, vars) }
+        if (manifestChunks.isNotEmpty()) parsed.chunks.addAll(appStart, manifestChunks)
+
+        AppLogger.d(
+            TAG,
+            "fragment merge: ${manifestEls.size} manifest-level, " +
+                "${appEls.size} application-level elements"
+        )
+        return rebuildAxml(parsed)
+    }
+
+    /** Serialize a DOM element (with children) into start/end AXML chunks. */
+    private fun buildFragmentElement(
+        parsed: ParsedAxml,
+        el: org.w3c.dom.Element,
+        androidNsIndex: Int,
+        vars: Map<String, String>
+    ): List<Chunk> {
+        val nameIndex = getOrAddString(parsed.stringPool, el.tagName)
+        // AXML attribute arrays MUST be sorted by attribute resource id:
+        // PackageParser resolves them via TypedArray's id-indexed lookup and
+        // rejects elements whose android:name isn't found ("<activity> does
+        // not specify android:name"), while lenient readers (aapt2) scan
+        // linearly and never notice the disorder.
+        val attrList = (0 until el.attributes.length)
+            .mapNotNull { el.attributes.item(it) as? org.w3c.dom.Attr }
+            .sortedBy { attr ->
+                if (attr.namespaceURI == ANDROID_NS) {
+                    ANDROID_ATTR_IDS[attr.localName] ?: Int.MAX_VALUE
+                } else Int.MAX_VALUE
+            }
+        val start = buildSimpleStartElement(androidNsIndex, nameIndex, attrList.size)
+        val buf = ByteBuffer.wrap(start.data).order(ByteOrder.LITTLE_ENDIAN)
+        for (i in 0 until attrList.size) {
+            val attr = attrList[i]
+            val isAndroid = attr.namespaceURI == ANDROID_NS
+            val attrName = if (isAndroid) {
+                attr.localName
+            } else {
+                attr.prefix?.let { "$it:${attr.localName}" } ?: attr.name
+            }
+            val nameIdx = if (isAndroid) {
+                val resId = ANDROID_ATTR_IDS[attrName] ?: 0
+                if (resId != 0) ensureAttrIndex(parsed, resId, attrName)
+                else getOrAddString(parsed.stringPool, attrName)
+            } else {
+                getOrAddString(parsed.stringPool, attrName)
+            }
+            val raw = substituteVars(attr.value, vars)
+            val rawIdx = getOrAddString(parsed.stringPool, raw)
+            val (dataType, dataValue) = encodeAttrValue(attrName, raw, parsed)
+
+            val o = 36 + i * 20
+            buf.putInt(o, if (isAndroid) androidNsIndex else -1)
+            buf.putInt(o + 4, nameIdx)
+            buf.putInt(o + 8, rawIdx)
+            buf.putShort(o + 12, 8)          // typed value size
+            buf.put(o + 14, 0)               // res0
+            buf.put(o + 15, dataType.toByte())
+            buf.putInt(o + 16, dataValue)
+        }
+
+        val chunks = mutableListOf(start)
+        el.childNodes.elementIterator().forEach { child ->
+            chunks += buildFragmentElement(parsed, child, androidNsIndex, vars)
+        }
+        chunks += buildEndElement(androidNsIndex, nameIndex)
+        return chunks
+    }
+
+    private fun substituteVars(value: String, vars: Map<String, String>): String {
+        var out = value
+        vars.forEach { (k, v) -> out = out.replace("\${$k}", v) }
+        return out
+    }
+
+    /** Map a fragment attribute value onto (dataType, data). */
+    private fun encodeAttrValue(
+        attrName: String,
+        raw: String,
+        parsed: ParsedAxml
+    ): Pair<Int, Int> {
+        fun strIdx() = getOrAddString(parsed.stringPool, raw)
+        when {
+            raw == "true" || raw == "false" ->
+                return TYPE_INT_BOOLEAN to if (raw == "true") -1 else 0
+            raw.startsWith("@ref:") || raw.startsWith("@int:") || raw.startsWith("@hex:") -> {
+                val type = when (raw.substringBefore(':')) {
+                    "@ref" -> TYPE_REFERENCE
+                    "@int" -> TYPE_INT_DEC
+                    else -> TYPE_INT_HEX
+                }
+                val num = raw.substringAfter(':')
+                    .let { if (it.startsWith("0x")) it.toIntOrNull(16) else it.toIntOrNull() }
+                if (num != null) return type to num
+            }
+            raw.startsWith("@android:") -> {
+                ANDROID_RES_IDS[raw.removePrefix("@android:")]
+                    ?.let { return TYPE_REFERENCE to it }
+                AppLogger.w(TAG, "fragment merge: unknown framework ref $raw, storing string")
+            }
+            attrName == "configChanges" ->
+                return TYPE_INT_HEX to raw.split('|')
+                    .mapNotNull { CONFIG_CHANGE_FLAGS[it.trim()] }
+                    .fold(0) { acc, v -> acc or v }
+            attrName == "launchMode" ->
+                LAUNCH_MODES[raw]?.let { return TYPE_INT_DEC to it }
+            attrName == "screenOrientation" ->
+                SCREEN_ORIENTATIONS[raw]?.let { return TYPE_INT_DEC to it }
+            attrName in INT_ATTRS ->
+                raw.toIntOrNull()?.let { return TYPE_INT_DEC to it }
+        }
+        return TYPE_STRING to strIdx()
+    }
+
+    private fun org.w3c.dom.NodeList.elementIterator(): List<org.w3c.dom.Element> =
+        (0 until length).mapNotNull { item(it) as? org.w3c.dom.Element }
+
     /**
      * Rewrite package name + expand relative class names.
      * FAIL-LOUD: an unparseable or unrewritable manifest throws instead of
@@ -1257,6 +1580,7 @@ class AxmlRebuilder {
         permissions: List<String> = BASELINE_RUNTIME_PERMISSIONS,
         requiredComponents: Set<String> = DEFAULT_RUNTIME_COMPONENTS,
         targetSdk: Int? = null,
+        minSdk: Int? = null,
         /**
          * Resolved mime filters for the inbound share channel (issue #943). Non-empty
          * registers an `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intent-filter on
@@ -1291,6 +1615,9 @@ class AxmlRebuilder {
 
             if (targetSdk != null) {
                 modifyTargetSdk(parsed, targetSdk)
+            }
+            if (minSdk != null) {
+                modifyMinSdk(parsed, minSdk)
             }
 
             stripTestOnlyFlag(parsed)
@@ -1481,14 +1808,31 @@ class AxmlRebuilder {
 
     /**
      * Rewrites the `<uses-sdk android:targetSdkVersion>` integer attribute in place. The shell
-     * template ships targetSdkVersion = 28; this lets a WebView-only generated APK raise it
+     * template ships targetSdkVersion = 35; this lets a generated APK pin a different value
      * (e.g. to 34+) for Play Store compliance without changing the template.
      */
     private fun modifyTargetSdk(parsed: ParsedAxml, targetSdk: Int) {
+        modifyUsesSdkIntAttr(parsed, ATTR_TARGET_SDK_VERSION, targetSdk, "targetSdkVersion")
+    }
+
+    /**
+     * Rewrites the `<uses-sdk android:minSdkVersion>` integer attribute in place. Raise-only
+     * from the template's 23 — the packed DEX cannot run below that API.
+     */
+    private fun modifyMinSdk(parsed: ParsedAxml, minSdk: Int) {
+        modifyUsesSdkIntAttr(parsed, ATTR_MIN_SDK_VERSION, minSdk, "minSdkVersion")
+    }
+
+    private fun modifyUsesSdkIntAttr(
+        parsed: ParsedAxml,
+        attrResId: Int,
+        value: Int,
+        attrName: String
+    ) {
         val resourceMap = parsed.resourceMap ?: return
-        val targetSdkAttrIndex = resourceMap.indexOf(ATTR_TARGET_SDK_VERSION)
-        if (targetSdkAttrIndex < 0) {
-            AppLogger.d(TAG, "targetSdkVersion attribute not in resource map, skipping targetSdk rewrite")
+        val attrIndex = resourceMap.indexOf(attrResId)
+        if (attrIndex < 0) {
+            AppLogger.d(TAG, "$attrName attribute not in resource map, skipping uses-sdk rewrite")
             return
         }
 
@@ -1515,29 +1859,29 @@ class AxmlRebuilder {
 
                 buffer.position(attrOffset)
                 val attrNs = buffer.int
-                val attrName = buffer.int
+                val nameIndex = buffer.int
                 buffer.position(attrOffset + 15)
                 val attrValueType = buffer.get().toInt() and 0xFF
 
-                if (attrName == targetSdkAttrIndex) {
+                if (nameIndex == attrIndex) {
                     if (attrValueType == 0x10) {
                         buffer.position(attrOffset + 16)
-                        buffer.putInt(targetSdk)
-                        AppLogger.d(TAG, "Modified targetSdkVersion to $targetSdk")
+                        buffer.putInt(value)
+                        AppLogger.d(TAG, "Modified $attrName to $value")
                     } else {
                         AppLogger.w(
                             TAG,
-                            "uses-sdk targetSdkVersion has unexpected type 0x" +
+                            "uses-sdk $attrName has unexpected type 0x" +
                                 attrValueType.toString(16) + ", skipping rewrite"
                         )
                     }
                     return
                 }
             }
-            AppLogger.w(TAG, "<uses-sdk> found but targetSdkVersion attribute absent, skipping rewrite")
+            AppLogger.w(TAG, "<uses-sdk> found but $attrName attribute absent, skipping rewrite")
             return
         }
-        AppLogger.d(TAG, "No <uses-sdk> element found, skipping targetSdk rewrite")
+        AppLogger.d(TAG, "No <uses-sdk> element found, skipping $attrName rewrite")
     }
 
     private fun stripTestOnlyFlag(parsed: ParsedAxml) {

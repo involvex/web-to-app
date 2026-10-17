@@ -7,6 +7,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,7 +26,9 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.webtoapp.core.apkbuilder.GeneratedSdkLevels
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.theme.LocalShowDescriptions
 import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.data.model.*
 import com.webtoapp.ui.components.*
@@ -88,26 +92,6 @@ fun ApkExportSection(
         !packageName.matches(PACKAGE_NAME_REGEX)
 
     Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)) {
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = WtaSpacing.RowHorizontal),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Icon(
-                Icons.Outlined.Info,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
-            Text(
-                text = Strings.apkConfigNote,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
 
         WtaSection(
             title = Strings.apkIdentityBuildSection,
@@ -273,12 +257,14 @@ fun ApkExportSection(
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
-                        Text(
-                            text = Strings.deepLinkCustomHostsHint,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(bottom = 4.dp)
-                        )
+                        if (LocalShowDescriptions.current) {
+                            Text(
+                                text = Strings.deepLinkCustomHostsHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
                         PremiumTextField(
                             value = customHostsText,
                             onValueChange = { newText ->
@@ -297,12 +283,15 @@ fun ApkExportSection(
                     }
                 }
                 WtaSectionDivider()
-                WtaToggleRow(
-                    title = Strings.apkLoggingTitle,
-                    subtitle = Strings.apkLoggingHint.ifDescriptionsShown(),
-                    icon = Icons.Outlined.Description,
-                    checked = config.loggingEnabled,
-                    onCheckedChange = { onConfigChange(config.copy(loggingEnabled = it)) }
+                val effectiveTargetSdk = if (canOverrideTargetSdk) {
+                    config.targetSdk ?: GeneratedSdkLevels.TEMPLATE_TARGET_SDK
+                } else {
+                    GeneratedSdkLevels.PROCESS_EXEC_TARGET_SDK
+                }
+                MinSdkOverrideRows(
+                    config = config,
+                    effectiveTargetSdk = effectiveTargetSdk,
+                    onConfigChange = onConfigChange
                 )
                 if (canOverrideTargetSdk) {
                     WtaSectionDivider()
@@ -314,20 +303,31 @@ fun ApkExportSection(
             }
         }
 
-        WtaSettingCard {
-            WtaToggleRow(
-                title = Strings.saepPolicyTitle,
-                checked = config.saepEnabled,
-                onCheckedChange = { onConfigChange(config.copy(saepEnabled = it)) }
-            )
-            Text(
-                text = Strings.saepPolicyHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(
-                    horizontal = WtaSpacing.RowHorizontal,
-                    vertical = WtaSpacing.ContentGap
+        WtaSection(
+            title = Strings.apkBuildOptionsSection,
+            headerStyle = WtaSectionHeaderStyle.Quiet,
+            collapsible = true,
+            initiallyExpanded = false
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                WtaToggleRow(
+                    title = Strings.apkLoggingTitle,
+                    subtitle = Strings.apkLoggingHint.ifDescriptionsShown(),
+                    icon = Icons.Outlined.Description,
+                    checked = config.loggingEnabled,
+                    onCheckedChange = { onConfigChange(config.copy(loggingEnabled = it)) }
                 )
+                WtaSectionDivider()
+                WtaToggleRow(
+                    title = Strings.saepPolicyTitle,
+                    subtitle = Strings.saepPolicyHint.ifDescriptionsShown(),
+                    checked = config.saepEnabled,
+                    onCheckedChange = { onConfigChange(config.copy(saepEnabled = it)) }
+                )
+            }
+            PerformanceOptimizationSection(
+                config = config,
+                onConfigChange = onConfigChange
             )
         }
 
@@ -359,11 +359,6 @@ fun ApkExportSection(
             }
         )
 
-        PerformanceOptimizationSection(
-            config = config,
-            onConfigChange = onConfigChange
-        )
-
         WtaSection(
             title = Strings.signingSectionTitle,
             headerStyle = WtaSectionHeaderStyle.Quiet,
@@ -382,21 +377,16 @@ private fun PerformanceOptimizationSection(
     config: ApkExportConfig,
     onConfigChange: (ApkExportConfig) -> Unit
 ) {
-    WtaSection(
-        title = Strings.performanceOptimization,
-        headerStyle = WtaSectionHeaderStyle.Quiet,
-        collapsible = true,
-        initiallyExpanded = false
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            WtaToggleRow(
-                title = Strings.performanceOptimization,
-                subtitle = if (config.performanceOptimization) Strings.perfEnabled else Strings.perfDisabled,
-                icon = Icons.Outlined.Speed,
-                checked = config.performanceOptimization,
-                onCheckedChange = { onConfigChange(config.copy(performanceOptimization = it)) }
-            )
-        }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        WtaSectionDivider()
+        WtaToggleRow(
+            title = Strings.performanceOptimization,
+            subtitle = if (config.performanceOptimization) Strings.perfEnabled else Strings.perfDisabled,
+            icon = Icons.Outlined.Speed,
+            checked = config.performanceOptimization,
+            onCheckedChange = { onConfigChange(config.copy(performanceOptimization = it)) }
+        )
+    }
 
         AnimatedVisibility(
             visible = config.performanceOptimization,
@@ -541,7 +531,6 @@ private fun PerformanceOptimizationSection(
             }
         }
     }
-}
 
 @Composable
 private fun NetworkTrustConfigPanel(
@@ -564,7 +553,6 @@ private fun NetworkTrustConfigPanel(
 
     WtaSection(
         title = Strings.networkTrustTitle,
-        description = Strings.networkTrustHint.ifDescriptionsShown(),
         headerStyle = WtaSectionHeaderStyle.Quiet,
         collapsible = true,
         initiallyExpanded = false
@@ -1538,6 +1526,53 @@ private fun copyToClipboard(context: android.content.Context, label: String, tex
     clipboard.setPrimaryClip(android.content.ClipData.newPlainText(label, text))
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MinSdkOverrideRows(
+    config: ApkExportConfig,
+    effectiveTargetSdk: Int,
+    onConfigChange: (ApkExportConfig) -> Unit
+) {
+    val enabled = config.minSdk != null
+    val choices = GeneratedSdkLevels.MIN_SDK_CHOICES.filter { it <= effectiveTargetSdk }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        WtaToggleRow(
+            title = Strings.minSdkOverrideTitle,
+            subtitle = (if (enabled) Strings.minSdkOverrideOnHint else Strings.minSdkOverrideOffHint)
+                .ifDescriptionsShown(),
+            icon = Icons.Outlined.Devices,
+            checked = enabled,
+            onCheckedChange = { on ->
+                onConfigChange(
+                    config.copy(
+                        minSdk = if (on) {
+                            GeneratedSdkLevels.defaultRaisedMinSdk(effectiveTargetSdk)
+                        } else {
+                            null
+                        }
+                    )
+                )
+            }
+        )
+
+        AnimatedVisibility(
+            visible = enabled,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
+        ) {
+            SdkChoiceChips(
+                choices = choices,
+                selected = config.minSdk,
+                onSelect = { value ->
+                    onConfigChange(config.copy(minSdk = value))
+                }
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TargetSdkOverrideRows(
     config: ApkExportConfig,
@@ -1548,12 +1583,22 @@ private fun TargetSdkOverrideRows(
     Column(modifier = Modifier.fillMaxWidth()) {
         WtaToggleRow(
             title = Strings.targetSdkOverrideTitle,
-            subtitle = if (enabled) Strings.targetSdkOverrideOnHint else Strings.targetSdkOverrideOffHint,
+            subtitle = (if (enabled) Strings.targetSdkOverrideOnHint else Strings.targetSdkOverrideOffHint)
+                .ifDescriptionsShown(),
             icon = Icons.Outlined.SystemUpdate,
             checked = enabled,
             onCheckedChange = { on ->
+                val newTarget = if (on) {
+                    GeneratedSdkLevels.TEMPLATE_TARGET_SDK
+                } else {
+                    null
+                }
+                val cap = newTarget ?: GeneratedSdkLevels.TEMPLATE_TARGET_SDK
                 onConfigChange(
-                    config.copy(targetSdk = if (on) TARGET_SDK_OVERRIDE_DEFAULT else null)
+                    config.copy(
+                        targetSdk = newTarget,
+                        minSdk = GeneratedSdkLevels.clampMinSdk(config.minSdk, cap)
+                    )
                 )
             }
         )
@@ -1563,28 +1608,46 @@ private fun TargetSdkOverrideRows(
             enter = CardExpandTransition,
             exit = CardCollapseTransition
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        horizontal = WtaSpacing.RowHorizontal,
-                        vertical = WtaSpacing.ContentGap
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
-            ) {
-                TARGET_SDK_OVERRIDE_CHOICES.forEach { value ->
-                    WtaChip(
-                        selected = config.targetSdk == value,
-                        onClick = { onConfigChange(config.copy(targetSdk = value)) },
-                        label = value.toString(),
-                        showSelectedCheck = false
+            SdkChoiceChips(
+                choices = GeneratedSdkLevels.TARGET_SDK_CHOICES,
+                selected = config.targetSdk,
+                onSelect = { value ->
+                    onConfigChange(
+                        config.copy(
+                            targetSdk = value,
+                            minSdk = GeneratedSdkLevels.clampMinSdk(config.minSdk, value)
+                        )
                     )
                 }
-            }
+            )
         }
     }
 }
 
-private const val TARGET_SDK_OVERRIDE_DEFAULT = 35
-
-private val TARGET_SDK_OVERRIDE_CHOICES = listOf(34, 35, 36)
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SdkChoiceChips(
+    choices: List<Int>,
+    selected: Int?,
+    onSelect: (Int) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = WtaSpacing.RowHorizontal,
+                vertical = WtaSpacing.ContentGap
+            ),
+        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap),
+        verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+    ) {
+        choices.forEach { value ->
+            WtaChip(
+                selected = selected == value,
+                onClick = { onSelect(value) },
+                label = value.toString(),
+                showSelectedCheck = false
+            )
+        }
+    }
+}

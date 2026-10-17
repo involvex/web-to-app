@@ -2,9 +2,11 @@ package com.webtoapp
 
 import android.app.Application
 import android.content.ComponentCallbacks2
+import android.content.Context
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.webtoapp.core.activation.ActivationManager
+import com.webtoapp.core.agent.mcp.HostMcpController
 import com.webtoapp.core.adblock.AdBlocker
 import com.webtoapp.core.announcement.AnnouncementManager
 import com.webtoapp.core.i18n.Strings
@@ -25,6 +27,7 @@ import com.webtoapp.di.appModules
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.android.ext.koin.androidLogger
@@ -50,6 +53,19 @@ class WebToAppApplication : Application(), ImageLoaderFactory {
     val shellModeManager: ShellModeManager by inject()
     val healthMonitor: com.webtoapp.core.stats.AppHealthMonitor by inject()
     val screenshotService: com.webtoapp.core.stats.WebsiteScreenshotService by inject()
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(base)
+        // Gecko child processes (:tab*/:gpu/...) get a fresh PathClassLoader and
+        // their service onCreate loads mozglue before any of our code could run
+        // later — the native lib graft has to happen here, in every process.
+        // Gecko children additionally need the dep .so files resident up front.
+        val provisioner = com.webtoapp.core.engine.GeckoRuntimeProvisioner
+        provisioner.ensureNativeLibsVisible(base)
+        if (provisioner.isGeckoChildProcess()) {
+            provisioner.preloadDownloadedLibs(base)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -103,6 +119,11 @@ class WebToAppApplication : Application(), ImageLoaderFactory {
             ),
             database = database,
         ).also { it.initialize(appScope) }
+
+        appScope.launch {
+            runCatching { HostMcpController.restore(this@WebToAppApplication) }
+                .onFailure { AppLogger.w("Application", "local MCP restore failed: ${it.message}") }
+        }
     }
 
     override fun onTerminate() {

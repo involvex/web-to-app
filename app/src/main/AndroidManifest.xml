@@ -199,6 +199,13 @@
         <intent>
             <action android:name="com.webtoapp.action.PORT_RELEASE" />
         </intent>
+
+        <!-- Baseline app-list visibility: every package with a launcher entry.
+             The standard flavor adds QUERY_ALL_PACKAGES for the rest. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <!--
@@ -296,6 +303,18 @@
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.WebToApp.Shell" />
 
+        <!-- Separate recents task. Home preview uses it when that switch is on. The preview tool always does. -->
+        <activity
+            android:name=".ui.webview.WebViewDocumentActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode"
+            android:exported="false"
+            android:hardwareAccelerated="true"
+            android:launchMode="standard"
+            android:documentLaunchMode="intoExisting"
+            android:maxRecents="15"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.WebToApp.Shell" />
+
         
         
         <activity
@@ -306,6 +325,12 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.WebToApp.Shell" />
+
+        <activity
+            android:name=".ui.shell.DownloadSaveActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/Theme.WebToApp.Transparent" />
         
         
         

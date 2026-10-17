@@ -17,6 +17,19 @@ Each card shows:
 
 | Gesture | Result |
 | --- | --- |
-| **Tap the card** | Preview the app |
+| **Tap the card** | Open the preview activity directly (WebView, gallery player, or media player). One back returns to the list. |
 | **Tap ⋮ on the card** | Open the [action menu](/guide/app-actions/edit-core-config) |
 | **Swipe the card left** | Quick [delete](/guide/app-actions/delete) (with confirmation) |
+
+[About → Separate WebApp tasks](/guide/more-features/about) is off by default. When it is on, each home preview and each desktop shortcut gets its own recents entry. Opening the same app again brings that card forward. A shortcut created on an older build still starts a new card; create it again.
+
+## Sort
+
+**Sort** on My Apps chooses the order. The default is **Recently updated**.
+
+- **Recently updated** — newest edit first.
+- **Recently created**.
+- **By name**.
+- **Custom** — the order saved by dragging. A swipe to the left still deletes. Drag is off while the search box has text. A category filter reorders only the apps you can see; the others keep their places. New and duplicated apps go to the top. Dragging does not change the updated time, so switching back to recently updated still follows real edits.
+
+Long-press a card in any of these sorts, then drag. The first drag from Recently updated, Recently created, or By name saves the list you see as Custom, so the rows stay where you drop them.

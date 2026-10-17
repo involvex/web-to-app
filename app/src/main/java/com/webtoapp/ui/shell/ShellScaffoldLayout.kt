@@ -24,8 +24,13 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import com.webtoapp.core.bgm.bgmControlEnabled
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.shell.ShellConfig
+import com.webtoapp.ui.shared.PageEdgeChrome
+import com.webtoapp.ui.shared.effectiveBottomContentPadding
+import com.webtoapp.ui.shared.pageEdgeBands
+import com.webtoapp.ui.shared.parseBandColor
 import com.webtoapp.core.webview.WebViewCallbacks
 import com.webtoapp.data.model.WebViewConfig
 import com.webtoapp.data.model.hasAnyToolbarItem
@@ -77,7 +82,10 @@ fun BoxScope.ShellScaffoldLayout(
     showFindBar: Boolean,
     onToggleFindBar: () -> Unit,
 
-    statusBarHeightDp: Int
+    statusBarHeightDp: Int,
+    pageTopColor: String? = null,
+    pageBottomColor: String? = null,
+    onTopTabColor: (String?) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -201,7 +209,9 @@ fun BoxScope.ShellScaffoldLayout(
         val padTop = config.webViewConfig.fullscreenPadTop.dp
         val padStart = config.webViewConfig.fullscreenPadStart.dp
         val padEnd = config.webViewConfig.fullscreenPadEnd.dp
-        val padBottom = config.webViewConfig.fullscreenPadBottom.dp
+        // #1172: the bottom band is anchored to the screen edge. The keyboard
+        // already covers it, so it must not ride up as a second gap.
+        val padBottom = effectiveBottomContentPadding(config.webViewConfig.fullscreenPadBottom.dp)
 
         // Issue #771: transparent/image bars overlay the content (persistent
         // WeChat-style bar) instead of reserving a strip; solid bars keep the
@@ -241,7 +251,16 @@ fun BoxScope.ShellScaffoldLayout(
             }
         }
 
-        Box(modifier = contentModifier) {
+        val customBand = if (shellDark) config.webViewConfig.statusBarColorDark else config.webViewConfig.statusBarColor
+        val topBand = parseBandColor(PageEdgeChrome.topBandHex(shellMode, pageTopColor, customBand, shellDark))
+        val bottomBand = parseBandColor(
+            PageEdgeChrome.bottomBandHex(shellMode, pageBottomColor, pageTopColor, customBand, shellDark)
+        )
+        val bottomBandPx = with(density) { padBottom.toPx() }
+        val bands = Modifier.pageEdgeBands(topBand, bottomBand, bottomBandPx)
+        val bandedModifier = if (hideToolbar && !showToolbar) bands.then(contentModifier) else contentModifier
+
+        Box(modifier = bandedModifier) {
 
             WebViewLoadingBar(
                 visible = isLoading,
@@ -268,10 +287,21 @@ fun BoxScope.ShellScaffoldLayout(
         onBrowserSurfaceCreated = onBrowserSurfaceCreated,
                 onWebViewRefUpdated = onWebViewRefUpdated,
                 onShowActivationDialog = onShowActivationDialog,
-                onActivityFinish = onActivityFinish
+                onActivityFinish = onActivityFinish,
+                onTopTabColor = onTopTabColor
             )
 
             ShellLyricsOverlay(config = config, bgmState = bgmState)
+
+            if (config.bgmEnabled && bgmControlEnabled(config.bgmShowFloatingPlayer) && bgmState.player != null) {
+                BgmFloatingPlayer(
+                    title = bgmState.title,
+                    playing = bgmState.isPlaying,
+                    onToggle = { bgmState.toggle() },
+                    onPrevious = { bgmState.previous() },
+                    onNext = { bgmState.next() }
+                )
+            }
 
             if (autoRefreshRemaining > 0 && autoRefreshController?.countdownVisible == true) {
                 com.webtoapp.ui.components.AutoRefreshCountdownChip(
@@ -489,7 +519,8 @@ private fun ShellContentArea(
     onBrowserSurfaceCreated: (com.webtoapp.core.engine.BrowserSurface) -> Unit = {},
     onWebViewRefUpdated: (WebView) -> Unit,
     onShowActivationDialog: () -> Unit,
-    onActivityFinish: () -> Unit
+    onActivityFinish: () -> Unit,
+    onTopTabColor: (String?) -> Unit = {}
 ) {
 
     if (!isActivationChecked) {
@@ -537,7 +568,8 @@ private fun ShellContentArea(
             onWebViewCreated = onWebViewCreated,
         onBrowserSurfaceCreated = onBrowserSurfaceCreated,
             onWebViewRefUpdated = onWebViewRefUpdated,
-            onActivityFinish = onActivityFinish
+            onActivityFinish = onActivityFinish,
+            onTopTabColor = onTopTabColor
         )
     }
 }

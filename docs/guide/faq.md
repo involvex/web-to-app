@@ -22,7 +22,7 @@ A URL wrapper just opens a website in a WebView. WebToApp additionally runs **re
 
 ### What app types can I create?
 
-Twelve: Web, Multi-Web, HTML, Offline Pack, Frontend, PHP, WordPress, Node.js, Python, Go, Media, and Gallery. See [Create App](/guide/app-types/).
+Twelve: Web, Multi-Web, HTML, Offline Pack, Frontend, PHP, WordPress, Node.js, Python, Go, Media, and Gallery. See [Create App](/guide/app-types/). PHP, WordPress, Node.js, Python, Go, and Media stay out of the create grid until [About → Advanced features](/guide/more-features/about) is on. Gallery does not need that switch.
 
 ## Creating & editing
 
@@ -57,9 +57,9 @@ See [Build APK](/guide/app-actions/build-apk).
 
 Usually yes. Web, Multi-Web, HTML, Offline Pack, Frontend, Media, and Gallery apps all export a Play-ready AAB. Two cases cannot: **Node.js / PHP / Python / Go / WordPress** apps, and any build with **resource encryption** enabled. See [Google Play](/guide/more-features/google-play).
 
-### Why do generated apps target SDK 28?
+### What targetSdk do generated apps use?
 
-The low `targetSdk` is deliberate: it lets generated apps fork+exec native runtimes (Node.js, PHP, Python, Go, WordPress) from app storage. It is an APK-packaging detail only — the AAB exporter rewrites `targetSdk` to the Play-required level, so the low value never reaches Play.
+Generated APKs inherit the shell template's `targetSdk` (currently 35) and `minSdk` 23. Node.js, PHP, Python, Go, and WordPress APKs are pinned to targetSdk 28 so they can exec bundled binaries; the targetSdk override does not apply to them. Other types can pin targetSdk 28/31/33/34/35/36, and any type can raise minSdk from 23 up to the current targetSdk, from [APK Export Config](/guide/app-actions/edit-common-config/apk-export). The AAB exporter rewrites `targetSdk` to the Play-required level.
 
 ### How do I sign with my own key?
 
@@ -139,7 +139,7 @@ Check the app's [Custom DNS](/guide/app-actions/edit-common-config/custom-dns) a
 
 ### How do I back up or migrate my apps?
 
-Use **Data backup / restore** in [About](/guide/more-features/about), or export individual apps as reusable templates via [Export](/guide/app-actions/export-apk).
+Use [Data Backup](/guide/more-features/data-backup) (home ⋮ menu) to move the whole workspace. [Export source](/guide/app-actions/export-apk) shares one app as an Android Studio project.
 
 ### Where do I get help?
 

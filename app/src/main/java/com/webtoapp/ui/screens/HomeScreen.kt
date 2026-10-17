@@ -10,11 +10,13 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.painterResource
 import com.webtoapp.R
+import com.webtoapp.core.host.HostRuntimePrefs
 import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.VideoFrameDecoder
@@ -55,6 +58,7 @@ import com.webtoapp.data.model.withRuntimePermissionsSyncedFromFeatures
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.ui.components.CategoryEditorDialog
 import com.webtoapp.ui.components.CategoryTabRow
+import com.webtoapp.ui.components.DataBackupDialog
 import com.webtoapp.ui.components.EnhancedElevatedCard
 import com.webtoapp.ui.components.PremiumTextField
 import com.webtoapp.ui.components.LanguageSelectorButton
@@ -74,6 +78,7 @@ import com.webtoapp.ui.viewmodel.MainViewModel
 import com.webtoapp.ui.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -81,6 +86,7 @@ import java.util.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -97,7 +103,15 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.zIndex
+import com.webtoapp.data.home.AppListSort
+import com.webtoapp.data.home.HomeDragSlot
+import com.webtoapp.data.home.stepCustomDrag
 import com.webtoapp.ui.design.WtaBadge
+import com.webtoapp.ui.theme.LocalShowDescriptions
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -117,7 +131,7 @@ fun HomeScreen(
     onCreateOfflinePack: () -> Unit = {},
     onEditApp: (WebApp) -> Unit,
     onEditAppCore: (WebApp) -> Unit = {},
-    onPreviewApp: (WebApp) -> Unit,
+    onPreviewApp: (WebAppSummary) -> Unit,
     onOpenAppModifier: () -> Unit = {},
     onOpenAiSettings: () -> Unit = {},
     onOpenAgent: () -> Unit = {},
@@ -139,6 +153,8 @@ fun HomeScreen(
     val apps by viewModel.filteredSummaries.collectAsStateWithLifecycle()
     val allWebApps by viewModel.webApps.collectAsStateWithLifecycle()
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val appListSort by viewModel.appListSort.collectAsStateWithLifecycle()
+    val reorderEnabled = searchQuery.isBlank()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -152,19 +168,15 @@ fun HomeScreen(
     var appToClearCache by remember { mutableStateOf<WebAppSummary?>(null) }
 
     var isSearchActive by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
     var selectedApp by remember { mutableStateOf<WebAppSummary?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var shareApkFailureReport by remember { mutableStateOf<BuildFailureReport?>(null) }
     var showFabMenu by remember { mutableStateOf(false) }
-    var showBatchImportDialog by remember { mutableStateOf(false) }
+    var showDataBackupDialog by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val batchImportService = remember {
-        org.koin.java.KoinJavaComponent.get<com.webtoapp.core.stats.BatchImportService>(
-            com.webtoapp.core.stats.BatchImportService::class.java
-        )
-    }
     val context = LocalContext.current
     LaunchedEffect(uiState) {
         when (uiState) {
@@ -181,26 +193,31 @@ fun HomeScreen(
     }
 
     val createMenuScrollState = rememberScrollState()
+    val advancedFeatures by HostRuntimePrefs.getInstance(context)
+        .advancedFeaturesFlow
+        .collectAsStateWithLifecycle()
 
     data class CreateActionItem(
         val label: String,
         val iconRes: Int,
         val onClick: () -> Unit
     )
-    val createActionItems = listOf(
-        CreateActionItem(Strings.appTypeWeb, R.drawable.ic_type_web, onCreateApp),
-        CreateActionItem(Strings.appTypeMultiWeb, R.drawable.ic_type_multi_web, onCreateMultiWebApp),
-        CreateActionItem(Strings.appTypeHtml, R.drawable.ic_type_html, onCreateHtmlApp),
-        CreateActionItem(Strings.websiteOfflinePack, R.drawable.ic_type_offline_pack, onCreateOfflinePack),
-        CreateActionItem(Strings.appTypeFrontend, R.drawable.ic_type_frontend, onCreateFrontendApp),
-        CreateActionItem(Strings.appTypePhp, R.drawable.ic_type_php, onCreatePhpApp),
-        CreateActionItem(Strings.appTypeWordPress, R.drawable.ic_type_wordpress, onCreateWordPressApp),
-        CreateActionItem(Strings.appTypeNodeJs, R.drawable.ic_type_nodejs, onCreateNodeJsApp),
-        CreateActionItem(Strings.appTypePython, R.drawable.ic_type_python, onCreatePythonApp),
-        CreateActionItem(Strings.appTypeGo, R.drawable.ic_type_go, onCreateGoApp),
-        CreateActionItem(Strings.createMediaApp, R.drawable.ic_type_media, onCreateMediaApp),
-        CreateActionItem(Strings.appTypeGallery, R.drawable.ic_type_gallery, onCreateGalleryApp)
-    )
+    val createActionItems = buildList {
+        add(CreateActionItem(Strings.appTypeWeb, R.drawable.ic_type_web, onCreateApp))
+        add(CreateActionItem(Strings.appTypeMultiWeb, R.drawable.ic_type_multi_web, onCreateMultiWebApp))
+        add(CreateActionItem(Strings.appTypeHtml, R.drawable.ic_type_html, onCreateHtmlApp))
+        add(CreateActionItem(Strings.websiteOfflinePack, R.drawable.ic_type_offline_pack, onCreateOfflinePack))
+        add(CreateActionItem(Strings.appTypeFrontend, R.drawable.ic_type_frontend, onCreateFrontendApp))
+        if (advancedFeatures) {
+            add(CreateActionItem(Strings.appTypePhp, R.drawable.ic_type_php, onCreatePhpApp))
+            add(CreateActionItem(Strings.appTypeWordPress, R.drawable.ic_type_wordpress, onCreateWordPressApp))
+            add(CreateActionItem(Strings.appTypeNodeJs, R.drawable.ic_type_nodejs, onCreateNodeJsApp))
+            add(CreateActionItem(Strings.appTypePython, R.drawable.ic_type_python, onCreatePythonApp))
+            add(CreateActionItem(Strings.appTypeGo, R.drawable.ic_type_go, onCreateGoApp))
+            add(CreateActionItem(Strings.createMediaApp, R.drawable.ic_type_media, onCreateMediaApp))
+        }
+        add(CreateActionItem(Strings.appTypeGallery, R.drawable.ic_type_gallery, onCreateGalleryApp))
+    }
 
     WtaScreen(
         title = Strings.myApps,
@@ -294,6 +311,45 @@ fun HomeScreen(
                         }
                     )
 
+                    Box {
+                        IconButton(
+                            onClick = { showSortMenu = true },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Sort,
+                                contentDescription = Strings.appListSort,
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showSortMenu,
+                            onDismissRequest = { showSortMenu = false }
+                        ) {
+                            AppListSort.entries.forEach { mode ->
+                                DropdownMenuItem(
+                                    text = { Text(mode.homeMenuLabel()) },
+                                    onClick = {
+                                        showSortMenu = false
+                                        viewModel.setAppListSort(mode)
+                                    },
+                                    leadingIcon = {
+                                        if (appListSort == mode) {
+                                            Icon(
+                                                Icons.Outlined.Check,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        } else {
+                                            Spacer(Modifier.size(18.dp))
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+
                     IconButton(
                         onClick = {
                             isSearchActive = !isSearchActive
@@ -338,7 +394,7 @@ fun HomeScreen(
                             )
                             HorizontalDivider()
                             DropdownMenuItem(
-                                text = { Text(Strings.pluginsTitle) },
+                                text = { Text(Strings.pluginsManageTitle) },
                                 onClick = { showMoreMenu = false; onOpenPlugins() },
                                 leadingIcon = { Icon(Icons.Outlined.Extension, null, Modifier.size(20.dp)) }
                             )
@@ -347,21 +403,23 @@ fun HomeScreen(
                                 onClick = { showMoreMenu = false; onOpenAppModifier() },
                                 leadingIcon = { Icon(Icons.Outlined.AppShortcut, null, Modifier.size(20.dp)) }
                             )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuLinuxEnvironment) },
-                                onClick = { showMoreMenu = false; onOpenLinuxEnvironment() },
-                                leadingIcon = { Icon(Icons.Outlined.Terminal, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuRuntimeDeps) },
-                                onClick = { showMoreMenu = false; onOpenRuntimeDeps() },
-                                leadingIcon = { Icon(Icons.Outlined.Memory, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuPortManager) },
-                                onClick = { showMoreMenu = false; onOpenPortManager() },
-                                leadingIcon = { Icon(Icons.Outlined.Router, null, Modifier.size(20.dp)) }
-                            )
+                            if (advancedFeatures) {
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuLinuxEnvironment) },
+                                    onClick = { showMoreMenu = false; onOpenLinuxEnvironment() },
+                                    leadingIcon = { Icon(Icons.Outlined.Terminal, null, Modifier.size(20.dp)) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuRuntimeDeps) },
+                                    onClick = { showMoreMenu = false; onOpenRuntimeDeps() },
+                                    leadingIcon = { Icon(Icons.Outlined.Memory, null, Modifier.size(20.dp)) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuPortManager) },
+                                    onClick = { showMoreMenu = false; onOpenPortManager() },
+                                    leadingIcon = { Icon(Icons.Outlined.Router, null, Modifier.size(20.dp)) }
+                                )
+                            }
                             HorizontalDivider()
                             DropdownMenuItem(
                                 text = { Text(Strings.menuBrowserKernel) },
@@ -390,9 +448,9 @@ fun HomeScreen(
                                 leadingIcon = { Icon(Icons.Outlined.Folder, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
-                                text = { Text(Strings.menuBatchImport) },
-                                onClick = { showMoreMenu = false; showBatchImportDialog = true },
-                                leadingIcon = { Icon(Icons.Outlined.Bookmarks, null, Modifier.size(20.dp)) }
+                                text = { Text(Strings.dataBackupTitle) },
+                                onClick = { showMoreMenu = false; showDataBackupDialog = true },
+                                leadingIcon = { Icon(Icons.Outlined.Inventory2, null, Modifier.size(20.dp)) }
                             )
                             DropdownMenuItem(
                                 text = { Text(Strings.uiConfig) },
@@ -552,12 +610,93 @@ fun HomeScreen(
 
 
 
+                    val listState = rememberLazyListState()
+                    val listDrag = remember { HomeListDragState() }
+                    val latestApps = rememberUpdatedState(apps)
+                    val latestSort = rememberUpdatedState(appListSort)
+                    val haptic = LocalHapticFeedback.current
+                    val density = LocalDensity.current
+                    val displayedApps = listDrag.order ?: apps
+                    val showDragHint = reorderEnabled && LocalShowDescriptions.current
+
+                    fun stepDrag() {
+                        val id = listDrag.id ?: return
+                        val current = listDrag.order ?: return
+                        val slots = listState.layoutInfo.visibleItemsInfo.mapNotNull { info ->
+                            (info.key as? Long)?.let { key ->
+                                HomeDragSlot(id = key, top = info.offset, height = info.size)
+                            }
+                        }
+                        val step = stepCustomDrag(
+                            order = current.map { it.id },
+                            dragId = id,
+                            dragDy = listDrag.dy,
+                            slots = slots,
+                        ) ?: return
+                        val byId = current.associateBy { it.id }
+                        listDrag.order = step.order.map { byId.getValue(it) }
+                        listDrag.dy = step.dragDy
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    }
+
+                    LaunchedEffect(apps.map { it.id }, listDrag.id) {
+                        val pending = listDrag.order ?: return@LaunchedEffect
+                        if (listDrag.id != null) return@LaunchedEffect
+                        val pendingIds = pending.map { it.id }
+                        val currentIds = apps.map { it.id }
+                        if (pendingIds == currentIds || pendingIds.toSet() != currentIds.toSet()) {
+                            listDrag.order = null
+                        }
+                    }
+
+                    LaunchedEffect(reorderEnabled) {
+                        if (!reorderEnabled) listDrag.clear()
+                    }
+
+                    LaunchedEffect(listDrag.tracking) {
+                        if (!listDrag.tracking) return@LaunchedEffect
+                        val edge = with(density) { 56.dp.toPx() }
+                        while (isActive && listDrag.tracking) {
+                            val id = listDrag.id
+                            val info = listState.layoutInfo
+                            val dragged = info.visibleItemsInfo.firstOrNull { it.key == id }
+                            if (dragged != null) {
+                                val top = dragged.offset + listDrag.dy
+                                val bottom = top + dragged.size
+                                val topLimit = info.viewportStartOffset + edge
+                                val bottomLimit = info.viewportEndOffset - edge
+                                val delta = when {
+                                    top < topLimit -> (top - topLimit).coerceAtLeast(-36f)
+                                    bottom > bottomLimit -> (bottom - bottomLimit).coerceAtMost(36f)
+                                    else -> 0f
+                                }
+                                if (delta != 0f) {
+                                    listState.scrollBy(delta)
+                                    stepDrag()
+                                }
+                            }
+                            withFrameNanos { }
+                        }
+                    }
+
                     LazyColumn(
+                    state = listState,
+                    userScrollEnabled = listDrag.id == null,
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    if (showDragHint) {
+                        item(key = "home-sort-hint", contentType = "hint") {
+                            Text(
+                                text = Strings.appListSortDragHint,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
                     itemsIndexed(
-                        apps,
+                        displayedApps,
                         key = { _, app -> app.id },
                         contentType = { _, _ -> "AppCard" }
                     ) { index, app ->
@@ -590,7 +729,73 @@ fun HomeScreen(
                             }
                         )
 
+                        val dragged = app.id == listDrag.id
                         SwipeToDismissBox(
+                            modifier = Modifier
+                                .zIndex(if (dragged) 1f else 0f)
+                                .graphicsLayer {
+                                    if (app.id == listDrag.id) {
+                                        translationY = listDrag.dy
+                                        scaleX = 1.02f
+                                        scaleY = 1.02f
+                                        shadowElevation = 8.dp.toPx()
+                                    }
+                                }
+                                .homeReorderDrag(
+                                    enabled = reorderEnabled &&
+                                        (listDrag.id == null || listDrag.id == app.id),
+                                    onStart = {
+                                        if (!listDrag.tracking) {
+                                            listDrag.settleJob?.cancel()
+                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                            val visible = latestApps.value
+                                            listDrag.order = visible
+                                            listDrag.dy = 0f
+                                            listDrag.id = app.id
+                                            listDrag.tracking = true
+                                            if (latestSort.value != AppListSort.CUSTOM) {
+                                                viewModel.switchToCustomOrder(visible.map { it.id })
+                                            }
+                                        }
+                                    },
+                                    onDrag = { delta ->
+                                        if (listDrag.id == app.id) {
+                                            listDrag.dy += delta
+                                            stepDrag()
+                                        }
+                                    },
+                                    onEnd = { velocity ->
+                                        if (listDrag.id == app.id) {
+                                            listDrag.tracking = false
+                                            val finalOrder = listDrag.order
+                                            val changed = finalOrder != null &&
+                                                finalOrder.map { it.id } != latestApps.value.map { it.id }
+                                            if (changed && finalOrder != null) {
+                                                viewModel.saveVisibleHomeOrder(finalOrder.map { it.id })
+                                            }
+                                            listDrag.settleJob = scope.launch {
+                                                val anim = Animatable(listDrag.dy)
+                                                anim.animateTo(
+                                                    targetValue = 0f,
+                                                    animationSpec = spring(
+                                                        dampingRatio = 0.86f,
+                                                        stiffness = Spring.StiffnessMedium,
+                                                    ),
+                                                    initialVelocity = velocity,
+                                                ) {
+                                                    if (!listDrag.tracking) listDrag.dy = value
+                                                }
+                                                if (!listDrag.tracking && listDrag.id == app.id) {
+                                                    listDrag.id = null
+                                                    if (!changed) listDrag.order = null
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onCancel = {
+                                        if (listDrag.id == app.id) listDrag.clear()
+                                    },
+                                ),
                             state = dismissState,
                             backgroundContent = {
 
@@ -622,17 +827,17 @@ fun HomeScreen(
                                 }
                             },
                             enableDismissFromStartToEnd = false,
-                            enableDismissFromEndToStart = true
+                            enableDismissFromEndToStart = listDrag.id == null
                         ) {
 
                         AppCard(
                             app = app,
-                            modifier = Modifier.animateItem(),
-                            onClick = {
-                                scope.launch {
-                                    viewModel.getWebApp(app.id)?.let(onPreviewApp)
-                                }
+                            modifier = if (dragged) {
+                                Modifier.animateItem(placementSpec = null)
+                            } else {
+                                Modifier.animateItem()
                             },
+                            onClick = { onPreviewApp(app) },
                             onLongClick = { selectedApp = app },
                             onEdit = {
                                 scope.launch {
@@ -673,13 +878,19 @@ fun HomeScreen(
                             onExport = {
                                 scope.launch {
                                     val fullApp = viewModel.getWebApp(app.id) ?: return@launch
-                                    when (val result = exporter.exportAsTemplate(fullApp)) {
-                                        is com.webtoapp.core.export.ExportResult.Success -> {
-                                            snackbarHostState.showSnackbar(Strings.projectExportedTo.replace("%s", result.path))
+                                    val packed = withContext(Dispatchers.IO) {
+                                        runCatching {
+                                            com.webtoapp.core.export.AppSourcePackager(listContext).pack(fullApp)
                                         }
-                                        is com.webtoapp.core.export.ExportResult.Error -> {
-                                            snackbarHostState.showSnackbar(result.message)
+                                    }
+                                    val file = packed.getOrNull()
+                                    val shared = file != null &&
+                                        com.webtoapp.core.export.AppSourcePackager(listContext).share(file)
+                                    if (!shared) {
+                                        packed.exceptionOrNull()?.let {
+                                            AppLogger.e("HomeScreen", "Source export failed", it)
                                         }
+                                        snackbarHostState.showSnackbar(Strings.exportAppSourceFailed)
                                     }
                                 }
                             },
@@ -1012,14 +1223,8 @@ fun HomeScreen(
         )
     }
 
-    if (showBatchImportDialog) {
-        BatchImportDialog(
-            importService = batchImportService,
-            onDismiss = { showBatchImportDialog = false },
-            onImport = { entries ->
-                batchImportService.importEntriesDetailed(entries)
-            }
-        )
+    if (showDataBackupDialog) {
+        DataBackupDialog(onDismiss = { showDataBackupDialog = false })
     }
 
 }
@@ -1144,7 +1349,8 @@ fun AppCard(
 
     EnhancedElevatedCard(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth(),
+        pressScale = 0.97f,
     ) {
         Row(
             modifier = Modifier
@@ -1388,8 +1594,8 @@ fun AppCard(
                         }
                     )
                     com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.btnExport,
-                        leadingIcon = Icons.Outlined.FileDownload,
+                        text = Strings.exportAppSource,
+                        leadingIcon = Icons.Outlined.Code,
                         onClick = {
                             expanded = false
                             onExport()

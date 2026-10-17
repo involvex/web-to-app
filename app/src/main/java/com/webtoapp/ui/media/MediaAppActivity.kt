@@ -7,6 +7,7 @@ import android.content.pm.ActivityInfo
 import android.media.MediaPlayer
 import android.os.Bundle
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.Image
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.ui.unit.dp
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
+import com.webtoapp.core.host.HostRuntimePrefs
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.ui.shared.AspectRatioSurface
@@ -53,6 +55,12 @@ class MediaAppActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (!HostRuntimePrefs.getInstance(this).isAdvancedFeaturesEnabledBlocking()) {
+            Toast.makeText(this, Strings.advancedFeaturesOff, Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
 
         val webAppJson = intent.getStringExtra(EXTRA_WEB_APP)
         val config = if (webAppJson != null) {

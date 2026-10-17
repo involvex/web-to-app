@@ -84,17 +84,26 @@ fun ShellBrowserAndroidView(
                     onSurfaceCreated?.invoke(surface)
 
                     val wv = surface.webView
-                    if (wv != null && enableLongPress) {
-                        var lastTouchX = 0f
-                        var lastTouchY = 0f
-                        var downFromFinger = false
-                        wv.setOnTouchListener { view, event ->
+                    val touchSlop = android.view.ViewConfiguration.get(ctx).scaledTouchSlop
+                    var lastTouchX = 0f
+                    var lastTouchY = 0f
+                    var downFromFinger = false
+                    // Top-tab paging is claimed here, below the WebView, because a
+                    // Compose pointerInput never sees events the WebView consumes.
+                    // Until the drag is clearly horizontal the listener returns
+                    // false and the page scrolls as usual.
+                    fun installTouch(target: android.view.View, clickOnUp: Boolean) {
+                        var paging = false
+                        target.setOnTouchListener { view, event ->
+                            val handler = SiteTabSwipe.handler
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
                                     lastTouchX = event.x
                                     lastTouchY = event.y
                                     downFromFinger =
                                         event.getToolType(0) == MotionEvent.TOOL_TYPE_FINGER
+                                    paging = false
+                                    if (downFromFinger) handler?.onDown(event)
                                     if (event.isFromSource(android.view.InputDevice.SOURCE_MOUSE)) {
                                         // A mouse click does not always move focus
                                         // by itself on every OEM path; make it
@@ -102,28 +111,57 @@ fun ShellBrowserAndroidView(
                                         // the page afterwards (#1031).
                                         view.requestFocus()
                                     }
+                                    false
                                 }
                                 MotionEvent.ACTION_MOVE -> {
                                     lastTouchX = event.x
                                     lastTouchY = event.y
+                                    if (handler == null || !downFromFinger) return@setOnTouchListener false
+                                    val move = handler.onMove(event, touchSlop)
+                                    if (move == TopTabMove.IGNORE) return@setOnTouchListener false
+                                    if (!paging) {
+                                        paging = true
+                                        view.cancelLongPress()
+                                        view.parent?.requestDisallowInterceptTouchEvent(true)
+                                        // Drop the slop events the page already saw,
+                                        // or the WebView flings as the pager takes over.
+                                        val cancel = MotionEvent.obtain(event)
+                                        cancel.action = MotionEvent.ACTION_CANCEL
+                                        view.onTouchEvent(cancel)
+                                        cancel.recycle()
+                                    }
+                                    true
                                 }
                                 MotionEvent.ACTION_UP -> {
-                                    view.performClick()
+                                    val consumed = downFromFinger && handler?.onUp(event) == true
+                                    if (clickOnUp && !consumed) view.performClick()
                                     downFromFinger = false
+                                    paging = false
+                                    consumed
                                 }
-                                MotionEvent.ACTION_CANCEL -> downFromFinger = false
+                                MotionEvent.ACTION_CANCEL -> {
+                                    if (downFromFinger) handler?.onCancel()
+                                    downFromFinger = false
+                                    paging = false
+                                    false
+                                }
+                                else -> paging
                             }
-                            false
                         }
-                        wv.setOnLongClickListener {
-                            // A right-click also routes through performLongClick —
-                            // keep the touch menu finger-only so pointer/keyboard
-                            // long-clicks fall back to the default context menu
-                            // instead of a touch menu at a stale position (#1031).
-                            if (downFromFinger) {
-                                webViewCallbacks.onLongPress(wv, lastTouchX, lastTouchY)
-                            } else {
-                                false
+                    }
+                    if (wv != null) {
+                        installTouch(wv, clickOnUp = enableLongPress)
+                        if (enableLongPress) {
+                            wv.setOnLongClickListener {
+                                // A right-click also routes through performLongClick —
+                                // keep the touch menu finger-only so pointer/keyboard
+                                // long-clicks fall back to the default context menu
+                                // instead of a touch menu at a stale position (#1031).
+                                if (downFromFinger) {
+                                    webViewCallbacks.onLongPress(wv, lastTouchX, lastTouchY)
+                                } else {
+                                    false
+                                }
                             }
                         }
                     }
@@ -132,13 +170,20 @@ fun ShellBrowserAndroidView(
                         WebScrollTracker.install(wv)
                         onWebViewCreated(wv)
                         onWebViewRefUpdated(wv)
-                        if (wv.tag == "state_restored") {
-                            surface.reload()
-                        } else if (!initialUrl.isNullOrBlank()) {
-                            surface.loadUrl(initialUrl)
+                        WebViewManager.runWhenFreshSessionReady {
+                            if (wv.tag == "state_restored") {
+                                surface.reload()
+                            } else if (!initialUrl.isNullOrBlank()) {
+                                surface.loadUrl(initialUrl)
+                            }
                         }
                     } else if (!initialUrl.isNullOrBlank()) {
-                        surface.loadUrl(initialUrl)
+                        WebViewManager.runWhenFreshSessionReady {
+                            surface.loadUrl(initialUrl)
+                        }
+                    }
+                    if (wv == null) {
+                        installTouch(surface.view, clickOnUp = false)
                     }
 
                     addView(

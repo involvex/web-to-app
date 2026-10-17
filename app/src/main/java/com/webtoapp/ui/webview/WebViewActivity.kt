@@ -6,11 +6,15 @@ import com.webtoapp.ui.components.PremiumButton
 import com.webtoapp.ui.components.AutoRefreshCountdownChip
 
 import android.annotation.SuppressLint
+import android.app.Activity
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import com.webtoapp.core.host.AdvancedAppTypes
 import com.webtoapp.core.logging.AppLogger
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -42,7 +46,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -51,7 +54,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.lifecycleScope
 import com.webtoapp.ui.components.WebSwipeRefreshLayout
 import com.webtoapp.WebToAppApplication
+import com.webtoapp.core.bgm.BgmMediaNotifier
 import com.webtoapp.core.bgm.BgmPlayer
+import com.webtoapp.core.bgm.BgmTransport
+import com.webtoapp.core.bgm.bgmControlEnabled
+import com.webtoapp.ui.shell.BgmFloatingPlayer
 import com.webtoapp.core.webview.HtmlRuntimeLoadInspector
 import com.webtoapp.core.port.PortConflictException
 import com.webtoapp.core.port.PortManager
@@ -61,6 +68,7 @@ import com.webtoapp.core.webview.VideoPosterCompat
 import com.webtoapp.core.webview.WebScrollTracker
 import com.webtoapp.core.webview.WebViewCallbacks
 import com.webtoapp.core.webview.WebViewManager
+import com.webtoapp.core.host.HostRuntimePrefs
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.KeyboardAdjustMode
 import com.webtoapp.data.model.LongPressMenuStyle
@@ -71,12 +79,20 @@ import com.webtoapp.data.model.WebApp
 import com.webtoapp.data.model.hasAnyToolbarItem
 import com.webtoapp.data.model.resolveToolbarButtons
 import android.content.pm.ActivityInfo
+import com.webtoapp.ui.animation.HostPreviewMotion
 import com.webtoapp.ui.theme.WebToAppTheme
 import com.webtoapp.util.DownloadHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
+import com.webtoapp.ui.shared.PageEdgeChrome
 import com.webtoapp.ui.shared.WindowHelper
+import com.webtoapp.ui.shared.effectiveBottomContentPadding
+import com.webtoapp.ui.shared.pageEdgeBands
+import com.webtoapp.ui.shared.parseBandColor
 import com.webtoapp.ui.shell.ConsoleLevel
 import com.webtoapp.ui.shell.ConsoleLogEntry
 import com.webtoapp.ui.shell.ConsolePanel
@@ -100,7 +116,7 @@ private fun isOwnInjectionMarker(message: String): Boolean =
 /** Bounded console buffer: page console spam must not grow state without limit. */
 private const val CONSOLE_LOG_CAP = 500
 
-class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
+open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
 
     companion object {
         private const val EXTRA_APP_ID = "app_id"
@@ -110,28 +126,83 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         private const val EXTRA_PREVIEW_APP_JSON = "preview_app_json"
 
         fun start(context: Context, appId: Long) {
-            context.startActivity(Intent(context, WebViewActivity::class.java).apply {
-                putExtra(EXTRA_APP_ID, appId)
-            })
+            HostPreviewMotion.launch(
+                context,
+                buildLaunchIntent(context, documentUri = Uri.parse("webtoapp://webapp/$appId")) {
+                    putExtra(EXTRA_APP_ID, appId)
+                }
+            )
         }
 
         fun startWithUrl(context: Context, url: String) {
-            context.startActivity(Intent(context, WebViewActivity::class.java).apply {
-                putExtra(EXTRA_URL, url)
-            })
+            HostPreviewMotion.launch(
+                context,
+                buildLaunchIntent(context, documentUri = Uri.parse("webtoapp://url/${url.hashCode()}")) {
+                    putExtra(EXTRA_URL, url)
+                }
+            )
         }
 
         fun startPreview(context: Context, webAppJson: String) {
-            context.startActivity(Intent(context, WebViewActivity::class.java).apply {
-                putExtra(EXTRA_PREVIEW_APP_JSON, webAppJson)
-            })
+            HostPreviewMotion.launch(
+                context,
+                buildLaunchIntent(
+                    context,
+                    documentUri = Uri.parse("webtoapp://preview/${webAppJson.hashCode()}")
+                ) {
+                    putExtra(EXTRA_PREVIEW_APP_JSON, webAppJson)
+                }
+            )
         }
 
         fun startForTest(context: Context, testUrl: String, moduleIds: List<String>) {
-            context.startActivity(Intent(context, WebViewActivity::class.java).apply {
-                putExtra(EXTRA_TEST_URL, testUrl)
-                putStringArrayListExtra(EXTRA_TEST_MODULE_IDS, ArrayList(moduleIds))
-            })
+            HostPreviewMotion.launch(
+                context,
+                buildLaunchIntent(context, documentUri = Uri.parse("webtoapp://test/${testUrl.hashCode()}")) {
+                    putExtra(EXTRA_TEST_URL, testUrl)
+                    putStringArrayListExtra(EXTRA_TEST_MODULE_IDS, ArrayList(moduleIds))
+                }
+            )
+        }
+
+        /**
+         * Switch off: one singleTask [WebViewActivity], reused via CLEAR_TOP.
+         * Switch on: [WebViewDocumentActivity] with NEW_DOCUMENT, one recents
+         * entry per [documentUri]. Do not add [Intent.FLAG_ACTIVITY_MULTIPLE_TASK]:
+         * paired with NEW_DOCUMENT it opens a new card on every launch (#1250).
+         * The data URI is the document identity and is cleared when the switch
+         * is off so singleTask reuse is not split.
+         */
+        fun buildLaunchIntent(
+            context: Context,
+            separateTasks: Boolean = HostRuntimePrefs.getInstance(context).isSeparateTasksEnabledBlocking(),
+            documentUri: Uri? = null,
+            configure: Intent.() -> Unit
+        ): Intent {
+            val target = if (separateTasks) {
+                WebViewDocumentActivity::class.java
+            } else {
+                WebViewActivity::class.java
+            }
+            return Intent(context, target).apply {
+                action = Intent.ACTION_VIEW
+                configure()
+                if (separateTasks) {
+                    if (documentUri != null) {
+                        data = documentUri
+                    }
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_DOCUMENT or
+                            Intent.FLAG_ACTIVITY_NEW_TASK
+                    )
+                } else {
+                    data = null
+                    if (context !is Activity) {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                }
+            }
         }
     }
 
@@ -204,6 +275,8 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
     private var statusBarBackgroundAlpha: Float = 1.0f
     private var statusBarBackgroundAlphaDark: Float = 1.0f
     private var statusBarAutoColor: String? = null
+    private var pageBottomAutoColor: String? = null
+    private var topTabBarColor: String? = null
     internal var keyboardAdjustMode: KeyboardAdjustMode = KeyboardAdjustMode.RESIZE
 
     private var currentIsDarkTheme: Boolean = false
@@ -238,9 +311,36 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         }
         val effectiveColorMode = if (currentIsDarkTheme) statusBarColorModeDark else statusBarColorMode
         val effectiveCustomColor = if (currentIsDarkTheme) statusBarCustomColorDark else statusBarCustomColor
-        val effectiveDarkIcons = if (currentIsDarkTheme) statusBarDarkIconsDark else statusBarDarkIcons
         val effectiveAlpha = if (currentIsDarkTheme) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
-        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, currentIsDarkTheme, effectiveAlpha)
+        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, resolvedStatusIcons(currentIsDarkTheme), currentIsDarkTheme, effectiveAlpha)
+        applyPageEdgeNavigation(currentIsDarkTheme)
+    }
+
+    private fun resolvedStatusIcons(isDark: Boolean): Boolean? {
+        val explicit = if (isDark) statusBarDarkIconsDark else statusBarDarkIcons
+        if (explicit != null) return explicit
+        val mode = if (isDark) statusBarColorModeDark else statusBarColorMode
+        if (mode != com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT &&
+            mode != com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP
+        ) return null
+        val hex = (if (mode == com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT) topTabBarColor else null)
+            ?: statusBarAutoColor ?: return null
+        val color = runCatching { android.graphics.Color.parseColor(hex) }.getOrNull() ?: return null
+        return WindowHelper.isColorLight(color)
+    }
+
+    private fun applyPageEdgeNavigation(isDark: Boolean) {
+        val mode = if (isDark) statusBarColorModeDark else statusBarColorMode
+        val custom = if (isDark) statusBarCustomColorDark else statusBarCustomColor
+        com.webtoapp.ui.shared.PageEdgeChrome.applyNavigationBar(
+            activity = this,
+            mode = mode.name,
+            sampleBottom = pageBottomAutoColor,
+            sampleTop = statusBarAutoColor,
+            custom = custom,
+            darkIcons = if (isDark) statusBarDarkIconsDark else statusBarDarkIcons,
+            isDark = isDark
+        )
     }
 
     private fun applyStatusBarColor(
@@ -272,11 +372,14 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
             showStatusBar = effectiveShowStatusBar,
             statusBarColorMode = resolved.mode,
             statusBarCustomColor = resolved.color,
-            statusBarDarkIcons = if (isDarkTheme) statusBarDarkIconsDark else statusBarDarkIcons,
+            statusBarDarkIcons = resolvedStatusIcons(isDarkTheme),
             statusBarBgType = if (isDarkTheme) statusBarBackgroundTypeDark.name else statusBarBackgroundType.name,
             keyboardAdjustMode = keyboardAdjustMode,
             tag = "WebViewActivity"
         )
+        // showNavigationBarInFullscreen only applies while fullscreen is on.
+        // Leaving fullscreen always shows the system navigation bar.
+        if (!enabled || !shouldHideNavBar) applyPageEdgeNavigation(isDarkTheme)
     }
 
     internal fun refreshWindowConfig() {
@@ -803,6 +906,7 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         }
 
         super.onCreate(savedInstanceState)
+        HostPreviewMotion.install(this)
 
         requestNotificationPermissionIfNeeded()
 
@@ -845,6 +949,12 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         savedInstanceState?.let { webViewStateBundle = it }
         launchDirectUrl = directUrl
         launchPreviewApp = previewApp
+        if (this is WebViewDocumentActivity) {
+            val label = previewApp?.name?.takeIf { it.isNotBlank() }
+                ?: directUrl?.let { runCatching { Uri.parse(it).host }.getOrNull()?.takeIf { it.isNotBlank() } }
+                ?: if (appId > 0) "WebApp #$appId" else null
+            if (label != null) applySeparateTaskDescription(label)
+        }
         sessionKey = resumeStore.sessionKey(
             appId = appId,
             directUrl = directUrl,
@@ -871,13 +981,14 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
                     statusBarColorModeDark,
                     statusBarCustomColorDark,
                     statusBarDarkIconsDark,
-                    statusBarAutoColor
+                    statusBarAutoColor,
+                    pageBottomAutoColor
                 ) {
                     if (!immersiveFullscreenEnabled) {
                         val effectiveColorMode = if (isDarkTheme) statusBarColorModeDark else statusBarColorMode
                         val effectiveCustomColor = if (isDarkTheme) statusBarCustomColorDark else statusBarCustomColor
-                        val effectiveDarkIcons = if (isDarkTheme) statusBarDarkIconsDark else statusBarDarkIcons
-                        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, isDarkTheme)
+                        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, resolvedStatusIcons(isDarkTheme), isDarkTheme)
+                        applyPageEdgeNavigation(isDarkTheme)
                     }
                 }
 
@@ -907,8 +1018,19 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
                     statusBarAutoColor = color
                     refreshStatusBarAppearance()
                 },
+                onPageBottomColorChanged = { color ->
+                    if (pageBottomAutoColor == color) return@WebViewScreen
+                    pageBottomAutoColor = color
+                    refreshStatusBarAppearance()
+                },
+                onTopTabColor = { color ->
+                    if (topTabBarColor == color) return@WebViewScreen
+                    topTabBarColor = color
+                    refreshStatusBarAppearance()
+                },
                 onSavedAppLoaded = { app ->
                     resolvedSavedApp = app
+                    if (app.name.isNotBlank()) applySeparateTaskDescription(app.name)
                     // App-id launches resolve these from the saved config; the onCreate pass
                     // only covers intent-carried preview apps.
                     if (previewApp == null) {
@@ -1134,9 +1256,37 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         }
     }
 
+    private fun applySeparateTaskDescription(label: String) {
+        if (this !is WebViewDocumentActivity) return
+        try {
+            // Builder exists only from API 33. Gating on P (28) resolves a missing
+            // class on Android 12, and NoClassDefFoundError is not an Exception.
+            val description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ActivityManager.TaskDescription.Builder().setLabel(label).build()
+            } else {
+                @Suppress("DEPRECATION")
+                ActivityManager.TaskDescription(label)
+            }
+            setTaskDescription(description)
+        } catch (e: Throwable) {
+            AppLogger.w("WebViewActivity", "setTaskDescription failed: ${e.message}")
+        }
+    }
+
     override fun onNewIntent(intent: Intent) {
+        val previousKey = getIntent()?.let { PreviewSessions.sessionKey(it) }
         super.onNewIntent(intent)
         setIntent(intent)
+        HostPreviewMotion.install(this)
+        // Same preview document brought forward. Recreating here would wipe the
+        // page the agent is in the middle of operating.
+        if (this is WebViewDocumentActivity &&
+            previousKey != null &&
+            previousKey == PreviewSessions.sessionKey(intent)
+        ) {
+            PreviewSessions.onActivityReady(this)
+            return
+        }
         if (shouldRecreateForNewIntent(intent, trackedAppId)) {
             recreate()
         }
@@ -1295,6 +1445,37 @@ class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCap
         com.webtoapp.core.logging.AppLogger.w("WebViewActivity", "Low memory, skipped manual GC")
     }
 
+    /**
+     * Runs [script] on the live page and returns the raw evaluateJavascript
+     * result. Null when the surface is gone or the engine does not answer.
+     */
+    internal suspend fun evalForAgent(script: String, timeoutMs: Long = 5_000): String? {
+        return withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine { cont ->
+                runOnUiThread {
+                    val surface = browserSurface
+                    if (surface == null) {
+                        if (cont.isActive) cont.resume(null)
+                        return@runOnUiThread
+                    }
+                    try {
+                        surface.evaluateJavascript(script) { value ->
+                            if (cont.isActive) cont.resume(value)
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.w("WebViewActivity", "evalForAgent failed: ${e.message}")
+                        if (cont.isActive) cont.resume(null)
+                    }
+                }
+            }
+        }
+    }
+
+    override fun finish() {
+        super.finish()
+        HostPreviewMotion.onFinish(this)
+    }
+
     override fun onDestroy() {
 
         if (trackedAppId > 0) usageTracker?.trackClose(trackedAppId)
@@ -1345,6 +1526,8 @@ fun WebViewScreen(
     testModuleIds: List<String>? = null,
     onStatusBarConfigChanged: ((com.webtoapp.data.model.StatusBarColorMode, String?, Boolean?, Boolean, com.webtoapp.data.model.StatusBarBackgroundType, Float, com.webtoapp.data.model.StatusBarColorMode, String?, Boolean?, com.webtoapp.data.model.StatusBarBackgroundType, Float) -> Unit)? = null,
     onStatusBarAutoColorChanged: ((String?) -> Unit)? = null,
+    onPageBottomColorChanged: ((String?) -> Unit)? = null,
+    onTopTabColor: ((String?) -> Unit)? = null,
     onSavedAppLoaded: ((WebApp) -> Unit)? = null,
     onWebViewCreated: (WebView, WebApp?) -> Unit,
     onFileChooser: (ValueCallback<Array<Uri>>?, WebChromeClient.FileChooserParams?) -> Boolean,
@@ -1392,6 +1575,25 @@ fun WebViewScreen(
     var originalOrientation by remember { mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) }
 
     val bgmPlayer = remember { BgmPlayer(context) }
+    val bgmTransport = remember { BgmTransport() }
+    val bgmNotifier = remember { BgmMediaNotifier(context, bgmTransport) }
+    var bgmTrackTitle by remember { mutableStateOf("") }
+    var bgmPlaying by remember { mutableStateOf(false) }
+
+    DisposableEffect(bgmPlayer) {
+        bgmTransport.play = { bgmPlayer.play() }
+        bgmTransport.pause = { bgmPlayer.pause() }
+        bgmTransport.next = { bgmPlayer.playNext() }
+        bgmTransport.previous = { bgmPlayer.playPrevious() }
+        bgmTransport.seek = { bgmPlayer.seekTo(it) }
+        bgmPlayer.setOnTrackChangedListener { item ->
+            bgmTrackTitle = item?.name.orEmpty()
+        }
+        bgmPlayer.setOnPlayStateChangedListener { playing ->
+            bgmPlaying = playing
+        }
+        onDispose { }
+    }
 
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var browserSurfaceRef by remember { mutableStateOf<BrowserSurface?>(null) }
@@ -1424,6 +1626,7 @@ fun WebViewScreen(
     var statusBarBackgroundAlpha by remember { mutableFloatStateOf(1.0f) }
     var statusBarHeightDp by remember { mutableIntStateOf(0) }
     var statusBarAutoColor by remember { mutableStateOf<String?>(null) }
+    var pageBottomAutoColor by remember { mutableStateOf<String?>(null) }
     var statusBarColorTracker by remember { mutableStateOf<com.webtoapp.core.webview.StatusBarPageColorTracker?>(null) }
 
     var statusBarBackgroundTypeDarkLocal by remember { mutableStateOf("COLOR") }
@@ -1466,6 +1669,18 @@ fun WebViewScreen(
             config.statusBarColorMode == com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP) ||
             (config.statusBarBackgroundTypeDark == com.webtoapp.data.model.StatusBarBackgroundType.COLOR &&
                 config.statusBarColorModeDark == com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP)
+    }
+
+    fun usesPageEdgeColor(app: WebApp?): Boolean {
+        val config = app?.webViewConfig ?: return false
+        val pageModes = setOf(
+            com.webtoapp.data.model.StatusBarColorMode.PAGE_TOP,
+            com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT
+        )
+        return (config.statusBarBackgroundType == com.webtoapp.data.model.StatusBarBackgroundType.COLOR &&
+            config.statusBarColorMode in pageModes) ||
+            (config.statusBarBackgroundTypeDark == com.webtoapp.data.model.StatusBarBackgroundType.COLOR &&
+                config.statusBarColorModeDark in pageModes)
     }
 
     fun resolveStatusBarOverlayColor(isDark: Boolean): String? {
@@ -1526,11 +1741,13 @@ fun WebViewScreen(
                 )
                 Toast.makeText(context, Strings.adSdkNotIntegrated, Toast.LENGTH_LONG).show()
             }
-            if (!usesPageTopStatusBarColor(app)) {
+            if (!usesPageEdgeColor(app)) {
                 statusBarAutoColor = null
+                pageBottomAutoColor = null
                 onStatusBarAutoColorChanged?.invoke(null)
+                onPageBottomColorChanged?.invoke(null)
             } else {
-                statusBarColorTracker?.scheduleSample(80L)
+                statusBarColorTracker?.scheduleSample(80L, settle = true)
             }
         }
     }
@@ -1556,6 +1773,7 @@ fun WebViewScreen(
             statusBarColorTracker?.detach()
             statusBarColorTracker = null
             onStatusBarAutoColorChanged?.invoke(null)
+            onPageBottomColorChanged?.invoke(null)
         }
     }
 
@@ -1598,6 +1816,11 @@ fun WebViewScreen(
         }
 
         if (previewApp != null) {
+            if (!AdvancedAppTypes.isUsable(context, previewApp.appType)) {
+                Toast.makeText(context, Strings.advancedFeaturesOff, Toast.LENGTH_SHORT).show()
+                activity.finish()
+                return@LaunchedEffect
+            }
             webApp = previewApp
             isActivated = true
             isActivationChecked = true
@@ -1656,6 +1879,11 @@ fun WebViewScreen(
 
         if (appId > 0) {
             val app = repository.getWebApp(appId)
+            if (app != null && !AdvancedAppTypes.isUsable(context, app.appType)) {
+                Toast.makeText(context, Strings.advancedFeaturesOff, Toast.LENGTH_SHORT).show()
+                activity.finish()
+                return@LaunchedEffect
+            }
             webApp = app
             if (app != null) {
 
@@ -1819,8 +2047,35 @@ fun WebViewScreen(
         }
 
         onDispose {
+            bgmNotifier.release()
             bgmPlayer.release()
             announcement.stopNetworkMonitoring()
+        }
+    }
+
+    val bgmNotificationOn = webApp?.bgmEnabled == true &&
+        isActivated &&
+        bgmControlEnabled(webApp?.bgmConfig?.showNotificationPlayer) &&
+        webApp?.bgmConfig?.playlist?.isNotEmpty() == true
+    LaunchedEffect(bgmNotificationOn) {
+        if (!bgmNotificationOn) {
+            bgmNotifier.hide()
+            return@LaunchedEffect
+        }
+        while (true) {
+            val track = bgmPlayer.getCurrentTrack()
+            if (track != null) {
+                val playing = bgmPlayer.isPlaying()
+                if (playing != bgmPlaying) bgmPlaying = playing
+                if (track.name.isNotBlank() && track.name != bgmTrackTitle) bgmTrackTitle = track.name
+                bgmNotifier.publish(
+                    title = track.name,
+                    playing = playing,
+                    positionMs = bgmPlayer.getCurrentPosition(),
+                    durationMs = bgmPlayer.getDuration()
+                )
+            }
+            delay(500)
         }
     }
 
@@ -2636,10 +2891,12 @@ fun WebViewScreen(
                 currentUrl = url ?: ""
                 errorMessage = null
                 webViewRef?.let { WebScrollTracker.reset(it) }
-                if (usesPageTopStatusBarColor(webApp ?: previewApp)) {
+                if (usesPageEdgeColor(webApp ?: previewApp)) {
                     statusBarColorTracker?.reset()
                     statusBarAutoColor = null
+                    pageBottomAutoColor = null
                     onStatusBarAutoColorChanged?.invoke(null)
+                    onPageBottomColorChanged?.invoke(null)
                 }
                 if (!false) {
                 } else {
@@ -2647,7 +2904,7 @@ fun WebViewScreen(
             }
 
             override fun onPageCommitVisible(url: String?) {
-                statusBarColorTracker?.scheduleSample(48L)
+                statusBarColorTracker?.scheduleSample(48L, settle = true)
             }
 
             override fun onUrlChanged(webView: WebView?, url: String?) {
@@ -2657,7 +2914,7 @@ fun WebViewScreen(
                     canGoForward = it.canGoForward()
                 }
                 if (url != null) currentUrl = url
-                statusBarColorTracker?.scheduleSample(48L)
+                statusBarColorTracker?.scheduleSample(48L, settle = true)
             }
 
             override fun onNavigationStateChanged(newCanGoBack: Boolean, newCanGoForward: Boolean) {
@@ -2701,7 +2958,7 @@ fun WebViewScreen(
                             tc.showFloatingButton
                         )
                     }
-                    statusBarColorTracker?.scheduleSample(80L)
+                    statusBarColorTracker?.scheduleSample(80L, settle = true)
                 }
                 // WebViews without document-start script support lose the
                 // polyfill on every navigation; re-inject it (idempotent).
@@ -2750,6 +3007,7 @@ fun WebViewScreen(
             }
 
             override fun onShowCustomView(view: View?, callback: WebChromeClient.CustomViewCallback?) {
+                errorMessage = null
                 view?.let { onShowCustomView(it, callback) }
             }
 
@@ -3129,12 +3387,11 @@ fun WebViewScreen(
                 if (htmlDir.exists()) {
                     try {
 
-                        val usesFileScheme = when (app.htmlConfig?.loadMode ?: HtmlLoadMode.AUTO) {
-                            HtmlLoadMode.FILE -> true
-                            HtmlLoadMode.LOCAL_HTTP -> false
-                            HtmlLoadMode.AUTO -> !app.webViewConfig.enableCrossOriginIsolation &&
-                                HtmlRuntimeLoadInspector.prefersFileScheme(htmlDir)
-                        }
+                        val usesFileScheme = HtmlRuntimeLoadInspector.useFileScheme(
+                            mode = app.htmlConfig?.loadMode ?: HtmlLoadMode.AUTO,
+                            rootDir = htmlDir,
+                            crossOriginIsolation = app.webViewConfig.enableCrossOriginIsolation
+                        )
                         if (usesFileScheme) {
                             localHttpServer.stop()
                             val normalizedEntry = entryFile.removePrefix("/").ifBlank { "index.html" }
@@ -3394,7 +3651,17 @@ fun WebViewScreen(
         val padTop = (webApp?.webViewConfig?.fullscreenPadTop ?: 0).dp
         val padStart = (webApp?.webViewConfig?.fullscreenPadStart ?: 0).dp
         val padEnd = (webApp?.webViewConfig?.fullscreenPadEnd ?: 0).dp
-        val padBottom = (webApp?.webViewConfig?.fullscreenPadBottom ?: 0).dp
+        // #1172: the bottom band stays on the screen edge instead of riding up
+        // with the keyboard. Preview and the exported shell share this rule.
+        val padBottom = effectiveBottomContentPadding((webApp?.webViewConfig?.fullscreenPadBottom ?: 0).dp)
+        val previewModeName = effMode?.name ?: com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT.name
+        val customBand = if (previewDark) webApp?.webViewConfig?.statusBarColorDark else webApp?.webViewConfig?.statusBarColor
+        val topBand = parseBandColor(PageEdgeChrome.topBandHex(previewModeName, statusBarAutoColor, customBand, previewDark))
+        val bottomBand = parseBandColor(
+            PageEdgeChrome.bottomBandHex(previewModeName, pageBottomAutoColor, statusBarAutoColor, customBand, previewDark)
+        )
+        val bottomBandPx = with(density) { padBottom.toPx() }
+        val bands = Modifier.pageEdgeBands(topBand, bottomBand, bottomBandPx)
 
         val contentModifier = when {
             hideToolbar && showToolbarInPreview -> {
@@ -3403,7 +3670,7 @@ fun WebViewScreen(
             }
             hideToolbar && webApp?.webViewConfig?.showStatusBarInFullscreen == true -> {
 
-                Modifier.fillMaxSize().padding(
+                bands.fillMaxSize().padding(
                     top = (if (barOverlaysContent) 0.dp else actualStatusBarPadding) + padTop,
                     start = padStart,
                     end = padEnd,
@@ -3412,7 +3679,7 @@ fun WebViewScreen(
             }
             hideToolbar -> {
 
-                Modifier.fillMaxSize().padding(
+                bands.fillMaxSize().padding(
                     top = padTop,
                     start = padStart,
                     end = padEnd,
@@ -3533,8 +3800,21 @@ fun WebViewScreen(
                             displayMode = multiWebConfig.displayMode,
                             refreshInterval = multiWebConfig.refreshInterval,
                             showSiteIcons = multiWebConfig.showSiteIcons,
+                            cardColumns = com.webtoapp.ui.shell.resolvedGridColumns(
+                                multiWebConfig.cardColumns,
+                                com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_CARD_COLUMNS,
+                                com.webtoapp.ui.shell.MULTI_WEB_MAX_CARD_COLUMNS
+                            ),
+                            drawerColumns = com.webtoapp.ui.shell.resolvedGridColumns(
+                                multiWebConfig.drawerColumns,
+                                com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_DRAWER_COLUMNS,
+                                com.webtoapp.ui.shell.MULTI_WEB_MAX_DRAWER_COLUMNS
+                            ),
+                            cardAspectRatio = com.webtoapp.ui.shell.resolvedCardAspect(multiWebConfig.cardAspectRatio),
                             sitesUseOwnConfig = multiWebConfig.sitesUseOwnConfig,
-                            projectId = multiWebConfig.projectId
+                            projectId = multiWebConfig.projectId,
+                            startTab = multiWebConfig.startTab,
+                            startSiteId = multiWebConfig.startSiteId
                         ),
                         // App-level userscripts: MultiWebShellMode merges them into
                         // every site's effective config (site-level scripts win on
@@ -3562,15 +3842,20 @@ fun WebViewScreen(
                         webViewConfig = mwApp.webViewConfig,
                         webViewCallbacks = webViewCallbacks,
                         webViewManager = webViewManager,
+                        onTopTabColor = { onTopTabColor?.invoke(it) },
                         onWebViewCreated = { wv ->
                             statusBarColorTracker?.detach()
                             val tracker = com.webtoapp.core.webview.StatusBarPageColorTracker(
                                 webView = wv,
-                                shouldSample = { usesPageTopStatusBarColor(webApp ?: previewApp) },
-                                onColorChanged = { color ->
-                                    if (statusBarAutoColor != color) {
-                                        statusBarAutoColor = color
-                                        onStatusBarAutoColorChanged?.invoke(color)
+                                shouldSample = { usesPageEdgeColor(webApp ?: previewApp) },
+                                onColors = { colors ->
+                                    if (statusBarAutoColor != colors.top) {
+                                        statusBarAutoColor = colors.top
+                                        onStatusBarAutoColorChanged?.invoke(colors.top)
+                                    }
+                                    if (pageBottomAutoColor != colors.bottom) {
+                                        pageBottomAutoColor = colors.bottom
+                                        onPageBottomColorChanged?.invoke(colors.bottom)
                                     }
                                 }
                             )
@@ -3578,7 +3863,7 @@ fun WebViewScreen(
                             statusBarColorTracker = tracker
                             webViewRef = wv
                             onWebViewCreated(wv, null)
-                            tracker.scheduleSample(80L)
+                            tracker.scheduleSample(80L, settle = true)
                         },
                         swipeRefreshEnabled = mwApp.webViewConfig.swipeRefreshEnabled,
                         isRefreshing = isRefreshing,
@@ -3819,11 +4104,15 @@ fun WebViewScreen(
                                     statusBarColorTracker?.detach()
                                     val tracker = com.webtoapp.core.webview.StatusBarPageColorTracker(
                                         webView = this,
-                                        shouldSample = { usesPageTopStatusBarColor(webApp ?: previewApp) },
-                                        onColorChanged = { color ->
-                                            if (statusBarAutoColor != color) {
-                                                statusBarAutoColor = color
-                                                onStatusBarAutoColorChanged?.invoke(color)
+                                        shouldSample = { usesPageEdgeColor(webApp ?: previewApp) },
+                                        onColors = { colors ->
+                                            if (statusBarAutoColor != colors.top) {
+                                                statusBarAutoColor = colors.top
+                                                onStatusBarAutoColorChanged?.invoke(colors.top)
+                                            }
+                                            if (pageBottomAutoColor != colors.bottom) {
+                                                pageBottomAutoColor = colors.bottom
+                                                onPageBottomColorChanged?.invoke(colors.bottom)
                                             }
                                         }
                                     )
@@ -3834,7 +4123,7 @@ fun WebViewScreen(
 
                                     webViewRef = this
 
-                                    tracker.scheduleSample(80L)
+                                    tracker.scheduleSample(80L, settle = true)
                                     val host = context as? WebViewActivity
                                     val savedState = host?.consumeWebViewState()
                                     val restored = savedState?.let { restoreState(it) }
@@ -4132,6 +4421,20 @@ fun WebViewScreen(
             alpha = if (overlayIsDark) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha,
             heightDp = statusBarHeightDp,
             modifier = Modifier.align(Alignment.TopStart)
+        )
+    }
+
+    val previewBgm = webApp
+    if (previewBgm != null && previewBgm.bgmEnabled && isActivated &&
+        bgmControlEnabled(previewBgm.bgmConfig?.showFloatingPlayer) &&
+        previewBgm.bgmConfig?.playlist?.isNotEmpty() == true
+    ) {
+        BgmFloatingPlayer(
+            title = bgmTrackTitle,
+            playing = bgmPlaying,
+            onToggle = { if (bgmPlayer.isPlaying()) bgmPlayer.pause() else bgmPlayer.play() },
+            onPrevious = { bgmPlayer.playPrevious() },
+            onNext = { bgmPlayer.playNext() }
         )
     }
 

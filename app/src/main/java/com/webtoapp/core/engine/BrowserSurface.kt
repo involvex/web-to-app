@@ -97,11 +97,27 @@ class BrowserSurface private constructor(
     fun onResume() {
         webView?.onResume()
         webView?.resumeTimers()
-        engine?.getView()?.let { }
+        // Rebind a Gecko session released by onPause / onCovered, and restore
+        // a GeckoView that onCovered set to GONE (#1161, #1192).
+        (engine as? GeckoViewEngine)?.setDisplayVisible(true)
     }
 
     fun onPause() {
         webView?.onPause()
+        // Activity backgrounding. Release the display but leave the view
+        // visible — collapsing here would destroy the only surface of a
+        // single-site Gecko app on every Home press (#1192).
+        (engine as? GeckoViewEngine)?.setDisplayVisible(false)
+    }
+
+    /**
+     * Another multi-web site is covering this one. Same session detach as
+     * [onPause], and the GeckoView is set to GONE so its SurfaceView cannot
+     * stay composited above the selected site (#1192).
+     */
+    fun onCovered() {
+        webView?.onPause()
+        (engine as? GeckoViewEngine)?.setDisplayVisible(false, collapseSurface = true)
     }
 
     fun resumeTimers() {

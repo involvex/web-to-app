@@ -9,6 +9,8 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
+import com.webtoapp.core.host.AdvancedAppTypes
+import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.WebToAppApplication
 import androidx.core.content.FileProvider
@@ -20,7 +22,9 @@ import com.webtoapp.core.crypto.toHexString
 import com.webtoapp.core.shell.BgmShellItem
 import com.webtoapp.core.shell.LrcShellTheme
 import com.webtoapp.data.model.ApkRuntimePermissions
+import com.webtoapp.data.model.ExportPermissionCatalog
 import com.webtoapp.data.model.LrcData
+import com.webtoapp.data.model.PermissionFeatureDefaults
 import com.webtoapp.data.model.AnnouncementTemplateType
 import com.webtoapp.data.model.HtmlLoadMode
 import com.webtoapp.data.model.WebApp
@@ -44,7 +48,7 @@ import com.webtoapp.util.AppConstants
 import com.webtoapp.util.NetworkTrustStorage
 import com.webtoapp.util.TextFileClassifier
 
-private fun resolveOutputDir(context: Context): File {
+internal fun resolveOutputDir(context: Context): File {
     val external = context.getExternalFilesDir(null)
     if (external != null) {
         val dir = File(external, "built_apks")
@@ -217,6 +221,24 @@ class ApkBuilder(private val context: Context) {
         }
 
         /**
+         * Opens the installed app for [packageName]. Returns false when the
+         * package is missing, has no launcher activity, or the start fails.
+         */
+        fun launchInstalledPackage(context: Context, packageName: String): Boolean {
+            if (packageName.isBlank()) return false
+            val launch = context.packageManager.getLaunchIntentForPackage(packageName)
+                ?: return false
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            return try {
+                context.startActivity(launch)
+                true
+            } catch (e: Exception) {
+                AppLogger.e("ApkBuilder", "Launch installed package failed", e)
+                false
+            }
+        }
+
+        /**
          * Android refuses to install over an existing package when versionCode
          * is lower, so rebuilds that would land as a downgrade get their
          * version bumped. Equal-or-higher versions set by the user are left
@@ -275,6 +297,7 @@ class ApkBuilder(private val context: Context) {
     private val signer = JarSigner(context)
     private val axmlRebuilder = AxmlRebuilder()
     private val arscRebuilder = ArscRebuilder()
+    private val featureStackGrafter = FeatureStackGrafter(axmlRebuilder, ArscPackageGrafter())
     private val logger = BuildLogger(context)
     private val encryptedApkBuilder = EncryptedApkBuilder(context)
     private val keyManager = KeyManager.getInstance(context)
@@ -356,7 +379,11 @@ class ApkBuilder(private val context: Context) {
         webApp: WebApp,
         forceFullRebuild: Boolean = false,
         onProgress: (Int, String) -> Unit = { _, _ -> }
-    ): BuildResult = withContext(Dispatchers.IO) {
+    ): BuildResult {
+        if (!AdvancedAppTypes.isUsable(context, webApp.appType)) {
+            return BuildResult.Error(Strings.advancedFeaturesOff)
+        }
+        return withContext(Dispatchers.IO) {
         // Serialize builds of the same package across all entry points (export screen,
         // home share, agent tools): the build writes deterministic temp paths keyed by
         // package name, so two overlapping builds would corrupt each other's files.
@@ -381,6 +408,7 @@ class ApkBuilder(private val context: Context) {
             }
         } finally {
             ApkBuildService.stop(context)
+        }
         }
     }
 
@@ -917,7 +945,8 @@ class ApkBuilder(private val context: Context) {
                 // keying it keeps CONTENT_OVERLAY from reusing a cached AndroidManifest
                 // after a change that adds/removes permissions or components.
                 manifestFingerprint = buildRequiredPermissions(config).sorted().joinToString(",") +
-                    "|" + buildRequiredComponents(config).sorted().joinToString(","),
+                    "|" + buildRequiredComponents(config).sorted().joinToString(",") +
+                    "|stacks=" + featureStackFingerprint(config),
                 // Export-level performance options are not part of ApkConfig but change
                 // output bytes (resource stripping / perf script injection).
                 perfFingerprint = webApp.apkExportConfig?.let { ec ->
@@ -967,6 +996,7 @@ class ApkBuilder(private val context: Context) {
                             outputApk = unsignedApk,
                             config = config,
                             iconPath = webApp.iconPath,
+                            iconBackgroundColor = webApp.apkExportConfig?.iconBackgroundColor,
                             splashMediaPath = webApp.getSplashMediaPath(),
                             mediaContentPath = mediaContentPath,
                             bgmPlaylistPaths = bgmPlaylistPaths,
@@ -1010,6 +1040,7 @@ class ApkBuilder(private val context: Context) {
                             outputApk = unsignedApk,
                             config = config,
                             iconPath = webApp.iconPath,
+                            iconBackgroundColor = webApp.apkExportConfig?.iconBackgroundColor,
                             splashMediaPath = webApp.getSplashMediaPath(),
                             mediaContentPath = mediaContentPath,
                             bgmPlaylistPaths = bgmPlaylistPaths,
@@ -1056,6 +1087,7 @@ class ApkBuilder(private val context: Context) {
                         outputApk = unsignedApk,
                         config = config,
                         iconPath = webApp.iconPath,
+                        iconBackgroundColor = webApp.apkExportConfig?.iconBackgroundColor,
                         splashMediaPath = webApp.getSplashMediaPath(),
                         mediaContentPath = mediaContentPath,
                         bgmPlaylistPaths = bgmPlaylistPaths,
@@ -1148,7 +1180,8 @@ class ApkBuilder(private val context: Context) {
                     goAppProjectDir = goAppProjectDir,
                     frontendProjectDir = frontendProjectDir,
                     multiWebProjectDir = config.multiWebProjectId.takeIf { it.isNotBlank() }
-                        ?.let { File(context.filesDir, "html_projects/$it") }
+                        ?.let { File(context.filesDir, "html_projects/$it") },
+                    multiWebSiteSourceDirs = resolveMultiWebSiteSourceDirs(config)
                 )
             )
             logger.logKeyValue("artifactEntryCount", artifactVerification.entryCount)
@@ -1204,7 +1237,8 @@ class ApkBuilder(private val context: Context) {
             try {
                 signer.sign(
                     unsignedApk, signedApk,
-                    targetSdk = config.targetSdkOverride ?: 28,
+                    targetSdk = config.targetSdkOverride ?: GeneratedSdkLevels.TEMPLATE_TARGET_SDK,
+                    minSdk = config.minSdkOverride ?: GeneratedSdkLevels.TEMPLATE_MIN_SDK,
                     identity = perAppIdentity?.toSigningIdentity()
                 )
             } catch (e: Exception) {
@@ -1404,6 +1438,7 @@ class ApkBuilder(private val context: Context) {
         outputApk: File,
         config: ApkConfig,
         iconPath: String?,
+        iconBackgroundColor: String? = null,
         splashMediaPath: String?,
         mediaContentPath: String? = null,
         bgmPlaylistPaths: List<String> = emptyList(),
@@ -1490,6 +1525,22 @@ class ApkBuilder(private val context: Context) {
             )
         }
 
+        // Feature stacks (issue #1115): graft DEX + resource package + manifest
+        // fragment only for features the config enables; disabled features add
+        // zero bytes to the output. CONTENT_OVERLAY reuses the cached base, so
+        // stack state lives in the identity fingerprint (stacks=).
+        val stackBundles = if (mode == ModifyApkMode.FULL) {
+            FeatureStacks.enabledFor(config).mapNotNull { id ->
+                runCatching {
+                    context.assets.open("${FeatureStacks.ASSET_DIR}/$id.zip").use {
+                        FeatureStackBundle.parse(it.readBytes())
+                    }
+                }.onFailure {
+                    logger.log("feature stack '$id' not grafted: ${it.message}")
+                }.getOrNull()
+            }
+        } else emptyList()
+
         ZipFile(sourceApk).use { zipIn ->
             ZipOutputStream(FileOutputStream(outputApk)).use { zipOut ->
 
@@ -1563,7 +1614,7 @@ class ApkBuilder(private val context: Context) {
                                 originalData, saepBytes?.let { saepResource?.id }
                             )
 
-                            val modifiedData = axmlRebuilder.expandAndModifyFull(
+                            var modifiedData = axmlRebuilder.expandAndModifyFull(
                                 policyAdjustedData,
                                 originalPackageName,
                                 config.packageName,
@@ -1574,9 +1625,16 @@ class ApkBuilder(private val context: Context) {
                                 buildRequiredPermissions(config),
                                 buildRequiredComponents(config),
                                 targetSdk = config.targetSdkOverride,
+                                minSdk = config.minSdkOverride,
                                 shareReceiveMimeTypes = config.shareReceiveMimeTypes,
                                 openWithEnabled = config.openWithEnabled
                             )
+                            stackBundles.forEach { bundle ->
+                                modifiedData = featureStackGrafter.graftManifest(
+                                    modifiedData, bundle, config.packageName,
+                                    mapOf("admobAppId" to config.adAppId)
+                                )
+                            }
                             writeEntryDeflated(zipOut, entry.name, modifiedData)
                         }
 
@@ -1589,7 +1647,7 @@ class ApkBuilder(private val context: Context) {
 
                         entry.name == "resources.arsc" -> {
                             val originalData = zipIn.getInputStream(entry).readBytes()
-                            val modifiedData = arscRebuilder.rebuildWithNewAppNameAndIcons(
+                            var modifiedData = arscRebuilder.rebuildWithNewAppNameAndIcons(
                                 originalData,
                                 config.appName,
                                 replaceIcons = true
@@ -1598,6 +1656,11 @@ class ApkBuilder(private val context: Context) {
                             discoveredOldIconPaths = arscRebuilder.getLastDiscoveredIconPaths()
                             discoveredIconSpecs = arscRebuilder.getLastDiscoveredIconSpecs()
                             logger.log("Discovered old icon paths from ARSC: $discoveredOldIconPaths")
+                            stackBundles.forEach { bundle ->
+                                modifiedData = featureStackGrafter.graftResourceTable(
+                                    modifiedData, bundle
+                                )
+                            }
                             writeEntryStored(zipOut, entry.name, modifiedData)
                         }
 
@@ -1665,13 +1728,13 @@ class ApkBuilder(private val context: Context) {
                         }
 
                         perfConfig != null && perfConfig.removeUnusedResources &&
-                        com.webtoapp.core.linux.PerformanceOptimizer.getRemovableEntries(entry.name, config.appType) -> {
+                        com.webtoapp.core.linux.PerformanceOptimizerApk.getRemovableEntries(entry.name, config.appType) -> {
                             AppLogger.d("ApkBuilder", "Perf: removed unused resource: ${entry.name}")
                         }
 
                         perfConfig != null && entry.name.startsWith("assets/") && isOptimizableAsset(entry.name) -> {
                             val originalData = zipIn.getInputStream(entry).readBytes()
-                            val optimizedData = com.webtoapp.core.linux.PerformanceOptimizer.optimizeBytesForApk(
+                            val optimizedData = com.webtoapp.core.linux.PerformanceOptimizerApk.optimizeBytesForApk(
                                 context, entry.name.substringAfterLast("/"), originalData, perfConfig
                             )
                             writeEntryDeflated(zipOut, entry.name, optimizedData)
@@ -1693,6 +1756,10 @@ class ApkBuilder(private val context: Context) {
                 if (config.adBlock.enabled) {
                     val globalAdBlock = WebToAppApplication.adBlock
                     try {
+                        // The zip loop above already reported 100, which the caller
+                        // maps to overall 70% "Repacking base template...". Name this
+                        // step or a large subscription list looks like a frozen repack.
+                        onProgress(100, "Compiling ad-block rules...")
                         val compiledRules = globalAdBlock.compileRulesText(
                             context = context,
                             subscriptionUrls = config.adBlock.subscriptions
@@ -1744,6 +1811,15 @@ class ApkBuilder(private val context: Context) {
                         "lazy=${perfConfig.injectLazyLoading}, scripts=${perfConfig.optimizeScripts}")
                 }
 
+                if (mode == ModifyApkMode.FULL && stackBundles.isNotEmpty()) {
+                    featureStackGrafter.extraEntries(stackBundles, entryNames)
+                        .forEach { (name, data) -> writeEntryDeflated(zipOut, name, data) }
+                    logger.log(
+                        "feature stacks grafted: " +
+                            stackBundles.joinToString(", ") { it.id }
+                    )
+                }
+
                 if (mode == ModifyApkMode.FULL) {
                     if (iconBitmap != null && replacedIconPaths.isEmpty()) {
                         addIconsToApk(zipOut, iconBitmap)
@@ -1757,9 +1833,15 @@ class ApkBuilder(private val context: Context) {
 
                         // Solid backing color — never the user image itself, or launchers
                         // composite the picture twice (background + safe-zone foreground).
-                        val bgBytes = ApkTemplate.createSolidBackgroundIcon(iconBitmap, ADAPTIVE_ICON_PX)
+                        val bgColor = ApkTemplate.parseIconBackgroundColor(iconBackgroundColor)
+                        val bgBytes = ApkTemplate.createSolidBackgroundIcon(
+                            iconBitmap, ADAPTIVE_ICON_PX, bgColor
+                        )
                         writeEntryDeflated(zipOut, ArscRebuilder.LAUNCHER_BACKGROUND_DRAWABLE_PATH, bgBytes)
-                        logger.log("Added solid launcher background drawable (${bgBytes.size} bytes)")
+                        logger.log(
+                            "Added solid launcher background drawable (${bgBytes.size} bytes, " +
+                                "color=${iconBackgroundColor ?: "auto"})"
+                        )
                     }
                 }
 
@@ -1816,13 +1898,7 @@ class ApkBuilder(private val context: Context) {
                         ?.let { File(context.filesDir, "html_projects/$it") }
                     else -> null
                 }
-                val multiWebSiteSourceDirs = if (config.appType == "MULTI_WEB") {
-                    config.multiWeb.sites.mapNotNull { site ->
-                        val dir = site.sourceProjectId.takeIf { it.isNotBlank() }
-                            ?.let { File(context.filesDir, "html_projects/$it") }
-                        if (dir != null && dir.exists()) site.id to dir else null
-                    }.toMap()
-                } else emptyMap()
+                val multiWebSiteSourceDirs = resolveMultiWebSiteSourceDirs(config)
 
                 val embedder = AppContentEmbedderFactory.create(config.appType)
                 if (embedder != null) {
@@ -1915,11 +1991,7 @@ class ApkBuilder(private val context: Context) {
 
     private fun isRequiredNativeLib(libName: String, appType: String, engineType: String): Boolean {
 
-        if (libName == "libcrypto_engine.so" || libName == "libc++_shared.so") {
-            return true
-        }
-
-        if (libName == "libapk_optimizer.so" || libName == "libcrypto_optimized.so" || libName == "libperf_engine.so" || libName == "libbrowser_kernel.so") {
+        if (libName == "libperf_engine.so" || libName == "libbrowser_kernel.so") {
             return false
         }
 
@@ -2492,6 +2564,21 @@ class ApkBuilder(private val context: Context) {
         injectNodeJsNativeLibs(zipOut, abiFilters)
     }
 
+    /**
+     * Maps each multi-web site to its referenced source project directory
+     * (html_projects/<sourceProjectId>) when it exists. Shared between
+     * [MultiWebContentEmbedder] and [ApkArtifactVerifier] so the verifier
+     * checks the exact location the embedder wrote to.
+     */
+    private fun resolveMultiWebSiteSourceDirs(config: ApkConfig): Map<String, File> {
+        if (config.appType != "MULTI_WEB") return emptyMap()
+        return config.multiWeb.sites.mapNotNull { site ->
+            val dir = site.sourceProjectId.takeIf { it.isNotBlank() }
+                ?.let { File(context.filesDir, "html_projects/$it") }
+            if (dir != null && dir.exists()) site.id to dir else null
+        }.toMap()
+    }
+
     private fun resolveNodeJsBinary(): File? {
         val nativeNode = File(
             context.applicationInfo.nativeLibraryDir,
@@ -2511,17 +2598,6 @@ class ApkBuilder(private val context: Context) {
         }
         return null
     }
-
-    /**
-     * Fingerprint of the native libs that would be injected into a NODEJS_APP export
-     * (libnode.so, libnode_bridge.so, libc++_shared.so). Fed into the incremental build
-     * cache's identity fingerprint so a host upgrade that ships a new/realigned libnode.so
-     * invalidates the cached unsigned APK — otherwise REUSE_UNSIGNED serves a stale lib
-     * that dlopen rejects on Android 15+ (16KB-page) devices.
-     *
-     * Returns null for non-Node.js apps (no native lib injection), which is treated as
-     * "not applicable" by the cache and does not affect other app types' cache keys.
-     */
 
     @Volatile
     private var cachedHostVersionCode: Int? = null
@@ -2991,8 +3067,8 @@ builtins.__import__ = _w2a_import
 
     /**
      * Forced HTTP/3 embeds the Cronet native library so the generated app's bridge can
-     * route through Chromium's own QUIC stack. Mirrors injectNodeJsNativeLibs: a missing
-     * runtime fails the build instead of shipping a silently degraded app.
+     * route through Chromium's own QUIC stack. A missing runtime fails the build instead
+     * of shipping a silently degraded app.
      */
     private fun injectCronetNativeLib(zipOut: ZipOutputStream) {
         val cronet = com.webtoapp.core.webview.CronetDependencyManager
@@ -3781,180 +3857,47 @@ builtins.__import__ = _w2a_import
         return name.replace(SANITIZE_FILENAME_REGEX, "_").take(50)
     }
 
+    /**
+     * `id:sha256` of every enabled feature-stack bundle (or `missing` when the
+     * asset is absent). Goes into the incremental identity fingerprint so a
+     * stack toggle — or a rebuilt bundle — busts the cached base APK.
+     */
+    private fun featureStackFingerprint(config: ApkConfig): String =
+        FeatureStacks.enabledFor(config).joinToString(",") { id ->
+            val sha = runCatching {
+                context.assets.open("${FeatureStacks.ASSET_DIR}/$id.zip").use {
+                    FeatureStackBundle.parse(it.readBytes()).sha256
+                }
+            }.getOrNull() ?: "missing"
+            "$id:$sha"
+        }.ifEmpty { "none" }
+
+    /**
+     * Same permission list the APK manifest gets. Kept separate from
+     * [buildRequiredPermissions] so that method stays private: unit tests
+     * look it up by its unmangled JVM name.
+     */
+    internal fun permissionsForExport(config: ApkConfig): List<String> =
+        buildRequiredPermissions(config)
+
     private fun buildRequiredPermissions(config: ApkConfig): List<String> {
-
-        val permissions = linkedSetOf<String>()
-
-        permissions += "${config.packageName}.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
-
-        if (config.requiresNetworkPermissions()) {
-            permissions += "android.permission.INTERNET"
-            permissions += "android.permission.ACCESS_NETWORK_STATE"
-        }
-
-        val rp = config.runtimePermissions
-
-        if (rp.camera) {
-            permissions += "android.permission.CAMERA"
-        }
-        if (rp.microphone) {
-            permissions += "android.permission.RECORD_AUDIO"
-            permissions += "android.permission.MODIFY_AUDIO_SETTINGS"
-        }
-        if (rp.location) {
-            permissions += "android.permission.ACCESS_COARSE_LOCATION"
-            permissions += "android.permission.ACCESS_FINE_LOCATION"
-        }
-        if (rp.notifications) {
-            permissions += "android.permission.POST_NOTIFICATIONS"
-        }
-
-        if (rp.readExternalStorage) {
-            permissions += "android.permission.READ_EXTERNAL_STORAGE"
-        }
-        if (rp.writeExternalStorage) {
-            permissions += "android.permission.WRITE_EXTERNAL_STORAGE"
-        }
-        if (rp.readMediaImages) {
-            permissions += "android.permission.READ_MEDIA_IMAGES"
-        }
-        if (rp.readMediaVideo) {
-            permissions += "android.permission.READ_MEDIA_VIDEO"
-        }
-        if (rp.readMediaAudio) {
-            permissions += "android.permission.READ_MEDIA_AUDIO"
-        }
-
-        if (rp.bluetooth) {
-            permissions += "android.permission.BLUETOOTH"
-            permissions += "android.permission.BLUETOOTH_ADMIN"
-            permissions += "android.permission.BLUETOOTH_SCAN"
-            permissions += "android.permission.BLUETOOTH_CONNECT"
-            permissions += "android.permission.BLUETOOTH_ADVERTISE"
-        }
-        if (rp.nfc) {
-            permissions += "android.permission.NFC"
-        }
-        if (rp.wifiState) {
-            permissions += "android.permission.ACCESS_WIFI_STATE"
-            permissions += "android.permission.CHANGE_WIFI_STATE"
-        }
-
-        if (rp.bodySensors) {
-            permissions += "android.permission.BODY_SENSORS"
-            permissions += "android.permission.BODY_SENSORS_BACKGROUND"
-        }
-        if (rp.activityRecognition) {
-            permissions += "android.permission.ACTIVITY_RECOGNITION"
-        }
-
-        if (rp.readPhoneState) {
-            permissions += "android.permission.READ_PHONE_STATE"
-        }
-        if (rp.callPhone) {
-            permissions += "android.permission.CALL_PHONE"
-        }
-        if (rp.readContacts) {
-            permissions += "android.permission.READ_CONTACTS"
-        }
-        if (rp.writeContacts) {
-            permissions += "android.permission.WRITE_CONTACTS"
-        }
-        if (rp.readCalendar) {
-            permissions += "android.permission.READ_CALENDAR"
-        }
-        if (rp.writeCalendar) {
-            permissions += "android.permission.WRITE_CALENDAR"
-        }
-        if (rp.readSms) {
-            permissions += "android.permission.READ_SMS"
-        }
-        if (rp.sendSms) {
-            permissions += "android.permission.SEND_SMS"
-        }
-        if (rp.receiveSms) {
-            permissions += "android.permission.RECEIVE_SMS"
-        }
-        if (rp.readCallLog) {
-            permissions += "android.permission.READ_CALL_LOG"
-        }
-        if (rp.writeCallLog) {
-            permissions += "android.permission.WRITE_CALL_LOG"
-        }
-        if (rp.processOutgoingCalls) {
-            permissions += "android.permission.PROCESS_OUTGOING_CALLS"
-        }
-
-        if (rp.foregroundService) {
-            permissions += "android.permission.FOREGROUND_SERVICE"
-            permissions += "android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
-            permissions += "android.permission.FOREGROUND_SERVICE_DATA_SYNC"
-            // WebMediaPlaybackService (enableMediaSession) and BgmService both run
-            // as mediaPlayback foreground services — without this, startForeground
-            // throws SecurityException on Android 10+.
-            if (config.bgmEnabled || config.enableMediaSession) {
-                permissions += "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
-            }
-        }
-        if (rp.wakeLock) {
-            permissions += "android.permission.WAKE_LOCK"
-        }
-        if (rp.requestIgnoreBatteryOptimizations) {
-            permissions += "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
-        }
-        if (rp.bootCompleted) {
-            permissions += "android.permission.RECEIVE_BOOT_COMPLETED"
-        }
-        if (rp.vibration) {
-            permissions += "android.permission.VIBRATE"
-        }
-        if (rp.installPackages) {
-            permissions += "android.permission.REQUEST_INSTALL_PACKAGES"
-        }
-        if (rp.requestDeletePackages) {
-            permissions += "android.permission.REQUEST_DELETE_PACKAGES"
-        }
-        if (rp.systemAlertWindow) {
-            permissions += "android.permission.SYSTEM_ALERT_WINDOW"
-        }
-        if (rp.location) {
-            permissions += "android.permission.FOREGROUND_SERVICE_LOCATION"
-        }
-        if (rp.camera) {
-            permissions += "android.permission.FOREGROUND_SERVICE_CAMERA"
-        }
-        if (rp.microphone) {
-            permissions += "android.permission.FOREGROUND_SERVICE_MICROPHONE"
-        }
-        if (config.scheduledStartEnabled) {
-            permissions += "android.permission.SCHEDULE_EXACT_ALARM"
-            permissions += "android.permission.USE_EXACT_ALARM"
-        }
-
-        if (config.activationEnabled) {
-            permissions += "android.permission.USE_BIOMETRIC"
-            permissions += "android.permission.USE_FINGERPRINT"
-        }
-
-        if (rp.wifiState) {
-            permissions += "android.permission.ACCESS_WIFI_STATE"
-            permissions += "android.permission.CHANGE_WIFI_STATE"
-            permissions += "android.permission.CHANGE_NETWORK_STATE"
-        }
-
-        if (config.downloadEnabled) {
-            permissions += "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION"
-        }
-
-        if (rp.bluetooth) {
-            permissions += "android.permission.NEARBY_WIFI_DEVICES"
-        }
-
-        if (rp.bodySensors) {
-            permissions += "android.permission.HIGH_SAMPLING_RATE_SENSORS"
-        }
-
-        return permissions.toList()
+        // One row in ExportPermissionCatalog is one manifest permission.
+        // Legacy booleans still expand to the bundles older configs saved
+        // (camera still implies the camera foreground-service type). An
+        // explicit grant false drops that one row. Local network follows
+        // INTERNET unless that row is off. File HTML with no network omits
+        // INTERNET, ACCESS_NETWORK_STATE, and ACCESS_LOCAL_NETWORK.
+        return ExportPermissionCatalog.manifestPermissions(
+            packageName = config.packageName,
+            permissions = config.runtimePermissions,
+            defaults = PermissionFeatureDefaults(
+                network = config.requiresNetworkPermissions(),
+                mediaSessionOrBgm = config.bgmEnabled || config.enableMediaSession,
+                scheduledExactAlarm = config.scheduledStartEnabled,
+                activationBiometric = config.activationEnabled
+            ),
+            downloadWithoutNotification = config.downloadEnabled
+        )
     }
 
     private fun buildRequiredComponents(config: ApkConfig): Set<String> {
@@ -3976,7 +3919,9 @@ builtins.__import__ = _w2a_import
         if (config.notificationEnabled) {
             components += "com.webtoapp.core.notification.NotificationPollingService"
             components += "com.webtoapp.core.notification.NotificationWebSocketService"
-            components += "com.webtoapp.core.notification.NotificationFcmService"
+            if (!com.webtoapp.BuildConfig.FDROID) {
+                components += "com.webtoapp.core.notification.NotificationFcmService"
+            }
         }
 
         if (config.enableNativeBridge && config.webViewBehavior.nativeBridgeNotificationScheduled) {
@@ -4007,11 +3952,19 @@ builtins.__import__ = _w2a_import
         return components
     }
 
+    private fun String.isLoopbackHttpUrl(): Boolean {
+        val host = runCatching { java.net.URI(this).host }.getOrNull()?.lowercase() ?: return false
+        return host == "127.0.0.1" || host == "localhost" || host == "::1"
+    }
+
     private fun ApkConfig.requiresNetworkPermissions(): Boolean {
         if (appType != "HTML" && appType != "FRONTEND") return true
         if (!htmlUsesFileScheme) return true
-        if (targetUrl.startsWith("http://", ignoreCase = true) ||
-            targetUrl.startsWith("https://", ignoreCase = true)) return true
+        // File-scheme packages still record the loopback shell entry as
+        // targetUrl. That URL is not loaded, so it is not a network use (#1254).
+        if ((targetUrl.startsWith("http://", ignoreCase = true) ||
+                targetUrl.startsWith("https://", ignoreCase = true)) &&
+            !targetUrl.isLoopbackHttpUrl()) return true
         if (adsEnabled || adBannerEnabled || adInterstitialEnabled || adSplashEnabled) return true
         if (announcementEnabled &&
             (announcementLink.startsWith("http://", ignoreCase = true) ||
@@ -4024,7 +3977,9 @@ builtins.__import__ = _w2a_import
         if (dnsMode != "SYSTEM") return true
         if (tlsFingerprintEnabled || tlsFingerprintForceHttp3) return true
         if (pwaOfflineEnabled) return true
-        if (enablePrivateNetworkBridge) return true
+        // The private-network bridge defaults on. It only opens a socket when a
+        // page asks for a remote or LAN URL, so it must not force INTERNET onto
+        // a file:// package (#1254).
         if (enableCloudflareCompat && webViewBehavior.cloudflareCompatMode == "ALWAYS_ON") return true
         if (failoverEnabled && failoverUrls.isNotEmpty()) return true
         return false
@@ -4061,6 +4016,10 @@ builtins.__import__ = _w2a_import
     }
 
     fun deleteApk(apkFile: File): Boolean {
+        // Drop the release-metadata sidecar with the APK: an explicit delete removes
+        // both file and build record. Retention pruning (cleanOldBuilds) keeps the
+        // sidecar so the history row survives as a "file removed" record.
+        File(apkFile.parentFile, apkFile.nameWithoutExtension + ".build.json").delete()
         return apkFile.delete()
     }
 
@@ -4156,50 +4115,63 @@ private fun WebApp.computeEffectiveTargetUrl(packageName: String): String = when
     else -> url
 }
 
-@Suppress("UNUSED_PARAMETER")
-private fun com.webtoapp.data.model.HtmlConfig?.computeHtmlUsesFileScheme(context: android.content.Context?): Boolean {
+private fun com.webtoapp.data.model.HtmlConfig?.computeHtmlUsesFileScheme(
+    context: android.content.Context?,
+    crossOriginIsolation: Boolean
+): Boolean {
     val mode = this?.loadMode ?: com.webtoapp.data.model.HtmlLoadMode.AUTO
-    return when (mode) {
-        com.webtoapp.data.model.HtmlLoadMode.FILE -> true
-        com.webtoapp.data.model.HtmlLoadMode.LOCAL_HTTP -> false
-        com.webtoapp.data.model.HtmlLoadMode.AUTO -> {
-            val htmlDir = this?.projectDir?.let { java.io.File(it) }
-            if (htmlDir != null && htmlDir.exists()) {
-                com.webtoapp.core.webview.HtmlRuntimeLoadInspector.prefersFileScheme(htmlDir)
-            } else {
-                false
-            }
-        }
+    val explicitDir = this?.projectDir?.let { java.io.File(it) }?.takeIf { it.isDirectory }
+    val storedDir = if (explicitDir == null && context != null) {
+        this?.projectId?.takeIf { it.isNotBlank() }
+            ?.let { java.io.File(context.filesDir, "html_projects/$it") }
+            ?.takeIf { it.isDirectory }
+    } else {
+        null
     }
+    return com.webtoapp.core.webview.HtmlRuntimeLoadInspector.useFileScheme(
+        mode = mode,
+        rootDir = explicitDir ?: storedDir,
+        crossOriginIsolation = crossOriginIsolation
+    )
 }
 
 private fun WebApp.computeHtmlUsesFileScheme(context: android.content.Context?): Boolean =
-    htmlConfig.computeHtmlUsesFileScheme(context)
+    htmlConfig.computeHtmlUsesFileScheme(context, webViewConfig.enableCrossOriginIsolation)
 
 private fun WebApp.buildEffectiveRuntimePermissions(): ApkRuntimePermissions {
     val synced = withRuntimePermissionsSyncedFromFeatures()
     return synced.apkExportConfig?.runtimePermissions ?: ApkRuntimePermissions()
 }
 
-private fun WebApp.buildMetaBlock(packageName: String, effectiveTargetUrl: String, htmlUsesFileScheme: Boolean, darkMode: String): MetaBlock = MetaBlock(
-    appName = name,
-    packageName = packageName,
-    targetUrl = effectiveTargetUrl,
-    versionCode = apkExportConfig?.customVersionCode ?: 1,
-    versionName = apkExportConfig?.customVersionName?.takeIf { it.isNotBlank() } ?: "1.0.0",
-    iconPath = iconPath,
-    runtimePermissions = buildEffectiveRuntimePermissions(),
-    networkTrustConfig = apkExportConfig?.networkTrustConfig ?: com.webtoapp.data.model.NetworkTrustConfig(),
-    appType = appType.name,
-    themeType = themeType,
-    darkMode = darkMode,
-    language = com.webtoapp.core.i18n.Strings.currentLanguage.value.name,
-    engineType = apkExportConfig?.engineType ?: "SYSTEM_WEBVIEW",
-    htmlUsesFileScheme = htmlUsesFileScheme,
-    loggingEnabled = apkExportConfig?.loggingEnabled ?: false,
-    targetSdkOverride = apkExportConfig?.targetSdk
-        ?.takeIf { it > 0 && !appType.requiresProcessExec }
-)
+private fun WebApp.buildMetaBlock(packageName: String, effectiveTargetUrl: String, htmlUsesFileScheme: Boolean, darkMode: String): MetaBlock {
+    // Server runtimes exec binaries from app storage. targetSdk >= 29 turns on
+    // W^X and blocks that. The shell template stays 35; these exports pin 28.
+    // minSdk is raise-only from the template's 23. See GeneratedSdkLevels.
+    val sdk = GeneratedSdkLevels.resolve(
+        requiresProcessExec = appType.requiresProcessExec,
+        minSdkOverride = apkExportConfig?.minSdk,
+        targetSdkOverride = apkExportConfig?.targetSdk
+    )
+    return MetaBlock(
+        appName = name,
+        packageName = packageName,
+        targetUrl = effectiveTargetUrl,
+        versionCode = apkExportConfig?.customVersionCode ?: 1,
+        versionName = apkExportConfig?.customVersionName?.takeIf { it.isNotBlank() } ?: "1.0.0",
+        iconPath = iconPath,
+        runtimePermissions = buildEffectiveRuntimePermissions(),
+        networkTrustConfig = apkExportConfig?.networkTrustConfig ?: com.webtoapp.data.model.NetworkTrustConfig(),
+        appType = appType.name,
+        themeType = themeType,
+        darkMode = darkMode,
+        language = com.webtoapp.core.i18n.Strings.currentLanguage.value.name,
+        engineType = apkExportConfig?.engineType ?: "SYSTEM_WEBVIEW",
+        htmlUsesFileScheme = htmlUsesFileScheme,
+        loggingEnabled = apkExportConfig?.loggingEnabled ?: false,
+        targetSdkOverride = sdk.targetSdkRewrite,
+        minSdkOverride = sdk.minSdkRewrite
+    )
+}
 
 private fun WebApp.buildActivationBlock(): ActivationBlock = ActivationBlock(
     enabled = activationEnabled,
@@ -4246,13 +4218,17 @@ private fun WebApp.buildAnnouncementBlock(): AnnouncementBlock = AnnouncementBlo
 )
 
 private fun WebApp.buildAdsBlock(): AdsBlock = AdsBlock(
-    enabled = adsEnabled,
+    // F-Droid hosts do not ship the admob stack, so export cannot graft it.
+    // Keep saved unit ids; only the enabled flag is forced off.
+    enabled = adsEnabled && !com.webtoapp.BuildConfig.FDROID,
+    appId = adConfig?.appId ?: "",
     bannerEnabled = adConfig?.bannerEnabled ?: false,
     bannerId = adConfig?.bannerId ?: "",
     interstitialEnabled = adConfig?.interstitialEnabled ?: false,
     interstitialId = adConfig?.interstitialId ?: "",
     splashEnabled = adConfig?.splashEnabled ?: false,
-    splashId = adConfig?.splashId ?: ""
+    splashId = adConfig?.splashId ?: "",
+    testMode = adConfig?.testMode ?: false
 )
 
 private fun com.webtoapp.data.model.WebViewConfig.toWebViewBlock(context: android.content.Context?): WebViewBlock {
@@ -4332,6 +4308,7 @@ private fun com.webtoapp.data.model.WebViewConfig.toWebViewBlock(context: androi
         backButtonBehavior = backButtonBehavior,
         swipeRefreshEnabled = swipeRefreshEnabled,
         swipeRefreshZone = swipeRefreshZone.name,
+        overscrollEffectEnabled = overscrollEffectEnabled,
         fullscreenEnabled = fullscreenEnabled,
         performanceOptimization = performanceOptimization,
         pwaOfflineEnabled = pwaOfflineEnabled && !clearBrowsingDataOnLaunch,
@@ -4693,7 +4670,9 @@ private fun WebApp.buildBgmBlock(): BgmBlock {
         volume = bgmConfig?.volume ?: 0.5f,
         autoPlay = bgmConfig?.autoPlay ?: true,
         showLyrics = bgmConfig?.showLyrics ?: true,
-        lrcTheme = theme
+        lrcTheme = theme,
+        showFloatingPlayer = bgmConfig?.showFloatingPlayer != false,
+        showNotificationPlayer = bgmConfig?.showNotificationPlayer != false
     )
 }
 
@@ -4799,6 +4778,7 @@ private fun WebApp.buildShareReceiveBlock(): ShareReceiveBlock {
         text = text,
         deliveryMode = webViewConfig.shareDeliveryMode.name,
         promptBeforeUse = webViewConfig.sharePromptBeforeUse,
+        showReceivedToast = webViewConfig.shareShowReceivedToast,
         mimeTypes = mimeTypes
     )
 }
@@ -4927,8 +4907,21 @@ private fun WebApp.buildMultiWebBlock(context: android.content.Context?, package
         displayMode = multiWebConfig?.displayMode ?: "TABS",
         refreshInterval = multiWebConfig?.refreshInterval ?: 30,
         showSiteIcons = multiWebConfig?.showSiteIcons ?: true,
+        cardColumns = com.webtoapp.ui.shell.resolvedGridColumns(
+            multiWebConfig?.cardColumns ?: com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_CARD_COLUMNS,
+            com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_CARD_COLUMNS,
+            com.webtoapp.ui.shell.MULTI_WEB_MAX_CARD_COLUMNS
+        ),
+        drawerColumns = com.webtoapp.ui.shell.resolvedGridColumns(
+            multiWebConfig?.drawerColumns ?: com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_DRAWER_COLUMNS,
+            com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_DRAWER_COLUMNS,
+            com.webtoapp.ui.shell.MULTI_WEB_MAX_DRAWER_COLUMNS
+        ),
+        cardAspectRatio = com.webtoapp.ui.shell.resolvedCardAspect(multiWebConfig?.cardAspectRatio ?: 0f),
         sitesUseOwnConfig = multiWebConfig?.sitesUseOwnConfig ?: false,
-        projectId = multiWebConfig?.projectId ?: ""
+        projectId = multiWebConfig?.projectId ?: "",
+        startTab = multiWebConfig?.startTab ?: "LAST",
+        startSiteId = multiWebConfig?.startSiteId ?: ""
     )
 }
 

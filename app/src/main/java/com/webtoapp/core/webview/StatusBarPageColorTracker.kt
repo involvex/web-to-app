@@ -81,7 +81,7 @@ object StatusBarPageColorSampler {
                 var meta = document.querySelector('meta[name="theme-color" i]');
                 return meta ? parseColor(meta.getAttribute('content')) : null;
             }
-            return sampleTopArea(1) ||
+            var top = sampleTopArea(1) ||
                 sampleTopArea(6) ||
                 sampleTopArea(12) ||
                 sampleTopArea(20) ||
@@ -90,62 +90,142 @@ object StatusBarPageColorSampler {
                 colorFromElement(document.documentElement) ||
                 metaThemeColor() ||
                 null;
+            var bottom = sampleTopArea(heightEdge(-1)) ||
+                sampleTopArea(heightEdge(-8)) ||
+                sampleTopArea(heightEdge(-24)) ||
+                top;
+            function heightEdge(delta) {
+                var height = Math.max(1, window.innerHeight || 0);
+                return Math.max(1, Math.min(height - 1, height + delta));
+            }
+            return JSON.stringify({ top: top, bottom: bottom });
         })();
     """.trimIndent()
 
-    fun sample(webView: WebView, onColorSampled: (String?) -> Unit) {
+    fun sample(webView: WebView, onColors: (PageEdgeColors) -> Unit) {
         try {
             webView.evaluateJavascript(sampleScript) { result ->
-                onColorSampled(decodeJsString(result))
+                onColors(decodePageEdgeColors(result))
             }
         } catch (_: Exception) {
-            onColorSampled(null)
+            onColors(PageEdgeColors(null, null))
         }
     }
 
-    private fun decodeJsString(result: String?): String? {
-        if (result.isNullOrBlank() || result == "null") return null
-        return runCatching {
-            JSONObject("""{"value":$result}""").optString("value").takeIf { it.isNotBlank() }
-        }.getOrNull()
+    fun decodePageEdgeColors(result: String?): PageEdgeColors {
+        if (result.isNullOrBlank() || result == "null") return PageEdgeColors(null, null)
+        val text = unwrapJsString(result) ?: return PageEdgeColors(null, null)
+        if (text.startsWith("#")) return PageEdgeColors(text, text)
+        val parsed = runCatching { JSONObject(text) }.getOrNull()
+            ?: return PageEdgeColors(null, null)
+        return PageEdgeColors(
+            top = parsed.optString("top").takeIf { it.isNotBlank() && it != "null" },
+            bottom = parsed.optString("bottom").takeIf { it.isNotBlank() && it != "null" }
+        )
+    }
+
+    private fun unwrapJsString(result: String): String? {
+        val trimmed = result.trim()
+        if (trimmed.startsWith("\"")) {
+            return runCatching {
+                JSONObject("""{"value":$trimmed}""").optString("value").takeIf { it.isNotBlank() }
+            }.getOrNull()
+        }
+        return trimmed
+    }
+}
+
+data class PageEdgeColors(val top: String?, val bottom: String?)
+
+internal fun statusBarSampleDelays(firstDelayMs: Long, settle: Boolean): LongArray {
+    val first = firstDelayMs.coerceAtLeast(0L)
+    return if (settle) longArrayOf(first, first + 350L, first + 1200L) else longArrayOf(first)
+}
+
+/**
+ * `evaluateJavascript` callbacks are not ordered. A slow early read must not
+ * overwrite a color that a later read in the same burst already published,
+ * and a cancelled burst must not publish at all (#1218).
+ */
+internal class PageColorSampleGate {
+    private var generation = 0
+    private var nextId = 0
+    private var lastDelivered = 0
+
+    fun begin(): Int {
+        generation += 1
+        return generation
+    }
+
+    fun open(burst: Int): Int? {
+        if (burst != generation) return null
+        nextId += 1
+        return nextId
+    }
+
+    fun accept(burst: Int, sampleId: Int): Boolean {
+        if (burst != generation || sampleId <= lastDelivered) return false
+        lastDelivered = sampleId
+        return true
     }
 }
 
 class StatusBarPageColorTracker(
     private val webView: WebView,
     private val shouldSample: () -> Boolean,
-    private val onColorChanged: (String?) -> Unit
+    private val onColors: (PageEdgeColors) -> Unit
 ) {
-    private val sampleRunnable = Runnable {
-        if (!shouldSample()) {
-            onColorChanged(null)
-            return@Runnable
-        }
-        StatusBarPageColorSampler.sample(webView, onColorChanged)
-    }
+    private val gate = PageColorSampleGate()
+    private val pending = ArrayList<Runnable>(3)
 
     fun attach() {
         webView.setOnScrollChangeListener { _, _, _, _, _ ->
+            // One sample is enough once the user is moving the page.
             scheduleSample(48L)
         }
     }
 
     fun detach() {
-        webView.removeCallbacks(sampleRunnable)
+        cancelPending()
         webView.setOnScrollChangeListener(null)
     }
 
     fun reset() {
-        webView.removeCallbacks(sampleRunnable)
-        onColorChanged(null)
+        cancelPending()
+        onColors(PageEdgeColors(null, null))
     }
 
-    fun scheduleSample(delayMs: Long = 0L) {
-        webView.removeCallbacks(sampleRunnable)
+    /**
+     * [settle] posts two later samples. A page's background often paints
+     * after the first `onPageFinished` tick, and a single early read stays
+     * on the light fallback until the next scroll or tab change (#1218).
+     */
+    fun scheduleSample(delayMs: Long = 0L, settle: Boolean = false) {
+        val burst = cancelPending()
         if (!shouldSample()) {
-            onColorChanged(null)
+            onColors(PageEdgeColors(null, null))
             return
         }
-        webView.postDelayed(sampleRunnable, delayMs.coerceAtLeast(0L))
+        for (delay in statusBarSampleDelays(delayMs, settle)) {
+            val task = Runnable {
+                val sampleId = gate.open(burst) ?: return@Runnable
+                if (!shouldSample()) {
+                    if (gate.accept(burst, sampleId)) onColors(PageEdgeColors(null, null))
+                    return@Runnable
+                }
+                StatusBarPageColorSampler.sample(webView) { colors ->
+                    if (gate.accept(burst, sampleId)) onColors(colors)
+                }
+            }
+            pending.add(task)
+            webView.postDelayed(task, delay)
+        }
+    }
+
+    private fun cancelPending(): Int {
+        val burst = gate.begin()
+        for (task in pending) webView.removeCallbacks(task)
+        pending.clear()
+        return burst
     }
 }

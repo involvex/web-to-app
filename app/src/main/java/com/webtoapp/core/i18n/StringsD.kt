@@ -289,6 +289,19 @@ object StringsD {
         AppLanguage.KOREAN -> "코드 지우기"
     }
 
+    val scriptViewCode: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "查看代码"
+        AppLanguage.ENGLISH -> "View Code"
+        AppLanguage.ARABIC -> "عرض الكود"
+        AppLanguage.PORTUGUESE -> "Ver Código"
+        AppLanguage.SPANISH -> "Ver Código"
+        AppLanguage.FRENCH -> "Voir le Code"
+        AppLanguage.GERMAN -> "Code ansehen"
+        AppLanguage.RUSSIAN -> "Просмотреть код"
+        AppLanguage.JAPANESE -> "コードを表示"
+        AppLanguage.KOREAN -> "코드 보기"
+    }
+
     val allApps: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "全部"
         AppLanguage.ENGLISH -> "All"
@@ -2155,6 +2168,188 @@ object StringsD {
         AppLanguage.RUSSIAN -> "Блокировка рекламных доменов через файлы hosts"
         AppLanguage.JAPANESE -> "hostsファイルで広告ドメインをブロック"
         AppLanguage.KOREAN -> "hosts 파일로 광고 도메인 차단"
+    }
+
+    val webAppSeparateTasks: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "WebApp 独立任务"
+        AppLanguage.ENGLISH -> "Separate WebApp tasks"
+        AppLanguage.ARABIC -> "مهام WebApp منفصلة"
+        AppLanguage.PORTUGUESE -> "Tarefas WebApp separadas"
+        AppLanguage.SPANISH -> "Tareas WebApp separadas"
+        AppLanguage.FRENCH -> "Tâches WebApp séparées"
+        AppLanguage.GERMAN -> "Getrennte WebApp-Aufgaben"
+        AppLanguage.RUSSIAN -> "Отдельные задачи WebApp"
+        AppLanguage.JAPANESE -> "WebAppを個別タスクで開く"
+        AppLanguage.KOREAN -> "WebApp 개별 작업"
+    }
+
+    val webAppSeparateTasksDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "开启后，首页预览与桌面快捷方式会为每个 WebApp 单独占用最近任务，可同时打开多个；更占内存。默认关闭。"
+        AppLanguage.ENGLISH -> "When on, home preview and desktop shortcuts open each WebApp in its own recents task so multiple can run at once. Uses more memory. Off by default."
+        AppLanguage.ARABIC -> "عند التفعيل، يفتح كل WebApp مهمة منفصلة من الصفحة الرئيسية أو الاختصار. يستهلك ذاكرة أكثر. متوقف افتراضياً."
+        AppLanguage.PORTUGUESE -> "Quando ativo, prévia e atalhos abrem cada WebApp em uma tarefa própria. Usa mais memória. Desligado por padrão."
+        AppLanguage.SPANISH -> "Si está activo, la vista previa y los accesos abren cada WebApp en una tarea propia. Usa más memoria. Desactivado por defecto."
+        AppLanguage.FRENCH -> "Une fois activé, l'aperçu et les raccourcis ouvrent chaque WebApp dans une tâche distincte. Plus de mémoire. Désactivé par défaut."
+        AppLanguage.GERMAN -> "Wenn aktiv, öffnen Vorschau und Verknüpfungen jedes WebApp in einer eigenen Aufgabe. Mehr Speicher. Standard: aus."
+        AppLanguage.RUSSIAN -> "При включении превью и ярлыки открывают каждый WebApp в отдельной задаче. Больше памяти. По умолчанию выкл."
+        AppLanguage.JAPANESE -> "オンにすると、ホームのプレビューとショートカットが各WebAppを別タスクで開き、複数同時利用できます。メモリ使用量が増えます。初期値はオフ。"
+        AppLanguage.KOREAN -> "켜면 홈 미리보기와 바로가기가 각 WebApp을 별도 최근 작업으로 열어 동시에 사용할 수 있습니다. 메모리를 더 씁니다. 기본값은 끔."
+    }
+
+    val localMcp: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "本地 MCP"
+        AppLanguage.ENGLISH -> "Local MCP"
+        AppLanguage.ARABIC -> "MCP المحلي"
+        AppLanguage.PORTUGUESE -> "MCP local"
+        AppLanguage.SPANISH -> "MCP local"
+        AppLanguage.FRENCH -> "MCP local"
+        AppLanguage.GERMAN -> "Lokales MCP"
+        AppLanguage.RUSSIAN -> "Локальный MCP"
+        AppLanguage.JAPANESE -> "ローカル MCP"
+        AppLanguage.KOREAN -> "로컬 MCP"
+    }
+
+    val localMcpDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "开启后在 127.0.0.1 提供与应用内 Agent 相同的工具，供外部 Agent 连接。默认关闭。写操作会在手机上确认。"
+        AppLanguage.ENGLISH -> "When on, serves the same tools as the in-app agent on 127.0.0.1 for an external agent. Off by default. Writes ask for confirmation on the phone."
+        AppLanguage.ARABIC -> "عند التفعيل يقدّم نفس أدوات الوكيل الداخلي على 127.0.0.1. متوقف افتراضياً. عمليات الكتابة تطلب تأكيداً على الهاتف."
+        AppLanguage.PORTUGUESE -> "Quando ativo, oferece as mesmas ferramentas do agente interno em 127.0.0.1. Desligado por padrão. Escrita pede confirmação no telefone."
+        AppLanguage.SPANISH -> "Si está activo, ofrece las mismas herramientas del agente interno en 127.0.0.1. Desactivado por defecto. Escribir pide confirmación en el teléfono."
+        AppLanguage.FRENCH -> "Une fois activé, sert les mêmes outils que l'agent interne sur 127.0.0.1. Désactivé par défaut. Les écritures demandent une confirmation sur le téléphone."
+        AppLanguage.GERMAN -> "Wenn aktiv, stellt dieselben Werkzeuge wie der interne Agent auf 127.0.0.1 bereit. Standard: aus. Schreiben fragt auf dem Telefon nach."
+        AppLanguage.RUSSIAN -> "Когда включено, отдаёт те же инструменты, что и встроенный агент, на 127.0.0.1. По умолчанию выкл. Запись спрашивает подтверждение на телефоне."
+        AppLanguage.JAPANESE -> "オンにすると、アプリ内エージェントと同じツールを 127.0.0.1 で提供します。初期値はオフ。書き込みはスマホで確認します。"
+        AppLanguage.KOREAN -> "켜면 앱 안 에이전트와 같은 도구를 127.0.0.1에서 제공합니다. 기본값은 끔. 쓰기 작업은 휴대폰에서 확인합니다."
+    }
+
+    val localMcpCopyConfig: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "复制配置"
+        AppLanguage.ENGLISH -> "Copy config"
+        AppLanguage.ARABIC -> "نسخ الإعداد"
+        AppLanguage.PORTUGUESE -> "Copiar config"
+        AppLanguage.SPANISH -> "Copiar config"
+        AppLanguage.FRENCH -> "Copier la config"
+        AppLanguage.GERMAN -> "Konfig kopieren"
+        AppLanguage.RUSSIAN -> "Копировать конфиг"
+        AppLanguage.JAPANESE -> "設定をコピー"
+        AppLanguage.KOREAN -> "설정 복사"
+    }
+
+    val localMcpCopied: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已复制 MCP 配置"
+        AppLanguage.ENGLISH -> "MCP config copied"
+        AppLanguage.ARABIC -> "تم نسخ إعداد MCP"
+        AppLanguage.PORTUGUESE -> "Config MCP copiada"
+        AppLanguage.SPANISH -> "Config MCP copiada"
+        AppLanguage.FRENCH -> "Config MCP copiée"
+        AppLanguage.GERMAN -> "MCP-Konfig kopiert"
+        AppLanguage.RUSSIAN -> "Конфиг MCP скопирован"
+        AppLanguage.JAPANESE -> "MCP設定をコピーしました"
+        AppLanguage.KOREAN -> "MCP 설정을 복사했습니다"
+    }
+
+    val localMcpAddressCopied: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已复制地址"
+        AppLanguage.ENGLISH -> "Address copied"
+        AppLanguage.ARABIC -> "تم نسخ العنوان"
+        AppLanguage.PORTUGUESE -> "Endereço copiado"
+        AppLanguage.SPANISH -> "Dirección copiada"
+        AppLanguage.FRENCH -> "Adresse copiée"
+        AppLanguage.GERMAN -> "Adresse kopiert"
+        AppLanguage.RUSSIAN -> "Адрес скопирован"
+        AppLanguage.JAPANESE -> "アドレスをコピーしました"
+        AppLanguage.KOREAN -> "주소를 복사했습니다"
+    }
+
+    val localMcpTokenCopied: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已复制令牌"
+        AppLanguage.ENGLISH -> "Token copied"
+        AppLanguage.ARABIC -> "تم نسخ الرمز"
+        AppLanguage.PORTUGUESE -> "Token copiado"
+        AppLanguage.SPANISH -> "Token copiado"
+        AppLanguage.FRENCH -> "Jeton copié"
+        AppLanguage.GERMAN -> "Token kopiert"
+        AppLanguage.RUSSIAN -> "Токен скопирован"
+        AppLanguage.JAPANESE -> "トークンをコピーしました"
+        AppLanguage.KOREAN -> "토큰을 복사했습니다"
+    }
+
+    val localMcpRotateToken: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "更换令牌"
+        AppLanguage.ENGLISH -> "Rotate token"
+        AppLanguage.ARABIC -> "تدوير الرمز"
+        AppLanguage.PORTUGUESE -> "Trocar token"
+        AppLanguage.SPANISH -> "Rotar token"
+        AppLanguage.FRENCH -> "Renouveler le jeton"
+        AppLanguage.GERMAN -> "Token erneuern"
+        AppLanguage.RUSSIAN -> "Сменить токен"
+        AppLanguage.JAPANESE -> "トークンを更新"
+        AppLanguage.KOREAN -> "토큰 교체"
+    }
+
+    fun localMcpAdb(port: Int): String = when (Strings.lang) {
+        AppLanguage.CHINESE -> "电脑上的 Agent 先执行 adb reverse tcp:$port tcp:$port，再用上面的地址。"
+        AppLanguage.ENGLISH -> "From a computer, run adb reverse tcp:$port tcp:$port, then use the URL above."
+        AppLanguage.ARABIC -> "من الحاسوب نفّذ adb reverse tcp:$port tcp:$port ثم استخدم العنوان أعلاه."
+        AppLanguage.PORTUGUESE -> "No computador, execute adb reverse tcp:$port tcp:$port e use o endereço acima."
+        AppLanguage.SPANISH -> "En el ordenador, ejecuta adb reverse tcp:$port tcp:$port y usa la URL de arriba."
+        AppLanguage.FRENCH -> "Depuis un ordinateur, lancez adb reverse tcp:$port tcp:$port puis utilisez l'adresse ci-dessus."
+        AppLanguage.GERMAN -> "Am Computer adb reverse tcp:$port tcp:$port ausführen, dann die Adresse oben nutzen."
+        AppLanguage.RUSSIAN -> "На компьютере выполните adb reverse tcp:$port tcp:$port и используйте адрес выше."
+        AppLanguage.JAPANESE -> "パソコンでは adb reverse tcp:$port tcp:$port を実行してから、上の URL を使います。"
+        AppLanguage.KOREAN -> "컴퓨터에서는 adb reverse tcp:$port tcp:$port 를 실행한 뒤 위 주소를 사용하세요."
+    }
+
+    fun localMcpBindFailed(detail: String): String = when (Strings.lang) {
+        AppLanguage.CHINESE -> "本地 MCP 没有打开：$detail"
+        AppLanguage.ENGLISH -> "Local MCP did not start: $detail"
+        AppLanguage.ARABIC -> "لم يبدأ MCP المحلي: $detail"
+        AppLanguage.PORTUGUESE -> "O MCP local não iniciou: $detail"
+        AppLanguage.SPANISH -> "El MCP local no arrancó: $detail"
+        AppLanguage.FRENCH -> "Le MCP local n'a pas démarré : $detail"
+        AppLanguage.GERMAN -> "Lokales MCP ist nicht gestartet: $detail"
+        AppLanguage.RUSSIAN -> "Локальный MCP не запустился: $detail"
+        AppLanguage.JAPANESE -> "ローカル MCP を開始できませんでした: $detail"
+        AppLanguage.KOREAN -> "로컬 MCP를 시작하지 못했습니다: $detail"
+    }
+
+    val advancedFeatures: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "高级功能"
+        AppLanguage.ENGLISH -> "Advanced features"
+        AppLanguage.ARABIC -> "ميزات متقدمة"
+        AppLanguage.PORTUGUESE -> "Recursos avançados"
+        AppLanguage.SPANISH -> "Funciones avanzadas"
+        AppLanguage.FRENCH -> "Fonctions avancées"
+        AppLanguage.GERMAN -> "Erweiterte Funktionen"
+        AppLanguage.RUSSIAN -> "Расширенные функции"
+        AppLanguage.JAPANESE -> "高度な機能"
+        AppLanguage.KOREAN -> "고급 기능"
+    }
+
+    val advancedFeaturesDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "开启后可以创建、预览并导出 Node.js、PHP、Python、Go、WordPress、图片和视频。默认关闭。代码一直在应用里，开关只控制是否使用。"
+        AppLanguage.ENGLISH -> "When on, you can create, preview, and export Node.js, PHP, Python, Go, WordPress, image, and video apps. Off by default. The code stays in the app; the switch only controls use."
+        AppLanguage.ARABIC -> "عند التفعيل يمكنك إنشاء ومعاينة وتصدير تطبيقات Node.js وPHP وPython وGo وWordPress والصور والفيديو. متوقف افتراضياً. الكود موجود دائماً، والمفتاح يتحكم بالاستخدام فقط."
+        AppLanguage.PORTUGUESE -> "Quando ativo, dá para criar, pré-visualizar e exportar apps Node.js, PHP, Python, Go, WordPress, imagem e vídeo. Desligado por padrão. O código fica no app; o interruptor só controla o uso."
+        AppLanguage.SPANISH -> "Si está activo, puedes crear, previsualizar y exportar apps Node.js, PHP, Python, Go, WordPress, imagen y vídeo. Desactivado por defecto. El código sigue en la app; el interruptor solo controla el uso."
+        AppLanguage.FRENCH -> "Une fois activé, vous pouvez créer, prévisualiser et exporter des apps Node.js, PHP, Python, Go, WordPress, image et vidéo. Désactivé par défaut. Le code reste dans l'app ; l'interrupteur ne fait que contrôler l'usage."
+        AppLanguage.GERMAN -> "Wenn aktiv, lassen sich Node.js-, PHP-, Python-, Go-, WordPress-, Bild- und Video-Apps erstellen, ansehen und exportieren. Standard: aus. Der Code bleibt in der App; der Schalter steuert nur die Nutzung."
+        AppLanguage.RUSSIAN -> "Когда включено, можно создавать, смотреть и экспортировать приложения Node.js, PHP, Python, Go, WordPress, изображения и видео. По умолчанию выкл. Код остаётся в приложении, переключатель только разрешает использование."
+        AppLanguage.JAPANESE -> "オンにすると Node.js、PHP、Python、Go、WordPress、画像、動画を作成・プレビュー・書き出しできます。初期値はオフ。コードは常にアプリ内にあり、スイッチは使うかどうかだけを決めます。"
+        AppLanguage.KOREAN -> "켜면 Node.js, PHP, Python, Go, WordPress, 이미지, 비디오 앱을 만들고 미리 보고 내보낼 수 있습니다. 기본값은 끔. 코드는 앱에 그대로 있고, 스위치는 사용 여부만 바꿉니다."
+    }
+
+    val advancedFeaturesOff: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "高级功能已关闭。到关于页打开后再预览或导出。"
+        AppLanguage.ENGLISH -> "Advanced features are off. Turn them on from About before preview or export."
+        AppLanguage.ARABIC -> "الميزات المتقدمة متوقفة. فعّلها من صفحة حول قبل المعاينة أو التصدير."
+        AppLanguage.PORTUGUESE -> "Recursos avançados estão desligados. Ative em Sobre antes de pré-visualizar ou exportar."
+        AppLanguage.SPANISH -> "Las funciones avanzadas están desactivadas. Actívalas en Acerca de antes de previsualizar o exportar."
+        AppLanguage.FRENCH -> "Les fonctions avancées sont désactivées. Activez-les dans À propos avant l'aperçu ou l'export."
+        AppLanguage.GERMAN -> "Erweiterte Funktionen sind aus. Schalte sie unter Über ein, bevor du eine Vorschau oder einen Export machst."
+        AppLanguage.RUSSIAN -> "Расширенные функции выключены. Включите их на странице «О программе» перед просмотром или экспортом."
+        AppLanguage.JAPANESE -> "高度な機能はオフです。プレビューや書き出しの前に「このアプリについて」でオンにしてください。"
+        AppLanguage.KOREAN -> "고급 기능이 꺼져 있습니다. 미리보기나 내보내기 전에 정보 페이지에서 켜세요."
     }
 
     val menuHostsAdBlock: String get() = when (Strings.lang) {

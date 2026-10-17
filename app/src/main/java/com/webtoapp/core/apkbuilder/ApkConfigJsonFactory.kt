@@ -66,6 +66,8 @@ internal object ApkConfigJsonFactory {
         "announcementShowIcon" to announcement.showIcon,
         "announcementHasCustomIcon" to announcement.hasCustomIcon,
         "adsEnabled" to ads.enabled,
+        "adAppId" to ads.appId,
+        "adTestMode" to ads.testMode,
         "adBannerEnabled" to ads.bannerEnabled,
         "adBannerId" to ads.bannerId,
         "adInterstitialEnabled" to ads.interstitialEnabled,
@@ -105,6 +107,8 @@ internal object ApkConfigJsonFactory {
         "bgmAutoPlay" to bgm.autoPlay,
         "bgmShowLyrics" to bgm.showLyrics,
         "bgmLrcTheme" to bgm.lrcTheme,
+        "bgmShowFloatingPlayer" to bgm.showFloatingPlayer,
+        "bgmShowNotificationPlayer" to bgm.showNotificationPlayer,
         "themeType" to meta.themeType,
         "darkMode" to meta.darkMode,
         "translateEnabled" to translate.enabled,
@@ -170,6 +174,7 @@ internal object ApkConfigJsonFactory {
         "keyboardAdjustMode" to webView.keyboardAdjustMode,
         "swipeRefreshEnabled" to webView.swipeRefreshEnabled,
         "swipeRefreshZone" to webView.swipeRefreshZone,
+        "overscrollEffectEnabled" to webView.overscrollEffectEnabled,
         "fullscreenEnabled" to webView.fullscreenEnabled,
         "hideToolbar" to webView.hideToolbar,
         "browserToolbarEnabled" to webView.browserToolbarEnabled,
@@ -235,6 +240,7 @@ internal object ApkConfigJsonFactory {
         "receiveShareText" to shareReceive.text,
         "shareDeliveryMode" to shareReceive.deliveryMode,
         "sharePromptBeforeUse" to shareReceive.promptBeforeUse,
+        "shareShowReceivedToast" to shareReceive.showReceivedToast,
         // "Open with" file association — the runtime gate for ACTION_VIEW file/content
         // intents. The declared mime/extension sets are contract constants, so only the
         // boolean crosses the wire.
@@ -565,8 +571,13 @@ internal object ApkConfigJsonFactory {
         "displayMode" to multiWeb.displayMode,
         "refreshInterval" to multiWeb.refreshInterval,
         "showSiteIcons" to multiWeb.showSiteIcons,
+        "cardColumns" to multiWeb.cardColumns,
+        "drawerColumns" to multiWeb.drawerColumns,
+        "cardAspectRatio" to multiWeb.cardAspectRatio,
         "sitesUseOwnConfig" to multiWeb.sitesUseOwnConfig,
-        "projectId" to multiWeb.projectId
+        "projectId" to multiWeb.projectId,
+        "startTab" to multiWeb.startTab,
+        "startSiteId" to multiWeb.startSiteId
     )
 
     private fun EmbeddedPlugin.toPayload(): Map<String, Any?> = linkedMapOf(

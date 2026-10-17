@@ -3,6 +3,7 @@ package com.webtoapp.core.agent.tool.builtin
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.webtoapp.core.host.AdvancedAppTypes
 import com.webtoapp.core.agent.export.DetectedArtifact
 import com.webtoapp.core.agent.export.SaveSessionAsAppUseCase
 import com.webtoapp.core.agent.tool.AppChange
@@ -30,6 +31,8 @@ class CreateAppTool : Tool {
           project files into the session sandbox, then pass `sourceDir` (the sandbox-relative folder).
         - WORDPRESS: created from bundled WordPress (dependencies must be installed); `manifest` may
           carry siteTitle / adminUser / adminEmail.
+        - IMAGE, VIDEO, WORDPRESS, NODEJS_APP, PHP_APP, PYTHON_APP, and GO_APP require the
+          About-screen Advanced features switch. When it is off, those types are refused.
         Optionally pass `iconRef` (sandbox-relative path to an image) to set the app icon.
     """.trimIndent()
 
@@ -48,6 +51,11 @@ class CreateAppTool : Tool {
         val appType = args.get("appType")?.asString
             ?.let { runCatching { AppType.valueOf(it.trim()) }.getOrNull() }
             ?: return ToolResult.error("CreateApp: missing or invalid `appType`.")
+        if (!AdvancedAppTypes.isUsable(ctx.androidContext, appType)) {
+            return ToolResult.error(
+                "CreateApp: $appType needs Advanced features. Turn the switch on from About first."
+            )
+        }
         val name = args.get("name")?.asString?.trim().orEmpty()
         if (name.isEmpty()) return ToolResult.error("CreateApp: missing `name`.")
         val iconRef = ctx.resolveSafePath(args.get("iconRef")?.asString)

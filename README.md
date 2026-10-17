@@ -43,13 +43,6 @@
 </div>
 
 <p align="center">
-  <a href="https://www.swiftproxy.net/?ref=shiaho">
-    <img src=".github/assets/sponsors/swiftproxy-logo-full.png" alt="Swiftproxy" width="220" />
-  </a><br/>
-  <a href="https://www.swiftproxy.net/?ref=shiaho"><b>Sponsored by Swiftproxy</b></a> — Swiftproxy · Reliable Residential Proxies for Web Automation
-</p>
-
-<p align="center">
   <a href="#screenshots">Screenshots</a> ·
   <a href="#what-makes-webtoapp-different">What's different</a> ·
   <a href="#capability-overview">Capability overview</a> ·
@@ -69,28 +62,28 @@
 
 <table>
   <tr>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/01-home-empty.png" width="200" alt="My Apps home screen"><br><sub><b>My Apps</b> — your projects at a glance</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/02-app-types.png" width="200" alt="Create panel with 12 app types"><br><sub><b>Create</b> — pick from 12 app types</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/03-create-web.png" width="200" alt="Web app editor"><br><sub><b>Web app</b> — name, URL, analyze site</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/04-import-html.png" width="200" alt="HTML project import"><br><sub><b>HTML app</b> — files, ZIP, or write code</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/01-home.jpg" width="200" alt="My Apps home screen"><br><sub><b>My Apps</b> — your projects at a glance</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/02-app-types.jpg" width="200" alt="Create panel with 12 app types"><br><sub><b>Create</b> — pick from 12 app types</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/03-app-actions.jpg" width="200" alt="Per-app action menu"><br><sub><b>Actions</b> — build, share, export & more</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/04-toolbox.jpg" width="200" alt="Main toolbox menu"><br><sub><b>Toolbox</b> — Agent, modules, ports, engines</sub></td>
   </tr>
   <tr>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/05-editor-basic.png" width="200" alt="Editor basic info card"><br><sub><b>Editor</b> — icon, name & core toggles</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/06-editor-toggles.png" width="200" alt="Editor feature toggles"><br><sub><b>Editor</b> — splash, BGM, translate & more</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/07-editor-advanced.png" width="200" alt="Editor advanced and export settings"><br><sub><b>Editor</b> — advanced & export settings</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/08-app-actions.png" width="200" alt="Per-app action menu"><br><sub><b>Actions</b> — build, share, export & more</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/05-editor-basic.jpg" width="200" alt="Editor basic info card"><br><sub><b>Editor</b> — icon, name, URL & analyze site</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/06-editor-activation.jpg" width="200" alt="Editor activation code card"><br><sub><b>Editor</b> — activation codes</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/07-editor-fullscreen.jpg" width="200" alt="Editor fullscreen settings"><br><sub><b>Editor</b> — fullscreen & orientation</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/08-editor-floating.jpg" width="200" alt="Editor floating window settings"><br><sub><b>Editor</b> — floating window</sub></td>
   </tr>
   <tr>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/09-toolbox.png" width="200" alt="Main toolbox menu"><br><sub><b>Toolbox</b> — Agent, modules, ports, engines</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/10-preview.png" width="200" alt="App preview with browser toolbar"><br><sub><b>Preview</b> — runs the real export runtime</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/11-build-options.png" width="200" alt="Build APK dialog options"><br><sub><b>Build</b> — engine & protection options</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/12-build-result.png" width="200" alt="Build summary with APK size analysis"><br><sub><b>Result</b> — signed APK, size analysis</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/09-editor-toggles.jpg" width="200" alt="Editor feature toggles"><br><sub><b>Editor</b> — splash, BGM, translate & more</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/10-editor-more.jpg" width="200" alt="Editor plugins and ad-blocking toggles"><br><sub><b>Editor</b> — plugins, ads & more toggles</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/11-editor-advanced.jpg" width="200" alt="Editor advanced and export settings"><br><sub><b>Editor</b> — advanced & export settings</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/12-agent.jpg" width="200" alt="Agent screen with build suggestions"><br><sub><b>Agent</b> — describe it, AI builds it</sub></td>
   </tr>
   <tr>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/13-generated-app.png" width="200" alt="Generated app running"><br><sub><b>Output</b> — the generated app, running</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/14-about.png" width="200" alt="About page"><br><sub><b>About</b> — version & community links</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/15-agent.png" width="200" alt="Agent screen with build suggestions"><br><sub><b>Agent</b> — describe it, AI builds it</sub></td>
-    <td align="center" width="25%"><img src=".github/assets/screenshots/16-languages.png" width="200" alt="Language picker dialog"><br><sub><b>Languages</b> — 10 UI languages, incl. RTL</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/13-agent-chat.jpg" width="200" alt="Agent chat session"><br><sub><b>Agent</b> — a live build session</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/14-build-environment.jpg" width="200" alt="Local build environment"><br><sub><b>Build env</b> — Node, npm, and the local toolchain</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/15-plugins.jpg" width="200" alt="Plugins list"><br><sub><b>Plugins</b> — built-in modules and the market</sub></td>
+    <td align="center" width="25%"><img src=".github/assets/screenshots/16-about.jpg" width="200" alt="About page"><br><sub><b>About</b> — version & community links</sub></td>
   </tr>
 </table>
 
@@ -121,7 +114,7 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 | **Local runtimes** | Native Node.js 18.20, PHP 8.4 + Composer 2.10, Python 3.14, official Go 1.26, WordPress 7.x over SQLite |
 | **Extensions** | Built-in modules, userscripts with `GM_*`, MV3 Chrome extensions, live Chrome Web Store search |
 | **APK/AAB output** | On-device V1/V2/V3 signing, Google Play AAB export with targetSdk rewrite, keystore management |
-| **Agent** | Full-app automation via up to 57 tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx |
+| **Agent** | Full-app automation via up to 60 tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx |
 | **Host languages** | **10 UI languages** — 中文 · English · العربية · Português · Español · Français · Deutsch · Русский · 日本語 · 한국어 (Arabic RTL) |
 
 ---
@@ -131,12 +124,14 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 | Input | Output | Good for |
 | --- | --- | --- |
 | Website URL | WebView-based APK | Landing pages, tools, dashboards, docs, internal systems |
-| HTML / static front-end | Localhost-backed APK | React, Vue, Vite, static builds, offline web apps |
+| HTML / static front-end | Local file or localhost APK | React, Vue, Vite, static builds. A plain page can omit the internet permission |
 | Node.js / PHP / Python / Go | APK with an on-device local server | Small server apps, admin tools, demos, prototypes |
 | WordPress | APK running WordPress over local PHP + SQLite | Portable sites, theme/plugin demos, content packages |
 | Images / video / galleries | Media-focused APK | Albums, course materials, portfolios, offline viewers |
 | Multiple sites | Tab/card/feed/drawer multi-web APK | Link hubs, portals, app collections |
 | Installed APK | Rebranded clone or shortcut disguise | Icon/name/package experiments, repackaging research |
+
+Node.js, PHP, Python, Go, WordPress, image, and video stay in the app. Turn them on from **About → Advanced features** (off by default). Gallery does not need that switch.
 
 ---
 
@@ -145,7 +140,7 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 From a fresh install to your first signed APK in about a minute:
 
 1. **Install the builder** — get the APK from [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) onto a device running Android 6.0 (API 23) or newer.
-2. **Create an app** — on **My Apps**, tap **Create** and pick one of the 12 app types (Web · Multi-Site · HTML · Offline Pack · Frontend · PHP · WordPress · Node.js · Python · Go · Media App · Gallery).
+2. **Create an app** — on **My Apps**, tap **Create**. The default grid is Web, Multi-Site, HTML, Offline Pack, Frontend, and Gallery. PHP, WordPress, Node.js, Python, Go, and Media appear after **About → Advanced features** is on.
 3. **Fill in the basics** — app name, target URL (or your project files), and an optional icon, then **Save**. Every other editor card is optional configuration.
 4. **Preview** — tap the app's card to run it in the same runtime code the export will use.
 5. **Build** — tap **⋮ → Build APK**, pick the engine and options, and get a signed APK ready to install or share. Shipping to Google Play? Use **⋮ → Google Play** instead — it builds the APK, converts it to a Play-ready signed AAB with `targetSdk` rewritten, and generates the Play metadata — all on-device.
@@ -164,6 +159,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **Dual engine** — System WebView by default, or an optional GeckoView (Firefox) runtime downloaded on first use.
 - **Kernel flavor disguise** — present as Chrome, Edge, Samsung Internet, Firefox, or Safari-style while keeping the real engine.
 - **Desktop mode**, custom User-Agent, and JS/CSS injection at document-start / end / idle.
+- **Page zoom** — a per-app percent that locks the layout viewport, so text, layout, images, and canvas scale together on the system WebView and on GeckoView.
 - **Popup handling** — same window, external browser, popup window, or block.
 - **Proxies** — static HTTP/HTTPS/SOCKS5, PAC, authentication, bypass rules, and a local HTTP-to-SOCKS bridge.
 - **DNS-over-HTTPS** — Cloudflare, Google, AdGuard, NextDNS, CleanBrowsing, Quad9, Mullvad, plus custom endpoints; strict or automatic modes.
@@ -173,7 +169,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **Failover** — automatic fallback to mirror URLs when the primary target is unreachable.
 - **PWA** offline cache strategies, custom error pages, per-app host overrides, and payment-scheme handlers.
 - **Compatibility toggles** — blob download interception, scroll memory, image repair, clipboard / orientation / notification polyfills, private-network bridging, and Native Bridge capability gates.
-- **Download location** — system Downloads, app-private storage, or a user-picked SAF folder, wired through the full packaging passthrough chain.
+- **Download location** — system Downloads, app-private storage, a user-picked SAF folder, or the system save dialog on every download, wired through the full packaging passthrough chain.
 
 </details>
 
@@ -206,12 +202,13 @@ WebToApp has a large number of switches. The sections below group them by use ca
 <details>
 <summary><b>🧩 Extensions & automation</b></summary>
 
-- **Built-in modules** — video download (YouTube / Bilibili / Douyin / Xiaohongshu extractors), video enhancer with YouTube cleanup (ad skip, max quality, background play, SponsorBlock), web analyzer, find-in-page, dark mode, privacy tools, content enhancer, element blocker, and YouTube launcher.
-- **Userscripts** — Greasemonkey/Tampermonkey-style `.user.js` with a `GM_*` bridge (storage, requests, styles, menu commands) and promise-based `GM.*` APIs gated by script grants.
+- **Built-in modules** — video download (YouTube / Bilibili / Douyin / Xiaohongshu extractors), video enhancer with YouTube cleanup (ad skip, max quality, background play, SponsorBlock), web analyzer, find-in-page, dark mode, privacy tools, content enhancer, element blocker, URL Switcher, and YouTube launcher. Names and descriptions follow the host language.
+- **Floating plugin handle** — one enabled plugin opens directly. Several fan out from the handle.
+- **Userscripts** — Greasemonkey/Tampermonkey-style `.user.js` with a `GM_*` bridge (storage, requests, styles, menu commands) and promise-based `GM.*` APIs gated by script grants. View Code opens the built-in editor, including a script stored as a file.
 - **MV3 Chrome extension runtime** for manifest content scripts in isolated or main worlds, with `chrome.*` polyfills for runtime, storage, tabs, scripting, and declarative network-request parsing.
 - **In-app Chrome Web Store search** — browse and install browser extensions by keyword (or paste a store URL / extension ID), with offline fallback to manual import.
 - **Export codes** (`WTA1:` gzip + Base64) and QR sharing via ZXing.
-- **Agent** — a tool-calling assistant with up to 57 built-in tools covering the entire app surface: create/edit/build/export apps, manage ports and browser engines, install/clear runtimes, ad-block hosts rules, common-config templates, usage stats, app cloning, batch import, Play policy checks, and module development. Plan mode waits for user approval; automatic retry/backoff on 429/5xx.
+- **Agent** — a tool-calling assistant with up to 60 built-in tools covering the entire app surface: create/edit/build/export apps, manage ports and browser engines, install/clear runtimes, ad-block hosts rules, common-config templates (including JSON export and import), usage stats, app cloning, batch import, Play policy checks, and module development. Plan mode waits for user approval; automatic retry/backoff on 429/5xx.
 
 </details>
 
@@ -219,9 +216,9 @@ WebToApp has a large number of switches. The sections below group them by use ca
 <summary><b>📱 App experience</b></summary>
 
 - **Splash screens** — image or video, with skip behavior, trim ranges, and fixed orientation.
-- **Background music** — playlists with synced LRC lyrics, lyric animations, custom font/color/stroke/shadow, and online music search.
+- **Background music** — playlists with synced LRC lyrics, lyric animations, custom font/color/stroke/shadow, online music search, a draggable floating player, and a notification player.
 - **Toolbar, status bar (light & dark), navigation, floating-window mode, and long-press menu styles.** The browser toolbar is a master toggle (off by default) with per-item buttons for title/URL/back/forward/refresh plus a native **find-in-page** bottom bar and a **console** panel for on-device debugging. Status bar color can follow theme, a custom color, full transparency, or **PAGE_TOP** (sample the page’s top pixels so the chrome matches the content).
-- **Download location mode** — system Downloads, app-private directory, or a custom SAF folder picked by the user.
+- **Download location mode** — system Downloads, app-private directory, a custom SAF folder, or the system save dialog on every download.
 - **Announcement templates** for launch, interval, and no-network moments.
 - **Host app language** — switch the entire builder UI among 10 languages (中文 / English / العربية / Português / Español / Français / Deutsch / Русский / 日本語 / 한국어); Arabic is full RTL.
 - **Translation overlay** — 20 target languages via Google, MyMemory, LibreTranslate, or Lingva engines, with automatic failover across them (in-page translate for the *content* of generated apps, separate from host UI language).
@@ -235,8 +232,9 @@ WebToApp has a large number of switches. The sections below group them by use ca
 <details>
 <summary><b>🔧 APK / AAB export & signing</b></summary>
 
-- **Custom package name**, `versionName`, `versionCode`, icon, label, architecture target, and export format.
-- **Build-time permission injection** with unused permissions pruned from the template manifest.
+- **Custom package name**, `versionName`, `versionCode`, icon, label, architecture target, and export format. A transparent icon gets a white adaptive plate by default, or a solid color you pick, or a transparent plate. An opaque icon keeps its edge color.
+- **SDK levels** — raise minSdk above 23, and pin targetSdk to 28, 31, 33, 34, 35, or 36. Server-runtime types stay at 28. Play AAB export still rewrites targetSdk to 36.
+- **Build-time permission injection** — one row per permission a third-party app can declare from API 23 through Android 17. Unused permissions are pruned from the template manifest.
 - **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build. Available for every app type except the server-runtime ones and encrypted builds — see [which apps can be published](https://shiaho777.github.io/web-to-app/guide/more-features/google-play).
 - **Keystore management** — create, import, export, delete, and certificate-fingerprint viewing; PKCS12/PFX/JKS/BKS import including Android Studio upload-key cases where store and key passwords differ.
 - **Signature schemes** — V1, V2, V3 independently controlled, with auto-fallback for legacy certificates; custom V1 signer filename for `META-INF/<name>.SF` / `.RSA`.
@@ -249,8 +247,9 @@ WebToApp has a large number of switches. The sections below group them by use ca
 <summary><b>🗂 File manager & project tooling</b></summary>
 
 - **File manager** — a single screen to view, share, install, open, and clear build outputs (APK builds, AAB exports, app clones, build logs) and a user-files directory, with a read-only build-log viewer.
+- **Export source** — a Gradle project you can open in Android Studio: manifest, WebView activity, config, and local files. The keystore, `node_modules`, `.git`, and the full shell runtime stay out.
 - **Website scraper** for offline packs — HTML, CSS, JS, images, fonts, `url()`, `srcset`, `@import`, path rewriting, same-domain limits, depth limits, and size limits; parallel streaming worker pool with main-thread progress callbacks.
-- **Multi-Web layouts** — tabs, cards, feeds, drawers, per-site icons/theme colors/extraction selectors/refresh intervals, and shared JS/CSS.
+- **Multi-Web layouts** — bottom tabs, top tabs that follow a sideways swipe, cards (1–4 columns and a height slider), feeds, drawers (1–3 columns), site order, the tab opened on launch, per-site icons/theme colors/extraction selectors/refresh intervals, and shared JS/CSS.
 - **Gallery apps** — categorized media, grid/list/timeline views, shuffle/single-loop, sorting, thumbnail bar, overlays, auto-next, and playback memory.
 - **App Modifier** — shortcut disguise or real binary clone with manifest/resource patching and re-signing.
 
@@ -276,12 +275,13 @@ WebToApp ships a built-in AI agent (open from **⋮ → Agent**) that can operat
 3. The Agent executes each tool on-device — read-only tools run immediately; write tools pop a permission dialog first.
 4. Results flow back to the LLM, which continues until the task is done or it asks you a clarifying question.
 
-**Up to 57 built-in tools, grouped by domain (the 3 imagery tools load only with an image-capable model):**
+**Up to 60 built-in tools, grouped by domain (55 base + 2 plan mode + 3 imagery; the imagery tools load only with an image-capable model):**
 
 | Domain | Examples |
 | --- | --- |
 | Files | Read, Write, Edit, Delete, List, Glob, Grep project files |
 | Apps | List, Get, Create, Update app configurations |
+| Config templates | List, save, apply, delete, export, and import a common-config JSON file |
 | App lifecycle | Build APK/AAB, Export, Share, Create shortcut, Duplicate, Delete, Move to category |
 | Ports & engines | Scan/kill ports, check/select/delete browser engines (WebView, GeckoView) |
 | Runtimes | Status, install, and cache-clear for Node.js, PHP, Python, Go, WordPress, Linux env |
@@ -326,6 +326,7 @@ The official documentation site is published at **[shiaho777.github.io/web-to-ap
 | Developer | [/developer/](https://shiaho777.github.io/web-to-app/developer/) | Architecture, export pipeline, shell sync, config drift, i18n, change recipes |
 | Extensions | [/extensions/](https://shiaho777.github.io/web-to-app/extensions/) | JS/CSS modules, userscripts, Chrome MV3, API reference, publishing |
 | 简体中文 | [/zh/](https://shiaho777.github.io/web-to-app/zh/) | Full Chinese mirror of every page above |
+| Privacy | [/privacy](https://shiaho777.github.io/web-to-app/privacy) | Privacy policy for the builder app. Apps you build need their own |
 
 ## Architecture
 
@@ -389,9 +390,11 @@ Two distribution flavors exist, sharing all code and build rules:
 ```bash
 ./gradlew assembleStandardRelease   # signed release APK
 ./gradlew bundleGplayRelease        # Play-ready signed AAB
+./gradlew :app:assembleStandardRelease -Pfdroid=true
+# unsigned F-Droid APK (no Firebase, Google Sign-In, or AdMob)
 ```
 
-For release builds, configure signing through `local.properties` and `app/build.gradle.kts`.
+For signed GitHub/Play releases, configure signing through `local.properties` and `app/build.gradle.kts`. The F-Droid flavor leaves the APK unsigned. See [F-Droid](https://shiaho777.github.io/web-to-app/developer/fdroid).
 
 ## Contributing
 
@@ -423,16 +426,6 @@ Advanced features such as device disguise are intended for technical demonstrati
 ## Acknowledgements
 
 [daoxe.com](https://daoxe.com) — AI API relay for personal use.
-
-<p align="center">
-  <a href="https://www.swiftproxy.net/?ref=shiaho">
-    <img src=".github/assets/sponsors/swiftproxy-banner-en.png" width="640" alt="Swiftproxy — Residential Proxies from $0.7/GB, ISP Proxies $6/IP, 10% off code: PROXY90" />
-  </a>
-</p>
-
-<p align="center">
-  <a href="https://www.swiftproxy.net/?ref=shiaho"><b>Sponsored by Swiftproxy</b></a> — Swiftproxy provides 90M+ clean residential IPs across 220+ locations, supporting HTTP(S) and SOCKS5 proxies, flexible targeting, rotating and sticky sessions, and non-expiring traffic. It helps WebToApp users with reliable global access, location-based testing, web automation, and data collection. Free testing is available, with 10% off using code <code>PROXY90</code>.
-</p>
 
 ---
 

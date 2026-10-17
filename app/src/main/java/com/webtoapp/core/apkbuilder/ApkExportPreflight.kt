@@ -1,6 +1,7 @@
 package com.webtoapp.core.apkbuilder
 
 import android.content.Context
+import com.webtoapp.core.host.AdvancedAppTypes
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.WebApp
@@ -37,6 +38,14 @@ object ApkExportPreflight {
 
     fun check(context: Context, webApp: WebApp): ApkExportPreflightReport {
         val issues = mutableListOf<ApkExportPreflightIssue>()
+        if (!AdvancedAppTypes.isUsable(context, webApp.appType)) {
+            issues += ApkExportPreflightIssue(
+                severity = ApkExportPreflightSeverity.Error,
+                key = "advanced_features_off",
+                title = Strings.advancedFeatures,
+                message = Strings.advancedFeaturesOff,
+            )
+        }
         val inputPreflight = BuildInputPreflight.check(webApp.toBuildInputPreflightRequest(context))
 
         inputPreflight.issues.forEach { issue ->

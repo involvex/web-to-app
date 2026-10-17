@@ -27,9 +27,12 @@ import com.webtoapp.data.model.UserAgentMode
 import com.webtoapp.data.model.WebViewConfig
 import com.webtoapp.core.engine.GeckoViewEngine
 import com.webtoapp.core.engine.ProxyConfig
+import com.webtoapp.util.isAllowedUrlScheme
+import com.webtoapp.util.normalizeExternalIntentUrl
 import com.webtoapp.core.errorpage.ErrorPageManager
 import com.webtoapp.core.errorpage.ErrorPageMode
 import java.io.ByteArrayInputStream
+import kotlin.math.roundToInt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -58,6 +61,8 @@ class WebViewManager(
     private val geolocationShimHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val shareInboxScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val cosmeticFilterScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val pageZoomScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val kernelFlavorScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
 
     companion object {
 
@@ -234,6 +239,28 @@ class WebViewManager(
         }
 
         /**
+         * Set when this process deleted the WebView profile directory for the
+         * current [browsingDataClearGeneration]. The matching
+         * [clearBrowsingData] call must be skipped: the directory is already
+         * empty, and touching [android.webkit.CookieManager] would start the
+         * provider and race the page that plants the next session cookie.
+         */
+        @Volatile
+        private var wipedProfileGeneration = -1L
+
+        fun noteFreshProfileWiped(wiped: Boolean) {
+            if (wiped) wipedProfileGeneration = browsingDataClearGeneration
+        }
+
+        fun wasFreshProfileWiped(): Boolean = wipedProfileGeneration == browsingDataClearGeneration
+
+        fun openFreshSessionGate(): Any = FreshSessionGate.open()
+
+        fun closeFreshSessionGate(ticket: Any) = FreshSessionGate.close(ticket)
+
+        fun runWhenFreshSessionReady(block: () -> Unit) = FreshSessionGate.runWhenReady(block)
+
+        /**
          * (Re-)applies the "follow system dark mode" state to a single WebView, derived from
          * the CURRENT system uiMode. Safe to call at setup time and again whenever the system
          * theme changes (e.g. Activity.onConfigurationChanged), which is required because:
@@ -332,8 +359,16 @@ class WebViewManager(
             return targetSdk >= android.os.Build.VERSION_CODES.TIRAMISU
         }
 
+        /**
+         * @param holdNavigation when true, [runWhenFreshSessionReady] waits
+         *   until [CookieManager.removeAllCookies] has finished and the new
+         *   jar has been flushed. [CookieManager.flush] before that callback
+         *   writes the previous cookies back out, so the next page load still
+         *   sends them — and a cookie that has Max-Age is not removed by
+         *   [CookieManager.removeSessionCookies].
+         */
         @Suppress("DEPRECATION")
-        fun clearBrowsingData(context: Context, webView: WebView?) {
+        fun clearBrowsingData(context: Context, webView: WebView?, holdNavigation: Boolean = false) {
             try {
                 webView?.stopLoading()
                 webView?.clearCache(true)
@@ -347,15 +382,20 @@ class WebViewManager(
             } catch (e: Exception) {
                 AppLogger.w("WebViewManager", "Failed to clear WebStorage", e)
             }
+            val ticket = if (holdNavigation) FreshSessionGate.open() else null
             try {
                 val cookieManager = CookieManager.getInstance()
-                cookieManager.removeAllCookie()
-                cookieManager.removeSessionCookie()
-                cookieManager.removeAllCookies(null)
-                cookieManager.removeSessionCookies(null)
-                cookieManager.flush()
+                cookieManager.removeAllCookies {
+                    try {
+                        cookieManager.flush()
+                    } catch (e: Exception) {
+                        AppLogger.w("WebViewManager", "Failed to flush cookies after clear", e)
+                    }
+                    if (ticket != null) FreshSessionGate.close(ticket)
+                }
             } catch (e: Exception) {
                 AppLogger.w("WebViewManager", "Failed to clear cookies", e)
+                if (ticket != null) FreshSessionGate.close(ticket)
             }
             try {
                 val db = WebViewDatabase.getInstance(context)
@@ -377,6 +417,8 @@ class WebViewManager(
         )
 
         private val BLOCKED_SPECIAL_SCHEMES = setOf("javascript", "data", "file", "content", "about")
+
+        private val PLUGIN_EXTERNAL_SCHEMES = setOf("http", "https")
 
         private const val VIEWPORT_FIT_SCREEN_JS = """(function(){
             'use strict';
@@ -656,22 +698,26 @@ class WebViewManager(
                 suppressReloadUntil = Date.now() + 500;
             }, true);
 
-            var rawReload = location.reload.bind(location);
-            location.reload = function(forcedReload) {
-                if (Date.now() < suppressReloadUntil) {
-                    return;
-                }
-                return rawReload(forcedReload);
-            };
-            var rawGo = history.go.bind(history);
-            history.go = function(delta) {
-                if (arguments.length === 0) { return rawGo(); }
-                var d = Number(delta);
-                if (d === 0 && Date.now() < suppressReloadUntil) {
-                    return;
-                }
-                return rawGo(d);
-            };
+            try {
+                var rawReload = location.reload.bind(location);
+                location.reload = function(forcedReload) {
+                    if (Date.now() < suppressReloadUntil) {
+                        return;
+                    }
+                    return rawReload(forcedReload);
+                };
+            } catch (e) {}
+            try {
+                var rawGo = history.go.bind(history);
+                history.go = function(delta) {
+                    if (arguments.length === 0) { return rawGo(); }
+                    var d = Number(delta);
+                    if (d === 0 && Date.now() < suppressReloadUntil) {
+                        return;
+                    }
+                    return rawGo(d);
+                };
+            } catch (e) {}
         })();
         """
 
@@ -1285,6 +1331,12 @@ class WebViewManager(
     private val LOOPBACK_MAIN_FRAME_MAX_RETRIES = 3
     private val LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS = 150L
 
+    // One silent reload per main-frame 403. The first hit on some video hosts is
+    // rejected (hotlink / Referer); the retry is the request the user otherwise
+    // makes by tapping the error page. A repeat 403 still shows that page.
+    private val mainFrameHttpRetry = MainFrameHttpRetry()
+    private var mainFrameRefererUrl: String? = null
+
     // Cross-URL budget over all app-initiated auto-reloads (#654): per-path counters
     // reset when the URL changes, so only this breaker can stop error-navigation
     // cycles (e.g. login redirect loops) from reloading forever.
@@ -1426,6 +1478,12 @@ class WebViewManager(
 
         ensureDynamicUserAgents()
 
+        // Older WebViews do not automatically expose debuggable apps to Chrome.
+        // Match the HTML preview policy for ordinary host and shell WebViews.
+        if (com.webtoapp.BuildConfig.DEBUG) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+
         this.currentConfig = config
 
         // Keep the renderer at foreground priority even while the app is in the
@@ -1445,7 +1503,12 @@ class WebViewManager(
 
         if (config.clearBrowsingDataOnLaunch && appliedBrowsingDataClearGeneration != browsingDataClearGeneration) {
             appliedBrowsingDataClearGeneration = browsingDataClearGeneration
-            clearBrowsingData(context, webView)
+            // A cold start already deleted app_webview. Clearing again here
+            // would open CookieManager against the empty directory and the
+            // async removal could delete the cookie the new page is about to set.
+            if (!wasFreshProfileWiped()) {
+                clearBrowsingData(context, webView, holdNavigation = true)
+            }
         }
 
         this.cachedBrowserDisguiseConfig = browserDisguiseConfig
@@ -1471,11 +1534,9 @@ class WebViewManager(
         // applied together below, so a page can never see a UA that contradicts `Sec-CH-UA`.
         this.resolvedBrowserIdentity = resolveBrowserIdentityFor(config)
 
-        // The JS layer only needs a script for real flavors: a derived profile (custom UA or
-        // device disguise) is already backed by the metadata, and `navigator.userAgent` follows
-        // the overridden UA string on its own.
+        // Flavor JS now also covers SYSTEM_DEFAULT plus a derived Chrome UA (device disguise).
+        // Challenge iframes must see window.chrome / webdriver before their own scripts run.
         this.cachedKernelFlavorJs = resolvedBrowserIdentity.profile
-            ?.takeIf { it.flavor != com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT }
             ?.buildFlavorJs()
             ?.takeIf { it.isNotEmpty() }
             ?.also { js ->
@@ -1521,6 +1582,7 @@ class WebViewManager(
 
         GeckoViewEngine.applyAntiCapture(config.antiCapture)
         GeckoViewEngine.applyAutoplayPolicy(config.mediaAutoplayEnabled)
+        GeckoViewEngine.applyOverscrollEffect(config.overscrollEffectEnabled)
 
         val tlsFingerprintEnabled = config.tlsFingerprintEnabled &&
             config.tlsFingerprintTemplate.isNotBlank()
@@ -1666,16 +1728,20 @@ class WebViewManager(
                 displayZoomControls = false
 
                 useWideViewPort = true
-                // Whole-page zoom (initialScale) is overridden by overview fit, so
-                // overview must stay off while an explicit zoom is active. Default
-                // path (zoom 100) keeps the historical behavior.
+                // Overview fit recomputes scale from the page width and undoes an
+                // explicit page zoom. Default path (zoom 100) keeps the historical
+                // behavior. Viewport-mode branches below must not turn it back on.
                 loadWithOverviewMode = if (zoomPlan.zoomActive) {
                     false
                 } else {
                     !preferLandscapeEmbeddedViewport
                 }
 
-                if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
+                if (zoomPlan.zoomActive) {
+                    // Page zoom owns the viewport. FIT_SCREEN / DESKTOP / CUSTOM
+                    // would force overview and a scale of 1.
+                    AppLogger.d("WebViewManager", "Page zoom active: viewport modes deferred (${config.pageZoomPercent}%)")
+                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
                     useWideViewPort = true
                     loadWithOverviewMode = true
                     AppLogger.d("WebViewManager", "ViewportMode.FIT_SCREEN applied: overview fit + JS adaptation")
@@ -1747,8 +1813,9 @@ class WebViewManager(
 
                 if (isDesktopModeRequested) {
                     useWideViewPort = true
-                    loadWithOverviewMode = true
-
+                    if (!zoomPlan.zoomActive) {
+                        loadWithOverviewMode = true
+                    }
                     textZoom = 100
                 } else if (preferLandscapeEmbeddedViewport) {
                     AppLogger.d(
@@ -1798,6 +1865,16 @@ class WebViewManager(
                 }
             }
 
+            // Android 12+ stretches the WebView bitmap at the edge, which pulls
+            // position:fixed chrome with it (#1193). OVER_SCROLL_NEVER stops
+            // that. Reset explicitly so a pooled WebView cannot keep the
+            // previous app's mode.
+            overScrollMode = if (config.overscrollEffectEnabled) {
+                WebView.OVER_SCROLL_IF_CONTENT_SCROLLS
+            } else {
+                WebView.OVER_SCROLL_NEVER
+            }
+
             isScrollbarFadingEnabled = true
             scrollBarStyle = WebView.SCROLLBARS_INSIDE_OVERLAY
             isVerticalScrollBarEnabled = false
@@ -1805,16 +1882,22 @@ class WebViewManager(
 
             com.webtoapp.core.perf.NativePerfEngine.optimizeWebViewSettings(this)
 
-            // Per-app page zoom (#654): whole-page scaling via initialScale — text
-            // AND layout/images/canvas, unlike textZoom (glyphs only, invisible on
-            // dashboard/canvas UIs). Runs AFTER the viewport block above so an
-            // explicit zoom wins over FIT_SCREEN/CUSTOM scale-1 forcing; textZoom
-            // stays pinned at 100 so text is never scaled twice. Default (100)
-            // leaves everything untouched; pooled instances are reset to auto.
+            // Per-app page zoom (#654, #1264). setInitialScale is ignored once a
+            // viewport meta exists (useWideViewPort), which is every modern
+            // dashboard — the previous mechanism looked identical to 100%.
+            // The document-start script below owns the scale. textZoom stays at
+            // 100 so glyphs are not scaled twice. A pooled WebView must not keep
+            // a stale initial scale, so clear it. JS-disabled pages have no
+            // script and fall back to setInitialScale.
             if (zoomPlan.zoomActive) {
                 settings.textZoom = 100
-                setInitialScale(zoomPlan.initialScalePercent)
-                AppLogger.d("WebViewManager", "Applied page zoom: initialScale=${zoomPlan.initialScalePercent}% (overview off)")
+                settings.loadWithOverviewMode = false
+                if (config.javaScriptEnabled) {
+                    setInitialScale(0)
+                } else {
+                    setInitialScale(zoomPlan.initialScalePercent)
+                }
+                AppLogger.d("WebViewManager", "Applied page zoom: ${zoomPlan.initialScalePercent}% via viewport (overview off)")
             } else if (config.initialScale > 0) {
                 setInitialScale(config.initialScale)
                 AppLogger.d("WebViewManager", "Set initial scale: ${config.initialScale}%")
@@ -1836,6 +1919,9 @@ class WebViewManager(
             webViewClient = createWebViewClient(config, callbacks)
 
             webChromeClient = createWebChromeClient(config, callbacks)
+
+            installPageZoomDocumentStart(this, config)
+            installKernelFlavorDocumentStart(this)
 
             if (config.enablePrivateNetworkBridge || config.enableCorsBypass) {
                 installPrivateNetworkApiBridge(this, config)
@@ -1969,6 +2055,18 @@ class WebViewManager(
                 }
                 session.popupWebViewFactory = { url -> createChromePanelWebView(url) }
                 session.onPanelClosed = { destroyChromePanelWebViews() }
+                session.shareHandler = { title, text, url ->
+                    ShareBridge(context).shareText(title, text, url)
+                }
+                session.openExternalHandler = { url -> openPluginExternalUrl(url) }
+                session.clearDataHandler = {
+                    clearBrowsingData(context, webView)
+                }
+                session.exitAppHandler = {
+                    context.findActivity()?.let { activity ->
+                        if (activity.isTaskRoot) activity.finishAffinity() else activity.finish()
+                    }
+                }
                 session.setPlugins(pluginPayloads)
                 session.attach()
                 addJavascriptInterface(session.bridge, "__hcjBridge")
@@ -1989,6 +2087,14 @@ class WebViewManager(
                 }
                 com.webtoapp.core.kernel.BrowserKernel.configureWebView(webView, level)
             }
+
+            // BrowserKernel.configureWebView rewrites settings.userAgentString from whatever
+            // is current (it strips "; wv" and "Version/x.y"). That runs after the identity
+            // block above, so a custom or flavor UA would be replaced and Sec-CH-UA would
+            // stay on the metadata of a string the network stack no longer sends. Re-apply
+            // the resolved pair last. Same for the isolation and extension overrides, which
+            // sit in that earlier block and are clobbered by the same rewrite.
+            reapplyRequestUserAgent(webView, isDesktopModeRequested)
 
             isFocusable = true
             isFocusableInTouchMode = true
@@ -2385,6 +2491,9 @@ class WebViewManager(
 
             override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                 super.onPageStarted(view, url, favicon)
+                if (!url.isNullOrBlank() && url != "about:blank" && url != currentMainFrameUrl) {
+                    rememberMainFrameReferer(currentMainFrameUrl)
+                }
                 currentMainFrameUrl = url
                 if (TlsMitmBridge.isRunning()) {
                     TlsMitmBridge.allowHost(runCatching { android.net.Uri.parse(url ?: "").host }.getOrNull())
@@ -2529,11 +2638,16 @@ class WebViewManager(
                     startBatch.append("try{").append(SCROLL_SAVE_JS).append("}catch(e){};\n")
                 }
 
-                if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
+                val pageZoomJs = view?.let { pageZoomScriptFor(it, config) }
+                if (pageZoomJs != null) {
+                    // Fallback when document-start is unavailable, and a second
+                    // chance once the view has a size. The WebView's CSS width
+                    // wins over the screen.width guess from document-start.
+                    // FIT_SCREEN / CUSTOM force initial-scale=1 and would undo it.
+                    startBatch.append("try{").append(pageZoomJs).append("}catch(e){};\n")
+                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
                     startBatch.append("try{").append(VIEWPORT_FIT_SCREEN_JS).append("}catch(e){};\n")
-                }
-
-                if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
+                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
                     startBatch.append("try{").append(customJs).append("}catch(e){};\n")
@@ -2604,12 +2718,13 @@ class WebViewManager(
 
                 view?.let { injectScripts(it, config.injectScripts, ScriptRunTime.DOCUMENT_END, url) }
 
-                if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
+                val pageZoomJs = view?.let { pageZoomScriptFor(it, config) }
+                if (pageZoomJs != null) {
+                    view?.evaluateJavascript(pageZoomJs, null)
+                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
 
                     view?.evaluateJavascript("window.__wtaViewportFitApplied=false;\n$VIEWPORT_FIT_SCREEN_JS", null)
-                }
-
-                if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
+                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
                     view?.evaluateJavascript("window.__wtaViewportCustomApplied=false;\n$customJs", null)
@@ -2903,6 +3018,27 @@ class WebViewManager(
                                 return
                             }
                         }
+                    }
+
+                    if (!isCloudflareResponse &&
+                        view != null &&
+                        failedUrl != null &&
+                        mainFrameHttpRetry.shouldSilentRetry(failedUrl, statusCode)
+                    ) {
+                        val headers = mainFrameHttpRetryHeaders(failedUrl, mainFrameRefererUrl)
+                        AppLogger.w(
+                            "WebViewManager",
+                            "Silent retry main-frame HTTP 403: $failedUrl referer=${headers["Referer"] ?: "(none)"}"
+                        )
+                        view.post {
+                            try {
+                                view.stopLoading()
+                                if (headers.isEmpty()) view.loadUrl(failedUrl) else view.loadUrl(failedUrl, headers)
+                            } catch (e: Exception) {
+                                AppLogger.w("WebViewManager", "Silent HTTP 403 retry failed: $failedUrl", e)
+                            }
+                        }
+                        return
                     }
 
                     val errorUiEnabled = when {
@@ -3270,6 +3406,27 @@ class WebViewManager(
         cancelFailoverTimeout(webView)
     }
 
+    /**
+     * `hcj.openExternal` — plugins may only send a page out to a browser; the
+     * scheme allowlist is deliberately narrower than NativeBridge.openUrl's so
+     * a script can never bounce an intent onto tel/sms/geo handlers.
+     */
+    private fun openPluginExternalUrl(url: String) {
+        val safeUrl = normalizeExternalIntentUrl(url)
+        if (safeUrl.isEmpty() || !isAllowedUrlScheme(safeUrl, PLUGIN_EXTERNAL_SCHEMES)) {
+            AppLogger.w("WebViewManager", "Plugin openExternal blocked: $url")
+            return
+        }
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(safeUrl)).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            AppLogger.e("WebViewManager", "Plugin openExternal failed", e)
+        }
+    }
+
     private fun Context.findActivity(): Activity? {
         var current: Context = this
         while (current is android.content.ContextWrapper) {
@@ -3463,6 +3620,12 @@ class WebViewManager(
         } else {
             parts.takeLast(2).joinToString(".")
         }
+    }
+
+    private fun rememberMainFrameReferer(url: String?) {
+        if (url.isNullOrBlank() || url == "about:blank") return
+        if (url.startsWith("file:") || url.startsWith("data:")) return
+        mainFrameRefererUrl = url
     }
 
     private fun extractHostFromUrl(url: String?): String? {
@@ -4205,6 +4368,14 @@ class WebViewManager(
             runCatching { handler.remove() }
         }
         cosmeticFilterScriptHandlers.clear()
+        pageZoomScriptHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        pageZoomScriptHandlers.clear()
+        kernelFlavorScriptHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        kernelFlavorScriptHandlers.clear()
         managedWebViews.keys.toList().forEach { webView ->
             destroyWebView(webView)
         }
@@ -4253,6 +4424,80 @@ class WebViewManager(
             }
         } else {
             AppLogger.d("WebViewManager", "Document-start script unsupported; private network bridge will use runtime fallback")
+        }
+    }
+
+    private fun webViewCssWidth(webView: WebView): Int {
+        val density = webView.resources.displayMetrics.density
+        if (webView.width <= 0 || density <= 0f) return 0
+        return (webView.width / density).roundToInt()
+    }
+
+    private fun pageZoomScriptFor(webView: WebView, config: WebViewConfig): String? {
+        return pageZoomDocumentScript(
+            config.pageZoomPercent,
+            config.zoomEnabled,
+            webViewCssWidth(webView)
+        )
+    }
+
+    /**
+     * Chrome (and other kernel) flavor JS must run before the page's own scripts,
+     * including challenge iframes. [evaluateJavascript] on onPageStarted loses that
+     * race, which is why device disguise (Chrome UA, no early JS) still tripped
+     * z.ai / Turnstile (#1121).
+     */
+    private fun installKernelFlavorDocumentStart(webView: WebView) {
+        kernelFlavorScriptHandlers.remove(webView)?.let { handler ->
+            runCatching { handler.remove() }
+        }
+        val script = cachedKernelFlavorJs?.takeIf { it.isNotEmpty() } ?: return
+        if (currentConfig?.javaScriptEnabled == false) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            AppLogger.d("WebViewManager", "Document-start unsupported; kernel flavor JS will use onPageStarted")
+            return
+        }
+        try {
+            kernelFlavorScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                script,
+                setOf("*")
+            )
+            AppLogger.d("WebViewManager", "Kernel flavor JS installed at document start")
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start kernel flavor JS install failed", e)
+        }
+    }
+
+    /**
+     * Page zoom must run before the page's own viewport meta is applied.
+     * [android.webkit.WebView.setInitialScale] loses that race (#1264).
+     * Re-installs on every configure so a pooled WebView does not keep the
+     * previous app's percent. Default zoom (100) removes a stale handler.
+     */
+    private fun installPageZoomDocumentStart(webView: WebView, config: WebViewConfig) {
+        pageZoomScriptHandlers.remove(webView)?.let { handler ->
+            runCatching { handler.remove() }
+        }
+        val script = pageZoomDocumentScript(
+            config.pageZoomPercent,
+            config.zoomEnabled,
+            webViewCssWidth(webView)
+        ) ?: return
+        if (!config.javaScriptEnabled) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            AppLogger.d("WebViewManager", "Document-start unsupported; page zoom will use onPageStarted")
+            return
+        }
+        try {
+            pageZoomScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+                webView,
+                script,
+                setOf("*")
+            )
+            AppLogger.d("WebViewManager", "Page zoom installed at document start: ${config.pageZoomPercent}%")
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start page zoom install failed", e)
         }
     }
 
@@ -5571,6 +5816,57 @@ class WebViewManager(
      * sources. Reading the cached device-disguise config (rather than taking it as a parameter)
      * keeps this usable both during configuration and from late plugin updates.
      */
+    /**
+     * Writes the request User-Agent and its client-hint metadata again.
+     *
+     * Called at the end of [configureWebView], after kernel disguise has had its chance to
+     * sanitize the string. When [resolvedBrowserIdentity] is a no-op the system UA (already
+     * sanitized, if disguise is on) is left alone.
+     */
+    private fun reapplyRequestUserAgent(
+        webView: WebView,
+        isDesktopModeRequested: Boolean
+    ) {
+        val identity = resolvedBrowserIdentity
+        if (identity.userAgent != null) {
+            webView.settings.userAgentString = stripWebViewMarker(identity.userAgent)
+            com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, identity.profile)
+            AppLogger.d(
+                "WebViewManager",
+                "Browser identity re-applied (${identity.profile?.flavor?.name ?: "derived-from-UA"}): " +
+                    "${webView.settings.userAgentString.take(80)}..."
+            )
+        }
+
+        if (!isDesktopModeRequested && identity.userAgent == null) {
+            val hasActiveChromeExt = getActivePluginsForCurrentApp().any { plugin ->
+                plugin.kind == com.webtoapp.core.plugin.PluginKind.CHROME_EXTENSION &&
+                    plugin.chromeExtId.isNotEmpty()
+            }
+            if (hasActiveChromeExt) {
+                val desktopUa = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
+                webView.settings.userAgentString = desktopUa
+                com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+                    webView,
+                    com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(desktopUa)
+                )
+            }
+        }
+
+        try {
+            val isoUa = com.webtoapp.core.privacy.IsolationManager.getInstance(context).getUserAgent()
+            if (isoUa != null) {
+                webView.settings.userAgentString = stripWebViewMarker(isoUa)
+                com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+                    webView,
+                    com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(isoUa)
+                )
+            }
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Isolation UA reapply failed", e)
+        }
+    }
+
     private fun resolveBrowserIdentityFor(config: WebViewConfig): com.webtoapp.core.kernel.BrowserIdentity =
         com.webtoapp.core.kernel.BrowserIdentityResolver.resolve(
             flavor = config.kernelFlavor,
@@ -6610,11 +6906,6 @@ class WebViewManager(
 
     private fun injectNotificationPolyfill(webView: WebView) {
         try {
-            val url = webView.url
-            if (shouldMinimizeLocalRuntimeInjection(url)) {
-                AppLogger.d("WebViewManager", "Skip notification polyfill for local runtime page: $url")
-                return
-            }
             val script = getNotificationPolyfillScript()
             webView.evaluateJavascript(script, null)
             AppLogger.d("WebViewManager", "Notification polyfill injected early")

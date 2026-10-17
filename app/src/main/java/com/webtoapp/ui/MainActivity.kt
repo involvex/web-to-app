@@ -30,9 +30,14 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.view.WindowCompat
 import com.webtoapp.WebToAppApplication
+import com.webtoapp.core.agent.mcp.HostMcpController
+import com.webtoapp.core.agent.permission.ChoiceRequest
+import com.webtoapp.core.agent.permission.PermissionRequest
 import com.webtoapp.core.i18n.LanguageManager
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
+import com.webtoapp.ui.agent.components.ChoiceBottomSheet
+import com.webtoapp.ui.agent.components.PermissionDialog
 import com.webtoapp.ui.components.FirstLaunchLanguageScreen
 import com.webtoapp.ui.navigation.AppNavigation
 import com.webtoapp.ui.shell.ShellActivity
@@ -41,6 +46,8 @@ import com.webtoapp.ui.theme.LocalThemeRevealState
 import com.webtoapp.ui.theme.WebToAppTheme
 import com.webtoapp.ui.theme.rememberThemeRevealState
 import com.webtoapp.ui.webview.WebViewActivity
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -157,7 +164,11 @@ class MainActivity : ComponentActivity() {
 
                 val context = LocalContext.current
                 val languageManager = remember { LanguageManager.getInstance(context) }
-                val hasSelectedLanguage by languageManager.hasSelectedLanguageFlow.collectAsState(initial = true)
+                // Nullable gate: a `true` initial would paint AppNavigation for
+                // one frame, then flip to the language picker on first launch.
+                val hasSelectedLanguage by remember {
+                    languageManager.hasSelectedLanguageFlow.map<Boolean, Boolean?> { it }
+                }.collectAsState(initial = null)
 
                 CompositionLocalProvider(
                     LocalThemeRevealState provides themeRevealState
@@ -168,18 +179,41 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             color = MaterialTheme.colorScheme.background
                         ) {
-                            if (!hasSelectedLanguage && showLanguageSelection) {
+                            if (hasSelectedLanguage == false && showLanguageSelection) {
                                 FirstLaunchLanguageScreen(
                                     onLanguageSelected = {
                                         showLanguageSelection = false
                                     }
                                 )
-                            } else {
+                            } else if (hasSelectedLanguage != null) {
                                 AppNavigation()
                             }
                         }
 
                         CircularRevealOverlay(revealState = themeRevealState)
+                    }
+                }
+
+                var mcpPermission by remember { mutableStateOf<PermissionRequest?>(null) }
+                var mcpChoice by remember { mutableStateOf<ChoiceRequest?>(null) }
+                LaunchedEffect(Unit) {
+                    launch {
+                        HostMcpController.prompter.requests.collect { mcpPermission = it }
+                    }
+                    launch {
+                        HostMcpController.prompter.choices.collect { mcpChoice = it }
+                    }
+                }
+                mcpPermission?.let { req ->
+                    PermissionDialog(req) { response ->
+                        mcpPermission = null
+                        HostMcpController.prompter.respond(req.toolCallId, response)
+                    }
+                }
+                mcpChoice?.let { req ->
+                    ChoiceBottomSheet(req) { response ->
+                        mcpChoice = null
+                        HostMcpController.prompter.respondChoice(req.id, response)
                     }
                 }
 

@@ -4,7 +4,7 @@
 
 ## 哪些应用可以上架
 
-绝大多数都可以。生成 APK 的低 `targetSdk` 只是 APK 打包层面的细节,不会带到 Play —— 你上传的是 AAB,导出器会给它写入符合 Play 要求的 `targetSdk`(当前 36)。
+WebView 类型可以导出 Play 级 AAB。Node.js、PHP、Python、Go、WordPress 不行:它们的 APK 被固定为 `targetSdk` 28 才能 fork+exec,而 Play 要求的级别会打开 W^X。APK 的 `targetSdk` 不会带到 Play —— 你上传的是 AAB,导出器会把它写成 36。
 
 | 应用类型 | Play AAB |
 | --- | --- |
@@ -37,5 +37,5 @@
 ## 说明
 
 - 你也可以从某个应用的[构建 APK](/zh/guide/app-actions/build-apk) 对话框直接针对该应用启动 AAB 导出。
-- 生成的 APK 默认保持 `targetSdk` 28(fork+exec 运行时所需);只有 AAB 会为 Play 重写。纯 WebView 应用类型可在 APK 导出设置中可选地提升独立 APK 的 `targetSdk`;见[构建 APK](/zh/guide/app-actions/build-apk)。
+- WebView APK 继承 shell 模板的 `targetSdk` 35(可在 APK 导出配置里覆盖)。服务端运行时 APK 固定为 28,并忽略自定义 target。minSdk 默认 23,可在同一抽屉里提高。只有 AAB 会为 Play 重写。见[构建 APK](/zh/guide/app-actions/build-apk)。
 - 导出前会显示上传前建议和警告。

@@ -118,12 +118,21 @@
 # Coroutines 调试 / 异常 hooks
 -keepnames class kotlinx.coroutines.flow.** { *; }
 
+# NOTE: do NOT keepnames kotlin.**/kotlinx.** here — feature stacks bundle
+# their own copies under original names; a renamed/partial template copy
+# would shadow the stack's complete one on the shared PathClassLoader.
+
 # ============================================================
 # 项目自身代码 — 防收缩，但允许混淆重命名
 # （开源 + 重反射：类全量保留；字段名固定以保护未注解的 Gson 字段）
 # ============================================================
 -keep,allowobfuscation class com.webtoapp.** { *; }
 -keepclassmembers class com.webtoapp.** { <fields>; }
+
+# Feature-stack 契约（issue #1115）：名字必须原样保留——注入的 stack DEX
+# 按源码名 implements/调用这些接口，改名后接口解析会落到 stack 自带的
+# 副本上，AdManager 的 `as?` 转型静默为 null，广告永远不显示。
+-keep class com.webtoapp.core.ads.api.** { *; }
 
 # data class 的合成构造器（含默认参数）— Gson 反序列化必须
 -keepclassmembers class com.webtoapp.data.model.** {
@@ -190,6 +199,9 @@
 -keep class org.mozilla.gecko.** { *; }
 -keepclassmembers class * extends org.mozilla.geckoview.GeckoSession$* { *; }
 -dontwarn org.mozilla.geckoview.**
+# GeckoView's bundled ExoPlayer references Checker Framework annotations.
+# Play Services used to pull those types in; the F-Droid flavor excludes GMS.
+-dontwarn org.checkerframework.**
 
 # ============================================================
 # ZXing — shell 未依赖，仅兜底

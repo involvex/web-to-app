@@ -92,6 +92,54 @@ class ApkBuildCacheTest {
     }
 
     @Test
+    fun `icon background color changes the identity fingerprint`() {
+        val context = RuntimeEnvironment.getApplication()
+        val cache = ApkBuildCache(context)
+        val template = File(context.cacheDir, "shell_icon_bg.apk").apply {
+            writeBytes(ByteArray(16) { 4 })
+        }
+        val config = ApkConfig(
+            meta = MetaBlock(
+                appName = "IconBg",
+                packageName = "com.demo.iconbg",
+                targetUrl = "https://example.com",
+                versionCode = 1,
+                versionName = "1.0",
+                appType = "WEB"
+            )
+        )
+
+        fun planFor(color: String?) = cache.plan(
+            webApp = com.webtoapp.data.model.WebApp(
+                id = 56,
+                name = "IconBg",
+                url = "https://example.com",
+                apkExportConfig = com.webtoapp.data.model.ApkExportConfig(
+                    iconBackgroundColor = color
+                )
+            ),
+            packageName = "com.demo.iconbg",
+            config = config,
+            templateApk = template,
+            encryptionEnabled = false,
+            abiFilters = emptyList(),
+            projectDirs = emptyList(),
+            mediaContentPath = null,
+            splashMediaPath = null,
+            bgmPlaylistPaths = emptyList(),
+            htmlFiles = emptyList(),
+            galleryItems = emptyList(),
+            errorPageMediaPath = null,
+            forceFullRebuild = false
+        )
+
+        assertThat(planFor("#FFFFFF").identityFingerprint)
+            .isNotEqualTo(planFor(null).identityFingerprint)
+        assertThat(planFor("#000000").identityFingerprint)
+            .isNotEqualTo(planFor("#FFFFFF").identityFingerprint)
+    }
+
+    @Test
     fun `SAEP toggle forces full rebuild both ways while unchanged policy reuses cache`() {
         val context = RuntimeEnvironment.getApplication()
         val cache = ApkBuildCache(context)
@@ -443,7 +491,71 @@ class ApkBuildCacheTest {
         val raisedPlan = cache.plan(
             webApp = webApp,
             packageName = "com.demo.webraised",
-            config = configWith(35),
+            config = configWith(34),
+            templateApk = template,
+            encryptionEnabled = false,
+            abiFilters = emptyList(),
+            projectDirs = emptyList(),
+            mediaContentPath = null,
+            splashMediaPath = null,
+            bgmPlaylistPaths = emptyList(),
+            htmlFiles = emptyList(),
+            galleryItems = emptyList(),
+            errorPageMediaPath = null,
+            nativeLibsFingerprint = null,
+            forceFullRebuild = false
+        )
+        assertThat(raisedPlan.identityFingerprint).isNotEqualTo(defaultPlan.identityFingerprint)
+    }
+
+    @Test
+    fun `minSdk override change forces full rebuild instead of reuse`() {
+        val context = RuntimeEnvironment.getApplication()
+        val cache = ApkBuildCache(context)
+        cache.clearAll()
+
+        val webApp = com.webtoapp.data.model.WebApp(
+            id = 34,
+            name = "WebMinRaised",
+            url = "https://example.com"
+        )
+        val template = File(context.cacheDir, "shell_msdk.apk").apply {
+            writeBytes(ByteArray(16) { 9 })
+        }
+
+        fun configWith(minSdkOverride: Int?) = ApkConfig(
+            meta = MetaBlock(
+                appName = "WebMinRaised",
+                packageName = "com.demo.webminraised",
+                targetUrl = "https://example.com",
+                versionCode = 1,
+                versionName = "1.0",
+                appType = "WEB",
+                minSdkOverride = minSdkOverride
+            )
+        )
+
+        val defaultPlan = cache.plan(
+            webApp = webApp,
+            packageName = "com.demo.webminraised",
+            config = configWith(null),
+            templateApk = template,
+            encryptionEnabled = false,
+            abiFilters = emptyList(),
+            projectDirs = emptyList(),
+            mediaContentPath = null,
+            splashMediaPath = null,
+            bgmPlaylistPaths = emptyList(),
+            htmlFiles = emptyList(),
+            galleryItems = emptyList(),
+            errorPageMediaPath = null,
+            nativeLibsFingerprint = null,
+            forceFullRebuild = false
+        )
+        val raisedPlan = cache.plan(
+            webApp = webApp,
+            packageName = "com.demo.webminraised",
+            config = configWith(26),
             templateApk = template,
             encryptionEnabled = false,
             abiFilters = emptyList(),

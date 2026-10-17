@@ -48,7 +48,7 @@ features:
 
 1. **Pick a type**
 
-   Choose from [12 app types](/guide/app-types/) — a plain [Web](/guide/app-types/web) wrapper, [HTML](/guide/app-types/html) or [Frontend](/guide/app-types/frontend) builds, or on-device [Node.js](/guide/app-types/nodejs), [PHP](/guide/app-types/php), [Python](/guide/app-types/python), [Go](/guide/app-types/go), [WordPress](/guide/app-types/wordpress) servers.
+   Choose from [12 app types](/guide/app-types/) — a plain [Web](/guide/app-types/web) wrapper, [HTML](/guide/app-types/html) or [Frontend](/guide/app-types/frontend) builds, or on-device [Node.js](/guide/app-types/nodejs), [PHP](/guide/app-types/php), [Python](/guide/app-types/python), [Go](/guide/app-types/go), [WordPress](/guide/app-types/wordpress) servers. The server and image/video types stay hidden until [About → Advanced features](/guide/more-features/about) is on.
 
 2. **Fill in the basics**
 
@@ -56,7 +56,7 @@ features:
 
 3. **Build and share**
 
-   [Build APK](/guide/app-actions/build-apk) signs on-device with V1/V2/V3, then [share](/guide/app-actions/share-apk) it or [export a Play-ready AAB](/guide/app-actions/export-apk). No PC, no build queue.
+   [Build APK](/guide/app-actions/build-apk) signs on-device with V1/V2/V3, then [share](/guide/app-actions/share-apk) it, [export its source](/guide/app-actions/export-apk), or [export a Play-ready AAB](/guide/more-features/google-play). No PC, no build queue.
 
 </div>
 
@@ -122,13 +122,13 @@ Image and video players, albums, and portfolios as standalone apps.
 
 [**Agent**](/guide/more-features/agent)
 
-A tool-calling assistant with up to 57 built-in tools that can build, edit, and operate the whole app.
+A tool-calling assistant with up to 60 built-in tools that can build, edit, and operate the whole app.
 
 </div>
 
 <div class="wta-tile">
 
-[**Extension modules**](/guide/more-features/extension-modules)
+[**Manage Plugins**](/guide/more-features/extension-modules)
 
 Inject JS/CSS, userscripts, or MV3 Chrome extensions into any generated app.
 
@@ -174,7 +174,7 @@ Clone and rebrand installed APKs, batch-import definitions, export templates.
 
 <div class="wta-stat"><b>12</b><span>app types</span></div>
 
-<div class="wta-stat"><b>57</b><span>agent tools max</span></div>
+<div class="wta-stat"><b>60</b><span>agent tools max</span></div>
 
 <div class="wta-stat"><b>10</b><span>UI languages</span></div>
 
@@ -182,7 +182,7 @@ Clone and rebrand installed APKs, batch-import definitions, export templates.
 
 </div>
 
-The builder does its own binary patching — AXML/ARSC rewriting, permission pruning, AES-256-GCM resource encryption, 16 KB page-aligned native libraries — and keeps a low targetSdk shell so fork+exec runtimes keep working. The [developer docs](/developer/architecture) cover the full export pipeline.
+The builder does its own binary patching — AXML/ARSC rewriting, permission pruning, AES-256-GCM resource encryption, 16 KB page-aligned native libraries — and ships a `targetSdk` 35 shell runtime. The [developer docs](/developer/architecture) cover the full export pipeline.
 
 <div class="wta-cta">
 

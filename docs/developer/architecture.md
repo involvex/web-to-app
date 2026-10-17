@@ -37,7 +37,7 @@ Miss any step and you get one of three symptoms: the editor shows a switch that 
 
 ## One shell template
 
-There is exactly **one** shell template: `webview_shell.apk` from `:shell` release. Do not introduce a second template APK. Generated apps keep a low `targetSdk` (28) on the shell path because they rely on on-device fork+exec runtimes — do not raise shell `targetSdk` casually.
+There is exactly **one** shell template: `webview_shell.apk` from `:shell` release. Do not introduce a second template APK. The shell ships `minSdk` 23 / `targetSdk` 35 and the synced runtime is adapted to target 35 (runtime permissions, FGS types, exact-alarm fallback) — keep those paths working if the value moves again. `ApkExportConfig.targetSdk` can pin a different target per app; `ApkExportConfig.minSdk` can raise the floor (never below 23).
 
 ## Configuration center
 
@@ -45,4 +45,4 @@ The single source of truth for all feature settings is `WebApp` (`data/model/Web
 
 ## Dependency policy
 
-Avoid new third-party dependencies unless strongly justified (`app/build.gradle.kts` / `shell/build.gradle.kts`). Prefer platform APIs and existing modules. The shell has a thin dependency set and a low `targetSdk` — keep it that way.
+Avoid new third-party dependencies unless strongly justified (`app/build.gradle.kts` / `shell/build.gradle.kts`). Prefer platform APIs and existing modules. The shell has a thin dependency set — keep it that way.

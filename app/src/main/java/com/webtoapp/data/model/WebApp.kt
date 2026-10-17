@@ -136,17 +136,28 @@ data class WebApp(
     val categoryId: Long? = null,
 
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+
+    /**
+     * Home-list slot when the user sorts by custom order. Lower is higher on
+     * screen. Writes must not stamp [updatedAt]. A new row stays 0 so it sorts
+     * ahead of migrated rows that share 0: custom order breaks ties by id
+     * descending. Backup restore copies the value through as-is.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val homeSortIndex: Int = 0
 )
 
 data class AdConfig(
+    val appId: String = "",
     val bannerEnabled: Boolean = false,
     val bannerId: String = "",
     val interstitialEnabled: Boolean = false,
     val interstitialId: String = "",
     val splashEnabled: Boolean = false,
     val splashId: String = "",
-    val splashDuration: Int = 3
+    val splashDuration: Int = 3,
+    val testMode: Boolean = false
 )
 
 enum class AnnouncementTemplateType {
@@ -323,6 +334,13 @@ data class WebViewConfig(
     val zoomEnabled: Boolean = true,
     val swipeRefreshEnabled: Boolean = true,
     val swipeRefreshZone: SwipeRefreshZone = SwipeRefreshZone.TOP_EDGE,
+    /**
+     * System edge effect when the document scrolls past its end. On Android 12+
+     * that effect stretches the whole WebView, including `position: fixed`
+     * chrome. Off stops at the edge. Default on keeps the platform behavior
+     * for existing apps (#1193). A page's own scripted bounce is unchanged.
+     */
+    val overscrollEffectEnabled: Boolean = true,
     val autoRefreshEnabled: Boolean = false,
     val autoRefreshIntervalSec: Int = 60,
     val autoRefreshShowCountdown: Boolean = true,
@@ -383,11 +401,12 @@ data class WebViewConfig(
     val popupBlockerToggleEnabled: Boolean = false,
 
     val initialScale: Int = 0,
-    // Build-time per-app page zoom in percent (100 = default), applied via initialScale
-    // (whole-page scaling: text AND layout/images) on every run (#654). This is THE page
-    // zoom for the app — the tool was transferred from the runtime hidden toolbar into
-    // the editor's Advanced Settings, so there is no runtime override layer anymore.
-    // 0 (legacy data) is treated as 100.
+    // Build-time per-app page zoom in percent (100 = default). A document-start
+    // script rewrites the viewport (layout width = cssWidth / zoom) so text,
+    // layout, images, and canvas scale together (#654, #1264). setInitialScale
+    // loses to the page's own viewport meta and is not the mechanism.
+    // This is THE page zoom — it moved from the runtime toolbar into Advanced
+    // Settings, so there is no runtime override layer. 0 (legacy) is 100.
     val pageZoomPercent: Int = 100,
     val viewportMode: ViewportMode = ViewportMode.DEFAULT,
     val customViewportWidth: Int = 0,
@@ -460,6 +479,13 @@ data class WebViewConfig(
      * hand-off, at the cost of the user no longer being able to pick something else.
      */
     val sharePromptBeforeUse: Boolean = true,
+
+    /**
+     * Toast on inbound share / open-with ("use the page's upload button"). Pages that
+     * listen for `wta:share` and upload themselves do not need it. Forced off when
+     * [shareDeliveryMode] is [ShareDeliveryMode.JS_EVENT] — that toast would be a lie.
+     */
+    val shareShowReceivedToast: Boolean = true,
 
     val enableZoomPolyfill: Boolean = true,
     val enableCrossOriginIsolation: Boolean = false,
@@ -1025,10 +1051,19 @@ data class MultiWebConfig(
     val displayMode: String = "TABS",
     val refreshInterval: Int = 30,
     val showSiteIcons: Boolean = true,
+    // A missing key keeps these defaults. The shell also treats a raw 0 as the
+    // historical layout (2 card columns, 1 drawer column, aspect 1.2).
+    val cardColumns: Int = 2,
+    val drawerColumns: Int = 1,
+    val cardAspectRatio: Float = 1.2f,
     // Inverted storage: stored JSON predating this field deserializes to false,
     // so existing and new apps both default to "sites follow the parent config".
     val sitesUseOwnConfig: Boolean = false,
-    val projectId: String = ""
+    val projectId: String = "",
+    // LAST reopens the site from the last session. SITE opens startSiteId.
+    // A missing key stays LAST so existing apps keep resuming.
+    val startTab: String = "LAST",
+    val startSiteId: String = ""
 )
 
 data class MultiWebSite(
@@ -1081,7 +1116,7 @@ data class HtmlConfig(
     val enableLocalStorage: Boolean = true,
     val allowFileAccess: Boolean = true,
     val backgroundColor: String = "#FFFFFF",
-    val loadMode: HtmlLoadMode = HtmlLoadMode.FILE,
+    val loadMode: HtmlLoadMode = HtmlLoadMode.AUTO,
     val port: Int = 0,
     val portConflictMode: PortConflictMode = PortConflictMode.AUTO_KILL
 ) {
@@ -1244,7 +1279,14 @@ data class BgmConfig(
     val volume: Float = 0.5f,
     val autoPlay: Boolean = true,
     val showLyrics: Boolean = true,
-    val lrcTheme: LrcTheme? = null
+    val lrcTheme: LrcTheme? = null,
+    /**
+     * Null means the author never saved the switch. Playback treats that as
+     * on, so an older app gains controls until one of them is turned off.
+     * The two players are independent: both, either, or neither.
+     */
+    val showFloatingPlayer: Boolean? = null,
+    val showNotificationPlayer: Boolean? = null
 )
 
 enum class ApkArchitecture(
@@ -1298,15 +1340,22 @@ data class ApkExportConfig(
     /**
      * Override the generated APK's `targetSdkVersion` (manifest `<uses-sdk>`).
      *
-     * Why: the shell template ships targetSdk = 28 because fork+exec server runtimes
-     * (Node/PHP/Python/Go/WordPress) need it — targetSdk >= 29 enforces W^X on the app's
-     * writable data dir and blocks execve of the bundled binaries. WebView-only app types
-     * don't need that capability, so they can raise targetSdk for Play Store compliance.
-     *
-     * Enforced: server-runtime app types (`AppType.requiresProcessExec`) ignore this field
-     * and always stay at 28. `null`/`<= 0` means "leave the template's 28 alone".
+     * Why: the shell template ships targetSdk = 35; this pins a different value for
+     * compat or store requirements. Server-runtime types (`AppType.requiresProcessExec`)
+     * ignore it and are pinned to 28 so bundled binaries can execve. `null`/`<= 0`
+     * means "leave the template's 35 alone" for every other type. Values outside
+     * 23..36 are clamped at export; the editor offers a whitelist of chips.
      */
     val targetSdk: Int? = null,
+
+    /**
+     * Override the generated APK's `minSdkVersion` (manifest `<uses-sdk>`).
+     *
+     * Raise-only: the shell DEX is compiled at minSdk 23, so a lower value would
+     * install on devices that then crash. `null`/`<= 0` keeps the template's 23.
+     * Export clamps to `23..effectiveTargetSdk`.
+     */
+    val minSdk: Int? = null,
 
     /**
      * Sign this app with a dedicated, per-package identity instead of the host-wide signer.
@@ -1324,6 +1373,14 @@ data class ApkExportConfig(
      * the generated app's shell config JSON.
      */
     val forceFullRebuild: Boolean = false,
+
+    /**
+     * Solid plate behind the adaptive launcher icon. `null` means derive from the
+     * image (opaque icons keep their border color; transparent icons use white).
+     * Hex `#RRGGBB` / `#AARRGGBB`. Host-side export only — not written into the
+     * generated app's shell config JSON.
+     */
+    val iconBackgroundColor: String? = null,
 
     /**
      * When the target package is already installed on this device with a higher
@@ -1367,6 +1424,7 @@ data class ApkRuntimePermissions(
     val bluetooth: Boolean = false,
     val nfc: Boolean = false,
     val wifiState: Boolean = false,
+    val nearbyWifiDevices: Boolean = false,
 
     val bodySensors: Boolean = false,
     val activityRecognition: Boolean = false,
@@ -1391,7 +1449,17 @@ data class ApkRuntimePermissions(
     val vibration: Boolean = false,
     val installPackages: Boolean = false,
     val requestDeletePackages: Boolean = false,
-    val systemAlertWindow: Boolean = false
+    val systemAlertWindow: Boolean = false,
+    val backgroundLocation: Boolean = false,
+    val queryAllPackages: Boolean = false,
+    /**
+     * Per-permission overrides keyed by [ExportPermissionCatalog] id.
+     * Null (missing JSON, or no override) means "follow the boolean bundles
+     * and feature defaults". An explicit false wins over both, so a row can
+     * be turned off without clearing the legacy bundle that still covers its
+     * siblings. Gson leaves this null on configs saved before the field existed.
+     */
+    val grants: Map<String, Boolean>? = null
 ) {
     /**
      * Permissions enabled in this set but NOT in [auto] — i.e. permissions the user added
@@ -1412,6 +1480,7 @@ data class ApkRuntimePermissions(
         bluetooth = bluetooth && !auto.bluetooth,
         nfc = nfc && !auto.nfc,
         wifiState = wifiState && !auto.wifiState,
+        nearbyWifiDevices = nearbyWifiDevices && !auto.nearbyWifiDevices,
         bodySensors = bodySensors && !auto.bodySensors,
         activityRecognition = activityRecognition && !auto.activityRecognition,
         readPhoneState = readPhoneState && !auto.readPhoneState,
@@ -1433,7 +1502,9 @@ data class ApkRuntimePermissions(
         vibration = vibration && !auto.vibration,
         installPackages = installPackages && !auto.installPackages,
         requestDeletePackages = requestDeletePackages && !auto.requestDeletePackages,
-        systemAlertWindow = systemAlertWindow && !auto.systemAlertWindow
+        systemAlertWindow = systemAlertWindow && !auto.systemAlertWindow,
+        backgroundLocation = backgroundLocation && !auto.backgroundLocation,
+        queryAllPackages = queryAllPackages && !auto.queryAllPackages
     )
 }
 
@@ -1832,7 +1903,9 @@ enum class DownloadLocationMode {
 
     APP_PRIVATE,
 
-    CUSTOM
+    CUSTOM,
+
+    ASK
 }
 
 enum class PrimeUserActivationMode {

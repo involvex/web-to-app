@@ -12,7 +12,9 @@ import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webtoapp.R
+import com.webtoapp.core.host.HostRuntimePrefs
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.design.WtaScreen
 import com.webtoapp.ui.design.WtaSection
@@ -21,6 +23,7 @@ import com.webtoapp.ui.design.WtaSettingCard
 import com.webtoapp.ui.design.WtaSettingRow
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaToggleRow
+import com.webtoapp.ui.theme.ifDescriptionsShown
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -62,7 +65,7 @@ fun MoreScreen(
                         }
                         WtaToggleRow(
                             title = Strings.rememberCategoryFilter,
-                            subtitle = Strings.rememberCategoryFilterDesc,
+                            subtitle = Strings.rememberCategoryFilterDesc.ifDescriptionsShown(),
                             checked = rememberCategory,
                             onCheckedChange = {
                                 rememberCategory = it
@@ -89,9 +92,12 @@ fun MoreScreen(
                 }
 
                 WtaSection(title = Strings.moreSectionDevTools) {
+                    val advancedFeatures by HostRuntimePrefs.getInstance(LocalContext.current)
+                        .advancedFeaturesFlow
+                        .collectAsStateWithLifecycle()
                     WtaSettingCard {
                         MoreMenuItem(
-                            title = Strings.pluginsTitle,
+                            title = Strings.pluginsManageTitle,
                             icon = painterResource(R.drawable.ic_sidebar_extensions),
                             onClick = onOpenPlugins
                         )
@@ -101,24 +107,26 @@ fun MoreScreen(
                             icon = painterResource(R.drawable.ic_sidebar_app_modifier),
                             onClick = onOpenAppModifier
                         )
-                        WtaSectionDivider()
-                        MoreMenuItem(
-                            title = Strings.menuLinuxEnvironment,
-                            icon = painterResource(R.drawable.ic_sidebar_linux),
-                            onClick = onOpenLinuxEnvironment
-                        )
-                        WtaSectionDivider()
-                        MoreMenuItem(
-                            title = Strings.menuRuntimeDeps,
-                            icon = painterResource(R.drawable.ic_sidebar_runtime),
-                            onClick = onOpenRuntimeDeps
-                        )
-                        WtaSectionDivider()
-                        MoreMenuItem(
-                            title = Strings.menuPortManager,
-                            icon = painterResource(R.drawable.ic_sidebar_port),
-                            onClick = onOpenPortManager
-                        )
+                        if (advancedFeatures) {
+                            WtaSectionDivider()
+                            MoreMenuItem(
+                                title = Strings.menuLinuxEnvironment,
+                                icon = painterResource(R.drawable.ic_sidebar_linux),
+                                onClick = onOpenLinuxEnvironment
+                            )
+                            WtaSectionDivider()
+                            MoreMenuItem(
+                                title = Strings.menuRuntimeDeps,
+                                icon = painterResource(R.drawable.ic_sidebar_runtime),
+                                onClick = onOpenRuntimeDeps
+                            )
+                            WtaSectionDivider()
+                            MoreMenuItem(
+                                title = Strings.menuPortManager,
+                                icon = painterResource(R.drawable.ic_sidebar_port),
+                                onClick = onOpenPortManager
+                            )
+                        }
                     }
                 }
 

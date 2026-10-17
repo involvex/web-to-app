@@ -20,10 +20,14 @@ import org.mozilla.geckoview.StorageController
 import org.mozilla.geckoview.WebRequestError
 import org.mozilla.geckoview.WebResponse
 import org.mozilla.geckoview.WebExtension
+import org.mozilla.geckoview.WebExtensionController
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.roundToInt
 import org.mozilla.geckoview.MediaSession as GeckoMediaSession
 
 data class ProxyConfig(
@@ -66,44 +70,262 @@ class GeckoViewEngine(
         private var nativeBridgeExtension: WebExtension? = null
 
         @Volatile
-        private var activeNativeBridge: com.webtoapp.core.webview.NativeBridge? = null
+        private var nativeBridgeInstallStarted = false
 
+        @Volatile
+        private var nativeBridgeInstallFailed = false
+
+        /**
+         * One bridge per [GeckoSession]. The extension is installed once on the
+         * shared runtime and its content script runs in every session, so a
+         * single process-wide bridge would authorize one site's fetch as
+         * another's page (#1206).
+         */
+        private val bridgesBySession =
+            java.util.concurrent.ConcurrentHashMap<GeckoSession, com.webtoapp.core.webview.NativeBridge>()
+
+        /**
+         * Sessions waiting until the built-in extension is installed and its
+         * content-script delegate is attached. The first document must not
+         * start before that: a profile left by an older build still injects
+         * the previous content script at document_start (#1242).
+         */
+        private val readyListeners =
+            java.util.concurrent.ConcurrentHashMap<GeckoSession, Runnable>()
+
+        private const val NATIVE_BRIDGE_ID = "wta-native-bridge@webtoapp"
+        private const val NATIVE_BRIDGE_LOCATION =
+            "resource://android/assets/web_extensions/wta_native_bridge/"
         private const val NATIVE_BRIDGE_APP = "wta_native_bridge"
 
-        fun ensureNativeBridgeExtension(runtime: GeckoRuntime): WebExtension? {
-            nativeBridgeExtension?.let { return it }
-            synchronized(this) {
-                nativeBridgeExtension?.let { return it }
-                val url = "resource://android/assets/web_extensions/wta_native_bridge/"
-                val controller = runtime.webExtensionController
-                val installResult = controller.installBuiltIn(url)
-                installResult.accept { ext ->
-                    ext?.setMessageDelegate(object : WebExtension.MessageDelegate {
-                        override fun onMessage(
-                            nativeApp: String,
-                            message: Any,
-                            sender: WebExtension.MessageSender
-                        ): GeckoResult<Any>? {
-                            val bridge = activeNativeBridge
-                            if (bridge == null) {
-                                return GeckoResult.fromValue(errorJson("REQUEST_FAILED", "Native bridge not ready"))
-                            }
-                            val requestJson = when (message) {
-                                is String -> message
-                                else -> message.toString()
-                            }
-                            return try {
-                                val response = bridge.httpRequest(requestJson)
-                                GeckoResult.fromValue(response)
-                            } catch (e: Exception) {
-                                GeckoResult.fromValue(errorJson("REQUEST_FAILED", e.message ?: e::class.java.simpleName))
-                            }
-                        }
-                    }, NATIVE_BRIDGE_APP)
-                    nativeBridgeExtension = ext
-                    AppLogger.d(TAG, "Native bridge WebExtension installed")
+        private val nativeBridgeMessageDelegate = object : WebExtension.MessageDelegate {
+            override fun onMessage(
+                nativeApp: String,
+                message: Any,
+                sender: WebExtension.MessageSender
+            ): GeckoResult<Any>? {
+                val bridge = sender.session?.let { bridgesBySession[it] }
+                if (bridge == null) {
+                    return GeckoResult.fromValue(errorJson("REQUEST_FAILED", "Native bridge not ready"))
                 }
-                return null
+                val requestJson = when (message) {
+                    is String -> message
+                    else -> message.toString()
+                }
+                // onMessage runs on the UI thread. The blocking OkHttp call has to
+                // leave it, or Android throws NetworkOnMainThreadException and the
+                // page fetch fails (#1283).
+                return dispatchGeckoNativeHttp(nativeBridgeHttpScope) {
+                    bridge.httpRequest(requestJson)
+                }
+            }
+        }
+
+        private val nativeBridgeHttpScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /**
+         * Runs a native-bridge HTTP call off the UI thread and completes the
+         * [GeckoResult] Gecko is waiting on. [perform] is the bridge's blocking
+         * `httpRequest` for production callers.
+         */
+        internal fun dispatchGeckoNativeHttp(
+            scope: CoroutineScope,
+            perform: () -> String
+        ): GeckoResult<Any> {
+            val result = GeckoResult<Any>()
+            scope.launch(Dispatchers.IO) {
+                val response = try {
+                    perform()
+                } catch (e: Exception) {
+                    errorJson("REQUEST_FAILED", e.message ?: e::class.java.simpleName)
+                }
+                try {
+                    result.complete(response)
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "Native bridge response dropped: ${e.message}")
+                }
+            }
+            return result
+        }
+
+        private fun bindNativeBridge(session: GeckoSession, bridge: com.webtoapp.core.webview.NativeBridge) {
+            bridgesBySession[session] = bridge
+        }
+
+        private fun unbindNativeBridge(session: GeckoSession) {
+            bridgesBySession.remove(session)
+            readyListeners.remove(session)
+            val extension = nativeBridgeExtension ?: return
+            try {
+                session.webExtensionController.setMessageDelegate(extension, null, NATIVE_BRIDGE_APP)
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Clearing native bridge delegate failed: ${e.message}")
+            }
+        }
+
+        /**
+         * Installs the CORS bridge and keeps it privileged across process
+         * restarts. [WebExtensionController.installBuiltIn] updates an
+         * extension when its manifest version increases, so 1.0 profiles pick
+         * up [nativeMessagingFromContent]. Copies installed before the
+         * extension had an id are uninstalled first; otherwise both content
+         * scripts inject and the old one still lacks sendNativeMessage.
+         *
+         * Content-script messages are delivered only through
+         * [GeckoSession.getWebExtensionController], not the extension-level
+         * delegate (that one is for a background script, which this extension
+         * does not have).
+         */
+        fun ensureNativeBridgeExtension(runtime: GeckoRuntime) {
+            if (nativeBridgeExtension != null || nativeBridgeInstallStarted) return
+            synchronized(this) {
+                if (nativeBridgeExtension != null || nativeBridgeInstallStarted) return
+                nativeBridgeInstallStarted = true
+                installNativeBridge(runtime.webExtensionController)
+            }
+        }
+
+        private fun installNativeBridge(controller: WebExtensionController) {
+            controller.list().accept(
+                { installed ->
+                    removeForeignBridges(controller, installed ?: emptyList()) {
+                        installBuiltInBridge(controller)
+                    }
+                },
+                { error ->
+                    AppLogger.w(TAG, "WebExtension list failed, installing bridge anyway: ${error?.message}")
+                    installBuiltInBridge(controller)
+                }
+            )
+        }
+
+        private fun installBuiltInBridge(controller: WebExtensionController) {
+            controller.installBuiltIn(NATIVE_BRIDGE_LOCATION).accept(
+                { extension ->
+                    if (extension == null) {
+                        onNativeBridgeInstallFailed(IllegalStateException("installBuiltIn returned null"))
+                        return@accept
+                    }
+                    controller.list().accept(
+                        { installed ->
+                            removeForeignBridges(controller, installed ?: emptyList()) {
+                                onNativeBridgeInstalled(extension)
+                            }
+                        },
+                        { error ->
+                            AppLogger.w(TAG, "WebExtension list after install failed: ${error?.message}")
+                            onNativeBridgeInstalled(extension)
+                        }
+                    )
+                },
+                { error ->
+                    onNativeBridgeInstallFailed(
+                        error ?: IllegalStateException("native bridge install failed")
+                    )
+                }
+            )
+        }
+
+        private fun isForeignNativeBridge(extension: WebExtension): Boolean {
+            if (extension.id == NATIVE_BRIDGE_ID) return false
+            // list() leaves location empty and puts the install URI in metaData.downloadUrl.
+            val meta = extension.metaData
+            val downloadUrl = meta?.downloadUrl.orEmpty()
+            return meta?.name == "WTA Native Bridge" ||
+                downloadUrl.contains("wta_native_bridge") ||
+                extension.location.contains("wta_native_bridge")
+        }
+
+        private fun removeForeignBridges(
+            controller: WebExtensionController,
+            installed: List<WebExtension>,
+            then: () -> Unit
+        ) {
+            val stale = installed.filter { isForeignNativeBridge(it) }
+            if (stale.isEmpty()) {
+                then()
+                return
+            }
+            val remaining = java.util.concurrent.atomic.AtomicInteger(stale.size)
+            fun finished() {
+                if (remaining.decrementAndGet() == 0) then()
+            }
+            stale.forEach { extension ->
+                AppLogger.i(TAG, "Removing stale native bridge ${extension.id}")
+                controller.uninstall(extension).accept(
+                    { _ -> finished() },
+                    { error ->
+                        AppLogger.w(TAG, "Uninstall stale native bridge ${extension.id} failed: ${error?.message}")
+                        controller.disable(extension, WebExtensionController.EnableSource.APP).accept(
+                            { _ -> finished() },
+                            { disableError ->
+                                AppLogger.w(
+                                    TAG,
+                                    "Disable stale native bridge ${extension.id} failed: ${disableError?.message}"
+                                )
+                                finished()
+                            }
+                        )
+                    }
+                )
+            }
+        }
+
+        private fun onNativeBridgeInstalled(extension: WebExtension) {
+            onMain {
+                nativeBridgeExtension = extension
+                AppLogger.d(TAG, "Native bridge WebExtension installed id=${extension.id}")
+                bridgesBySession.keys.toList().forEach { session ->
+                    attachNativeBridgeDelegate(session, extension)
+                }
+                val listeners = readyListeners.toMap()
+                readyListeners.clear()
+                listeners.values.forEach { it.run() }
+            }
+        }
+
+        private fun onNativeBridgeInstallFailed(error: Throwable) {
+            AppLogger.e(TAG, "Native bridge WebExtension install failed", error)
+            onMain {
+                nativeBridgeInstallFailed = true
+                val listeners = readyListeners.toMap()
+                readyListeners.clear()
+                listeners.values.forEach { it.run() }
+            }
+        }
+
+        private fun whenNativeBridgeReady(session: GeckoSession, onReady: () -> Unit) {
+            onMain {
+                val extension = nativeBridgeExtension
+                if (extension != null) {
+                    attachNativeBridgeDelegate(session, extension)
+                    onReady()
+                } else if (nativeBridgeInstallFailed) {
+                    onReady()
+                } else {
+                    readyListeners[session] = Runnable { onReady() }
+                }
+            }
+        }
+
+        private fun attachNativeBridgeDelegate(session: GeckoSession, extension: WebExtension) {
+            try {
+                session.webExtensionController.setMessageDelegate(
+                    extension,
+                    nativeBridgeMessageDelegate,
+                    NATIVE_BRIDGE_APP
+                )
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Attaching native bridge delegate failed: ${e.message}")
+            }
+        }
+
+        private fun onMain(block: () -> Unit) {
+            val main = android.os.Looper.getMainLooper()
+            if (android.os.Looper.myLooper() == main) {
+                block()
+            } else {
+                android.os.Handler(main).post(block)
             }
         }
 
@@ -119,7 +341,38 @@ class GeckoViewEngine(
             val ech = currentDnsConfig?.echEffective == true
             val proxy = currentProxyConfig?.let { buildProxyPrefs(it) } ?: emptyMap()
             val proxyKey = proxy.entries.joinToString(",") { "${it.key}=${it.value}" }
-            return "ech=$ech|proxy=$proxyKey|tlsMitm=$tlsMitmActive|enterpriseRoots=$enterpriseRootsEnabled|antiCapture=$antiCaptureActive|autoplay=$autoplayAllowed"
+            return "ech=$ech|proxy=$proxyKey|tlsMitm=$tlsMitmActive|enterpriseRoots=$enterpriseRootsEnabled|antiCapture=$antiCaptureActive|autoplay=$autoplayAllowed|overscroll=$overscrollEffectEnabled"
+        }
+
+        fun hasLiveRuntime(): Boolean = sharedRuntime != null
+
+        /**
+         * Clears the live Gecko profile and holds shell navigation until
+         * [StorageController.clearData] finishes. [clearData] returns a
+         * [GeckoResult]; loading the page before it completes replays the
+         * previous cookies and site storage.
+         */
+        fun clearStoredDataHoldingNavigation() {
+            val runtime = sharedRuntime ?: return
+            val ticket = com.webtoapp.core.webview.WebViewManager.openFreshSessionGate()
+            try {
+                runtime.storageController.clearData(StorageController.ClearFlags.ALL)
+                    .finally_ {
+                        val closeGate = Runnable {
+                            com.webtoapp.core.webview.WebViewManager.closeFreshSessionGate(ticket)
+                        }
+                        val main = android.os.Looper.getMainLooper()
+                        if (android.os.Looper.myLooper() == main) {
+                            closeGate.run()
+                        } else {
+                            android.os.Handler(main).post(closeGate)
+                        }
+                    }
+                AppLogger.i(TAG, "Cleared browsing data on launch (clearBrowsingDataOnLaunch)")
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "clearBrowsingDataOnLaunch failed: ${e.message}")
+                com.webtoapp.core.webview.WebViewManager.closeFreshSessionGate(ticket)
+            }
         }
 
         fun getRuntime(context: Context): GeckoRuntime {
@@ -210,6 +463,21 @@ class GeckoViewEngine(
         fun applyAutoplayPolicy(allowed: Boolean) {
             autoplayAllowed = allowed
             AppLogger.d(TAG, "applyAutoplayPolicy: allowed=$allowed")
+        }
+
+        @Volatile
+        private var overscrollEffectEnabled: Boolean = true
+
+        /**
+         * Gecko draws its own edge stretch ([org.mozilla.geckoview.OverscrollEdgeEffect]);
+         * [android.view.View.setOverScrollMode] on the GeckoView does not reach it.
+         * `apz.overscroll.enabled` drops the excess scroll instead. Like autoplay,
+         * the pref is read when the runtime is created, so it is part of the
+         * runtime fingerprint.
+         */
+        fun applyOverscrollEffect(enabled: Boolean) {
+            overscrollEffectEnabled = enabled
+            AppLogger.d(TAG, "applyOverscrollEffect: enabled=$enabled")
         }
 
         fun applyEnterpriseRootsEnabled(enabled: Boolean) {
@@ -333,6 +601,9 @@ class GeckoViewEngine(
             // media.autoplay.default: 0 = allow, 1 = block audible without user gesture
             // (Firefox's own default). Mirrors WebView's mediaPlaybackRequiresUserGesture.
             prefs["media.autoplay.default"] = if (autoplayAllowed) 0 else 1
+            // false discards scroll that cannot be handed off, so the page stops
+            // at the edge instead of stretching (#1193).
+            prefs["apz.overscroll.enabled"] = overscrollEffectEnabled
 
             if (antiCaptureActive) {
                 prefs["security.enterprise_roots.enabled"] = false
@@ -425,7 +696,14 @@ class GeckoViewEngine(
                 AppLogger.d(TAG, "GeckoView configFilePath set: $configFilePath (ech=${currentDnsConfig?.echEffective == true}, proxy=${currentProxyConfig?.mode ?: "NONE"})")
             }
 
-            return GeckoRuntime.create(context, settingsBuilder.build())
+            // Host APKs carry no gecko natives/omni.ja (downloaded on demand):
+            // graft+preload the downloaded libs and hand Gecko a context whose
+            // getPackageResourcePath() resolves to a packaged-style omnijar
+            // container (assets/omni.ja inside a zip).
+            return GeckoRuntime.create(
+                GeckoRuntimeProvisioner.prepareRuntime(context),
+                settingsBuilder.build()
+            )
         }
 
         private fun clearGeckoProfileDir(context: Context) {
@@ -454,6 +732,15 @@ class GeckoViewEngine(
     private var geckoView: GeckoView? = null
     private var session: GeckoSession? = null
     private var callback: BrowserEngineCallback? = null
+    private var nativeBridge: com.webtoapp.core.webview.NativeBridge? = null
+
+    /**
+     * False until this session's content-script delegate is attached, or the
+     * install has failed. [loadUrl] holds the first document so a stale
+     * profile extension cannot inject first (#1242).
+     */
+    private var nativeBridgeReady = false
+    private var pendingLoadUrl: String? = null
 
     /**
      * Media session delegate to re-attach on every session (re)creation —
@@ -461,6 +748,12 @@ class GeckoViewEngine(
      * once would be lost (#593).
      */
     private var mediaSessionDelegate: GeckoMediaSession.Delegate? = null
+
+    /**
+     * Navigation writes this on the UI thread. The CORS bridge reads it from
+     * the IO dispatcher while classifying the caller page (#1283).
+     */
+    @Volatile
     private var currentUrl: String? = null
     private var currentTitle: String? = null
     private var canGoBackFlag = false
@@ -471,6 +764,17 @@ class GeckoViewEngine(
     private var lastGeckoViewportMode: Int = GeckoSessionSettings.VIEWPORT_MODE_MOBILE
     private var lastAllowJavascript: Boolean = true
     private var lastUserAgentOverride: String? = null
+    /** URL we already injected page zoom into, so a javascript: eval cannot loop. */
+    private var pageZoomInjectedUrl: String? = null
+
+    /**
+     * True while the session is detached from its GeckoView for a hidden
+     * multi-web tab (#1161). Crash recovery must not re-attach it — the tab
+     * binds the display again on the next setDisplayVisible(true).
+     * A covered tab also sets the view to [View.GONE] so the SurfaceView
+     * actually leaves the compositor (#1192).
+     */
+    private var displayDetached = false
 
     private var bridgeScope: kotlinx.coroutines.CoroutineScope? = null
 
@@ -492,6 +796,7 @@ class GeckoViewEngine(
         // Doing this before ensureRuntimeForConfig also keeps a stale session
         // owned by this engine from counting against the recreate decision.
         session?.let { old ->
+            unbindNativeBridge(old)
             try { old.close() } catch (_: Exception) {}
             liveSessions.remove(old)
             session = null
@@ -501,6 +806,7 @@ class GeckoViewEngine(
 
         this.callback = callback
         this.lastConfig = config
+        pageZoomInjectedUrl = null
 
         val echInfo = if (config.dnsMode != "SYSTEM") {
             applyDnsConfig(config.dnsConfig)
@@ -515,12 +821,7 @@ class GeckoViewEngine(
         val runtime = getRuntime(context)
 
         if (config.clearBrowsingDataOnLaunch) {
-            try {
-                runtime.storageController.clearData(StorageController.ClearFlags.ALL)
-                AppLogger.i(TAG, "Cleared browsing data on launch (clearBrowsingDataOnLaunch)")
-            } catch (e: Exception) {
-                AppLogger.w(TAG, "clearBrowsingDataOnLaunch failed: ${e.message}")
-            }
+            clearStoredDataHoldingNavigation()
         }
 
         if (config.enableCorsBypass || config.enablePrivateNetworkBridge) {
@@ -536,8 +837,10 @@ class GeckoViewEngine(
                 appOriginUrl = appOriginUrl,
                 callerPageUrlProvider = { currentUrl }
             )
-            activeNativeBridge = bridge
+            nativeBridge = bridge
             ensureNativeBridgeExtension(runtime)
+        } else {
+            nativeBridge = null
         }
 
         val geckoUaMode = when {
@@ -578,6 +881,13 @@ class GeckoViewEngine(
         newSession.open(runtime)
         liveSessions.add(newSession)
         session = newSession
+        nativeBridge?.let { bindNativeBridge(newSession, it) }
+        if (nativeBridge != null) {
+            armBridgeGate(newSession)
+        } else {
+            nativeBridgeReady = true
+            pendingLoadUrl = null
+        }
 
         val view = GeckoView(context)
         // GeckoView renders on an opaque surface that defaults to white until the first
@@ -586,6 +896,7 @@ class GeckoViewEngine(
         // matching the System WebView path (which has no opaque backing surface).
         view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
         view.setSession(newSession)
+        displayDetached = false
         geckoView = view
 
         val effectiveUserAgent = when (config.userAgentMode) {
@@ -961,6 +1272,484 @@ class GeckoViewEngine(
                 }
                 return result
             }
+
+            /**
+             * HTML <select> (single + multiple) and context-menu prompts.
+             * GeckoView never renders these itself — an unhandled prompt is
+             * silently dismissed, which is why dropdowns appeared dead (#1137).
+             * The choice tree (optgroups/submenus, separators, disabled items)
+             * flattens into one dialog list with non-clickable header rows.
+             */
+            override fun onChoicePrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.ChoicePrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val activity = viewContext.findActivity()
+                if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                activity.runOnUiThread {
+                    try {
+                        val rows = GeckoPromptSupport.flattenChoices(
+                            prompt.choices.map { it.toPromptChoice() }
+                        )
+                        if (prompt.type == GeckoSession.PromptDelegate.ChoicePrompt.Type.MULTIPLE) {
+                            showMultiChoiceDialog(activity, prompt, rows, result)
+                        } else {
+                            showSingleChoiceDialog(activity, prompt, rows, result)
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "onChoicePrompt dialog failed: ${e.message}")
+                        result.complete(prompt.dismiss())
+                    }
+                }
+                return result
+            }
+
+            /** <input type=color>. */
+            override fun onColorPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.ColorPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val activity = viewContext.findActivity()
+                if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                activity.runOnUiThread {
+                    try {
+                        showColorPromptDialog(activity, prompt, result)
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "onColorPrompt dialog failed: ${e.message}")
+                        result.complete(prompt.dismiss())
+                    }
+                }
+                return result
+            }
+
+            /** <input type=date|time|datetime-local|month|week>. */
+            override fun onDateTimePrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.DateTimePrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val activity = viewContext.findActivity()
+                if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                activity.runOnUiThread {
+                    try {
+                        showDateTimePromptDialog(activity, prompt, result)
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "onDateTimePrompt dialog failed: ${e.message}")
+                        result.complete(prompt.dismiss())
+                    }
+                }
+                return result
+            }
+
+            /** beforeunload — leaving the page may lose unsaved form data. */
+            override fun onBeforeUnloadPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.BeforeUnloadPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val activity = viewContext.findActivity()
+                if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                activity.runOnUiThread {
+                    try {
+                        android.app.AlertDialog.Builder(activity)
+                            .setTitle(com.webtoapp.core.i18n.Strings.geckoPromptLeaveTitle)
+                            .setMessage(
+                                prompt.title?.takeIf { it.isNotBlank() }
+                                    ?: com.webtoapp.core.i18n.Strings.geckoPromptLeaveMessage
+                            )
+                            .setPositiveButton(com.webtoapp.core.i18n.Strings.geckoPromptBtnLeave) { dialog, _ ->
+                                dialog.dismiss()
+                                result.complete(prompt.confirm(AllowOrDeny.ALLOW))
+                            }
+                            .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { dialog, _ ->
+                                dialog.dismiss()
+                                result.complete(prompt.confirm(AllowOrDeny.DENY))
+                            }
+                            .setOnCancelListener {
+                                result.complete(prompt.confirm(AllowOrDeny.DENY))
+                            }
+                            .show()
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "onBeforeUnloadPrompt dialog failed: ${e.message}")
+                        result.complete(prompt.dismiss())
+                    }
+                }
+                return result
+            }
+
+            /** Form resubmission on reload/history navigation. */
+            override fun onRepostConfirmPrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.RepostConfirmPrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                val activity = viewContext.findActivity()
+                if (activity == null || activity.isFinishing || activity.isDestroyed) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                val result = GeckoResult<GeckoSession.PromptDelegate.PromptResponse>()
+                activity.runOnUiThread {
+                    try {
+                        android.app.AlertDialog.Builder(activity)
+                            .setTitle(com.webtoapp.core.i18n.Strings.geckoPromptRepostTitle)
+                            .setMessage(com.webtoapp.core.i18n.Strings.geckoPromptRepostMessage)
+                            .setPositiveButton(com.webtoapp.core.i18n.Strings.confirm) { dialog, _ ->
+                                dialog.dismiss()
+                                result.complete(prompt.confirm(AllowOrDeny.ALLOW))
+                            }
+                            .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { dialog, _ ->
+                                dialog.dismiss()
+                                result.complete(prompt.confirm(AllowOrDeny.DENY))
+                            }
+                            .setOnCancelListener {
+                                result.complete(prompt.confirm(AllowOrDeny.DENY))
+                            }
+                            .show()
+                    } catch (e: Exception) {
+                        AppLogger.w(TAG, "onRepostConfirmPrompt dialog failed: ${e.message}")
+                        result.complete(prompt.dismiss())
+                    }
+                }
+                return result
+            }
+        }
+    }
+
+    /** Single-select / menu prompt: one tap confirms immediately. */
+    private fun showSingleChoiceDialog(
+        activity: Activity,
+        prompt: GeckoSession.PromptDelegate.ChoicePrompt,
+        rows: List<GeckoPromptSupport.ChoiceRow>,
+        result: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>
+    ) {
+        var settled = false
+        fun finish(response: GeckoSession.PromptDelegate.PromptResponse) {
+            if (!settled) {
+                settled = true
+                result.complete(response)
+            }
+        }
+        android.app.AlertDialog.Builder(activity)
+            .setTitle(choiceDialogTitle(prompt))
+            .setAdapter(GeckoChoiceAdapter(activity, rows, multi = false)) { dialog, which ->
+                dialog.dismiss()
+                val row = rows.getOrNull(which)
+                val source = row?.choice?.source
+                if (row != null && row.enabled && source is GeckoSession.PromptDelegate.ChoicePrompt.Choice) {
+                    finish(prompt.confirm(source))
+                } else {
+                    finish(prompt.dismiss())
+                }
+            }
+            .setOnCancelListener { finish(prompt.dismiss()) }
+            .show()
+    }
+
+    /** Multi-select prompt: checked rows are confirmed as a Choice array. */
+    private fun showMultiChoiceDialog(
+        activity: Activity,
+        prompt: GeckoSession.PromptDelegate.ChoicePrompt,
+        rows: List<GeckoPromptSupport.ChoiceRow>,
+        result: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>
+    ) {
+        var settled = false
+        fun finish(response: GeckoSession.PromptDelegate.PromptResponse) {
+            if (!settled) {
+                settled = true
+                result.complete(response)
+            }
+        }
+        val listView = android.widget.ListView(activity).apply {
+            choiceMode = android.widget.ListView.CHOICE_MODE_MULTIPLE
+            adapter = GeckoChoiceAdapter(activity, rows, multi = true)
+        }
+        rows.forEachIndexed { i, row ->
+            if (row.checked && row.enabled) listView.setItemChecked(i, true)
+        }
+        android.app.AlertDialog.Builder(activity)
+            .setTitle(choiceDialogTitle(prompt))
+            .setView(listView)
+            .setPositiveButton(com.webtoapp.core.i18n.Strings.confirm) { dialog, _ ->
+                val picked = rows.mapIndexedNotNull { i, row ->
+                    val source = row.choice?.source
+                    if (row.enabled && listView.isItemChecked(i) &&
+                        source is GeckoSession.PromptDelegate.ChoicePrompt.Choice
+                    ) source else null
+                }
+                dialog.dismiss()
+                finish(prompt.confirm(picked.toTypedArray()))
+            }
+            .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { dialog, _ ->
+                dialog.dismiss()
+                finish(prompt.dismiss())
+            }
+            .setOnCancelListener { finish(prompt.dismiss()) }
+            .show()
+    }
+
+    private fun choiceDialogTitle(prompt: GeckoSession.PromptDelegate.ChoicePrompt): CharSequence? =
+        prompt.title?.takeIf { it.isNotBlank() }
+            ?: prompt.message?.takeIf { it.isNotBlank() }
+
+    /** <input type=color>: optional predefined swatches + validated hex field. */
+    private fun showColorPromptDialog(
+        activity: Activity,
+        prompt: GeckoSession.PromptDelegate.ColorPrompt,
+        result: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>
+    ) {
+        var settled = false
+        fun finish(response: GeckoSession.PromptDelegate.PromptResponse) {
+            if (!settled) {
+                settled = true
+                result.complete(response)
+            }
+        }
+        val density = activity.resources.displayMetrics.density
+        val input = android.widget.EditText(activity).apply {
+            hint = "#RRGGBB"
+            isSingleLine = true
+            setText(GeckoPromptSupport.normalizeHexColor(prompt.defaultValue) ?: "#000000")
+            setSelection(text.length)
+        }
+        val container = android.widget.LinearLayout(activity).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            setPadding((24 * density).toInt(), (16 * density).toInt(), (24 * density).toInt(), 0)
+        }
+        val swatches = (prompt.predefinedValues ?: emptyArray())
+            .mapNotNull { GeckoPromptSupport.normalizeHexColor(it) }
+            .distinct()
+        if (swatches.isNotEmpty()) {
+            val row = android.widget.LinearLayout(activity).apply {
+                orientation = android.widget.LinearLayout.HORIZONTAL
+            }
+            val size = (36 * density).toInt()
+            val margin = (6 * density).toInt()
+            swatches.take(8).forEach { hex ->
+                row.addView(android.view.View(activity).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(size, size).apply {
+                        setMargins(margin, 0, margin, (12 * density).toInt())
+                    }
+                    setBackgroundColor(android.graphics.Color.parseColor(hex))
+                    setOnClickListener { input.setText(hex) }
+                })
+            }
+            container.addView(row)
+        }
+        container.addView(input)
+        val dialog = android.app.AlertDialog.Builder(activity)
+            .setTitle(
+                prompt.title?.takeIf { it.isNotBlank() }
+                    ?: com.webtoapp.core.i18n.Strings.geckoPromptPickColor
+            )
+            .setView(container)
+            .setPositiveButton(com.webtoapp.core.i18n.Strings.confirm, null)
+            .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { d, _ ->
+                d.dismiss()
+                finish(prompt.dismiss())
+            }
+            .setOnCancelListener { finish(prompt.dismiss()) }
+            .show()
+        dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val hex = GeckoPromptSupport.normalizeHexColor(input.text.toString())
+            if (hex == null) {
+                input.error = com.webtoapp.core.i18n.Strings.geckoPromptInvalidColor
+            } else {
+                dialog.dismiss()
+                finish(prompt.confirm(hex))
+            }
+        }
+    }
+
+    /**
+     * <input type=date|time|datetime-local|month|week>. DATE/TIME use the
+     * platform pickers honoring min/max; DATETIME_LOCAL chains date → time;
+     * MONTH and WEEK get dual NumberPicker dialogs since Android has no
+     * native widget for them. All cancels map to prompt.dismiss().
+     */
+    private fun showDateTimePromptDialog(
+        activity: Activity,
+        prompt: GeckoSession.PromptDelegate.DateTimePrompt,
+        result: GeckoResult<GeckoSession.PromptDelegate.PromptResponse>
+    ) {
+        var settled = false
+        fun finish(response: GeckoSession.PromptDelegate.PromptResponse) {
+            if (!settled) {
+                settled = true
+                result.complete(response)
+            }
+        }
+        val now = java.util.Calendar.getInstance()
+        val nowY = now.get(java.util.Calendar.YEAR)
+        val nowM = now.get(java.util.Calendar.MONTH) + 1
+        val nowD = now.get(java.util.Calendar.DAY_OF_MONTH)
+
+        fun newDatePicker(
+            initial: GeckoPromptSupport.DateTimeParts,
+            onPicked: (y: Int, m: Int, d: Int) -> Unit
+        ): android.app.DatePickerDialog {
+            val dialog = android.app.DatePickerDialog(
+                activity,
+                { _, y, m, d -> onPicked(y, m + 1, d) },
+                initial.y, initial.mo - 1, initial.d
+            )
+            // Prompt min/max are ISO strings for the whole value; for DATE and
+            // DATETIME_LOCAL the date picker can enforce the date part natively.
+            GeckoPromptSupport.parseDateValue(prompt.minValue)?.let { (y, m, d) ->
+                dialog.datePicker.minDate = java.util.Calendar.getInstance().apply {
+                    set(y, m - 1, d, 0, 0, 0)
+                    set(java.util.Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+            GeckoPromptSupport.parseDateValue(prompt.maxValue)?.let { (y, m, d) ->
+                dialog.datePicker.maxDate = java.util.Calendar.getInstance().apply {
+                    set(y, m - 1, d, 23, 59, 59)
+                    set(java.util.Calendar.MILLISECOND, 999)
+                }.timeInMillis
+            }
+            return dialog
+        }
+
+        when (prompt.type) {
+            GeckoSession.PromptDelegate.DateTimePrompt.Type.DATE -> {
+                val def = GeckoPromptSupport.parseDateValue(prompt.defaultValue)
+                    ?: Triple(nowY, nowM, nowD)
+                val clamped = GeckoPromptSupport.clampDate(
+                    def.first, def.second, def.third, prompt.minValue, prompt.maxValue
+                )
+                newDatePicker(
+                    GeckoPromptSupport.DateTimeParts(clamped.first, clamped.second, clamped.third, 0, 0)
+                ) { y, m, d ->
+                    val c = GeckoPromptSupport.clampDate(y, m, d, prompt.minValue, prompt.maxValue)
+                    finish(prompt.confirm(GeckoPromptSupport.formatDate(c.first, c.second, c.third)))
+                }.apply {
+                    setOnCancelListener { finish(prompt.dismiss()) }
+                }.show()
+            }
+            GeckoSession.PromptDelegate.DateTimePrompt.Type.TIME -> {
+                val def = GeckoPromptSupport.parseTimeValue(prompt.defaultValue)
+                    ?: Pair(now.get(java.util.Calendar.HOUR_OF_DAY), now.get(java.util.Calendar.MINUTE))
+                val clamped = GeckoPromptSupport.clampTime(
+                    def.first, def.second, prompt.minValue, prompt.maxValue
+                )
+                android.app.TimePickerDialog(activity, { _, h, m ->
+                    val c = GeckoPromptSupport.clampTime(h, m, prompt.minValue, prompt.maxValue)
+                    finish(prompt.confirm(GeckoPromptSupport.formatTime(c.first, c.second)))
+                }, clamped.first, clamped.second, true).apply {
+                    setOnCancelListener { finish(prompt.dismiss()) }
+                }.show()
+            }
+            GeckoSession.PromptDelegate.DateTimePrompt.Type.DATETIME_LOCAL -> {
+                val def = GeckoPromptSupport.parseDateTimeLocal(prompt.defaultValue)
+                    ?: GeckoPromptSupport.DateTimeParts(
+                        nowY, nowM, nowD,
+                        now.get(java.util.Calendar.HOUR_OF_DAY), now.get(java.util.Calendar.MINUTE)
+                    )
+                newDatePicker(def) { y, m, d ->
+                    android.app.TimePickerDialog(activity, { _, h, mi ->
+                        finish(prompt.confirm(
+                            GeckoPromptSupport.formatDateTimeLocal(y, m, d, h, mi)
+                        ))
+                    }, def.h, def.mi, true).apply {
+                        setOnCancelListener { finish(prompt.dismiss()) }
+                    }.show()
+                }.apply {
+                    setOnCancelListener { finish(prompt.dismiss()) }
+                }.show()
+            }
+            GeckoSession.PromptDelegate.DateTimePrompt.Type.MONTH -> {
+                val def = GeckoPromptSupport.parseMonthValue(prompt.defaultValue) ?: Pair(nowY, nowM)
+                val yearPicker = android.widget.NumberPicker(activity).apply {
+                    minValue = 1900
+                    maxValue = 2100
+                    value = def.first.coerceIn(1900, 2100)
+                    wrapSelectorWheel = false
+                }
+                val monthPicker = android.widget.NumberPicker(activity).apply {
+                    minValue = 1
+                    maxValue = 12
+                    displayedValues = java.text.DateFormatSymbols
+                        .getInstance(com.webtoapp.core.i18n.Strings.lang.locale)
+                        .months.take(12).toTypedArray()
+                    value = def.second.coerceIn(1, 12)
+                }
+                val layout = android.widget.LinearLayout(activity).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    addView(yearPicker, android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(monthPicker, android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                }
+                android.app.AlertDialog.Builder(activity)
+                    .setTitle(
+                        prompt.title?.takeIf { it.isNotBlank() }
+                            ?: com.webtoapp.core.i18n.Strings.geckoPromptPickValue
+                    )
+                    .setView(layout)
+                    .setPositiveButton(com.webtoapp.core.i18n.Strings.confirm) { dialog, _ ->
+                        dialog.dismiss()
+                        finish(prompt.confirm(
+                            GeckoPromptSupport.formatMonth(yearPicker.value, monthPicker.value)
+                        ))
+                    }
+                    .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { dialog, _ ->
+                        dialog.dismiss()
+                        finish(prompt.dismiss())
+                    }
+                    .setOnCancelListener { finish(prompt.dismiss()) }
+                    .show()
+            }
+            GeckoSession.PromptDelegate.DateTimePrompt.Type.WEEK -> {
+                val def = GeckoPromptSupport.parseWeekValue(prompt.defaultValue) ?: Pair(
+                    nowY, now.get(java.util.Calendar.WEEK_OF_YEAR)
+                )
+                val yearPicker = android.widget.NumberPicker(activity).apply {
+                    minValue = 1900
+                    maxValue = 2100
+                    value = def.first.coerceIn(1900, 2100)
+                    wrapSelectorWheel = false
+                }
+                val weekPicker = android.widget.NumberPicker(activity).apply {
+                    minValue = 1
+                    maxValue = 53
+                    displayedValues = Array(53) { "W%02d".format(it + 1) }
+                    value = def.second.coerceIn(1, 53)
+                }
+                val layout = android.widget.LinearLayout(activity).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    addView(yearPicker, android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                    addView(weekPicker, android.widget.LinearLayout.LayoutParams(
+                        0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                }
+                android.app.AlertDialog.Builder(activity)
+                    .setTitle(
+                        prompt.title?.takeIf { it.isNotBlank() }
+                            ?: com.webtoapp.core.i18n.Strings.geckoPromptPickValue
+                    )
+                    .setView(layout)
+                    .setPositiveButton(com.webtoapp.core.i18n.Strings.confirm) { dialog, _ ->
+                        dialog.dismiss()
+                        finish(prompt.confirm(
+                            GeckoPromptSupport.formatWeek(yearPicker.value, weekPicker.value)
+                        ))
+                    }
+                    .setNegativeButton(com.webtoapp.core.i18n.Strings.btnCancel) { dialog, _ ->
+                        dialog.dismiss()
+                        finish(prompt.dismiss())
+                    }
+                    .setOnCancelListener { finish(prompt.dismiss()) }
+                    .show()
+            }
+            else -> finish(prompt.dismiss())
         }
     }
 
@@ -1141,16 +1930,46 @@ class GeckoViewEngine(
         else -> error.message ?: "net::ERR_FAILED"
     }
 
+    /**
+     * GeckoView has no `setInitialScale`. The same viewport script the system
+     * WebView runs at document-start is applied once the page has stopped, so
+     * a non-100 `pageZoomPercent` is not a WebView-only feature (#1264).
+     * `evaluateJavascript` loads a `javascript:` URI; skip those URLs so the
+     * injection cannot schedule itself again.
+     */
+    private fun injectPageZoomIfNeeded(url: String?) {
+        val cfg = lastConfig ?: return
+        if (!cfg.javaScriptEnabled) return
+        val cssWidth = geckoView?.let { view ->
+            val density = view.resources.displayMetrics.density
+            if (view.width > 0 && density > 0f) (view.width / density).roundToInt() else 0
+        } ?: 0
+        val script = com.webtoapp.core.webview.pageZoomDocumentScript(
+            cfg.pageZoomPercent,
+            cfg.zoomEnabled,
+            cssWidth
+        ) ?: return
+        if (url.isNullOrBlank() || url.startsWith("javascript:") || url.startsWith("about:")) return
+        if (pageZoomInjectedUrl == url) return
+        pageZoomInjectedUrl = url
+        evaluateJavascript(script, null)
+    }
+
     private fun setupProgressDelegate(session: GeckoSession, callback: BrowserEngineCallback) {
         session.progressDelegate = object : GeckoSession.ProgressDelegate {
             override fun onPageStart(session: GeckoSession, url: String) {
-
+                // A new document dropped the previous zoom script. Clear the
+                // guard so onPageStop installs it again. javascript: evals
+                // that also land here are ignored by [injectPageZoomIfNeeded].
+                if (!url.startsWith("javascript:")) {
+                    pageZoomInjectedUrl = null
+                }
                 callback.onPageStarted(url)
-
             }
 
             override fun onPageStop(session: GeckoSession, success: Boolean) {
                 callback.onPageFinished(currentUrl)
+                if (success) injectPageZoomIfNeeded(currentUrl)
             }
 
             override fun onProgressChange(session: GeckoSession, progress: Int) {
@@ -1234,6 +2053,7 @@ class GeckoViewEngine(
         try {
 
             session?.let { old ->
+                unbindNativeBridge(old)
                 try { old.close() } catch (_: Exception) { }
                 liveSessions.remove(old)
             }
@@ -1258,16 +2078,27 @@ class GeckoViewEngine(
             )
             newSession.open(runtime)
             liveSessions.add(newSession)
+            nativeBridge?.let { bindNativeBridge(newSession, it) }
+            session = newSession
+            if (nativeBridge != null) {
+                armBridgeGate(newSession)
+            } else {
+                nativeBridgeReady = true
+                pendingLoadUrl = null
+            }
 
             lastUserAgentOverride?.let {
                 newSession.settings.userAgentOverride = it
             }
 
-            view.setSession(newSession)
-            session = newSession
+            // A hidden tab keeps its display detached after recovery — it
+            // reattaches on the next setDisplayVisible(true) (#1161).
+            if (!displayDetached) {
+                view.setSession(newSession)
+            }
 
             if (!urlToRestore.isNullOrBlank() && urlToRestore != "about:blank") {
-                newSession.loadUri(urlToRestore)
+                loadUrl(urlToRestore)
                 AppLogger.i(TAG, "Crash recovery successful, restoring URL: $urlToRestore")
             } else {
                 AppLogger.i(TAG, "Crash recovery successful (no URL to restore)")
@@ -1279,7 +2110,23 @@ class GeckoViewEngine(
     }
 
     override fun loadUrl(url: String) {
+        if (nativeBridge != null && !nativeBridgeReady) {
+            AppLogger.d(TAG, "Holding load until native bridge is ready")
+            pendingLoadUrl = url
+            return
+        }
         session?.loadUri(url)
+    }
+
+    private fun armBridgeGate(target: GeckoSession) {
+        nativeBridgeReady = false
+        whenNativeBridgeReady(target) {
+            if (session !== target) return@whenNativeBridgeReady
+            nativeBridgeReady = true
+            val url = pendingLoadUrl
+            pendingLoadUrl = null
+            if (!url.isNullOrEmpty()) target.loadUri(url)
+        }
     }
 
     override fun evaluateJavascript(script: String, resultCallback: ((String?) -> Unit)?) {
@@ -1324,8 +2171,62 @@ class GeckoViewEngine(
     override fun getTitle(): String? = currentTitle
     override fun getView(): View? = geckoView
 
+    /**
+     * Detach or reattach the session's display for multi-web tab visibility
+     * changes (#1161, #1192).
+     *
+     * GeckoView 142 draws into a [android.view.SurfaceView]. That layer ignores
+     * Compose `alpha` / `zIndex`, and [GeckoView.releaseSession] only drops the
+     * Gecko display — the SurfaceView stays in the window and keeps its last
+     * frame, so the newest tab remained on screen after #1174. Passing
+     * [collapseSurface] sets the view to [View.GONE], which destroys that
+     * surface. The session stays open; the page is not reloaded.
+     *
+     * Activity onPause must not collapse: the foreground page is the only
+     * surface, and tearing it down makes every Gecko app rebuild its surface
+     * when the user returns. Tab switches pass [collapseSurface] `true`.
+     *
+     * On show, visibility is restored before [GeckoView.setSession]. If the
+     * surface does not exist yet, GeckoView's display keeps the acquired
+     * session and [GeckoView.Display.onSurfaceChanged] finishes the bind once
+     * the SurfaceView is recreated.
+     */
+    fun setDisplayVisible(visible: Boolean, collapseSurface: Boolean = false) {
+        val view = geckoView ?: return
+        if (visible) {
+            if (view.visibility != View.VISIBLE) {
+                view.visibility = View.VISIBLE
+            }
+            val s = session
+            if (s != null && displayDetached) {
+                try {
+                    view.setSession(s)
+                    s.setActive(true)
+                    displayDetached = false
+                } catch (e: Exception) {
+                    AppLogger.w(TAG, "setDisplayVisible(true) failed: ${e.message}")
+                }
+            }
+        } else {
+            try {
+                view.releaseSession()
+                // setActive(false) is Gecko's background-tab throttle — the
+                // hidden-tab WebView path sheds JS/timers via onPause, and a
+                // detached session should not run them at full speed either.
+                session?.setActive(false)
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "setDisplayVisible(false) failed: ${e.message}")
+            }
+            displayDetached = true
+            if (collapseSurface && view.visibility != View.GONE) {
+                view.visibility = View.GONE
+            }
+        }
+    }
+
     override fun destroy() {
         session?.let { s ->
+            unbindNativeBridge(s)
             try {
                 s.close()
             } catch (e: Exception) {
@@ -1333,6 +2234,9 @@ class GeckoViewEngine(
             }
             liveSessions.remove(s)
         }
+        nativeBridge = null
+        nativeBridgeReady = false
+        pendingLoadUrl = null
         session = null
         geckoView = null
         callback = null
@@ -1434,4 +2338,56 @@ private class GeckoFileChooserParams(
             addCategory(android.content.Intent.CATEGORY_OPENABLE)
             type = "*/*"
         }
+}
+
+/** Maps a Gecko Choice tree onto the neutral [GeckoPromptSupport.PromptChoice] model. */
+private fun GeckoSession.PromptDelegate.ChoicePrompt.Choice.toPromptChoice():
+    GeckoPromptSupport.PromptChoice =
+    GeckoPromptSupport.PromptChoice(
+        label = label ?: "",
+        selected = selected,
+        disabled = disabled,
+        separator = separator,
+        children = items?.map { it.toPromptChoice() },
+        source = this
+    )
+
+/**
+ * List adapter for ChoicePrompt dialogs. Group headers, separators and
+ * disabled items report isEnabled=false so the ListView never fires a click
+ * or check-toggle for them; depth indents optgroup children and submenus.
+ */
+private class GeckoChoiceAdapter(
+    context: Context,
+    private val rows: List<GeckoPromptSupport.ChoiceRow>,
+    private val multi: Boolean
+) : android.widget.BaseAdapter() {
+
+    private val inflater = android.view.LayoutInflater.from(context)
+    private val density = context.resources.displayMetrics.density
+
+    override fun getCount(): Int = rows.size
+    override fun getItem(position: Int): Any = rows[position]
+    override fun getItemId(position: Int): Long = position.toLong()
+    override fun areAllItemsEnabled(): Boolean = false
+    override fun isEnabled(position: Int): Boolean = rows[position].enabled
+
+    override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+        val row = rows[position]
+        val layout = if (multi) android.R.layout.simple_list_item_multiple_choice
+            else android.R.layout.simple_list_item_1
+        val tv = (convertView as? android.widget.TextView)
+            ?: inflater.inflate(layout, parent, false) as android.widget.TextView
+        val header = row.choice?.children?.isNotEmpty() == true
+        tv.text = if (row.choice?.separator == true && row.label.isBlank()) {
+            "────────────"
+        } else {
+            row.label
+        }
+        tv.setTypeface(null, if (header) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+        tv.alpha = if (row.enabled) 1f else 0.45f
+        val indent = (16 * density).toInt() + (row.depth * 20 * density).toInt()
+        tv.setPadding(indent, (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
+        return tv
+    }
 }

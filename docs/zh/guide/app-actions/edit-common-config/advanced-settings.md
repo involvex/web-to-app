@@ -6,22 +6,23 @@
 
 ## User-Agent 与渲染
 
-- **User-Agent 模式** —— 系统默认或自定义 UA 字符串(`userAgentMode`、`customUserAgent`)。
-- **桌面模式** —— 请求桌面版站点(`desktopMode`)。
+- **User-Agent** —— 这张卡片的第一块。系统默认、桌面风味或自定义字符串(`userAgentMode`、`customUserAgent`)。导出会写入这个选择。HTTP `User-Agent` 和 `Sec-CH-UA*` 保持成对,包括架构和机型。选择自定义会清掉残留的内核风味并关闭内核伪装,这样输入的字符串就是身份。桌面风味同时打开桌面模式。
+- **桌面模式** —— 请求桌面版站点(`desktopMode`)。开关在同一块里。
 - **缩放** —— 启用双指缩放(`zoomEnabled`)。
-- **页面缩放** —— 构建期的按应用整页缩放百分比,可选 Chrome 式档位(50%–150%)或自由输入(`pageZoomPercent`,默认 100)。每次运行(含冷启动)通过 `setInitialScale` 应用——文字与布局/图片/画布一起缩放(不同于只缩放字形的 `textZoom`),无需运行时工具栏。旧数据中的 `0` 视作 100。
+- **页面缩放** —— 构建期的按应用整页缩放百分比,可选 Chrome 式档位(50%–150%)或自由输入(`pageZoomPercent`,默认 100)。每次运行(含冷启动)都会把布局视口锁到这个比例——文字、布局、图片和画布一起缩放(不同于只缩放字形的 `textZoom`)。页面自己的 viewport meta 不能把比例钉回 100%。不需要运行时工具栏。旧数据中的 `0` 视作 100。
 - **视口模式** —— 默认或自定义视口宽度(`viewportMode`、`customViewportWidth`)。
 
 ## 导航与刷新
 
 - **下拉刷新** —— 拉动刷新(`swipeRefreshEnabled`)。
+- **边缘过度滚动** —— 默认开启(`overscrollEffectEnabled`)。关闭后,系统 WebView 不再出现 Android 12 及以上的边缘拉伸,GeckoView 自己的边缘效果也会关掉。下拉刷新仍然可用。页面自己用脚本做的回弹不受影响。
 - **自动刷新** —— 定期重载,带间隔和倒计时(`autoRefreshEnabled`、`autoRefreshIntervalSec`)。
 - **新窗口行为** —— 弹窗/新窗口如何打开(`newWindowBehavior`:同窗口、外部、弹窗……)。
 - **弹窗拦截** —— 拦截弹窗(`popupBlockerEnabled`)。
 
 ## 下载
 
-- **下载** —— 启用下载并选择位置(`downloadEnabled`、`downloadLocationMode`:系统 / 应用私有 / 自定义 SAF 目录)。
+- **下载** —— 启用下载并选择位置(`downloadEnabled`、`downloadLocationMode`:系统下载目录 / 应用私有 / 自定义 SAF 目录 / **每次选择位置**)。每次选择位置会为每一次下载弹出系统保存对话框,包括 blob、data 和媒体文件。取消对话框则不写入。默认仍是系统下载目录。
 
 ## 网络与隐私
 

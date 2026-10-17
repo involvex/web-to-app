@@ -26,7 +26,7 @@ See [Config Field Drift](/developer/config-drift).
 1. Edit the source under `app/` (shared runtime).
 2. Confirm the file is included by `syncShellRuntimeSources`.
 3. Rebuild the shell template if you need to validate packaging.
-4. Keep changes surgical; shell has a low `targetSdk` and a thin dependency set.
+4. Keep changes surgical; the shell has a thin dependency set.
 5. If you touch FGS / notification channel creation, fail soft via `SafeNotificationChannels`.
 
 ## 4. Add a host-only feature (editor, market, tooling)
@@ -71,6 +71,9 @@ See [Config Field Drift](/developer/config-drift).
 ./gradlew :app:compileStandardDebugKotlin -x syncCloneHostDex --no-configuration-cache
 ./gradlew :app:checkConfigFieldDrift --no-configuration-cache
 python3 scripts/check_config_field_drift.py
+./gradlew --no-configuration-cache -PskipShellTemplateSync=true -Pfdroid=true \
+  :app:compileStandardReleaseKotlin :shell:compileReleaseKotlin \
+  :app:processStandardReleaseManifest :shell:processReleaseManifest
 ```
 
 Use these when you change shell membership, export packaging, or config fields. For host-only UI/string work, targeted compile on `:app` is usually enough.

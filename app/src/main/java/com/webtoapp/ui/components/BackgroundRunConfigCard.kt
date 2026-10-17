@@ -27,6 +27,8 @@ import com.webtoapp.ui.design.WtaSettingRow
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.design.WtaTextField
+import com.webtoapp.ui.theme.LocalShowDescriptions
+import com.webtoapp.ui.theme.ifDescriptionsShown
 
 @Composable
 fun BackgroundRunConfigCard(
@@ -78,14 +80,15 @@ fun BackgroundRunConfigCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = if (enabled) Strings.backgroundRunActiveSummary
-                            else Strings.notEnabled,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (enabled) {
+                            Text(
+                                text = Strings.backgroundRunActiveSummary,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -108,7 +111,7 @@ fun BackgroundRunConfigCard(
                     // ── 保持唤醒 ─────────────────────────────────────
                     WtaSettingRow(
                         title = Strings.backgroundRunKeepCpuAwake,
-                        subtitle = Strings.backgroundRunKeepCpuAwakeDesc,
+                        subtitle = Strings.backgroundRunKeepCpuAwakeDesc.ifDescriptionsShown(),
                         icon = Icons.Outlined.Bolt,
                         active = config.keepCpuAwake,
                         contentPadding = PaddingValues(horizontal = 0.dp, vertical = 6.dp),
@@ -125,7 +128,7 @@ fun BackgroundRunConfigCard(
                     }
 
                     // ── 电池优化豁免说明（生成 APK 首启自动请求一次）───
-                    Row(
+                    if (LocalShowDescriptions.current) Row(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.Top,
                         modifier = Modifier.padding(vertical = 2.dp)

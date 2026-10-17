@@ -22,7 +22,7 @@ Android 6.0(API 23)或更高。
 
 ### 能创建哪些应用类型?
 
-12 种:网页、多站点、HTML、离线包、前端、PHP、WordPress、Node.js、Python、Go、媒体和画廊。见[创建应用](/zh/guide/app-types/)。
+12 种:网页、多站点、HTML、离线包、前端、PHP、WordPress、Node.js、Python、Go、媒体和画廊。见[创建应用](/zh/guide/app-types/)。PHP、WordPress、Node.js、Python、Go 和媒体在打开[关于 → 高级功能](/zh/guide/more-features/about)之前不会出现在创建网格里。画廊不需要这个开关。
 
 ## 创建与编辑
 
@@ -57,9 +57,9 @@ Android 6.0(API 23)或更高。
 
 通常可以。Web、多网站、HTML、离线包、Frontend、媒体和图库应用都能导出 Play 级 AAB。两类不行:**Node.js / PHP / Python / Go / WordPress** 应用,以及任何开启**资源加密**的构建。见 [Google Play](/zh/guide/more-features/google-play)。
 
-### 为什么生成的应用 targetSdk 是 28?
+### 生成的应用使用什么 targetSdk?
 
-较低的 `targetSdk` 是刻意为之:它让生成的应用能从应用存储 fork+exec 原生运行时(Node.js、PHP、Python、Go、WordPress)。这只是 APK 打包层面的细节 —— AAB 导出器会把 `targetSdk` 重写到 Play 要求的级别,这个低值不会带到 Play。
+生成的 APK 继承 shell 模板的 `targetSdk`(当前 35)和 `minSdk` 23。Node.js、PHP、Python、Go、WordPress 会被固定到 targetSdk 28,以便执行内置运行时,自定义 targetSdk 对它们无效。其他类型可在[APK导出配置](/zh/guide/app-actions/edit-common-config/apk-export)里固定 targetSdk 28/31/33/34/35/36,任意类型都可以把 minSdk 从 23 提高到当前 targetSdk。面向 Play 时,AAB 导出器会把 `targetSdk` 重写到 Play 要求的级别。
 
 ### 如何用自己的密钥签名?
 
@@ -139,7 +139,7 @@ Android 6.0(API 23)或更高。
 
 ### 如何备份或迁移我的应用?
 
-使用[关于](/zh/guide/more-features/about)中的 **数据备份 / 恢复**,或通过[导出](/zh/guide/app-actions/export-apk)把单个应用导出为可复用模板。
+整份工作区用[数据备份](/zh/guide/more-features/data-backup)(主页 ⋮ 菜单)。[导出源码](/zh/guide/app-actions/export-apk)把单个应用打成 Android Studio 工程。
 
 ### 去哪里获取帮助?
 

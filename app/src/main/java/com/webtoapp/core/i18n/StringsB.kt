@@ -605,6 +605,97 @@ object StringsB {
         AppLanguage.KOREAN -> "템플릿 \"$name\"을(를) 저장했습니다"
     }
 
+    val templateExportCurrent: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导出当前配置"
+        AppLanguage.ENGLISH -> "Export current config"
+        AppLanguage.ARABIC -> "تصدير الإعداد الحالي"
+        AppLanguage.PORTUGUESE -> "Exportar configuração atual"
+        AppLanguage.SPANISH -> "Exportar configuración actual"
+        AppLanguage.FRENCH -> "Exporter la configuration actuelle"
+        AppLanguage.GERMAN -> "Aktuelle Konfiguration exportieren"
+        AppLanguage.RUSSIAN -> "Экспорт текущей конфигурации"
+        AppLanguage.JAPANESE -> "現在の設定を書き出す"
+        AppLanguage.KOREAN -> "현재 구성 내보내기"
+    }
+
+    val templateImport: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导入配置"
+        AppLanguage.ENGLISH -> "Import config"
+        AppLanguage.ARABIC -> "استيراد إعداد"
+        AppLanguage.PORTUGUESE -> "Importar configuração"
+        AppLanguage.SPANISH -> "Importar configuración"
+        AppLanguage.FRENCH -> "Importer une configuration"
+        AppLanguage.GERMAN -> "Konfiguration importieren"
+        AppLanguage.RUSSIAN -> "Импорт конфигурации"
+        AppLanguage.JAPANESE -> "設定を読み込む"
+        AppLanguage.KOREAN -> "구성 가져오기"
+    }
+
+    val templateExport: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导出"
+        AppLanguage.ENGLISH -> "Export"
+        AppLanguage.ARABIC -> "تصدير"
+        AppLanguage.PORTUGUESE -> "Exportar"
+        AppLanguage.SPANISH -> "Exportar"
+        AppLanguage.FRENCH -> "Exporter"
+        AppLanguage.GERMAN -> "Exportieren"
+        AppLanguage.RUSSIAN -> "Экспорт"
+        AppLanguage.JAPANESE -> "書き出す"
+        AppLanguage.KOREAN -> "내보내기"
+    }
+
+    val templateExported: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "配置已导出"
+        AppLanguage.ENGLISH -> "Config exported"
+        AppLanguage.ARABIC -> "تم تصدير الإعداد"
+        AppLanguage.PORTUGUESE -> "Configuração exportada"
+        AppLanguage.SPANISH -> "Configuración exportada"
+        AppLanguage.FRENCH -> "Configuration exportée"
+        AppLanguage.GERMAN -> "Konfiguration exportiert"
+        AppLanguage.RUSSIAN -> "Конфигурация экспортирована"
+        AppLanguage.JAPANESE -> "設定を書き出しました"
+        AppLanguage.KOREAN -> "구성을 내보냈습니다"
+    }
+
+    val templateExportFailed: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导出配置失败"
+        AppLanguage.ENGLISH -> "Could not export the config"
+        AppLanguage.ARABIC -> "تعذر تصدير الإعداد"
+        AppLanguage.PORTUGUESE -> "Não foi possível exportar a configuração"
+        AppLanguage.SPANISH -> "No se pudo exportar la configuración"
+        AppLanguage.FRENCH -> "Impossible d'exporter la configuration"
+        AppLanguage.GERMAN -> "Konfiguration konnte nicht exportiert werden"
+        AppLanguage.RUSSIAN -> "Не удалось экспортировать конфигурацию"
+        AppLanguage.JAPANESE -> "設定を書き出せませんでした"
+        AppLanguage.KOREAN -> "구성을 내보내지 못했습니다"
+    }
+
+    val templateImportFailed: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "无法读取这份配置"
+        AppLanguage.ENGLISH -> "Could not read this config"
+        AppLanguage.ARABIC -> "تعذر قراءة هذا الإعداد"
+        AppLanguage.PORTUGUESE -> "Não foi possível ler esta configuração"
+        AppLanguage.SPANISH -> "No se pudo leer esta configuración"
+        AppLanguage.FRENCH -> "Impossible de lire cette configuration"
+        AppLanguage.GERMAN -> "Diese Konfiguration konnte nicht gelesen werden"
+        AppLanguage.RUSSIAN -> "Не удалось прочитать эту конфигурацию"
+        AppLanguage.JAPANESE -> "この設定を読み取れませんでした"
+        AppLanguage.KOREAN -> "이 구성을 읽지 못했습니다"
+    }
+
+    fun templateImported(name: String): String = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已导入并套用「$name」"
+        AppLanguage.ENGLISH -> "Imported and applied \"$name\""
+        AppLanguage.ARABIC -> "تم استيراد \"$name\" وتطبيقه"
+        AppLanguage.PORTUGUESE -> "\"$name\" importado e aplicado"
+        AppLanguage.SPANISH -> "\"$name\" importada y aplicada"
+        AppLanguage.FRENCH -> "\"$name\" importé et appliqué"
+        AppLanguage.GERMAN -> "\"$name\" importiert und angewendet"
+        AppLanguage.RUSSIAN -> "\"$name\" импортирован и применён"
+        AppLanguage.JAPANESE -> "「$name」を読み込んで適用しました"
+        AppLanguage.KOREAN -> "\"$name\"을(를) 가져와 적용했습니다"
+    }
+
     val sectionWebEngine: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "引擎与显示"
         AppLanguage.ENGLISH -> "Engine & Display"
@@ -655,6 +746,45 @@ object StringsB {
         AppLanguage.RUSSIAN -> "Разработчик"
         AppLanguage.JAPANESE -> "開発者"
         AppLanguage.KOREAN -> "개발자"
+    }
+
+    val sectionBrowserIdentity: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "浏览器身份"
+        AppLanguage.ENGLISH -> "Browser Identity"
+        AppLanguage.ARABIC -> "هوية المتصفح"
+        AppLanguage.PORTUGUESE -> "Identidade do Navegador"
+        AppLanguage.SPANISH -> "Identidad del navegador"
+        AppLanguage.FRENCH -> "Identité du navigateur"
+        AppLanguage.GERMAN -> "Browser-Identität"
+        AppLanguage.RUSSIAN -> "Идентификация браузера"
+        AppLanguage.JAPANESE -> "ブラウザ識別"
+        AppLanguage.KOREAN -> "브라우저 신원"
+    }
+
+    val sectionOfflineCache: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "离线与缓存"
+        AppLanguage.ENGLISH -> "Offline & Cache"
+        AppLanguage.ARABIC -> "عدم الاتصال والتخزين المؤقت"
+        AppLanguage.PORTUGUESE -> "Offline e Cache"
+        AppLanguage.SPANISH -> "Sin conexión y caché"
+        AppLanguage.FRENCH -> "Hors ligne et cache"
+        AppLanguage.GERMAN -> "Offline & Cache"
+        AppLanguage.RUSSIAN -> "Офлайн и кэш"
+        AppLanguage.JAPANESE -> "オフラインとキャッシュ"
+        AppLanguage.KOREAN -> "오프라인 및 캐시"
+    }
+
+    val sectionNetworkAccess: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "网络接入"
+        AppLanguage.ENGLISH -> "Network Access"
+        AppLanguage.ARABIC -> "الوصول إلى الشبكة"
+        AppLanguage.PORTUGUESE -> "Acesso à Rede"
+        AppLanguage.SPANISH -> "Acceso a la red"
+        AppLanguage.FRENCH -> "Accès réseau"
+        AppLanguage.GERMAN -> "Netzwerkzugang"
+        AppLanguage.RUSSIAN -> "Доступ к сети"
+        AppLanguage.JAPANESE -> "ネットワーク接続"
+        AppLanguage.KOREAN -> "네트워크 접속"
     }
 
     val selectCategory: String get() = when (Strings.lang) {
@@ -1190,19 +1320,6 @@ object StringsB {
         AppLanguage.KOREAN -> "com.example.myapp"
     }
 
-    val apkConfigNote: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "以下配置仅在打包APK时生效"
-        AppLanguage.ENGLISH -> "The following settings only take effect when building APK"
-        AppLanguage.ARABIC -> "الإعدادات التالية تسري فقط عند بناء APK"
-        AppLanguage.PORTUGUESE -> "As configurações abaixo só têm efeito ao construir o APK"
-        AppLanguage.SPANISH -> "Las siguientes configuraciones solo aplican al construir el APK"
-        AppLanguage.FRENCH -> "Les paramètres ci-dessous ne prennent effet qu'à la construction de l'APK"
-        AppLanguage.GERMAN -> "Die folgenden Einstellungen gelten nur beim APK-Build"
-        AppLanguage.RUSSIAN -> "Следующие настройки действуют только при сборке APK"
-        AppLanguage.JAPANESE -> "以下の設定は APK ビルド時にのみ有効です"
-        AppLanguage.KOREAN -> "다음 설정은 APK 빌드 시에만 적용됩니다"
-    }
-
     val versionName: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "版本名"
         AppLanguage.ENGLISH -> "Version Name"
@@ -1657,6 +1774,32 @@ object StringsB {
         AppLanguage.KOREAN -> "아래로 스와이프하여 새로고침 허용"
     }
 
+    val overscrollEffectSetting: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "越界回弹"
+        AppLanguage.ENGLISH -> "Edge overscroll"
+        AppLanguage.ARABIC -> "التمرير خارج الحافة"
+        AppLanguage.PORTUGUESE -> "Rolagem além da borda"
+        AppLanguage.SPANISH -> "Desplazamiento más allá del borde"
+        AppLanguage.FRENCH -> "Défilement au-delà du bord"
+        AppLanguage.GERMAN -> "Überrollen am Rand"
+        AppLanguage.RUSSIAN -> "Прокрутка за край"
+        AppLanguage.JAPANESE -> "端でのオーバースクロール"
+        AppLanguage.KOREAN -> "가장자리 오버스크롤"
+    }
+
+    val overscrollEffectSettingHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "滚到页面边缘时显示系统的拉伸回弹。关闭后停在边缘，固定顶栏不会被拉开。"
+        AppLanguage.ENGLISH -> "Shows the system stretch when the page scrolls past its edge. Turn off to stop at the edge so fixed headers are not stretched."
+        AppLanguage.ARABIC -> "يعرض تمدد النظام عند التمرير خارج حافة الصفحة. أوقفه ليتوقف المحتوى عند الحافة دون تمديد الشريط الثابت."
+        AppLanguage.PORTUGUESE -> "Mostra o esticamento do sistema quando a página passa da borda. Desative para parar na borda e não esticar cabeçalhos fixos."
+        AppLanguage.SPANISH -> "Muestra el estiramiento del sistema cuando la página pasa del borde. Desactívalo para detenerse en el borde y no estirar las cabeceras fijas."
+        AppLanguage.FRENCH -> "Affiche l'étirement du système lorsque la page dépasse le bord. Désactivez-le pour s'arrêter au bord sans étirer les en-têtes fixes."
+        AppLanguage.GERMAN -> "Zeigt die Systemdehnung, wenn die Seite über den Rand hinaus scrollt. Ausschalten, damit sie am Rand stoppt und feste Leisten nicht gedehnt werden."
+        AppLanguage.RUSSIAN -> "Показывает системное растяжение, когда страница прокручивается за край. Выключите, чтобы останавливаться на краю и не растягивать закреплённые панели."
+        AppLanguage.JAPANESE -> "ページ端を超えてスクロールしたとき、システムの伸び縮みを表示します。オフにすると端で止まり、固定ヘッダーは伸びません。"
+        AppLanguage.KOREAN -> "페이지가 가장자리를 넘어 스크롤될 때 시스템 늘림 효과를 표시합니다. 끄면 가장자리에서 멈추고 고정 헤더는 늘어나지 않습니다."
+    }
+
     val swipeRefreshZoneLabel: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "触发区域"
         AppLanguage.ENGLISH -> "Trigger area"
@@ -2050,22 +2193,6 @@ object StringsB {
         AppLanguage.JAPANESE -> "最大"
         AppLanguage.KOREAN -> "최대"
     }
-
-    val notEnabled: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "未启用"
-        AppLanguage.ENGLISH -> "Not Enabled"
-        AppLanguage.ARABIC -> "غير مفعل"
-        AppLanguage.PORTUGUESE -> "Não Ativado"
-        AppLanguage.SPANISH -> "No Habilitado"
-        AppLanguage.FRENCH -> "Non Activé"
-        AppLanguage.GERMAN -> "Nicht Aktiviert"
-        AppLanguage.RUSSIAN -> "Не включено"
-        AppLanguage.JAPANESE -> "無効"
-        AppLanguage.KOREAN -> "비활성화됨"
-    }
-
-
-
 
     val canvasProtection: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "Canvas 防护"
@@ -2877,6 +3004,96 @@ object StringsB {
         AppLanguage.KOREAN -> "가사 표시"
     }
 
+    val bgmFloatingPlayer: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "悬浮播放器"
+        AppLanguage.ENGLISH -> "Floating player"
+        AppLanguage.ARABIC -> "مشغل عائم"
+        AppLanguage.PORTUGUESE -> "Reprodutor flutuante"
+        AppLanguage.SPANISH -> "Reproductor flotante"
+        AppLanguage.FRENCH -> "Lecteur flottant"
+        AppLanguage.GERMAN -> "Schwebender Player"
+        AppLanguage.RUSSIAN -> "Плавающий плеер"
+        AppLanguage.JAPANESE -> "フローティングプレーヤー"
+        AppLanguage.KOREAN -> "플로팅 플레이어"
+    }
+
+    val bgmFloatingPlayerHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "小条可以拖动，松手后吸到屏幕左右边缘，上面有暂停、上一首和下一首。"
+        AppLanguage.ENGLISH -> "A small bar you can drag. It snaps to the left or right edge and has pause, previous, and next."
+        AppLanguage.ARABIC -> "شريط صغير يمكن سحبه. يلتصق بالحافة اليسرى أو اليمنى وفيه إيقاف مؤقت والسابق والتالي."
+        AppLanguage.PORTUGUESE -> "Uma barra pequena que você arrasta. Ela gruda na borda esquerda ou direita e tem pausa, anterior e próxima."
+        AppLanguage.SPANISH -> "Una barra pequeña que puedes arrastrar. Se pega al borde izquierdo o derecho y tiene pausa, anterior y siguiente."
+        AppLanguage.FRENCH -> "Une petite barre à faire glisser. Elle se colle au bord gauche ou droit, avec pause, précédent et suivant."
+        AppLanguage.GERMAN -> "Eine kleine Leiste zum Ziehen. Sie rastet links oder rechts ein und hat Pause, Zurück und Weiter."
+        AppLanguage.RUSSIAN -> "Небольшую полоску можно перетаскивать. Она прилипает к левому или правому краю: пауза, предыдущий и следующий трек."
+        AppLanguage.JAPANESE -> "小さなバーはドラッグでき、離すと左右の端に吸着します。一時停止、前へ、次へが付いています。"
+        AppLanguage.KOREAN -> "작은 막대를 끌어 놓을 수 있습니다. 손에서 떼면 왼쪽이나 오른쪽 가장자리에 붙고, 일시정지·이전·다음이 있습니다."
+    }
+
+    val bgmNotificationPlayer: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "通知栏播放器"
+        AppLanguage.ENGLISH -> "Notification player"
+        AppLanguage.ARABIC -> "مشغل الإشعار"
+        AppLanguage.PORTUGUESE -> "Reprodutor na notificação"
+        AppLanguage.SPANISH -> "Reproductor en la notificación"
+        AppLanguage.FRENCH -> "Lecteur dans la notification"
+        AppLanguage.GERMAN -> "Player in der Benachrichtigung"
+        AppLanguage.RUSSIAN -> "Плеер в уведомлении"
+        AppLanguage.JAPANESE -> "通知プレーヤー"
+        AppLanguage.KOREAN -> "알림 플레이어"
+    }
+
+    val bgmNotificationPlayerHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "在通知栏和锁屏上使用系统媒体控件，可以暂停、切歌和拖动进度。"
+        AppLanguage.ENGLISH -> "System media controls in the notification shade and on the lock screen: pause, skip, and scrub."
+        AppLanguage.ARABIC -> "عناصر تحكم الوسائط في لوحة الإشعارات وشاشة القفل: إيقاف مؤقت وتخطٍ وسحب التقدم."
+        AppLanguage.PORTUGUESE -> "Controles de mídia do sistema na barra de notificações e na tela de bloqueio: pausar, trocar e arrastar o progresso."
+        AppLanguage.SPANISH -> "Controles de medios del sistema en las notificaciones y en la pantalla de bloqueo: pausa, cambio de pista y progreso."
+        AppLanguage.FRENCH -> "Contrôles média du système dans les notifications et sur l'écran de verrouillage : pause, piste et progression."
+        AppLanguage.GERMAN -> "System-Mediensteuerung in der Benachrichtigung und auf dem Sperrbildschirm: Pause, Titelwechsel und Spulen."
+        AppLanguage.RUSSIAN -> "Системные кнопки в шторке и на экране блокировки: пауза, переключение трека и перемотка."
+        AppLanguage.JAPANESE -> "通知とロック画面のシステムメディア操作で、一時停止、曲送り、シークができます。"
+        AppLanguage.KOREAN -> "알림창과 잠금 화면의 시스템 미디어 컨트롤로 일시정지, 곡 이동, 탐색을 할 수 있습니다."
+    }
+
+    val bgmPrevious: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "上一首"
+        AppLanguage.ENGLISH -> "Previous"
+        AppLanguage.ARABIC -> "السابق"
+        AppLanguage.PORTUGUESE -> "Anterior"
+        AppLanguage.SPANISH -> "Anterior"
+        AppLanguage.FRENCH -> "Précédent"
+        AppLanguage.GERMAN -> "Zurück"
+        AppLanguage.RUSSIAN -> "Предыдущий"
+        AppLanguage.JAPANESE -> "前へ"
+        AppLanguage.KOREAN -> "이전"
+    }
+
+    val bgmNext: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "下一首"
+        AppLanguage.ENGLISH -> "Next"
+        AppLanguage.ARABIC -> "التالي"
+        AppLanguage.PORTUGUESE -> "Próxima"
+        AppLanguage.SPANISH -> "Siguiente"
+        AppLanguage.FRENCH -> "Suivant"
+        AppLanguage.GERMAN -> "Weiter"
+        AppLanguage.RUSSIAN -> "Следующий"
+        AppLanguage.JAPANESE -> "次へ"
+        AppLanguage.KOREAN -> "다음"
+    }
+
+    val bgmNotificationChannel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "背景音乐"
+        AppLanguage.ENGLISH -> "Background music"
+        AppLanguage.ARABIC -> "موسيقى الخلفية"
+        AppLanguage.PORTUGUESE -> "Música de fundo"
+        AppLanguage.SPANISH -> "Música de fondo"
+        AppLanguage.FRENCH -> "Musique de fond"
+        AppLanguage.GERMAN -> "Hintergrundmusik"
+        AppLanguage.RUSSIAN -> "Фоновая музыка"
+        AppLanguage.JAPANESE -> "バックグラウンド音楽"
+        AppLanguage.KOREAN -> "배경 음악"
+    }
 
     val allTag: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "全部"
@@ -5387,7 +5604,7 @@ object StringsB {
     }
 
     val skip: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "Skip"
+        AppLanguage.CHINESE -> "跳过"
         AppLanguage.ENGLISH -> "Skip"
         AppLanguage.ARABIC -> "تخطي"
         AppLanguage.PORTUGUESE -> "Pular"
@@ -7634,6 +7851,19 @@ object StringsB {
         AppLanguage.RUSSIAN -> "Сжатие пропущено: %s"
         AppLanguage.JAPANESE -> "圧縮をスキップ: %s"
         AppLanguage.KOREAN -> "압축 건너뜀: %s"
+    }
+
+    val agentContextOverflowCompacting: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "上下文超限，正在压缩历史并重试…"
+        AppLanguage.ENGLISH -> "Context limit reached — compacting history and retrying…"
+        AppLanguage.ARABIC -> "تم بلوغ حد السياق — جارٍ ضغط السجل وإعادة المحاولة…"
+        AppLanguage.PORTUGUESE -> "Limite de contexto atingido — compactando histórico e tentando de novo…"
+        AppLanguage.SPANISH -> "Límite de contexto alcanzado — compactando historial y reintentando…"
+        AppLanguage.FRENCH -> "Limite de contexte atteinte — compactage de l'historique et nouvelle tentative…"
+        AppLanguage.GERMAN -> "Kontextlimit erreicht — Verlauf wird komprimiert und erneut versucht…"
+        AppLanguage.RUSSIAN -> "Достигнут лимит контекста — сжимаю историю и повторяю…"
+        AppLanguage.JAPANESE -> "コンテキスト上限に達しました — 履歴を圧縮して再試行します…"
+        AppLanguage.KOREAN -> "컨텍스트 한도 도달 — 기록을 압축하고 다시 시도합니다…"
     }
 
     val agentContextCapacity: String get() = when (Strings.lang) {
