@@ -1670,7 +1670,7 @@ object StringsC {
 
     val builtinMediaDownloader: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "媒体下载"
-        AppLanguage.ENGLISH -> "Media Download"
+        AppLanguage.ENGLISH -> "Media Downloader"
         AppLanguage.ARABIC -> "تحميل الوسائط"
         AppLanguage.PORTUGUESE -> "Download de Mídia"
         AppLanguage.SPANISH -> "Descarga de Medios"
@@ -1694,7 +1694,7 @@ object StringsC {
     }
     val builtinVideoEnhancer: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "视频增强"
-        AppLanguage.ENGLISH -> "Video Enhance"
+        AppLanguage.ENGLISH -> "Video Enhancer"
         AppLanguage.ARABIC -> "تحسين الفيديو"
         AppLanguage.PORTUGUESE -> "Aprimoramento de Vídeo"
         AppLanguage.SPANISH -> "Mejora de Vídeo"
@@ -1705,16 +1705,16 @@ object StringsC {
         AppLanguage.KOREAN -> "동영상 향상"
     }
     val builtinVideoEnhancerDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "倍速播放、画中画、后台播放、YouTube 净化"
-        AppLanguage.ENGLISH -> "Speed control, picture-in-picture, background play, YouTube cleanup"
-        AppLanguage.ARABIC -> "التحكم في السرعة، صورة داخل صورة، التشغيل في الخلفية، تنظيف يوتيوب"
-        AppLanguage.PORTUGUESE -> "Controle de velocidade, picture-in-picture, reprodução em segundo plano, limpeza do YouTube"
-        AppLanguage.SPANISH -> "Control de velocidad, imagen en imagen, reproducción en segundo plano, limpieza de YouTube"
-        AppLanguage.FRENCH -> "Contrôle de vitesse, image dans l'image, lecture en arrière-plan, nettoyage YouTube"
-        AppLanguage.GERMAN -> "Geschwindigkeitskontrolle, Bild-in-Bild, Hintergrundwiedergabe, YouTube-Bereinigung"
-        AppLanguage.RUSSIAN -> "Управление скоростью, картинка в картинке, фоновое воспроизведение, очистка YouTube"
-        AppLanguage.JAPANESE -> "速度制御、ピクチャーインピクチャー、バックグラウンド再生、YouTubeのクリーンアップ"
-        AppLanguage.KOREAN -> "속도 제어, PIP(Picture-in-Picture), 백그라운드 재생, YouTube 정리"
+        AppLanguage.CHINESE -> "倍速播放、画中画、循环、跳转，以及 YouTube 净化"
+        AppLanguage.ENGLISH -> "Playback speed, picture-in-picture, loop, seek, plus YouTube cleanup"
+        AppLanguage.ARABIC -> "سرعة التشغيل، صورة داخل صورة، تكرار، انتقال، بالإضافة إلى تنظيف يوتيوب"
+        AppLanguage.PORTUGUESE -> "Velocidade de reprodução, picture-in-picture, loop, busca, além da limpeza do YouTube"
+        AppLanguage.SPANISH -> "Velocidad de reproducción, imagen en imagen, bucle, salto, más limpieza de YouTube"
+        AppLanguage.FRENCH -> "Vitesse de lecture, image dans l'image, boucle, déplacement, plus le nettoyage YouTube"
+        AppLanguage.GERMAN -> "Wiedergabegeschwindigkeit, Bild-in-Bild, Schleife, Springen, plus YouTube-Bereinigung"
+        AppLanguage.RUSSIAN -> "Скорость воспроизведения, картинка в картинке, повтор, перемотка, плюс очистка YouTube"
+        AppLanguage.JAPANESE -> "再生速度、ピクチャーインピクチャー、ループ、シーク、さらに YouTube のクリーンアップ"
+        AppLanguage.KOREAN -> "재생 속도, PIP, 반복, 탐색, 그리고 YouTube 정리"
     }
     val builtinWebAnalyzer: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "网页分析"
@@ -1729,16 +1729,16 @@ object StringsC {
         AppLanguage.KOREAN -> "웹 분석기"
     }
     val builtinWebAnalyzerDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "查看页面元素、网络请求、性能数据"
-        AppLanguage.ENGLISH -> "View page elements, network requests, performance data"
-        AppLanguage.ARABIC -> "عرض عناصر الصفحة، طلبات الشبكة، بيانات الأداء"
-        AppLanguage.PORTUGUESE -> "Ver elementos da página, solicitações de rede, dados de desempenho"
-        AppLanguage.SPANISH -> "Ver elementos de la página, solicitudes de red, datos de rendimiento"
-        AppLanguage.FRENCH -> "Afficher les éléments de la page, les requêtes réseau, les données de performance"
-        AppLanguage.GERMAN -> "Seitenelemente, Netzwerkanfragen, Leistungsdaten anzeigen"
-        AppLanguage.RUSSIAN -> "Просмотр элементов страницы, сетевых запросов, данных о производительности"
-        AppLanguage.JAPANESE -> "ページ要素、ネットワークリクエスト、パフォーマンスデータを表示"
-        AppLanguage.KOREAN -> "페이지 요소, 네트워크 요청, 성능 데이터 보기"
+        AppLanguage.CHINESE -> "查看页面信息、加载性能和元素统计"
+        AppLanguage.ENGLISH -> "Inspect page info, load performance and element statistics"
+        AppLanguage.ARABIC -> "فحص معلومات الصفحة وأداء التحميل وإحصاءات العناصر"
+        AppLanguage.PORTUGUESE -> "Inspecionar informações da página, desempenho de carregamento e estatísticas de elementos"
+        AppLanguage.SPANISH -> "Inspeccionar información de la página, rendimiento de carga y estadísticas de elementos"
+        AppLanguage.FRENCH -> "Inspecter les infos de la page, les performances de chargement et les statistiques d'éléments"
+        AppLanguage.GERMAN -> "Seiteninfos, Ladeleistung und Elementstatistiken prüfen"
+        AppLanguage.RUSSIAN -> "Просмотр сведений о странице, производительности загрузки и статистики элементов"
+        AppLanguage.JAPANESE -> "ページ情報、読み込み性能、要素の統計を確認"
+        AppLanguage.KOREAN -> "페이지 정보, 로드 성능, 요소 통계 확인"
     }
     val builtinFindInPage: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "页内查找"
@@ -1777,16 +1777,16 @@ object StringsC {
         AppLanguage.KOREAN -> "다크 모드"
     }
     val builtinDarkModeDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "智能反色，护眼阅读"
-        AppLanguage.ENGLISH -> "Smart inversion, eye-friendly reading"
-        AppLanguage.ARABIC -> "عكس ذكي، قراءة مريحة للعين"
-        AppLanguage.PORTUGUESE -> "Inversão inteligente, leitura confortável para os olhos"
-        AppLanguage.SPANISH -> "Inversión inteligente, lectura cómoda para los ojos"
-        AppLanguage.FRENCH -> "Inversion intelligente, lecture confortable pour les yeux"
-        AppLanguage.GERMAN -> "Intelligente Invertierung, augenfreundliches Lesen"
-        AppLanguage.RUSSIAN -> "Умная инверсия, удобное чтение для глаз"
-        AppLanguage.JAPANESE -> "スマート反転、目に優しい読書"
-        AppLanguage.KOREAN -> "스마트 반전, 눈에 편안한 읽기"
+        AppLanguage.CHINESE -> "智能反色，适用于任意页面，可从工具栏或面板开关"
+        AppLanguage.ENGLISH -> "Smart inversion for any page. Toggle from the toolbar or the panel"
+        AppLanguage.ARABIC -> "عكس ذكي لأي صفحة. التبديل من شريط الأدوات أو اللوحة"
+        AppLanguage.PORTUGUESE -> "Inversão inteligente para qualquer página. Alterne pela barra de ferramentas ou pelo painel"
+        AppLanguage.SPANISH -> "Inversión inteligente para cualquier página. Actívalo desde la barra o el panel"
+        AppLanguage.FRENCH -> "Inversion intelligente pour n'importe quelle page. Activez-la depuis la barre d'outils ou le panneau"
+        AppLanguage.GERMAN -> "Intelligente Invertierung für jede Seite. Umschalten über die Symbolleiste oder das Panel"
+        AppLanguage.RUSSIAN -> "Умная инверсия для любой страницы. Переключение с панели инструментов или из панели"
+        AppLanguage.JAPANESE -> "どのページでも使えるスマート反転。ツールバーまたはパネルから切り替え"
+        AppLanguage.KOREAN -> "모든 페이지에 적용되는 스마트 반전. 툴바 또는 패널에서 전환"
     }
     val builtinPrivacyProtection: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "隐私保护"
@@ -1801,20 +1801,20 @@ object StringsC {
         AppLanguage.KOREAN -> "개인정보 보호"
     }
     val builtinPrivacyProtectionDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "阻止追踪、清理指纹、保护隐私"
-        AppLanguage.ENGLISH -> "Block tracking, clear fingerprints, protect privacy"
-        AppLanguage.ARABIC -> "حظر التتبع، مسح البصمات، حماية الخصوصية"
-        AppLanguage.PORTUGUESE -> "Bloquear rastreamento, limpar impressões digitais, proteger privacidade"
-        AppLanguage.SPANISH -> "Bloquear rastreo, borrar huellas digitales, proteger privacidad"
-        AppLanguage.FRENCH -> "Bloquer le suivi, effacer les empreintes numériques, protéger la vie privée"
-        AppLanguage.GERMAN -> "Tracking blockieren, Fingerabdrücke löschen, Datenschutz schützen"
-        AppLanguage.RUSSIAN -> "Блокировать отслеживание, очищать отпечатки, защищать конфиденциальность"
-        AppLanguage.JAPANESE -> "トラッキングブロック、フィンガープリント消去、プライバシー保護"
-        AppLanguage.KOREAN -> "추적 차단, 지문 삭제, 개인정보 보호"
+        AppLanguage.CHINESE -> "阻止追踪、模糊指纹信号，退出时清除 Cookie"
+        AppLanguage.ENGLISH -> "Block trackers, blur fingerprint signals, clear cookies on exit"
+        AppLanguage.ARABIC -> "حظر المتعقبات، طمس إشارات البصمة، مسح ملفات تعريف الارتباط عند الخروج"
+        AppLanguage.PORTUGUESE -> "Bloquear rastreadores, ofuscar sinais de impressão digital, limpar cookies ao sair"
+        AppLanguage.SPANISH -> "Bloquear rastreadores, difuminar señales de huella digital, borrar cookies al salir"
+        AppLanguage.FRENCH -> "Bloquer les traqueurs, flouter les signaux d'empreinte, effacer les cookies à la sortie"
+        AppLanguage.GERMAN -> "Tracker blockieren, Fingerabdrucksignale unkenntlich machen, Cookies beim Beenden löschen"
+        AppLanguage.RUSSIAN -> "Блокировать трекеры, размывать сигналы отпечатка, очищать cookie при выходе"
+        AppLanguage.JAPANESE -> "トラッカーをブロック、フィンガープリント信号をぼかし、終了時に Cookie を消去"
+        AppLanguage.KOREAN -> "추적기 차단, 지문 신호 흐리기, 종료 시 쿠키 삭제"
     }
     val builtinContentEnhancer: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "内容增强"
-        AppLanguage.ENGLISH -> "Content Enhance"
+        AppLanguage.ENGLISH -> "Content Enhancer"
         AppLanguage.ARABIC -> "تحسين المحتوى"
         AppLanguage.PORTUGUESE -> "Aprimoramento de Conteúdo"
         AppLanguage.SPANISH -> "Mejora de Contenido"
@@ -1825,16 +1825,16 @@ object StringsC {
         AppLanguage.KOREAN -> "콘텐츠 향상"
     }
     val builtinContentEnhancerDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "解除复制限制、翻译、长截图"
-        AppLanguage.ENGLISH -> "Remove copy restrictions, translate, long screenshot"
-        AppLanguage.ARABIC -> "إزالة قيود النسخ، الترجمة، لقطة شاشة طويلة"
-        AppLanguage.PORTUGUESE -> "Remover restrições de cópia, traduzir, captura de tela longa"
-        AppLanguage.SPANISH -> "Eliminar restricciones de copia, traducir, captura de pantalla larga"
-        AppLanguage.FRENCH -> "Supprimer les restrictions de copie, traduire, capture d'écran longue"
-        AppLanguage.GERMAN -> "Kopierbeschränkungen entfernen, übersetzen, langer Screenshot"
-        AppLanguage.RUSSIAN -> "Снять ограничения копирования, перевод, длинный скриншот"
-        AppLanguage.JAPANESE -> "コピー制限の解除、翻訳、長いスクリーンショット"
-        AppLanguage.KOREAN -> "복사 제한 제거, 번역, 긴 스크린샷"
+        AppLanguage.CHINESE -> "解除复制限制，复制页面文本或 HTML，快速滚到顶部或底部"
+        AppLanguage.ENGLISH -> "Unlock copy, copy page text or HTML, jump to the top or bottom"
+        AppLanguage.ARABIC -> "إلغاء قيود النسخ، نسخ نص الصفحة أو HTML، الانتقال إلى الأعلى أو الأسفل"
+        AppLanguage.PORTUGUESE -> "Liberar cópia, copiar texto ou HTML da página, ir ao topo ou ao fim"
+        AppLanguage.SPANISH -> "Desbloquear copia, copiar texto o HTML de la página, ir al inicio o al final"
+        AppLanguage.FRENCH -> "Débloquer la copie, copier le texte ou le HTML de la page, aller en haut ou en bas"
+        AppLanguage.GERMAN -> "Kopiersperre aufheben, Seitentext oder HTML kopieren, nach oben oder unten springen"
+        AppLanguage.RUSSIAN -> "Снять запрет копирования, копировать текст или HTML страницы, перейти вверх или вниз"
+        AppLanguage.JAPANESE -> "コピー制限を解除し、ページのテキストや HTML をコピー、先頭や末尾へ移動"
+        AppLanguage.KOREAN -> "복사 제한 해제, 페이지 텍스트 또는 HTML 복사, 맨 위 또는 맨 아래로 이동"
     }
     val builtinElementBlocker: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "元素屏蔽器"
@@ -1849,16 +1849,123 @@ object StringsC {
         AppLanguage.KOREAN -> "요소 차단기"
     }
     val builtinElementBlockerDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "单击选择元素，双击屏蔽，去除页面烦人元素"
-        AppLanguage.ENGLISH -> "Click to select, double-click to block annoying elements"
-        AppLanguage.ARABIC -> "انقر للتحديد، انقر مرتين لحظر العناصر المزعجة"
-        AppLanguage.PORTUGUESE -> "Clique para selecionar, clique duplo para bloquear elementos irritantes"
-        AppLanguage.SPANISH -> "Hacer clic para seleccionar, doble clic para bloquear elementos molestos"
-        AppLanguage.FRENCH -> "Cliquer pour sélectionner, double-cliquer pour bloquer les éléments gênants"
-        AppLanguage.GERMAN -> "Klicken zum Auswählen, Doppelklick zum Blockieren störender Elemente"
-        AppLanguage.RUSSIAN -> "Клик для выбора, двойной клик для блокировки раздражающих элементов"
-        AppLanguage.JAPANESE -> "クリックで選択、ダブルクリックで煩わしい要素をブロック"
-        AppLanguage.KOREAN -> "클릭하여 선택, 더블클릭으로 성가신 요소 차단"
+        AppLanguage.CHINESE -> "单击选择、双击屏蔽烦人元素，规则按网站保存"
+        AppLanguage.ENGLISH -> "Click to select, double-click to hide elements. Rules persist per site"
+        AppLanguage.ARABIC -> "انقر للتحديد، انقر مرتين لإخفاء العناصر. تُحفظ القواعد لكل موقع"
+        AppLanguage.PORTUGUESE -> "Clique para selecionar, clique duplo para ocultar. As regras persistem por site"
+        AppLanguage.SPANISH -> "Clic para seleccionar, doble clic para ocultar. Las reglas se conservan por sitio"
+        AppLanguage.FRENCH -> "Cliquer pour sélectionner, double-cliquer pour masquer. Les règles persistent par site"
+        AppLanguage.GERMAN -> "Klicken zum Auswählen, Doppelklick zum Ausblenden. Regeln gelten pro Website"
+        AppLanguage.RUSSIAN -> "Клик для выбора, двойной клик для скрытия. Правила сохраняются для сайта"
+        AppLanguage.JAPANESE -> "クリックで選択、ダブルクリックで非表示。ルールはサイトごとに保存"
+        AppLanguage.KOREAN -> "클릭하여 선택, 더블클릭으로 숨김. 규칙은 사이트별로 유지"
+    }
+
+    val builtinPageMenu: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "页面菜单"
+        AppLanguage.ENGLISH -> "Page Menu"
+        AppLanguage.ARABIC -> "قائمة الصفحة"
+        AppLanguage.PORTUGUESE -> "Menu da Página"
+        AppLanguage.SPANISH -> "Menú de la Página"
+        AppLanguage.FRENCH -> "Menu de la Page"
+        AppLanguage.GERMAN -> "Seitenmenü"
+        AppLanguage.RUSSIAN -> "Меню страницы"
+        AppLanguage.JAPANESE -> "ページメニュー"
+        AppLanguage.KOREAN -> "페이지 메뉴"
+    }
+    val builtinPageMenuDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "浮动页面工具：刷新、前进后退、跳转网址、分享链接、外部打开、清除数据、隐藏菜单、退出"
+        AppLanguage.ENGLISH -> "Floating page tools: refresh, back/forward, jump to a URL, share, open externally, clear data, hide menu, exit"
+        AppLanguage.ARABIC -> "أدوات صفحة عائمة: تحديث، رجوع/تقدم، الانتقال إلى رابط، مشاركة، فتح خارجيًا، مسح البيانات، إخفاء القائمة، خروج"
+        AppLanguage.PORTUGUESE -> "Ferramentas flutuantes: atualizar, voltar/avançar, ir a um URL, compartilhar, abrir externamente, limpar dados, ocultar menu, sair"
+        AppLanguage.SPANISH -> "Herramientas flotantes: actualizar, atrás/adelante, ir a una URL, compartir, abrir externamente, borrar datos, ocultar menú, salir"
+        AppLanguage.FRENCH -> "Outils flottants : actualiser, précédent/suivant, aller à une URL, partager, ouvrir à l'extérieur, effacer les données, masquer le menu, quitter"
+        AppLanguage.GERMAN -> "Schwebende Seitenwerkzeuge: Aktualisieren, Zurück/Vor, URL öffnen, teilen, extern öffnen, Daten löschen, Menü ausblenden, beenden"
+        AppLanguage.RUSSIAN -> "Плавающие инструменты: обновить, назад/вперёд, перейти по URL, поделиться, открыть внешне, очистить данные, скрыть меню, выход"
+        AppLanguage.JAPANESE -> "フローティングのページツール：更新、戻る/進む、URL へ移動、共有、外部で開く、データ消去、メニュー非表示、終了"
+        AppLanguage.KOREAN -> "플로팅 페이지 도구: 새로고침, 뒤로/앞으로, URL 이동, 공유, 외부에서 열기, 데이터 지우기, 메뉴 숨기기, 종료"
+    }
+
+    val builtinUrlSwitcher: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "网址切换"
+        AppLanguage.ENGLISH -> "URL Switcher"
+        AppLanguage.ARABIC -> "تبديل الروابط"
+        AppLanguage.PORTUGUESE -> "Alternar URL"
+        AppLanguage.SPANISH -> "Cambiar URL"
+        AppLanguage.FRENCH -> "Changer d’URL"
+        AppLanguage.GERMAN -> "URL wechseln"
+        AppLanguage.RUSSIAN -> "Смена URL"
+        AppLanguage.JAPANESE -> "URL切り替え"
+        AppLanguage.KOREAN -> "URL 전환"
+    }
+    val builtinUrlSwitcherDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "保存网址并在任意应用里切换，不占用页面高度"
+        AppLanguage.ENGLISH -> "Save URLs and switch between them in any app without taking page space"
+        AppLanguage.ARABIC -> "احفظ الروابط وبدّل بينها في أي تطبيق دون شغل الصفحة"
+        AppLanguage.PORTUGUESE -> "Salve URLs e alterne entre eles em qualquer app sem ocupar a página"
+        AppLanguage.SPANISH -> "Guarda URLs y cámbiate entre ellas en cualquier app sin ocupar la página"
+        AppLanguage.FRENCH -> "Enregistrez des URL et basculez depuis n’importe quelle app sans occuper la page"
+        AppLanguage.GERMAN -> "URLs speichern und in jeder App wechseln, ohne Seitenplatz zu belegen"
+        AppLanguage.RUSSIAN -> "Сохраняйте адреса и переключайтесь в любом приложении, не занимая место"
+        AppLanguage.JAPANESE -> "URLを保存し、どのアプリからでも切り替え。ページ領域を占有しない"
+        AppLanguage.KOREAN -> "URL을 저장하고 어떤 앱에서든 전환, 페이지 영역을 차지하지 않음"
+    }
+
+    val builtinStreamingPip: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "流媒体画中画"
+        AppLanguage.ENGLISH -> "Streaming PiP"
+        AppLanguage.ARABIC -> "صورة داخل صورة للبث"
+        AppLanguage.PORTUGUESE -> "PiP de streaming"
+        AppLanguage.SPANISH -> "PiP de streaming"
+        AppLanguage.FRENCH -> "PiP de streaming"
+        AppLanguage.GERMAN -> "Streaming-PiP"
+        AppLanguage.RUSSIAN -> "PiP для потокового видео"
+        AppLanguage.JAPANESE -> "ストリーミングPiP"
+        AppLanguage.KOREAN -> "스트리밍 PiP"
+    }
+    val builtinStreamingPipDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动检测视频播放（HTML5、HLS、DASH、YouTube）并进入画中画"
+        AppLanguage.ENGLISH -> "Auto-detect video playback (HTML5, HLS, DASH, YouTube) and enter Picture-in-Picture"
+        AppLanguage.ARABIC -> "كشف تشغيل الفيديو تلقائيًا (HTML5 وHLS وDASH ويوتيوب) والدخول إلى صورة داخل صورة"
+        AppLanguage.PORTUGUESE -> "Detecta automaticamente a reprodução de vídeo (HTML5, HLS, DASH, YouTube) e entra em picture-in-picture"
+        AppLanguage.SPANISH -> "Detecta automáticamente la reproducción de vídeo (HTML5, HLS, DASH, YouTube) y entra en picture-in-picture"
+        AppLanguage.FRENCH -> "Détecte automatiquement la lecture vidéo (HTML5, HLS, DASH, YouTube) et passe en picture-in-picture"
+        AppLanguage.GERMAN -> "Erkennt Videowiedergabe automatisch (HTML5, HLS, DASH, YouTube) und wechselt in Bild-in-Bild"
+        AppLanguage.RUSSIAN -> "Автоматически определяет воспроизведение видео (HTML5, HLS, DASH, YouTube) и включает картинку в картинке"
+        AppLanguage.JAPANESE -> "動画再生（HTML5、HLS、DASH、YouTube）を自動検出してピクチャーインピクチャーに切り替えます"
+        AppLanguage.KOREAN -> "동영상 재생(HTML5, HLS, DASH, YouTube)을 자동 감지해 PIP 모드로 전환합니다"
+    }
+
+    // Qualify through the facade so generateShellStrings follows the closure
+    // into each name/desc property (bare identifiers in this object are not scanned).
+    fun builtinPluginName(id: String, fallback: String): String = when (id) {
+        "builtin-media-downloader" -> Strings.builtinMediaDownloader
+        "builtin-video-enhancer" -> Strings.builtinVideoEnhancer
+        "builtin-web-analyzer" -> Strings.builtinWebAnalyzer
+        "builtin-find-in-page" -> Strings.builtinFindInPage
+        "builtin-dark-mode" -> Strings.builtinDarkMode
+        "builtin-privacy-protection" -> Strings.builtinPrivacyProtection
+        "builtin-content-enhancer" -> Strings.builtinContentEnhancer
+        "builtin-element-blocker" -> Strings.builtinElementBlocker
+        "builtin-page-menu" -> Strings.builtinPageMenu
+        "builtin-url-switcher" -> Strings.builtinUrlSwitcher
+        "builtin-streaming-pip" -> Strings.builtinStreamingPip
+        else -> fallback
+    }
+
+    fun builtinPluginDescription(id: String, fallback: String): String = when (id) {
+        "builtin-media-downloader" -> Strings.builtinMediaDownloaderDesc
+        "builtin-video-enhancer" -> Strings.builtinVideoEnhancerDesc
+        "builtin-web-analyzer" -> Strings.builtinWebAnalyzerDesc
+        "builtin-find-in-page" -> Strings.builtinFindInPageDesc
+        "builtin-dark-mode" -> Strings.builtinDarkModeDesc
+        "builtin-privacy-protection" -> Strings.builtinPrivacyProtectionDesc
+        "builtin-content-enhancer" -> Strings.builtinContentEnhancerDesc
+        "builtin-element-blocker" -> Strings.builtinElementBlockerDesc
+        "builtin-page-menu" -> Strings.builtinPageMenuDesc
+        "builtin-url-switcher" -> Strings.builtinUrlSwitcherDesc
+        "builtin-streaming-pip" -> Strings.builtinStreamingPipDesc
+        else -> fallback
     }
 
     val triggerAuto: String get() = when (Strings.lang) {
@@ -5368,19 +5475,6 @@ object StringsC {
         AppLanguage.KOREAN -> "네트워크 신뢰"
     }
 
-    val networkTrustHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "控制导出 APK 的 HTTPS 证书信任来源"
-        AppLanguage.ENGLISH -> "Control HTTPS certificate trust sources for exported APKs"
-        AppLanguage.ARABIC -> "التحكم في مصادر الثقة لشهادات HTTPS في ملفات APK المصدرة"
-        AppLanguage.PORTUGUESE -> "Controlar fontes de confiança de certificados HTTPS para APKs exportados"
-        AppLanguage.SPANISH -> "Controlar fuentes de confianza de certificados HTTPS para APKs exportados"
-        AppLanguage.FRENCH -> "Contrôler les sources de confiance des certificats HTTPS pour les APK exportés"
-        AppLanguage.GERMAN -> "HTTPS-Zertifikatsvertrauensquellen für exportierte APKs steuern"
-        AppLanguage.RUSSIAN -> "Управление источниками доверия сертификатов HTTPS для экспортируемых APK"
-        AppLanguage.JAPANESE -> "エクスポートしたAPKのHTTPS証明書信頼ソースを制御"
-        AppLanguage.KOREAN -> "내보낸 APK의 HTTPS 인증서 신뢰 소스 제어"
-    }
-
     val trustSystemCa: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "信任系统 CA"
         AppLanguage.ENGLISH -> "Trust System CA"
@@ -5577,8 +5671,8 @@ object StringsC {
     }
 
     val networkTrustTemplateLimitHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "导入的自定义 CA 会在构建出的 APK 内生效:由该 CA 直接签发的证书将被信任。完整的证书链校验(根 CA + 中间 CA)请使用源码项目导出。"
-        AppLanguage.ENGLISH -> "Imported custom CAs take effect inside built APKs: certificates directly signed by an imported CA are trusted. For full chain validation (root + intermediate), use source-project export."
+        AppLanguage.CHINESE -> "导入的自定义 CA 会在构建出的 APK 内生效:由该 CA 直接签发的证书将被信任。完整证书链(根 CA + 中间 CA)所需的 network_security_config.xml 和证书在源码导出里。"
+        AppLanguage.ENGLISH -> "Imported custom CAs take effect inside built APKs: certificates directly signed by an imported CA are trusted. The source export includes network_security_config.xml and the certificates for full chain validation (root + intermediate)."
         AppLanguage.ARABIC -> "شهادات CA المخصصة المستوردة تسري داخل ملفات APK المبنية: الشهادات الموقعة مباشرة من CA مستورد موثوقة. للتحقق الكامل من السلسلة (جذر + وسيط)، استخدم تصدير المشروع المصدري."
         AppLanguage.PORTUGUESE -> "CAs personalizadas importadas passam a valer dentro dos APKs gerados: certificados assinados diretamente por uma CA importada são confiáveis. Para validação completa da cadeia (raiz + intermediária), use a exportação do projeto fonte."
         AppLanguage.SPANISH -> "Las CAs personalizadas importadas funcionan dentro de los APK generados: los certificados firmados directamente por una CA importada son de confianza. Para validación completa de cadena (raíz + intermedia), usa la exportación del proyecto fuente."
@@ -5772,8 +5866,8 @@ object StringsC {
     }
 
     val preflightTemplateCaLimitMessage: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "导入的 CA 会在构建出的 APK 内生效:由该 CA 直接签发的证书会被信任。完整证书链(根+中间)请用源码项目导出。"
-        AppLanguage.ENGLISH -> "Imported CAs take effect in built APKs: certificates directly signed by an imported CA are trusted. For full chain (root + intermediate), use source-project export."
+        AppLanguage.CHINESE -> "导入的 CA 会在构建出的 APK 内生效:由该 CA 直接签发的证书会被信任。完整证书链(根+中间)所需的 network_security_config.xml 和证书在源码导出里。"
+        AppLanguage.ENGLISH -> "Imported CAs take effect in built APKs: certificates directly signed by an imported CA are trusted. The source export includes network_security_config.xml and the certificates for full chain validation (root + intermediate)."
         AppLanguage.ARABIC -> "شهادات CA المستوردة تسري داخل APK المبني: الشهادات الموقعة مباشرة من CA مستورد موثوقة. للسلسلة الكاملة (جذر + وسيط) استخدم تصدير المشروع المصدري."
         AppLanguage.PORTUGUESE -> "CAs importadas passam a valer nos APKs gerados: certificados assinados diretamente por uma CA importada são confiáveis. Para cadeia completa (raiz + intermediária), use a exportação do projeto fonte."
         AppLanguage.SPANISH -> "Las CAs importadas funcionan en los APK generados: los certificados firmados directamente por una CA importada son de confianza. Para cadena completa (raíz + intermedia), usa la exportación del proyecto fuente."
@@ -7577,16 +7671,29 @@ object StringsC {
     }
 
     val apkIdentityBuildSection: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "应用标识与构建"
-        AppLanguage.ENGLISH -> "Identity & Build"
-        AppLanguage.ARABIC -> "الهوية والبناء"
-        AppLanguage.PORTUGUESE -> "Identidade & Build"
-        AppLanguage.SPANISH -> "Identidad & Compilación"
-        AppLanguage.FRENCH -> "Identité & Compilation"
-        AppLanguage.GERMAN -> "Identität & Build"
-        AppLanguage.RUSSIAN -> "Идентификатор и сборка"
-        AppLanguage.JAPANESE -> "アプリIDとビルド"
-        AppLanguage.KOREAN -> "앱 ID 및 빌드"
+        AppLanguage.CHINESE -> "应用标识"
+        AppLanguage.ENGLISH -> "App Identity"
+        AppLanguage.ARABIC -> "هوية التطبيق"
+        AppLanguage.PORTUGUESE -> "Identidade do App"
+        AppLanguage.SPANISH -> "Identidad de la app"
+        AppLanguage.FRENCH -> "Identité de l'app"
+        AppLanguage.GERMAN -> "App-Identität"
+        AppLanguage.RUSSIAN -> "Идентификатор приложения"
+        AppLanguage.JAPANESE -> "アプリ識別"
+        AppLanguage.KOREAN -> "앱 식별"
+    }
+
+    val apkBuildOptionsSection: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "构建选项"
+        AppLanguage.ENGLISH -> "Build Options"
+        AppLanguage.ARABIC -> "خيارات البناء"
+        AppLanguage.PORTUGUESE -> "Opções de Build"
+        AppLanguage.SPANISH -> "Opciones de compilación"
+        AppLanguage.FRENCH -> "Options de compilation"
+        AppLanguage.GERMAN -> "Build-Optionen"
+        AppLanguage.RUSSIAN -> "Параметры сборки"
+        AppLanguage.JAPANESE -> "ビルド設定"
+        AppLanguage.KOREAN -> "빌드 옵션"
     }
 
     val signingSectionTitle: String get() = when (Strings.lang) {
@@ -7642,42 +7749,81 @@ object StringsC {
     }
 
     val targetSdkOverrideTitle: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "提升 targetSdk"
-        AppLanguage.ENGLISH -> "Raise targetSdk"
-        AppLanguage.ARABIC -> "رفع targetSdk"
-        AppLanguage.PORTUGUESE -> "Elevar targetSdk"
-        AppLanguage.SPANISH -> "Subir targetSdk"
-        AppLanguage.FRENCH -> "Augmenter targetSdk"
-        AppLanguage.GERMAN -> "targetSdk anheben"
-        AppLanguage.RUSSIAN -> "Повысить targetSdk"
-        AppLanguage.JAPANESE -> "targetSdk を引き上げ"
-        AppLanguage.KOREAN -> "targetSdk 올리기"
+        AppLanguage.CHINESE -> "自定义 targetSdk"
+        AppLanguage.ENGLISH -> "Override targetSdk"
+        AppLanguage.ARABIC -> "تجاوز targetSdk"
+        AppLanguage.PORTUGUESE -> "Substituir targetSdk"
+        AppLanguage.SPANISH -> "Sobrescribir targetSdk"
+        AppLanguage.FRENCH -> "Remplacer targetSdk"
+        AppLanguage.GERMAN -> "targetSdk überschreiben"
+        AppLanguage.RUSSIAN -> "Изменить targetSdk"
+        AppLanguage.JAPANESE -> "targetSdk を上書き"
+        AppLanguage.KOREAN -> "targetSdk 재정의"
     }
 
     val targetSdkOverrideOffHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "默认保持 targetSdk 28。仅对纯 WebView 应用类型可用（Node/PHP/Python/Go/WordPress 等需 fork+exec 的运行时必须保留 28）。上架 Google Play 请改用「更多 → Google Play」的 AAB 导出。"
-        AppLanguage.ENGLISH -> "Keeps targetSdk 28 by default. Only available for WebView-only app types (Node/PHP/Python/Go/WordPress runtimes must stay at 28). For Google Play use the AAB export under More → Google Play."
-        AppLanguage.ARABIC -> "يبقي targetSdk 28 افتراضيًا. متاح فقط لأنواع التطبيقات التي تعتمد على WebView فقط (أوقات تشغيل Node/PHP/Python/Go/WordPress يجب أن تبقى على 28). للنشر على Google Play استخدم تصدير AAB ضمن المزيد → Google Play."
-        AppLanguage.PORTUGUESE -> "Mantém targetSdk 28 por padrão. Disponível apenas para tipos de app baseados em WebView (runtimes Node/PHP/Python/Go/WordPress devem permanecer em 28). Para a Google Play, use a exportação AAB em Mais → Google Play."
-        AppLanguage.SPANISH -> "Mantiene targetSdk 28 por defecto. Solo disponible para tipos de app basados en WebView (los runtimes Node/PHP/Python/Go/WordPress deben permanecer en 28). Para Google Play usa la exportación AAB en Más → Google Play."
-        AppLanguage.FRENCH -> "Garde targetSdk 28 par défaut. Uniquement disponible pour les types d'app basés sur WebView (les runtimes Node/PHP/Python/Go/WordPress doivent rester à 28). Pour Google Play, utilisez l'export AAB dans Plus → Google Play."
-        AppLanguage.GERMAN -> "Behält standardmäßig targetSdk 28 bei. Nur für reine WebView-App-Typen verfügbar (Node/PHP/Python/Go/WordPress-Runtimes müssen bei 28 bleiben). Für Google Play den AAB-Export unter Mehr → Google Play verwenden."
-        AppLanguage.RUSSIAN -> "По умолчанию targetSdk 28. Доступно только для приложений на базе WebView (рантаймы Node/PHP/Python/Go/WordPress должны оставаться на 28). Для Google Play используйте экспорт AAB в разделе Ещё → Google Play."
-        AppLanguage.JAPANESE -> "デフォルトは targetSdk 28 のままです。WebView のみのアプリ種別でのみ利用可能です（Node/PHP/Python/Go/WordPress などのランタイムは 28 のままにする必要があります）。Google Play への公開は「その他 → Google Play」の AAB エクスポートをご利用ください。"
-        AppLanguage.KOREAN -> "기본적으로 targetSdk 28을 유지합니다. WebView 전용 앱 유형에만 사용할 수 있습니다 (Node/PHP/Python/Go/WordPress 런타임은 28을 유지해야 함). Google Play 배포는 '더보기 → Google Play'의 AAB 내보내기를 사용하세요."
+        AppLanguage.CHINESE -> "默认 targetSdk 35（Android 15）。开启后可为生成的 APK 固定其他 API 级别，用于兼容旧设备行为或满足渠道要求。上架 Google Play 请改用「更多 → Google Play」的 AAB 导出。"
+        AppLanguage.ENGLISH -> "Defaults to targetSdk 35 (Android 15). Turn on to pin a different API level for the generated APK — useful for legacy behavior or channel requirements. For Google Play use the AAB export under More → Google Play."
+        AppLanguage.ARABIC -> "الافتراضي targetSdk 35 (Android 15). فعّل هذا لتثبيت مستوى API مختلف للتطبيق المُنشأ — مفيد للسلوك القديم أو متطلبات القنوات. للنشر على Google Play استخدم تصدير AAB ضمن المزيد → Google Play."
+        AppLanguage.PORTUGUESE -> "O padrão é targetSdk 35 (Android 15). Ative para fixar outro nível de API no APK gerado — útil para comportamento legado ou requisitos de canais. Para a Google Play, use a exportação AAB em Mais → Google Play."
+        AppLanguage.SPANISH -> "El valor predeterminado es targetSdk 35 (Android 15). Actívalo para fijar otro nivel de API en el APK generado: útil para comportamiento heredado o requisitos de canales. Para Google Play usa la exportación AAB en Más → Google Play."
+        AppLanguage.FRENCH -> "Par défaut targetSdk 35 (Android 15). Activez pour fixer un autre niveau d'API pour l'APK généré — utile pour un comportement hérité ou des exigences de canal. Pour Google Play, utilisez l'export AAB dans Plus → Google Play."
+        AppLanguage.GERMAN -> "Standard ist targetSdk 35 (Android 15). Aktivieren, um ein anderes API-Level für das generierte APK festzulegen — nützlich für Legacy-Verhalten oder Kanalanforderungen. Für Google Play den AAB-Export unter Mehr → Google Play verwenden."
+        AppLanguage.RUSSIAN -> "По умолчанию targetSdk 35 (Android 15). Включите, чтобы зафиксировать другой уровень API для генерируемого APK — полезно для старого поведения или требований каналов. Для Google Play используйте экспорт AAB в разделе Ещё → Google Play."
+        AppLanguage.JAPANESE -> "デフォルトは targetSdk 35（Android 15）です。オンにすると生成 APK に別の API レベルを固定できます。旧動作との互換や配信チャンネルの要件に便利です。Google Play への公開は「その他 → Google Play」の AAB エクスポートをご利用ください。"
+        AppLanguage.KOREAN -> "기본값은 targetSdk 35(Android 15)입니다. 켜면 생성된 APK에 다른 API 레벨을 고정할 수 있습니다. 레거시 동작이나 채널 요구사항에 유용합니다. Google Play 배포는 '더보기 → Google Play'의 AAB보내기를 사용하세요."
     }
 
     val targetSdkOverrideOnHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "已提升生成的 APK 的 targetSdk。运行时已适配（暗色模式、通知权限、前台服务等）。仍需用 AAB 导出上架 Google Play；此处用于侧载或第三方分发渠道。"
-        AppLanguage.ENGLISH -> "Generated APK's targetSdk is raised. Runtime is adapted (dark mode, notification permission, foreground services). Still use AAB export for Google Play; this is for sideload or third-party distribution."
-        AppLanguage.ARABIC -> "تم رفع targetSdk للتطبيق المُنشأ. تم تكييف وقت التشغيل (الوضع الداكن، إذن الإشعارات، الخدمات الأمامية). لا يزال يلزم تصدير AAB للنشر على Google Play؛ هذا مخصص للتثبيت الجانبي أو قنوات الطرف الثالث."
-        AppLanguage.PORTUGUESE -> "O targetSdk do APK gerado foi elevado. O runtime foi adaptado (modo escuro, permissão de notificação, serviços em primeiro plano). Ainda use a exportação AAB para a Google Play; isto é para sideload ou canais de terceiros."
-        AppLanguage.SPANISH -> "Se elevó el targetSdk del APK generado. El runtime está adaptado (modo oscuro, permiso de notificaciones, servicios en primer plano). Sigue usando la exportación AAB para Google Play; esto es para sideload o canales de terceros."
-        AppLanguage.FRENCH -> "Le targetSdk de l'APK généré a été augmenté. Le runtime est adapté (mode sombre, autorisation de notification, services de premier plan). Utilisez toujours l'export AAB pour Google Play ; ceci est pour le sideload ou la distribution tierce."
-        AppLanguage.GERMAN -> "Das targetSdk des generierten APK wurde angehoben. Die Laufzeit ist angepasst (Dunkelmodus, Benachrichtigungsberechtigung, Vordergrunddienste). Für Google Play weiterhin den AAB-Export verwenden; dies ist für Sideload oder Drittanbieter-Vertrieb."
-        AppLanguage.RUSSIAN -> "targetSdk сгенерированного APK повышен. Среда выполнения адаптирована (тёмный режим, разрешение на уведомления, фоновые службы). Для Google Play всё равно используйте экспорт AAB; это — для sideload или сторонних каналов."
-        AppLanguage.JAPANESE -> "生成された APK の targetSdk を引き上げました。ランタイムは適応済み（ダークモード、通知権限、フォアグラウンドサービス）。Google Play 公開には引き続き AAB エクスポートを使用してください。こちらはサイドロードやサードパーティ配布向けです。"
-        AppLanguage.KOREAN -> "생성된 APK의 targetSdk가 올라갔습니다. 런타임이 적응되었습니다 (다크 모드, 알림 권한, 포그라운드 서비스). Google Play 배포에는 여전히 AAB 내보내기를 사용하세요. 이 옵션은 사이드로드 또는 타사 배포용입니다."
+        AppLanguage.CHINESE -> "生成的 APK 将使用所选 targetSdk。运行时已适配现代 Android 行为（通知权限、前台服务类型、精确闹钟兜底等）。上架 Google Play 请用「更多 → Google Play」的 AAB 导出；此处用于侧载或第三方分发渠道。"
+        AppLanguage.ENGLISH -> "The generated APK will use the selected targetSdk. The runtime already handles modern Android behavior (notification permission, foreground-service types, exact-alarm fallback). Use AAB export for Google Play; this is for sideload or third-party distribution."
+        AppLanguage.ARABIC -> "سيستخدم التطبيق المُنشأ targetSdk المحدد. وقت التشغيل يتعامل مع سلوك Android الحديث (إذن الإشعارات، أنواع الخدمات الأمامية، تراجع المنبه الدقيق). استخدم تصدير AAB لـ Google Play؛ هذا مخصص للتثبيت الجانبي أو قنوات الطرف الثالث."
+        AppLanguage.PORTUGUESE -> "O APK gerado usará o targetSdk selecionado. O runtime já lida com o comportamento moderno do Android (permissão de notificação, tipos de serviço em primeiro plano, fallback de alarme exato). Use a exportação AAB para a Google Play; isto é para sideload ou canais de terceiros."
+        AppLanguage.SPANISH -> "El APK generado usará el targetSdk seleccionado. El runtime ya maneja el comportamiento moderno de Android (permiso de notificaciones, tipos de servicios en primer plano, fallback de alarma exacta). Usa la exportación AAB para Google Play; esto es para sideload o canales de terceros."
+        AppLanguage.FRENCH -> "L'APK généré utilisera le targetSdk sélectionné. Le runtime gère déjà le comportement Android moderne (autorisation de notification, types de services de premier plan, repli d'alarme exacte). Utilisez l'export AAB pour Google Play ; ceci est pour le sideload ou la distribution tierce."
+        AppLanguage.GERMAN -> "Das generierte APK verwendet das gewählte targetSdk. Die Laufzeit behandelt bereits modernes Android-Verhalten (Benachrichtigungsberechtigung, Vordergrunddienst-Typen, Fallback für exakte Alarme). Für Google Play den AAB-Export verwenden; dies ist für Sideload oder Drittanbieter-Vertrieb."
+        AppLanguage.RUSSIAN -> "Сгенерированный APK будет использовать выбранный targetSdk. Среда выполнения уже учитывает современное поведение Android (разрешение на уведомления, типы фоновых служб, резерв для точных будильников). Для Google Play используйте экспорт AAB; это — для sideload или сторонних каналов."
+        AppLanguage.JAPANESE -> "生成される APK は選択した targetSdk を使用します。ランタイムは最新の Android 動作に対応済みです（通知権限、フォアグラウンドサービスの種別、正確なアラームのフォールバック）。Google Play 公開には AAB エクスポートを使用してください。こちらはサイドロードやサードパーティ配布向けです。"
+        AppLanguage.KOREAN -> "생성된 APK가 선택한 targetSdk를 사용합니다. 런타임은 최신 Android 동작을 이미 처리합니다(알림 권한, 포그라운드 서비스 유형, 정확한 알람 폴백). Google Play 배포에는 AAB보내기를 사용하세요. 이 옵션은 사이드로드 또는 타사 배포용입니다."
+    }
+
+    val minSdkOverrideTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自定义 minSdk"
+        AppLanguage.ENGLISH -> "Override minSdk"
+        AppLanguage.ARABIC -> "تجاوز minSdk"
+        AppLanguage.PORTUGUESE -> "Substituir minSdk"
+        AppLanguage.SPANISH -> "Sobrescribir minSdk"
+        AppLanguage.FRENCH -> "Remplacer minSdk"
+        AppLanguage.GERMAN -> "minSdk überschreiben"
+        AppLanguage.RUSSIAN -> "Изменить minSdk"
+        AppLanguage.JAPANESE -> "minSdk を上書き"
+        AppLanguage.KOREAN -> "minSdk 재정의"
+    }
+
+    val minSdkOverrideOffHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "默认 minSdk 23（Android 6）。开启后可提高最低系统版本，用于排除旧设备或满足渠道要求。不能低于 23，也不能高于当前 targetSdk。"
+        AppLanguage.ENGLISH -> "Defaults to minSdk 23 (Android 6). Turn on to raise the floor so older devices are excluded or a store requirement is met. Cannot go below 23 or above the current targetSdk."
+        AppLanguage.ARABIC -> "الافتراضي minSdk 23 (أندرويد 6). فعّل لرفع الحد الأدنى لاستبعاد الأجهزة القديمة أو تلبية متطلبات المتجر. لا يمكن أن يقل عن 23 أو يتجاوز targetSdk الحالي."
+        AppLanguage.PORTUGUESE -> "O padrão é minSdk 23 (Android 6). Ative para elevar o piso, excluindo dispositivos antigos ou atendendo a um requisito de loja. Não pode ficar abaixo de 23 nem acima do targetSdk atual."
+        AppLanguage.SPANISH -> "El valor predeterminado es minSdk 23 (Android 6). Actívalo para subir el mínimo, excluir dispositivos antiguos o cumplir un requisito de tienda. No puede bajar de 23 ni superar el targetSdk actual."
+        AppLanguage.FRENCH -> "Par défaut minSdk 23 (Android 6). Activez pour relever le plancher, exclure les anciens appareils ou satisfaire une exigence de magasin. Impossible de descendre sous 23 ou de dépasser le targetSdk actuel."
+        AppLanguage.GERMAN -> "Standard ist minSdk 23 (Android 6). Aktivieren, um die Untergrenze anzuheben, ältere Geräte auszuschließen oder eine Store-Anforderung zu erfüllen. Nicht unter 23 und nicht über dem aktuellen targetSdk."
+        AppLanguage.RUSSIAN -> "По умолчанию minSdk 23 (Android 6). Включите, чтобы поднять нижнюю границу, исключить старые устройства или выполнить требование магазина. Нельзя ниже 23 и выше текущего targetSdk."
+        AppLanguage.JAPANESE -> "デフォルトは minSdk 23（Android 6）です。オンにすると下限を上げ、古い端末を除外したりストア要件を満たしたりできます。23 未満や現在の targetSdk 超えはできません。"
+        AppLanguage.KOREAN -> "기본값은 minSdk 23(Android 6)입니다. 켜면 하한을 올려 오래된 기기를 제외하거나 스토어 요구를 맞출 수 있습니다. 23 미만이거나 현재 targetSdk보다 높을 수 없습니다."
+    }
+
+    val minSdkOverrideOnHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "生成的 APK 将使用所选 minSdk。运行时按 API 23 编译，无法安装到更低系统。选择不能超过当前 targetSdk。"
+        AppLanguage.ENGLISH -> "The generated APK will use the selected minSdk. The runtime is compiled for API 23, so it cannot install below that. The choice cannot exceed the current targetSdk."
+        AppLanguage.ARABIC -> "سيستخدم التطبيق المُنشأ minSdk المحدد. وقت التشغيل مُجمَّع لـ API 23 لذا لا يمكن التثبيت أدنى من ذلك. لا يمكن أن يتجاوز الاختيار targetSdk الحالي."
+        AppLanguage.PORTUGUESE -> "O APK gerado usará o minSdk selecionado. O runtime é compilado para API 23, então não instala abaixo disso. A escolha não pode exceder o targetSdk atual."
+        AppLanguage.SPANISH -> "El APK generado usará el minSdk seleccionado. El runtime está compilado para API 23, así que no se instala por debajo. La elección no puede superar el targetSdk actual."
+        AppLanguage.FRENCH -> "L'APK généré utilisera le minSdk sélectionné. Le runtime est compilé pour l'API 23, donc il ne s'installe pas en dessous. Le choix ne peut pas dépasser le targetSdk actuel."
+        AppLanguage.GERMAN -> "Das generierte APK verwendet das gewählte minSdk. Die Laufzeit ist für API 23 kompiliert und installiert nicht darunter. Die Wahl darf das aktuelle targetSdk nicht überschreiten."
+        AppLanguage.RUSSIAN -> "Сгенерированный APK будет использовать выбранный minSdk. Среда выполнения собрана под API 23 и не устанавливается ниже. Выбор не может превышать текущий targetSdk."
+        AppLanguage.JAPANESE -> "生成される APK は選択した minSdk を使用します。ランタイムは API 23 向けにコンパイルされているため、それ未満にはインストールできません。現在の targetSdk を超える選択はできません。"
+        AppLanguage.KOREAN -> "생성된 APK가 선택한 minSdk를 사용합니다. 런타임은 API 23용으로 컴파일되어 그 아래에는 설치되지 않습니다. 현재 targetSdk를 넘길 수 없습니다."
     }
 
     val signingTypeAutoGenerated: String get() = when (Strings.lang) {
@@ -8486,6 +8632,32 @@ object StringsC {
         AppLanguage.KOREAN -> "데스크톱"
     }
 
+    val desktopModeLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "桌面模式"
+        AppLanguage.ENGLISH -> "Desktop mode"
+        AppLanguage.ARABIC -> "وضع سطح المكتب"
+        AppLanguage.PORTUGUESE -> "Modo área de trabalho"
+        AppLanguage.SPANISH -> "Modo de escritorio"
+        AppLanguage.FRENCH -> "Mode bureau"
+        AppLanguage.GERMAN -> "Desktop-Modus"
+        AppLanguage.RUSSIAN -> "Режим рабочего стола"
+        AppLanguage.JAPANESE -> "デスクトップモード"
+        AppLanguage.KOREAN -> "데스크톱 모드"
+    }
+
+    val desktopModeHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "以桌面版布局加载页面"
+        AppLanguage.ENGLISH -> "Load pages with the desktop site layout"
+        AppLanguage.ARABIC -> "تحميل الصفحات بتخطيط موقع سطح المكتب"
+        AppLanguage.PORTUGUESE -> "Carregar páginas com o layout do site para desktop"
+        AppLanguage.SPANISH -> "Cargar las páginas con el diseño del sitio de escritorio"
+        AppLanguage.FRENCH -> "Charger les pages avec la mise en page du site pour ordinateur"
+        AppLanguage.GERMAN -> "Seiten im Desktop-Layout laden"
+        AppLanguage.RUSSIAN -> "Загружать страницы в раскладке сайта для компьютера"
+        AppLanguage.JAPANESE -> "デスクトップ向けレイアウトでページを読み込む"
+        AppLanguage.KOREAN -> "데스크톱 사이트 레이아웃으로 페이지를 불러옵니다"
+    }
+
     val currentUserAgent: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "当前 User-Agent"
         AppLanguage.ENGLISH -> "Current User-Agent"
@@ -9030,6 +9202,110 @@ object StringsC {
         AppLanguage.RUSSIAN -> "Показать пароль"
         AppLanguage.JAPANESE -> "パスワードを表示"
         AppLanguage.KOREAN -> "비밀번호 표시"
+    }
+
+    val geckoPromptLeaveTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "离开此页面？"
+        AppLanguage.ENGLISH -> "Leave this page?"
+        AppLanguage.ARABIC -> "مغادرة هذه الصفحة؟"
+        AppLanguage.PORTUGUESE -> "Sair desta página?"
+        AppLanguage.SPANISH -> "¿Salir de esta página?"
+        AppLanguage.FRENCH -> "Quitter cette page ?"
+        AppLanguage.GERMAN -> "Diese Seite verlassen?"
+        AppLanguage.RUSSIAN -> "Покинуть эту страницу?"
+        AppLanguage.JAPANESE -> "このページを離れますか？"
+        AppLanguage.KOREAN -> "이 페이지를 나가시겠습니까?"
+    }
+
+    val geckoPromptLeaveMessage: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "您所做的更改可能不会被保存。"
+        AppLanguage.ENGLISH -> "Changes you made may not be saved."
+        AppLanguage.ARABIC -> "قد لا يتم حفظ التغييرات التي أجريتها."
+        AppLanguage.PORTUGUESE -> "As alterações feitas podem não ser salvas."
+        AppLanguage.SPANISH -> "Es posible que los cambios realizados no se guarden."
+        AppLanguage.FRENCH -> "Les modifications apportées pourraient ne pas être enregistrées."
+        AppLanguage.GERMAN -> "Vorgenommene Änderungen werden möglicherweise nicht gespeichert."
+        AppLanguage.RUSSIAN -> "Внесённые изменения могут не сохраниться."
+        AppLanguage.JAPANESE -> "行った変更は保存されない場合があります。"
+        AppLanguage.KOREAN -> "변경사항이 저장되지 않을 수 있습니다."
+    }
+
+    val geckoPromptBtnLeave: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "离开"
+        AppLanguage.ENGLISH -> "Leave"
+        AppLanguage.ARABIC -> "مغادرة"
+        AppLanguage.PORTUGUESE -> "Sair"
+        AppLanguage.SPANISH -> "Salir"
+        AppLanguage.FRENCH -> "Quitter"
+        AppLanguage.GERMAN -> "Verlassen"
+        AppLanguage.RUSSIAN -> "Покинуть"
+        AppLanguage.JAPANESE -> "離れる"
+        AppLanguage.KOREAN -> "나가기"
+    }
+
+    val geckoPromptRepostTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "重新提交表单？"
+        AppLanguage.ENGLISH -> "Resubmit the form?"
+        AppLanguage.ARABIC -> "إعادة إرسال النموذج؟"
+        AppLanguage.PORTUGUESE -> "Reenviar o formulário?"
+        AppLanguage.SPANISH -> "¿Reenviar el formulario?"
+        AppLanguage.FRENCH -> "Renvoyer le formulaire ?"
+        AppLanguage.GERMAN -> "Formular erneut senden?"
+        AppLanguage.RUSSIAN -> "Отправить форму повторно?"
+        AppLanguage.JAPANESE -> "フォームを再送信しますか？"
+        AppLanguage.KOREAN -> "양식을 다시 제출하시겠습니까?"
+    }
+
+    val geckoPromptRepostMessage: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "页面将重新发送您提交的数据。"
+        AppLanguage.ENGLISH -> "The page will resend the data you submitted."
+        AppLanguage.ARABIC -> "سيتم إعادة إرسال البيانات التي أدخلتها."
+        AppLanguage.PORTUGUESE -> "A página reenviará os dados que você enviou."
+        AppLanguage.SPANISH -> "La página volverá a enviar los datos que enviaste."
+        AppLanguage.FRENCH -> "La page renverra les données que vous avez envoyées."
+        AppLanguage.GERMAN -> "Die Seite sendet die von Ihnen übermittelten Daten erneut."
+        AppLanguage.RUSSIAN -> "Страница повторно отправит введённые данные."
+        AppLanguage.JAPANESE -> "ページが送信したデータを再送信します。"
+        AppLanguage.KOREAN -> "페이지에서 제출한 데이터를 다시 보냅니다."
+    }
+
+    val geckoPromptPickColor: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "选择颜色"
+        AppLanguage.ENGLISH -> "Choose a color"
+        AppLanguage.ARABIC -> "اختر لونًا"
+        AppLanguage.PORTUGUESE -> "Escolha uma cor"
+        AppLanguage.SPANISH -> "Elige un color"
+        AppLanguage.FRENCH -> "Choisir une couleur"
+        AppLanguage.GERMAN -> "Farbe wählen"
+        AppLanguage.RUSSIAN -> "Выберите цвет"
+        AppLanguage.JAPANESE -> "色を選択"
+        AppLanguage.KOREAN -> "색상 선택"
+    }
+
+    val geckoPromptInvalidColor: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "颜色格式无效（应为 #RRGGBB）"
+        AppLanguage.ENGLISH -> "Invalid color format (expected #RRGGBB)"
+        AppLanguage.ARABIC -> "تنسيق اللون غير صالح (المتوقع #RRGGBB)"
+        AppLanguage.PORTUGUESE -> "Formato de cor inválido (esperado #RRGGBB)"
+        AppLanguage.SPANISH -> "Formato de color no válido (se esperaba #RRGGBB)"
+        AppLanguage.FRENCH -> "Format de couleur invalide (#RRGGBB attendu)"
+        AppLanguage.GERMAN -> "Ungültiges Farbformat (#RRGGBB erwartet)"
+        AppLanguage.RUSSIAN -> "Неверный формат цвета (ожидается #RRGGBB)"
+        AppLanguage.JAPANESE -> "色の形式が無効です（#RRGGBB）"
+        AppLanguage.KOREAN -> "색상 형식이 잘못되었습니다 (#RRGGBB)"
+    }
+
+    val geckoPromptPickValue: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "请选择"
+        AppLanguage.ENGLISH -> "Select a value"
+        AppLanguage.ARABIC -> "اختر قيمة"
+        AppLanguage.PORTUGUESE -> "Selecione um valor"
+        AppLanguage.SPANISH -> "Selecciona un valor"
+        AppLanguage.FRENCH -> "Sélectionnez une valeur"
+        AppLanguage.GERMAN -> "Wert auswählen"
+        AppLanguage.RUSSIAN -> "Выберите значение"
+        AppLanguage.JAPANESE -> "値を選択"
+        AppLanguage.KOREAN -> "값 선택"
     }
 
     val fwSectionSize: String get() = when (Strings.lang) {

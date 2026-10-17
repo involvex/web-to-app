@@ -14,6 +14,23 @@ import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
 
+// Same switch as :app. -Pfdroid=true drops Firebase and Play Services from the
+// template that the host embeds, and from every APK exported by that host.
+val isFdroidBuild: Boolean = run {
+    val raw = findProperty("fdroid")?.toString()?.trim()?.lowercase()
+    raw != null && raw != "false" && raw != "0" && raw != "no"
+}
+
+if (isFdroidBuild) {
+    // Same cutoff as :app. GeckoView's FIDO client is the remaining Play Services
+    // edge; WebAuthn is the only path that loads it.
+    configurations.configureEach {
+        exclude(group = "com.google.android.gms")
+        exclude(group = "com.google.firebase")
+        exclude(group = "com.google.android.libraries.identity.googleid")
+    }
+}
+
 android {
     namespace = "com.webtoapp"
     compileSdk = 36
@@ -22,14 +39,15 @@ android {
         applicationId = "com.webtoapp"
         minSdk = 23
 
-        targetSdk = 28
+        targetSdk = 35
         versionCode = 71
         versionName = "2.6.9"
 
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "true")
+        buildConfigField("boolean", "FDROID", isFdroidBuild.toString())
 
-        // Shell template never ships to Google Play — it is the runtime host for *generated* apps,
-        // which always use targetSdk 28 (fork+exec).
+        // Generated APKs inherit this targetSdk; export can still pin a different
+        // value via `targetSdk` override, and the Play/AAB path forces 36.
 
         vectorDrawables {
             useSupportLibrary = true
@@ -41,12 +59,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags += "-std=c++17"
-                // Shell natives statically link libc++ so the template can drop
-                // libc++_shared.so (~4.4MB raw across 4 ABIs). Only crypto_engine and
-                // node_bridge used it. The HOST keeps c++_shared: ApkBuilder injects
-                // the host's libc++_shared.so into NODEJS_APP exports for libnode.so.
-                arguments += "-DANDROID_STL=c++_static"
+                // All native sources are C; no CXX flags or shared STL needed.
             }
         }
     }
@@ -93,6 +106,14 @@ android {
             )
             res.srcDirs("../app/src/main/res")
             assets.srcDirs("src/main/assets", "build/generated/shellRuntimeAssets")
+        }
+        if (isFdroidBuild) {
+            getByName("debug") {
+                manifest.srcFile("src/fdroid/AndroidManifest.xml")
+            }
+            getByName("release") {
+                manifest.srcFile("src/fdroid/AndroidManifest.xml")
+            }
         }
     }
 
@@ -166,8 +187,8 @@ android {
 
             excludes += "**/libphp.so"
 
-            // Host-preview-only user-mode exec loader; generated APKs
-            // (targetSdk 28) always execve directly and never load it.
+            // Host-preview-only user-mode exec loader. Server-runtime exports are
+            // pinned to targetSdk 28 and execve directly; they never load it.
             excludes += "**/libstatic_exec.so"
 
             // All shell natives are c++_static (see defaultConfig cmake arguments);
@@ -193,6 +214,12 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
     group = "build"
 
     from("../app/src/main/java")
+    // Google-typed sources live outside main. The fdroid tree is the no-op twin.
+    if (isFdroidBuild) {
+        from("../app/src/fdroid/java")
+    } else {
+        from("../app/src/google/java")
+    }
 
     include(
 
@@ -287,6 +314,19 @@ val syncShellRuntimeSources by tasks.registering(Sync::class) {
         "**/core/plugin/PluginStore.kt",
         "**/core/plugin/PluginImporter.kt",
         "**/core/plugin/PluginMigrator.kt",
+
+        // Host editor tooling. Generated APKs do not install toolchains or run
+        // esbuild. Server runtimes exec through HostProcessLauncher, which stays
+        // synced: targetSdk 28 exports use ProcessBuilder, and the W^X loader
+        // (StaticExecProcess + libstatic_exec.so) stays host-only.
+        "**/core/linux/StaticExecProcess.kt",
+        "**/core/linux/NativeNodeEngine.kt",
+        "**/core/linux/HtmlProjectOptimizer.kt",
+        "**/core/linux/PerformanceOptimizerApk.kt",
+        "**/core/linux/LinuxEnvironmentManager.kt",
+        "**/core/linux/LocalBuildEnvironment.kt",
+        "**/core/linux/NodeProjectBuilder.kt",
+        "**/core/linux/PureBuildEngine.kt",
 
         // Strings.kt / StringsA-E.kt carry the full 10-language editor surface
         // (~4.3 MB source, mostly editor-only text). Shell gets reduced copies
@@ -533,10 +573,12 @@ dependencies {
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
-    // Native Google sign-in through the Jetpack Credential Manager (NativeBridge).
-    implementation("androidx.credentials:credentials:1.5.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Native Google sign-in. Omitted from -Pfdroid=true builds.
+    if (!isFdroidBuild) {
+        implementation("androidx.credentials:credentials:1.5.0")
+        implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+        implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    }
 
     implementation("com.google.android.material:material:1.10.0")
     implementation("androidx.activity:activity-compose:1.8.1")
@@ -564,8 +606,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
 
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-messaging")
+    if (!isFdroidBuild) {
+        implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+        implementation("com.google.firebase:firebase-messaging")
+    }
 
     implementation("org.bouncycastle:bcpkix-jdk15to18:1.78.1")
     implementation("org.bouncycastle:bcprov-jdk15to18:1.78.1")

@@ -150,19 +150,6 @@ object StringsA {
         AppLanguage.KOREAN -> "앱 수정기"
     }
 
-    val menuExtensionModules: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "扩展模块"
-        AppLanguage.ENGLISH -> "Extension Modules"
-        AppLanguage.ARABIC -> "الوحدات الإضافية"
-        AppLanguage.PORTUGUESE -> "Módulos de Extensão"
-        AppLanguage.SPANISH -> "Módulos de Extensión"
-        AppLanguage.FRENCH -> "Modules d'Extension"
-        AppLanguage.GERMAN -> "Erweiterungsmodule"
-        AppLanguage.RUSSIAN -> "Модули расширений"
-        AppLanguage.JAPANESE -> "拡張モジュール"
-        AppLanguage.KOREAN -> "확장 모듈"
-    }
-
     val menuAbout: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "关于"
         AppLanguage.ENGLISH -> "About"
@@ -753,198 +740,6 @@ object StringsA {
         AppLanguage.JAPANESE -> "24時間稼働率"
         AppLanguage.KOREAN -> "24시간 가동률"
     }
-    val menuBatchImport: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "批量导入"
-        AppLanguage.ENGLISH -> "Batch Import"
-        AppLanguage.ARABIC -> "استيراد مجمع"
-        AppLanguage.PORTUGUESE -> "Importação em Lote"
-        AppLanguage.SPANISH -> "Importación por Lotes"
-        AppLanguage.FRENCH -> "Importation par lot"
-        AppLanguage.GERMAN -> "Stapelimport"
-        AppLanguage.RUSSIAN -> "Пакетный импорт"
-        AppLanguage.JAPANESE -> "一括インポート"
-        AppLanguage.KOREAN -> "일괄 가져오기"
-    }
-    val batchImportTitle: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "批量导入"
-        AppLanguage.ENGLISH -> "Batch Import"
-        AppLanguage.ARABIC -> "استيراد مجمع"
-        AppLanguage.PORTUGUESE -> "Importação em Lote"
-        AppLanguage.SPANISH -> "Importación por Lotes"
-        AppLanguage.FRENCH -> "Importation par lot"
-        AppLanguage.GERMAN -> "Stapelimport"
-        AppLanguage.RUSSIAN -> "Пакетный импорт"
-        AppLanguage.JAPANESE -> "一括インポート"
-        AppLanguage.KOREAN -> "일괄 가져오기"
-    }
-    val batchImportFromText: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "从文本导入"
-        AppLanguage.ENGLISH -> "Import from Text"
-        AppLanguage.ARABIC -> "استيراد من نص"
-        AppLanguage.PORTUGUESE -> "Importar de Texto"
-        AppLanguage.SPANISH -> "Importar desde Texto"
-        AppLanguage.FRENCH -> "Importer depuis du texte"
-        AppLanguage.GERMAN -> "Aus Text importieren"
-        AppLanguage.RUSSIAN -> "Импорт из текста"
-        AppLanguage.JAPANESE -> "テキストからインポート"
-        AppLanguage.KOREAN -> "텍스트에서 가져오기"
-    }
-    val batchImportFromBookmarks: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "从书签文件导入"
-        AppLanguage.ENGLISH -> "Import from Bookmarks"
-        AppLanguage.ARABIC -> "استيراد من الإشارات المرجعية"
-        AppLanguage.PORTUGUESE -> "Importar de Favoritos"
-        AppLanguage.SPANISH -> "Importar desde Marcadores"
-        AppLanguage.FRENCH -> "Importer depuis les favoris"
-        AppLanguage.GERMAN -> "Aus Lesezeichen importieren"
-        AppLanguage.RUSSIAN -> "Импорт из закладок"
-        AppLanguage.JAPANESE -> "ブックマークからインポート"
-        AppLanguage.KOREAN -> "북마크에서 가져오기"
-    }
-    val batchImportHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "每行一个，支持：URL、名称|URL、名称 URL、Markdown 链接"
-        AppLanguage.ENGLISH -> "One per line: URL, Name|URL, Name URL, or Markdown links"
-        AppLanguage.ARABIC -> "واحد لكل سطر: URL أو الاسم|URL أو روابط Markdown"
-        AppLanguage.PORTUGUESE -> "Um por linha: URL, Nome|URL, Nome URL ou links Markdown"
-        AppLanguage.SPANISH -> "Uno por línea: URL, Nombre|URL, Nombre URL o enlaces Markdown"
-        AppLanguage.FRENCH -> "Un par ligne : URL, Nom|URL, Nom URL ou liens Markdown"
-        AppLanguage.GERMAN -> "Eine pro Zeile: URL, Name|URL, Name URL oder Markdown-Links"
-        AppLanguage.RUSSIAN -> "По одной в строке: URL, Имя|URL, Имя URL или Markdown"
-        AppLanguage.JAPANESE -> "1行1件: URL、名前|URL、名前 URL、Markdownリンク"
-        AppLanguage.KOREAN -> "한 줄에 하나: URL, 이름|URL, 이름 URL, Markdown 링크"
-    }
-    val batchImportParsed: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "已解析 %d 个URL"
-        AppLanguage.ENGLISH -> "%d URLs parsed"
-        AppLanguage.ARABIC -> "تم تحليل %d روابط"
-        AppLanguage.PORTUGUESE -> "%d URLs analisados"
-        AppLanguage.SPANISH -> "%d URLs analizados"
-        AppLanguage.FRENCH -> "%d URLs analysées"
-        AppLanguage.GERMAN -> "%d URLs analysiert"
-        AppLanguage.RUSSIAN -> "Разобрано URL: %d"
-        AppLanguage.JAPANESE -> "%d 件のURLを解析済み"
-        AppLanguage.KOREAN -> "%d개 URL 파싱됨"
-    }
-    val batchImportSuccess: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "成功导入 %d 个应用"
-        AppLanguage.ENGLISH -> "%d apps imported successfully"
-        AppLanguage.ARABIC -> "تم استيراد %d تطبيقات بنجاح"
-        AppLanguage.PORTUGUESE -> "%d apps importadas com sucesso"
-        AppLanguage.SPANISH -> "%d apps importadas con éxito"
-        AppLanguage.FRENCH -> "%d applications importées avec succès"
-        AppLanguage.GERMAN -> "%d Apps erfolgreich importiert"
-        AppLanguage.RUSSIAN -> "Успешно импортировано приложений: %d"
-        AppLanguage.JAPANESE -> "%d個のアプリをインポートしました"
-        AppLanguage.KOREAN -> "%d개 앱 가져오기 성공"
-    }
-    val batchImportBtn: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "导入"
-        AppLanguage.ENGLISH -> "Import"
-        AppLanguage.ARABIC -> "استيراد"
-        AppLanguage.PORTUGUESE -> "Importar"
-        AppLanguage.SPANISH -> "Importar"
-        AppLanguage.FRENCH -> "Importer"
-        AppLanguage.GERMAN -> "Importieren"
-        AppLanguage.RUSSIAN -> "Импорт"
-        AppLanguage.JAPANESE -> "インポート"
-        AppLanguage.KOREAN -> "가져오기"
-    }
-    val batchImportPaste: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "粘贴"
-        AppLanguage.ENGLISH -> "Paste"
-        AppLanguage.ARABIC -> "لصق"
-        AppLanguage.PORTUGUESE -> "Colar"
-        AppLanguage.SPANISH -> "Pegar"
-        AppLanguage.FRENCH -> "Coller"
-        AppLanguage.GERMAN -> "Einfügen"
-        AppLanguage.RUSSIAN -> "Вставить"
-        AppLanguage.JAPANESE -> "貼り付け"
-        AppLanguage.KOREAN -> "붙여넣기"
-    }
-    val batchImportClear: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "清空"
-        AppLanguage.ENGLISH -> "Clear"
-        AppLanguage.ARABIC -> "مسح"
-        AppLanguage.PORTUGUESE -> "Limpar"
-        AppLanguage.SPANISH -> "Borrar"
-        AppLanguage.FRENCH -> "Effacer"
-        AppLanguage.GERMAN -> "Leeren"
-        AppLanguage.RUSSIAN -> "Очистить"
-        AppLanguage.JAPANESE -> "クリア"
-        AppLanguage.KOREAN -> "지우기"
-    }
-    val batchImportPickBookmarks: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "选择书签 HTML 文件"
-        AppLanguage.ENGLISH -> "Choose bookmarks HTML file"
-        AppLanguage.ARABIC -> "اختر ملف إشارات HTML"
-        AppLanguage.PORTUGUESE -> "Escolher arquivo HTML de favoritos"
-        AppLanguage.SPANISH -> "Elegir archivo HTML de marcadores"
-        AppLanguage.FRENCH -> "Choisir un fichier HTML de favoris"
-        AppLanguage.GERMAN -> "Lesezeichen-HTML-Datei wählen"
-        AppLanguage.RUSSIAN -> "Выбрать HTML-файл закладок"
-        AppLanguage.JAPANESE -> "ブックマークHTMLを選択"
-        AppLanguage.KOREAN -> "북마크 HTML 파일 선택"
-    }
-    val batchImportBookmarksHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "支持 Chrome / Edge / Firefox 导出的 bookmarks.html"
-        AppLanguage.ENGLISH -> "Supports bookmarks.html exported from Chrome, Edge, or Firefox"
-        AppLanguage.ARABIC -> "يدعم bookmarks.html من Chrome أو Edge أو Firefox"
-        AppLanguage.PORTUGUESE -> "Compatível com bookmarks.html do Chrome, Edge ou Firefox"
-        AppLanguage.SPANISH -> "Compatible con bookmarks.html de Chrome, Edge o Firefox"
-        AppLanguage.FRENCH -> "Compatible avec bookmarks.html de Chrome, Edge ou Firefox"
-        AppLanguage.GERMAN -> "Unterstützt bookmarks.html von Chrome, Edge oder Firefox"
-        AppLanguage.RUSSIAN -> "Поддерживается bookmarks.html из Chrome, Edge или Firefox"
-        AppLanguage.JAPANESE -> "Chrome / Edge / Firefox の bookmarks.html に対応"
-        AppLanguage.KOREAN -> "Chrome / Edge / Firefox bookmarks.html 지원"
-    }
-    val batchImportNoValid: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "未找到有效的 URL"
-        AppLanguage.ENGLISH -> "No valid URLs found"
-        AppLanguage.ARABIC -> "لم يتم العثور على روابط صالحة"
-        AppLanguage.PORTUGUESE -> "Nenhum URL válido encontrado"
-        AppLanguage.SPANISH -> "No se encontraron URLs válidos"
-        AppLanguage.FRENCH -> "Aucune URL valide trouvée"
-        AppLanguage.GERMAN -> "Keine gültigen URLs gefunden"
-        AppLanguage.RUSSIAN -> "Действительные URL не найдены"
-        AppLanguage.JAPANESE -> "有効なURLが見つかりません"
-        AppLanguage.KOREAN -> "유효한 URL을 찾지 못했습니다"
-    }
-    fun batchImportParseStats(invalid: Int, duplicates: Int): String = when (Strings.lang) {
-        AppLanguage.CHINESE -> "无效 %d 行，输入内重复 %d 条"
-        AppLanguage.ENGLISH -> "%d invalid lines, %d duplicates in input"
-        AppLanguage.ARABIC -> "%d أسطر غير صالحة، %d مكررات في الإدخال"
-        AppLanguage.PORTUGUESE -> "%d linhas inválidas, %d duplicatas na entrada"
-        AppLanguage.SPANISH -> "%d líneas inválidas, %d duplicados en la entrada"
-        AppLanguage.FRENCH -> "%d lignes invalides, %d doublons dans la saisie"
-        AppLanguage.GERMAN -> "%d ungültige Zeilen, %d Duplikate in der Eingabe"
-        AppLanguage.RUSSIAN -> "Недействительных строк: %d, дубликатов во вводе: %d"
-        AppLanguage.JAPANESE -> "無効 %d 行、入力内の重複 %d 件"
-        AppLanguage.KOREAN -> "무효 %d줄, 입력 중복 %d개"
-    }.let { String.format(it, invalid, duplicates) }
-    fun batchImportSkipped(count: Int): String = when (Strings.lang) {
-        AppLanguage.CHINESE -> "已跳过重复 %d 条"
-        AppLanguage.ENGLISH -> "Skipped %d duplicates"
-        AppLanguage.ARABIC -> "تم تخطي %d مكررات"
-        AppLanguage.PORTUGUESE -> "%d duplicatas ignoradas"
-        AppLanguage.SPANISH -> "Se omitieron %d duplicados"
-        AppLanguage.FRENCH -> "%d doublons ignorés"
-        AppLanguage.GERMAN -> "%d Duplikate übersprungen"
-        AppLanguage.RUSSIAN -> "Пропущено дубликатов: %d"
-        AppLanguage.JAPANESE -> "重複 %d 件をスキップ"
-        AppLanguage.KOREAN -> "중복 %d개 건너뜀"
-    }.let { String.format(it, count) }
-    fun batchImportMore(count: Int): String = when (Strings.lang) {
-        AppLanguage.CHINESE -> "还有 %d 条…"
-        AppLanguage.ENGLISH -> "%d more…"
-        AppLanguage.ARABIC -> "%d إضافية…"
-        AppLanguage.PORTUGUESE -> "mais %d…"
-        AppLanguage.SPANISH -> "%d más…"
-        AppLanguage.FRENCH -> "%d de plus…"
-        AppLanguage.GERMAN -> "%d weitere…"
-        AppLanguage.RUSSIAN -> "ещё %d…"
-        AppLanguage.JAPANESE -> "他 %d 件…"
-        AppLanguage.KOREAN -> "%d개 더…"
-    }.let { String.format(it, count) }
     val menuLinuxEnvironment: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "本地构建环境"
         AppLanguage.ENGLISH -> "Local Build Environment"
@@ -1127,6 +922,19 @@ object StringsA {
         AppLanguage.KOREAN -> "하단 탭"
     }
 
+    val multiWebModeTopTabs: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "顶部标签"
+        AppLanguage.ENGLISH -> "Top Tabs"
+        AppLanguage.ARABIC -> "ألسنة علوية"
+        AppLanguage.PORTUGUESE -> "Abas Superiores"
+        AppLanguage.SPANISH -> "Pestañas Superiores"
+        AppLanguage.FRENCH -> "Onglets en haut"
+        AppLanguage.GERMAN -> "Obere Tabs"
+        AppLanguage.RUSSIAN -> "Верхние вкладки"
+        AppLanguage.JAPANESE -> "上部タブ"
+        AppLanguage.KOREAN -> "상단 탭"
+    }
+
     val multiWebModeCards: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "卡片主页"
         AppLanguage.ENGLISH -> "Card Home"
@@ -1164,6 +972,19 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Постоянная нижняя панель для переключения сайтов"
         AppLanguage.JAPANESE -> "常設の下部バーでサイトを切り替え"
         AppLanguage.KOREAN -> "하단 바 상시 표시, 탭하여 사이트 전환"
+    }
+
+    val multiWebModeTopTabsDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "顶部标签栏，左右滑动页面跟手并带惯性，颜色跟随网页"
+        AppLanguage.ENGLISH -> "Top bar, the page follows a sideways swipe and coasts, colors follow the page"
+        AppLanguage.ARABIC -> "شريط علوي، الصفحة تتبع السحب وتكمل بحركتها، الألوان تتبع الصفحة"
+        AppLanguage.PORTUGUESE -> "Barra superior, a página segue o deslize e continua ao soltar, cores seguem a página"
+        AppLanguage.SPANISH -> "Barra superior, la página sigue el deslizamiento y continúa al soltar, los colores siguen la página"
+        AppLanguage.FRENCH -> "Barre supérieure, la page suit le balayage puis file, couleurs selon la page"
+        AppLanguage.GERMAN -> "Obere Leiste, die Seite folgt dem Wischen und gleitet nach, Farben folgen der Seite"
+        AppLanguage.RUSSIAN -> "Верхняя панель, страница следует за свайпом и доезжает, цвета как у страницы"
+        AppLanguage.JAPANESE -> "上部バー、横スワイプにページが追従し離すと惰性で着地、色はページに追従"
+        AppLanguage.KOREAN -> "상단 바, 페이지가 가로 스와이프를 따라가고 놓으면 미끄러져 안착, 색은 페이지를 따름"
     }
 
     val multiWebModeCardsDesc: String get() = when (Strings.lang) {
@@ -1206,16 +1027,107 @@ object StringsA {
     }
 
     val multiWebShowSiteIcons: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "卡片上显示站点图标"
-        AppLanguage.ENGLISH -> "Show site icons on cards"
-        AppLanguage.ARABIC -> "إظهار أيقونات المواقع على البطاقات"
-        AppLanguage.PORTUGUESE -> "Mostrar ícones dos sites nos cartões"
-        AppLanguage.SPANISH -> "Mostrar iconos de sitios en tarjetas"
-        AppLanguage.FRENCH -> "Afficher les icônes sur les cartes"
-        AppLanguage.GERMAN -> "Seiten-Icons auf Karten anzeigen"
-        AppLanguage.RUSSIAN -> "Показывать значки сайтов на карточках"
-        AppLanguage.JAPANESE -> "カードにサイトアイコンを表示"
-        AppLanguage.KOREAN -> "카드에 사이트 아이콘 표시"
+        AppLanguage.CHINESE -> "显示站点图标"
+        AppLanguage.ENGLISH -> "Show site icons"
+        AppLanguage.ARABIC -> "إظهار أيقونات المواقع"
+        AppLanguage.PORTUGUESE -> "Mostrar ícones dos sites"
+        AppLanguage.SPANISH -> "Mostrar iconos de sitios"
+        AppLanguage.FRENCH -> "Afficher les icônes des sites"
+        AppLanguage.GERMAN -> "Seiten-Icons anzeigen"
+        AppLanguage.RUSSIAN -> "Показывать значки сайтов"
+        AppLanguage.JAPANESE -> "サイトアイコンを表示"
+        AppLanguage.KOREAN -> "사이트 아이콘 표시"
+    }
+
+    val multiWebCardColumns: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "卡片主页列数"
+        AppLanguage.ENGLISH -> "Card home columns"
+        AppLanguage.ARABIC -> "أعمدة الصفحة الرئيسية للبطاقات"
+        AppLanguage.PORTUGUESE -> "Colunas da página de cartões"
+        AppLanguage.SPANISH -> "Columnas de la página de tarjetas"
+        AppLanguage.FRENCH -> "Colonnes de la page en cartes"
+        AppLanguage.GERMAN -> "Spalten der Karten-Startseite"
+        AppLanguage.RUSSIAN -> "Столбцы главной с карточками"
+        AppLanguage.JAPANESE -> "カードホームの列数"
+        AppLanguage.KOREAN -> "카드 홈 열 수"
+    }
+
+    val multiWebCardColumnsHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "每行几张站点卡片，列数越多卡片越小"
+        AppLanguage.ENGLISH -> "How many site cards per row. More columns makes each card smaller"
+        AppLanguage.ARABIC -> "عدد بطاقات المواقع في كل صف. كلما زادت الأعمدة صغرت البطاقة"
+        AppLanguage.PORTUGUESE -> "Quantos cartões por linha. Mais colunas deixam cada cartão menor"
+        AppLanguage.SPANISH -> "Cuántas tarjetas por fila. Más columnas hacen cada tarjeta más pequeña"
+        AppLanguage.FRENCH -> "Combien de cartes par ligne. Plus de colonnes rend chaque carte plus petite"
+        AppLanguage.GERMAN -> "Wie viele Karten pro Zeile. Mehr Spalten macht jede Karte kleiner"
+        AppLanguage.RUSSIAN -> "Сколько карточек в ряду. Чем больше столбцов, тем меньше карточка"
+        AppLanguage.JAPANESE -> "1行に並べるカード数。列が多いほどカードは小さくなります"
+        AppLanguage.KOREAN -> "한 줄에 놓을 카드 수. 열이 많을수록 카드가 작아집니다"
+    }
+
+    val multiWebDrawerColumns: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "侧边抽屉列数"
+        AppLanguage.ENGLISH -> "Side drawer columns"
+        AppLanguage.ARABIC -> "أعمدة الدرج الجانبي"
+        AppLanguage.PORTUGUESE -> "Colunas da gaveta lateral"
+        AppLanguage.SPANISH -> "Columnas del cajón lateral"
+        AppLanguage.FRENCH -> "Colonnes du tiroir latéral"
+        AppLanguage.GERMAN -> "Spalten der Seitenschublade"
+        AppLanguage.RUSSIAN -> "Столбцы боковой панели"
+        AppLanguage.JAPANESE -> "サイドドロワーの列数"
+        AppLanguage.KOREAN -> "사이드 서랍 열 수"
+    }
+
+    val multiWebDrawerColumnsHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "抽屉里每行几个站点"
+        AppLanguage.ENGLISH -> "How many sites per row inside the drawer"
+        AppLanguage.ARABIC -> "عدد المواقع في كل صف داخل الدرج"
+        AppLanguage.PORTUGUESE -> "Quantos sites por linha dentro da gaveta"
+        AppLanguage.SPANISH -> "Cuántos sitios por fila dentro del cajón"
+        AppLanguage.FRENCH -> "Combien de sites par ligne dans le tiroir"
+        AppLanguage.GERMAN -> "Wie viele Seiten pro Zeile in der Schublade"
+        AppLanguage.RUSSIAN -> "Сколько сайтов в ряду внутри панели"
+        AppLanguage.JAPANESE -> "ドロワー内で1行に並べるサイト数"
+        AppLanguage.KOREAN -> "서랍 안에서 한 줄에 놓을 사이트 수"
+    }
+
+    val multiWebCardHeight: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "卡片高度"
+        AppLanguage.ENGLISH -> "Card height"
+        AppLanguage.ARABIC -> "ارتفاع البطاقة"
+        AppLanguage.PORTUGUESE -> "Altura do cartão"
+        AppLanguage.SPANISH -> "Altura de la tarjeta"
+        AppLanguage.FRENCH -> "Hauteur de la carte"
+        AppLanguage.GERMAN -> "Kartenhöhe"
+        AppLanguage.RUSSIAN -> "Высота карточки"
+        AppLanguage.JAPANESE -> "カードの高さ"
+        AppLanguage.KOREAN -> "카드 높이"
+    }
+
+    val multiWebCardHeightHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "把整张站点卡片调矮，往右更紧凑"
+        AppLanguage.ENGLISH -> "Shortens the whole site card. Further right is more compact"
+        AppLanguage.ARABIC -> "يقلل ارتفاع بطاقة الموقع بالكامل. كلما اتجهت يميناً صارت أكثر إحكاماً"
+        AppLanguage.PORTUGUESE -> "Deixa o cartão do site mais baixo. Mais à direita fica mais compacto"
+        AppLanguage.SPANISH -> "Baja toda la tarjeta del sitio. Más a la derecha, más compacta"
+        AppLanguage.FRENCH -> "Réduit toute la carte du site. Plus à droite, plus compact"
+        AppLanguage.GERMAN -> "Macht die ganze Seitenkarte flacher. Weiter rechts ist kompakter"
+        AppLanguage.RUSSIAN -> "Делает всю карточку сайта ниже. Правее — компактнее"
+        AppLanguage.JAPANESE -> "サイトカード全体を低くします。右に行くほど詰まります"
+        AppLanguage.KOREAN -> "사이트 카드 전체를 낮춥니다. 오른쪽으로 갈수록 더 촘촘합니다"
+    }
+
+    val multiWebDragToReorder: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "长按左侧图标拖动排序"
+        AppLanguage.ENGLISH -> "Long-press the icon on the left to drag and reorder"
+        AppLanguage.ARABIC -> "اضغط مطولاً على الأيقونة اليسرى للسحب وإعادة الترتيب"
+        AppLanguage.PORTUGUESE -> "Pressione o ícone à esquerda para arrastar e reordenar"
+        AppLanguage.SPANISH -> "Mantén pulsado el icono de la izquierda para arrastrar y reordenar"
+        AppLanguage.FRENCH -> "Appui long sur l'icône à gauche pour faire glisser et réordonner"
+        AppLanguage.GERMAN -> "Linkes Symbol lange drücken, um zu ziehen und zu sortieren"
+        AppLanguage.RUSSIAN -> "Удерживайте значок слева, чтобы перетащить и изменить порядок"
+        AppLanguage.JAPANESE -> "左のアイコンを長押ししてドラッグすると並べ替えできます"
+        AppLanguage.KOREAN -> "왼쪽 아이콘을 길게 눌러 끌어 순서를 바꿉니다"
     }
 
     val multiWebSitesInheritConfig: String get() = when (Strings.lang) {
@@ -1242,6 +1154,58 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Загружаются только контент и ресурсы сайтов; общие настройки берутся из основного приложения"
         AppLanguage.JAPANESE -> "サイトのコンテンツとリソースのみ読み込み、共通設定はメインアプリに従います"
         AppLanguage.KOREAN -> "사이트의 콘텐츠와 리소스만 로드하고 공통 설정은 메인 앱을 따릅니다"
+    }
+
+    val multiWebStartTab: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "默认打开"
+        AppLanguage.ENGLISH -> "Open on launch"
+        AppLanguage.ARABIC -> "يفتح عند التشغيل"
+        AppLanguage.PORTUGUESE -> "Abrir ao iniciar"
+        AppLanguage.SPANISH -> "Abrir al iniciar"
+        AppLanguage.FRENCH -> "Ouverture au lancement"
+        AppLanguage.GERMAN -> "Beim Start öffnen"
+        AppLanguage.RUSSIAN -> "Открывать при запуске"
+        AppLanguage.JAPANESE -> "起動時に開く"
+        AppLanguage.KOREAN -> "실행할 때 열기"
+    }
+
+    val multiWebStartTabHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "重新打开时回到上次的站点，或直接进入指定站点。指定站点不可用时打开第一个。卡片主页选了指定站点后会跳过网格"
+        AppLanguage.ENGLISH -> "On a fresh launch, reopen the last site or go straight to a chosen one. If that site is unavailable, the first site opens. Card home skips the grid when a site is chosen"
+        AppLanguage.ARABIC -> "عند الفتح من جديد، يعود إلى آخر موقع أو يدخل موقعاً محدداً. إذا لم يعد الموقع متاحاً يُفتح الأول. الصفحة البطاقية تتجاوز الشبكة عند اختيار موقع"
+        AppLanguage.PORTUGUESE -> "Ao reabrir, volta ao último site ou entra direto no site escolhido. Se ele não existir, abre o primeiro. A página de cartões pula a grade quando um site é escolhido"
+        AppLanguage.SPANISH -> "Al reabrir, vuelve al último sitio o entra directo al sitio elegido. Si ya no está, abre el primero. El inicio de tarjetas se salta la cuadrícula cuando hay un sitio elegido"
+        AppLanguage.FRENCH -> "À la réouverture, revient au dernier site ou entre directement dans le site choisi. S'il n'est plus là, le premier s'ouvre. L'accueil en cartes saute la grille si un site est choisi"
+        AppLanguage.GERMAN -> "Beim erneuten Öffnen zur letzten Seite oder direkt zur gewählten Seite. Fehlt die, öffnet sich die erste. Die Karten-Startseite überspringt das Raster, wenn eine Seite gewählt ist"
+        AppLanguage.RUSSIAN -> "При новом запуске открывается прошлый сайт или выбранный. Если его нет, открывается первый. Карточки пропускают сетку, когда сайт задан"
+        AppLanguage.JAPANESE -> "開き直したとき、前回のサイトに戻るか指定したサイトへ直接入ります。指定先がないときは最初のサイトです。カードホームで指定するとグリッドを飛ばします"
+        AppLanguage.KOREAN -> "다시 열면 지난 사이트로 돌아가거나 지정한 사이트로 바로 들어갑니다. 지정한 사이트가 없으면 첫 사이트가 열립니다. 카드 홈은 사이트를 지정하면 격자를 건너뜁니다"
+    }
+
+    val multiWebStartLast: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "上次打开的标签"
+        AppLanguage.ENGLISH -> "Last opened tab"
+        AppLanguage.ARABIC -> "آخر لسان تم فتحه"
+        AppLanguage.PORTUGUESE -> "Última aba aberta"
+        AppLanguage.SPANISH -> "Última pestaña abierta"
+        AppLanguage.FRENCH -> "Dernier onglet ouvert"
+        AppLanguage.GERMAN -> "Zuletzt geöffneter Tab"
+        AppLanguage.RUSSIAN -> "Последняя открытая вкладка"
+        AppLanguage.JAPANESE -> "最後に開いたタブ"
+        AppLanguage.KOREAN -> "마지막으로 연 탭"
+    }
+
+    val multiWebStartSite: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "指定标签"
+        AppLanguage.ENGLISH -> "Chosen tab"
+        AppLanguage.ARABIC -> "لسان محدد"
+        AppLanguage.PORTUGUESE -> "Aba escolhida"
+        AppLanguage.SPANISH -> "Pestaña elegida"
+        AppLanguage.FRENCH -> "Onglet choisi"
+        AppLanguage.GERMAN -> "Gewählter Tab"
+        AppLanguage.RUSSIAN -> "Выбранная вкладка"
+        AppLanguage.JAPANESE -> "指定したタブ"
+        AppLanguage.KOREAN -> "지정한 탭"
     }
 
     val multiWebFeedEmpty: String get() = when (Strings.lang) {
@@ -3608,6 +3572,165 @@ object StringsA {
         AppLanguage.KOREAN -> "APK 내보내기"
     }
 
+    val exportAppSource: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "导出源码"
+        AppLanguage.ENGLISH -> "Export source"
+        AppLanguage.ARABIC -> "تصدير المصدر"
+        AppLanguage.PORTUGUESE -> "Exportar código"
+        AppLanguage.SPANISH -> "Exportar código"
+        AppLanguage.FRENCH -> "Exporter le code"
+        AppLanguage.GERMAN -> "Quellcode exportieren"
+        AppLanguage.RUSSIAN -> "Экспорт исходников"
+        AppLanguage.JAPANESE -> "ソースを書き出す"
+        AppLanguage.KOREAN -> "소스 내보내기"
+    }
+
+    val exportAppSourceFailed: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "无法导出源码"
+        AppLanguage.ENGLISH -> "Could not export the source."
+        AppLanguage.ARABIC -> "تعذر تصدير المصدر."
+        AppLanguage.PORTUGUESE -> "Não foi possível exportar o código."
+        AppLanguage.SPANISH -> "No se pudo exportar el código."
+        AppLanguage.FRENCH -> "Impossible d'exporter le code."
+        AppLanguage.GERMAN -> "Der Quellcode konnte nicht exportiert werden."
+        AppLanguage.RUSSIAN -> "Не удалось экспортировать исходный код."
+        AppLanguage.JAPANESE -> "ソースを書き出せませんでした。"
+        AppLanguage.KOREAN -> "소스를 내보낼 수 없습니다."
+    }
+
+    fun sourceBundleReadme(name: String): String = when (Strings.lang) {
+        AppLanguage.CHINESE -> """
+            # $name
+
+            这是可以在 Android Studio 中打开并编译的应用工程。
+
+            - app/src/main/java 里的 MainActivity：用 WebView 打开这个应用的页面或本地文件。
+            - app/src/main/AndroidManifest.xml：包名、权限和图标。
+            - app/src/main/assets/app_config.json：WebToApp 写入 APK 的运行时配置。资源加密的安装包里这份文件是密文，这里是明文。
+            - app/src/main/res/xml/network_security_config.xml 与 res/raw/：网络信任设置。
+            - app/src/main/assets/www/ 与 assets/files/：本地 HTML、前端、画廊、启动画面和音频。不含 node_modules 与 .git。
+
+            用 Android Studio 打开这个文件夹即可同步并构建。压缩包不含签名密钥库，也不包含 WebToApp 壳的全部运行时。它可能包含你配置的激活密钥和代理凭据。
+        """.trimIndent()
+        AppLanguage.ENGLISH -> """
+            # $name
+
+            This is an Android Studio project you can open and build.
+
+            - MainActivity under app/src/main/java opens this app's page or local files in a WebView.
+            - app/src/main/AndroidManifest.xml holds the package name, permissions, and icon.
+            - app/src/main/assets/app_config.json is the runtime configuration WebToApp embeds in the APK. An encrypted build stores that file as ciphertext; this copy is plaintext.
+            - app/src/main/res/xml/network_security_config.xml and res/raw/ are the network-trust settings.
+            - app/src/main/assets/www/ and assets/files/ hold local HTML, frontend, gallery, splash, and audio. node_modules and .git are omitted.
+
+            Open this folder in Android Studio to sync and build it. The archive does not include the signing keystore or the full WebToApp shell runtime. It may include activation secrets and proxy credentials you configured.
+        """.trimIndent()
+        AppLanguage.ARABIC -> """
+            # $name
+
+            هذا مشروع Android Studio يمكن فتحه وبناؤه.
+
+            - MainActivity ضمن app/src/main/java يفتح صفحة التطبيق أو ملفاته المحلية في WebView.
+            - app/src/main/AndroidManifest.xml يحتوي اسم الحزمة والأذونات والأيقونة.
+            - app/src/main/assets/app_config.json هو إعداد التشغيل الذي يضمّنه WebToApp في APK. البناء المشفّر يخزّنه كنص مشفّر، وهذه النسخة نص واضح.
+            - app/src/main/res/xml/network_security_config.xml و res/raw/ إعدادات الثقة بالشبكة.
+            - app/src/main/assets/www/ و assets/files/ ملفات HTML والواجهة والمعرض وشاشة البدء والصوت. يُستبعد node_modules و .git.
+
+            افتح هذا المجلد في Android Studio للمزامنة والبناء. الأرشيف لا يحتوي مخزن مفاتيح التوقيع ولا كامل بيئة WebToApp. قد يحتوي أسرار التفعيل وبيانات اعتماد الوكيل.
+        """.trimIndent()
+        AppLanguage.PORTUGUESE -> """
+            # $name
+
+            Este é um projeto Android Studio que você pode abrir e compilar.
+
+            - MainActivity em app/src/main/java abre a página ou os arquivos locais deste aplicativo num WebView.
+            - app/src/main/AndroidManifest.xml traz o nome do pacote, as permissões e o ícone.
+            - app/src/main/assets/app_config.json é a configuração de execução que o WebToApp embute no APK. Um build criptografado guarda esse arquivo como texto cifrado; esta cópia é texto puro.
+            - app/src/main/res/xml/network_security_config.xml e res/raw/ são os ajustes de confiança de rede.
+            - app/src/main/assets/www/ e assets/files/ guardam HTML, frontend, galeria, splash e áudio locais. node_modules e .git ficam de fora.
+
+            Abra esta pasta no Android Studio para sincronizar e compilar. O arquivo não inclui a keystore de assinatura nem todo o runtime do shell WebToApp. Pode incluir segredos de ativação e credenciais de proxy.
+        """.trimIndent()
+        AppLanguage.SPANISH -> """
+            # $name
+
+            Este es un proyecto de Android Studio que puedes abrir y compilar.
+
+            - MainActivity en app/src/main/java abre la página o los archivos locales de esta aplicación en un WebView.
+            - app/src/main/AndroidManifest.xml lleva el nombre del paquete, los permisos y el icono.
+            - app/src/main/assets/app_config.json es la configuración de ejecución que WebToApp incluye en el APK. Una compilación cifrada guarda ese archivo como texto cifrado; esta copia es texto plano.
+            - app/src/main/res/xml/network_security_config.xml y res/raw/ son los ajustes de confianza de red.
+            - app/src/main/assets/www/ y assets/files/ guardan HTML, frontend, galería, splash y audio locales. Se omiten node_modules y .git.
+
+            Abre esta carpeta en Android Studio para sincronizar y compilar. El archivo no incluye el almacén de claves de firma ni todo el runtime del shell de WebToApp. Puede incluir secretos de activación y credenciales de proxy.
+        """.trimIndent()
+        AppLanguage.FRENCH -> """
+            # $name
+
+            Ceci est un projet Android Studio que vous pouvez ouvrir et compiler.
+
+            - MainActivity sous app/src/main/java ouvre la page ou les fichiers locaux de cette application dans une WebView.
+            - app/src/main/AndroidManifest.xml contient le nom du paquet, les autorisations et l'icône.
+            - app/src/main/assets/app_config.json est la configuration d'exécution que WebToApp intègre à l'APK. Une compilation chiffrée stocke ce fichier en texte chiffré ; cette copie est en clair.
+            - app/src/main/res/xml/network_security_config.xml et res/raw/ sont les réglages de confiance réseau.
+            - app/src/main/assets/www/ et assets/files/ contiennent le HTML, le frontend, la galerie, l'écran de démarrage et l'audio locaux. node_modules et .git sont omis.
+
+            Ouvrez ce dossier dans Android Studio pour le synchroniser et le compiler. L'archive ne contient pas le keystore de signature ni tout le runtime du shell WebToApp. Elle peut contenir des secrets d'activation et des identifiants de proxy.
+        """.trimIndent()
+        AppLanguage.GERMAN -> """
+            # $name
+
+            Dies ist ein Android-Studio-Projekt, das Sie öffnen und bauen können.
+
+            - MainActivity unter app/src/main/java öffnet die Seite oder die lokalen Dateien dieser App in einer WebView.
+            - app/src/main/AndroidManifest.xml enthält Paketname, Berechtigungen und Symbol.
+            - app/src/main/assets/app_config.json ist die Laufzeitkonfiguration, die WebToApp in die APK einbettet. Ein verschlüsselter Build speichert diese Datei als Geheimtext; diese Kopie ist Klartext.
+            - app/src/main/res/xml/network_security_config.xml und res/raw/ sind die Netzvertrauens-Einstellungen.
+            - app/src/main/assets/www/ und assets/files/ enthalten lokale HTML-, Frontend-, Galerie-, Startbildschirm- und Audiodateien. node_modules und .git fehlen.
+
+            Öffnen Sie diesen Ordner in Android Studio, um ihn zu synchronisieren und zu bauen. Das Archiv enthält keinen Signatur-Keystore und nicht die gesamte WebToApp-Shell. Es kann Aktivierungsgeheimnisse und Proxy-Zugangsdaten enthalten.
+        """.trimIndent()
+        AppLanguage.RUSSIAN -> """
+            # $name
+
+            Это проект Android Studio, который можно открыть и собрать.
+
+            - MainActivity в app/src/main/java открывает страницу или локальные файлы этого приложения в WebView.
+            - app/src/main/AndroidManifest.xml содержит имя пакета, разрешения и значок.
+            - app/src/main/assets/app_config.json — конфигурация выполнения, которую WebToApp встраивает в APK. В зашифрованной сборке этот файл хранится как шифротекст; здесь он в открытом виде.
+            - app/src/main/res/xml/network_security_config.xml и res/raw/ — параметры доверия сети.
+            - app/src/main/assets/www/ и assets/files/ — локальные HTML, фронтенд, галерея, заставка и аудио. node_modules и .git не включаются.
+
+            Откройте эту папку в Android Studio, чтобы синхронизировать и собрать проект. Архив не содержит хранилище ключа подписи и не включает всю оболочку WebToApp. В нём могут быть секреты активации и данные прокси.
+        """.trimIndent()
+        AppLanguage.JAPANESE -> """
+            # $name
+
+            これは Android Studio で開いてビルドできるアプリプロジェクトです。
+
+            - app/src/main/java の MainActivity は、このアプリのページまたはローカルファイルを WebView で開きます。
+            - app/src/main/AndroidManifest.xml はパッケージ名、権限、アイコンです。
+            - app/src/main/assets/app_config.json は WebToApp が APK に埋め込む実行時設定です。リソース暗号化ビルドでは暗号文になり、ここにあるのは平文です。
+            - app/src/main/res/xml/network_security_config.xml と res/raw/ はネットワーク信頼の設定です。
+            - app/src/main/assets/www/ と assets/files/ はローカル HTML、フロントエンド、ギャラリー、スプラッシュ、音声です。node_modules と .git は含みません。
+
+            このフォルダを Android Studio で開くと同期してビルドできます。書庫に署名キーストアと WebToApp シェルの全ランタイムは含まれません。設定した認証の秘密やプロキシ資格情報が含まれることがあります。
+        """.trimIndent()
+        AppLanguage.KOREAN -> """
+            # $name
+
+            이것은 Android Studio에서 열어 빌드할 수 있는 앱 프로젝트입니다.
+
+            - app/src/main/java 의 MainActivity 는 이 앱의 페이지나 로컬 파일을 WebView 로 엽니다.
+            - app/src/main/AndroidManifest.xml 에는 패키지 이름, 권한, 아이콘이 있습니다.
+            - app/src/main/assets/app_config.json 은 WebToApp 이 APK 에 넣는 런타임 설정입니다. 리소스 암호화 빌드에서는 암호문이고, 여기 있는 것은 평문입니다.
+            - app/src/main/res/xml/network_security_config.xml 과 res/raw/ 는 네트워크 신뢰 설정입니다.
+            - app/src/main/assets/www/ 와 assets/files/ 는 로컬 HTML, 프런트엔드, 갤러리, 스플래시, 오디오입니다. node_modules 와 .git 은 빠집니다.
+
+            이 폴더를 Android Studio 에서 열면 동기화하고 빌드할 수 있습니다. 압축 파일에는 서명 키 저장소와 WebToApp 셸의 전체 런타임이 없습니다. 설정한 활성화 비밀과 프록시 자격 증명이 들어 있을 수 있습니다.
+        """.trimIndent()
+    }
+
     val btnSave: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "保存"
         AppLanguage.ENGLISH -> "Save"
@@ -3827,6 +3950,32 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Иконка приложения"
         AppLanguage.JAPANESE -> "アプリアイコン"
         AppLanguage.KOREAN -> "앱 아이콘"
+    }
+
+    val iconBackground: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "图标背景"
+        AppLanguage.ENGLISH -> "Icon background"
+        AppLanguage.ARABIC -> "خلفية الأيقونة"
+        AppLanguage.PORTUGUESE -> "Fundo do ícone"
+        AppLanguage.SPANISH -> "Fondo del icono"
+        AppLanguage.FRENCH -> "Fond de l'icône"
+        AppLanguage.GERMAN -> "Icon-Hintergrund"
+        AppLanguage.RUSSIAN -> "Фон значка"
+        AppLanguage.JAPANESE -> "アイコンの背景"
+        AppLanguage.KOREAN -> "아이콘 배경"
+    }
+
+    val iconBackgroundDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自适应图标的底板颜色。透明图片默认用白色。也可以选纯色，或选透明让底板空着。"
+        AppLanguage.ENGLISH -> "Plate color behind the adaptive icon. Transparent images default to white. Pick a solid color, or transparent to leave the plate empty."
+        AppLanguage.ARABIC -> "لون اللوحة خلف الأيقونة التكيفية. الصور الشفافة تكون بيضاء افتراضيًا. اختر لونًا ثابتًا، أو شفافًا لترك اللوحة فارغة."
+        AppLanguage.PORTUGUESE -> "Cor da placa atrás do ícone adaptativo. Imagens transparentes usam branco por padrão. Escolha uma cor sólida, ou transparente para deixar a placa vazia."
+        AppLanguage.SPANISH -> "Color de la placa detrás del icono adaptativo. Las imágenes transparentes usan blanco por defecto. Elige un color sólido, o transparente para dejar la placa vacía."
+        AppLanguage.FRENCH -> "Couleur de la plaque derrière l'icône adaptative. Les images transparentes utilisent le blanc par défaut. Choisissez une couleur unie, ou transparent pour laisser la plaque vide."
+        AppLanguage.GERMAN -> "Plattenfarbe hinter dem Adaptive Icon. Transparente Bilder verwenden standardmäßig Weiß. Wähle eine Vollfarbe, oder Transparent, um die Platte leer zu lassen."
+        AppLanguage.RUSSIAN -> "Цвет подложки адаптивного значка. Прозрачные изображения по умолчанию белые. Выберите сплошной цвет или прозрачный, чтобы оставить подложку пустой."
+        AppLanguage.JAPANESE -> "アダプティブアイコンの下地色です。透明な画像は既定で白になります。単色を選ぶか、透明にして下地を空にできます。"
+        AppLanguage.KOREAN -> "적응형 아이콘 뒤의 바탕 색입니다. 투명 이미지는 기본값이 흰색입니다. 단색을 고르거나, 투명을 골라 바탕을 비울 수 있습니다."
     }
 
     val labelBasicInfo: String get() = when (Strings.lang) {
@@ -6340,16 +6489,16 @@ object StringsA {
     }
 
     val localServerFileDesc: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "使用本地文件直接加载，离线可用"
-        AppLanguage.ENGLISH -> "Load local files directly, available offline"
-        AppLanguage.ARABIC -> "تحميل الملفات المحلية مباشرة، متاح دون اتصال"
-        AppLanguage.PORTUGUESE -> "Carregar arquivos locais diretamente, disponível offline"
-        AppLanguage.SPANISH -> "Cargar archivos locales directamente, disponible sin conexión"
-        AppLanguage.FRENCH -> "Charger les fichiers locaux directement, disponible hors ligne"
-        AppLanguage.GERMAN -> "Lokale Dateien direkt laden, offline verfügbar"
-        AppLanguage.RUSSIAN -> "Загружать локальные файлы напрямую, доступно офлайн"
-        AppLanguage.JAPANESE -> "ローカルファイルを直接読み込み、オフラインで利用可能"
-        AppLanguage.KOREAN -> "로컬 파일을 직접 로드, 오프라인 사용 가능"
+        AppLanguage.CHINESE -> "普通页面直接打开本地文件；用到 CDN、ES 模块或 fetch 时自动改走本地服务"
+        AppLanguage.ENGLISH -> "Plain pages open as local files. CDN, ES modules, or fetch switch to the local server automatically"
+        AppLanguage.ARABIC -> "الصفحات العادية تُفتح كملفات محلية. CDN أو وحدات ES أو fetch تنتقل تلقائيًا إلى الخادم المحلي"
+        AppLanguage.PORTUGUESE -> "Páginas simples abrem como arquivos locais. CDN, módulos ES ou fetch passam sozinhos ao servidor local"
+        AppLanguage.SPANISH -> "Las páginas simples se abren como archivos locales. CDN, módulos ES o fetch pasan solos al servidor local"
+        AppLanguage.FRENCH -> "Les pages simples s'ouvrent en fichiers locaux. Un CDN, des modules ES ou fetch passent seuls au serveur local"
+        AppLanguage.GERMAN -> "Einfache Seiten öffnen lokale Dateien. CDN, ES-Module oder fetch wechseln automatisch zum lokalen Server"
+        AppLanguage.RUSSIAN -> "Обычные страницы открываются как локальные файлы. CDN, ES-модули или fetch сами переходят на локальный сервер"
+        AppLanguage.JAPANESE -> "通常のページはローカルファイルで開きます。CDN、ES モジュール、fetch は自動でローカルサーバーに切り替わります"
+        AppLanguage.KOREAN -> "일반 페이지는 로컬 파일로 열고, CDN·ES 모듈·fetch를 쓰면 자동으로 로컬 서버를 사용합니다"
     }
 
     val localServerOnDesc: String get() = when (Strings.lang) {
@@ -6363,6 +6512,71 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Обслуживание через локальный HTTP, совместимо с fetch, модулями, WASM и PWA"
         AppLanguage.JAPANESE -> "ローカル HTTP で提供、fetch、モジュール、WASM、PWA に対応"
         AppLanguage.KOREAN -> "로컬 HTTP로 제공, fetch, 모듈, WASM, PWA와 호환"
+    }
+
+    val htmlLoadModeTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "加载模式"
+        AppLanguage.ENGLISH -> "Load mode"
+        AppLanguage.ARABIC -> "وضع التحميل"
+        AppLanguage.PORTUGUESE -> "Modo de carregamento"
+        AppLanguage.SPANISH -> "Modo de carga"
+        AppLanguage.FRENCH -> "Mode de chargement"
+        AppLanguage.GERMAN -> "Lademodus"
+        AppLanguage.RUSSIAN -> "Режим загрузки"
+        AppLanguage.JAPANESE -> "読み込み方式"
+        AppLanguage.KOREAN -> "로드 방식"
+    }
+
+    val htmlLoadModeAuto: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "自动"
+        AppLanguage.ENGLISH -> "Automatic"
+        AppLanguage.ARABIC -> "تلقائي"
+        AppLanguage.PORTUGUESE -> "Automático"
+        AppLanguage.SPANISH -> "Automático"
+        AppLanguage.FRENCH -> "Automatique"
+        AppLanguage.GERMAN -> "Automatisch"
+        AppLanguage.RUSSIAN -> "Авто"
+        AppLanguage.JAPANESE -> "自動"
+        AppLanguage.KOREAN -> "자동"
+    }
+
+    val htmlLoadModeFile: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "本地文件"
+        AppLanguage.ENGLISH -> "Local file"
+        AppLanguage.ARABIC -> "ملف محلي"
+        AppLanguage.PORTUGUESE -> "Arquivo local"
+        AppLanguage.SPANISH -> "Archivo local"
+        AppLanguage.FRENCH -> "Fichier local"
+        AppLanguage.GERMAN -> "Lokale Datei"
+        AppLanguage.RUSSIAN -> "Локальный файл"
+        AppLanguage.JAPANESE -> "ローカルファイル"
+        AppLanguage.KOREAN -> "로컬 파일"
+    }
+
+    val htmlLoadModeServer: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "本地服务"
+        AppLanguage.ENGLISH -> "Local server"
+        AppLanguage.ARABIC -> "خادم محلي"
+        AppLanguage.PORTUGUESE -> "Servidor local"
+        AppLanguage.SPANISH -> "Servidor local"
+        AppLanguage.FRENCH -> "Serveur local"
+        AppLanguage.GERMAN -> "Lokaler Server"
+        AppLanguage.RUSSIAN -> "Локальный сервер"
+        AppLanguage.JAPANESE -> "ローカルサーバー"
+        AppLanguage.KOREAN -> "로컬 서버"
+    }
+
+    val htmlLoadModeHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "选「本地文件」时，能留在磁盘上的页面不申请网络权限。必须使用 CDN、ES 模块或 WASM 的页面仍会改走本地服务，并保留网络权限。"
+        AppLanguage.ENGLISH -> "Local file does not request the network permission when the page can stay on disk. A page that needs a CDN, ES modules, or WASM still uses the local server and keeps the permission."
+        AppLanguage.ARABIC -> "الملف المحلي لا يطلب إذن الشبكة إذا بقيت الصفحة على القرص. الصفحة التي تحتاج إلى CDN أو وحدات ES أو WASM تبقى على الخادم المحلي وتحتفظ بالإذن."
+        AppLanguage.PORTUGUESE -> "Arquivo local não pede a permissão de rede quando a página pode ficar no disco. Uma página que precisa de CDN, módulos ES ou WASM continua no servidor local e mantém a permissão."
+        AppLanguage.SPANISH -> "Archivo local no pide el permiso de red si la página puede quedarse en disco. Una página que necesita CDN, módulos ES o WASM sigue en el servidor local y conserva el permiso."
+        AppLanguage.FRENCH -> "Fichier local ne demande pas l'autorisation réseau si la page peut rester sur le disque. Une page qui a besoin d'un CDN, de modules ES ou de WASM passe au serveur local et garde l'autorisation."
+        AppLanguage.GERMAN -> "Lokale Datei fordert die Netzwerkberechtigung nicht an, wenn die Seite auf dem Speicher bleiben kann. Eine Seite mit CDN, ES-Modulen oder WASM nutzt weiter den lokalen Server und behält die Berechtigung."
+        AppLanguage.RUSSIAN -> "Локальный файл не запрашивает разрешение сети, если страница может остаться на диске. Странице с CDN, ES-модулями или WASM всё равно нужен локальный сервер и это разрешение."
+        AppLanguage.JAPANESE -> "ローカルファイルは、ページをディスク上のまま開けるときネットワーク権限を要求しません。CDN、ES モジュール、WASM が必要なページはローカルサーバーのまま、権限も残します。"
+        AppLanguage.KOREAN -> "로컬 파일은 페이지를 디스크에서 열 수 있으면 네트워크 권한을 요청하지 않습니다. CDN, ES 모듈, WASM이 필요한 페이지는 로컬 서버를 쓰고 권한도 유지합니다."
     }
 
     val portConfigTitle: String get() = when (Strings.lang) {
@@ -12770,6 +12984,19 @@ object StringsA {
         AppLanguage.RUSSIAN -> "Начать загрузку: %s"
         AppLanguage.JAPANESE -> "ダウンロードを開始: %s"
         AppLanguage.KOREAN -> "다운로드 시작: %s"
+    }
+
+    val downloadSaveCancelled: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已取消保存"
+        AppLanguage.ENGLISH -> "Save cancelled"
+        AppLanguage.ARABIC -> "تم إلغاء الحفظ"
+        AppLanguage.PORTUGUESE -> "Salvamento cancelado"
+        AppLanguage.SPANISH -> "Guardado cancelado"
+        AppLanguage.FRENCH -> "Enregistrement annulé"
+        AppLanguage.GERMAN -> "Speichern abgebrochen"
+        AppLanguage.RUSSIAN -> "Сохранение отменено"
+        AppLanguage.JAPANESE -> "保存をキャンセルしました"
+        AppLanguage.KOREAN -> "저장이 취소되었습니다"
     }
 
     val downloadFailedWithReason: String get() = when (Strings.lang) {

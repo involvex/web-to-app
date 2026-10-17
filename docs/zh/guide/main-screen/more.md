@@ -11,7 +11,7 @@
 | **Agent** | [Agent](/zh/guide/more-features/agent) |
 | **AI 设置** | [AI 设置](/zh/guide/more-features/ai-settings) |
 | ── | ── |
-| **扩展模块** | [扩展模块](/zh/guide/more-features/extension-modules) |
+| **管理插件** | [管理插件](/zh/guide/more-features/extension-modules) |
 | **应用修改器** | [应用修改器](/zh/guide/more-features/app-modifier) |
 | **Linux 环境** | [Linux 环境](/zh/guide/more-features/linux-environment) |
 | **运行时管理** | [运行时管理](/zh/guide/more-features/runtime-management) |
@@ -23,7 +23,9 @@
 | **使用统计** | [使用统计](/zh/guide/more-features/usage-stats) |
 | **Google Play** | [Google Play](/zh/guide/more-features/google-play) |
 | **文件管理** | [文件管理](/zh/guide/more-features/file-manager) |
-| **批量导入** | [批量导入](/zh/guide/more-features/batch-import) |
+| **数据备份** | [数据备份](/zh/guide/more-features/data-backup) |
 | **关于** | [关于](/zh/guide/more-features/about) |
 
 每一项都在[更多功能](/zh/guide/more-features/agent)中有详细说明。
+
+Linux 环境、运行时管理和端口管理只在[关于](/zh/guide/more-features/about)页的 **高级功能** 开启时列出。

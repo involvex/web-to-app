@@ -8,17 +8,27 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.navigation.NavController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.webtoapp.WebToAppApplication
+import android.widget.Toast
+import com.webtoapp.core.host.AdvancedAppTypes
+import com.webtoapp.core.host.HostRuntimePrefs
 import com.webtoapp.core.i18n.InitializeLanguage
+import com.webtoapp.core.i18n.Strings
+import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.HtmlLoadMode
+import com.webtoapp.ui.gallery.GalleryPlayerActivity
+import com.webtoapp.ui.media.MediaAppActivity
+import com.webtoapp.ui.webview.WebViewActivity
 import com.webtoapp.ui.agent.AgentScreen
 import com.webtoapp.ui.screens.AboutScreen
 import com.webtoapp.ui.screens.SettingsScreen
@@ -85,7 +95,6 @@ object Routes {
     const val EDIT_GO_APP = "edit_go_app/{appId}"
     const val EDIT_MULTI_WEB_APP = "edit_multi_web_app/{appId}"
 
-    const val PREVIEW = "preview/{appId}"
     const val APP_MODIFIER = "app_modifier"
     const val APP_MODIFIER_MODIFY = "app_modifier/modify/{packageName}"
     const val AI_SETTINGS = "ai_settings"
@@ -125,9 +134,22 @@ object Routes {
     fun editPythonApp(appId: Long) = "edit_python_app/$appId"
     fun editGoApp(appId: Long) = "edit_go_app/$appId"
     fun editMultiWebApp(appId: Long) = "edit_multi_web_app/$appId"
-    fun preview(appId: Long) = "preview/$appId"
     fun editPlugin(pluginId: String) = "plugin_editor/$pluginId"
     fun appModifierModify(packageName: String) = "app_modifier/modify/$packageName"
+}
+
+/**
+ * Pop only while the current top entry is RESUMED. Once a pop starts, the
+ * outgoing entry drops below RESUMED while still sitting on top of the stack —
+ * a second rapid back tap or edge-swipe in that window would otherwise pop the
+ * entry UNDERNEATH it, and one pop too many empties the back stack entirely,
+ * leaving a permanently blank NavHost (dead white/black screen until the app
+ * is restarted).
+ */
+private fun NavController.popBackStackSafely(): Boolean {
+    val entry = currentBackStackEntry ?: return false
+    if (!entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return false
+    return popBackStack()
 }
 
 @Composable
@@ -136,6 +158,8 @@ fun AppNavigation() {
 
     val navController = rememberNavController()
     val viewModel: MainViewModel = koinViewModel()
+    val context = LocalContext.current
+    val previewScope = rememberCoroutineScope()
 
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
@@ -191,7 +215,25 @@ fun AppNavigation() {
                                 com.webtoapp.data.model.AppType.MULTI_WEB -> navController.navigate(Routes.editMultiWebApp(webApp.id))
                             }
                         },
-                        onPreviewApp = { webApp -> navController.navigate(Routes.preview(webApp.id)) },
+                        onPreviewApp = { summary ->
+                            // Open the activity directly. Routing through an empty
+                            // preview destination started a page slide, popped it,
+                            // then started the activity — three motions for one tap.
+                            if (!AdvancedAppTypes.isUsable(context, summary.appType)) {
+                                Toast.makeText(context, Strings.advancedFeaturesOff, Toast.LENGTH_SHORT).show()
+                            } else when (summary.appType) {
+                                AppType.GALLERY -> previewScope.launch {
+                                    val config = viewModel.getWebApp(summary.id)?.galleryConfig
+                                        ?: return@launch
+                                    GalleryPlayerActivity.launch(context, config, 0, summary.id)
+                                }
+                                AppType.IMAGE, AppType.VIDEO -> previewScope.launch {
+                                    val app = viewModel.getWebApp(summary.id) ?: return@launch
+                                    MediaAppActivity.startForPreview(context, app)
+                                }
+                                else -> WebViewActivity.start(context, summary.id)
+                            }
+                        },
                         onOpenAppModifier = { navController.navigate(Routes.APP_MODIFIER) },
                         onOpenAiSettings = { navController.navigate(Routes.AI_SETTINGS) },
                         onOpenAgent = { navController.navigate(Routes.AGENT) },
@@ -236,7 +278,7 @@ fun AppNavigation() {
                     allStats = allStats,
                     healthRecords = healthRecords,
                     overallStats = overallStats.value,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCheckHealth = { app ->
                         statsScope.launch {
                             healthMonitor.checkUrl(app.id, app.url)
@@ -262,27 +304,27 @@ fun AppNavigation() {
                 CreateAppScreen(
                     viewModel = viewModel,
                     isEdit = false,
-                    onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
+                    onBack = { navController.popBackStackSafely() },
+                    onSaved = { navController.popBackStackSafely() }
                 )
             }
 
             composable(Routes.CREATE_MEDIA_APP) {
                 CreateMediaAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, appType, mediaUri, mediaConfig, iconUri, themeType ->
                         viewModel.saveMediaApp(name, appType, mediaUri, mediaConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
 
             composable(Routes.CREATE_GALLERY_APP) {
                 CreateGalleryAppScreenV2(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, galleryConfig, iconUri, themeType ->
                         viewModel.saveGalleryApp(name, galleryConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -317,10 +359,10 @@ fun AppNavigation() {
                     }
                 }
                 CreateHtmlAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, htmlConfig, iconUri, themeType ->
                         viewModel.saveHtmlApp(name, htmlConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onZipCreated = {
                         name: String,
@@ -343,7 +385,7 @@ fun AppNavigation() {
                             port = port,
                             portConflictMode = portConflictMode
                         )
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     importDir = importDir,
                     importProjectName = projectName
@@ -352,7 +394,7 @@ fun AppNavigation() {
 
             composable(Routes.CREATE_FRONTEND_APP) {
                 CreateFrontendAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, outputPath, iconUri, framework ->
                         viewModel.saveFrontendApp(
                             name = name,
@@ -360,7 +402,7 @@ fun AppNavigation() {
                             iconUri = iconUri,
                             framework = framework.name
                         )
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onNavigateToLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) }
                 )
@@ -368,20 +410,20 @@ fun AppNavigation() {
 
             composable(Routes.CREATE_WORDPRESS_APP) {
                 CreateWordPressAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, wordpressConfig, iconUri, themeType ->
                         viewModel.saveWordPressApp(name, wordpressConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
 
             composable(Routes.CREATE_NODEJS_APP) {
                 CreateNodeJsAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, nodejsConfig, iconUri, themeType ->
                         viewModel.saveNodeJsApp(name, nodejsConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
@@ -389,10 +431,10 @@ fun AppNavigation() {
 
             composable(Routes.CREATE_PHP_APP) {
                 CreatePhpAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, phpAppConfig, iconUri, themeType ->
                         viewModel.savePhpApp(name, phpAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
@@ -400,10 +442,10 @@ fun AppNavigation() {
 
             composable(Routes.CREATE_PYTHON_APP) {
                 CreatePythonAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, pythonAppConfig, iconUri, themeType ->
                         viewModel.savePythonApp(name, pythonAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
@@ -411,10 +453,10 @@ fun AppNavigation() {
 
             composable(Routes.CREATE_GO_APP) {
                 CreateGoAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, goAppConfig, iconUri, themeType ->
                         viewModel.saveGoApp(name, goAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -426,10 +468,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreatePhpAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, phpAppConfig, iconUri, themeType ->
                         viewModel.updatePhpApp(appId, name, phpAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
@@ -442,10 +484,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreatePythonAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, pythonAppConfig, iconUri, themeType ->
                         viewModel.updatePythonApp(appId, name, pythonAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
@@ -458,20 +500,20 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateGoAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, goAppConfig, iconUri, themeType ->
                         viewModel.updateGoApp(appId, name, goAppConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
 
             composable(Routes.CREATE_MULTI_WEB_APP) {
                 CreateMultiWebAppScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, multiWebConfig, iconUri, injectScripts, themeType ->
                         viewModel.saveMultiWebApp(name, multiWebConfig, iconUri, injectScripts, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -483,17 +525,17 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateMultiWebAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, multiWebConfig, iconUri, injectScripts, themeType ->
                         viewModel.updateMultiWebApp(appId, name, multiWebConfig, iconUri, injectScripts, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
 
             composable(Routes.CREATE_OFFLINE_PACK) {
                 CreateOfflinePackScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onStartScrape = { name, url, maxDepth, downloadCdn, followLinks, maxFiles, maxTotalSizeMb, skipPatterns, timeoutSeconds, onProgress ->
                         viewModel.saveScrapedWebsiteApp(
                             name = name,
@@ -513,7 +555,7 @@ fun AppNavigation() {
             }
 
             composable(Routes.LINUX_ENVIRONMENT) {
-                LinuxEnvironmentScreen(onBack = { navController.popBackStack() })
+                LinuxEnvironmentScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(
@@ -523,8 +565,8 @@ fun AppNavigation() {
                 CreateAppScreen(
                     viewModel = viewModel,
                     isEdit = true,
-                    onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
+                    onBack = { navController.popBackStackSafely() },
+                    onSaved = { navController.popBackStackSafely() }
                 )
             }
 
@@ -535,8 +577,8 @@ fun AppNavigation() {
                 CreateAppScreen(
                     viewModel = viewModel,
                     isEdit = true,
-                    onBack = { navController.popBackStack() },
-                    onSaved = { navController.popBackStack() }
+                    onBack = { navController.popBackStackSafely() },
+                    onSaved = { navController.popBackStackSafely() }
                 )
             }
 
@@ -547,10 +589,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateMediaAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, appType, mediaUri, mediaConfig, iconUri, themeType ->
                         viewModel.updateMediaApp(appId, name, appType, mediaUri, mediaConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -562,10 +604,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateGalleryAppScreenV2(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, galleryConfig, iconUri, themeType ->
                         viewModel.updateGalleryApp(appId, name, galleryConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -577,10 +619,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateHtmlAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, htmlConfig, iconUri, themeType ->
                         viewModel.updateHtmlApp(appId, name, htmlConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onZipCreated = { name, extractedDir, entryFile, iconUri, enableJs, enableStorage, loadMode, port, portConflictMode ->
                         viewModel.updateZipHtmlApp(
@@ -595,7 +637,7 @@ fun AppNavigation() {
                             port = port,
                             portConflictMode = portConflictMode
                         )
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     }
                 )
             }
@@ -607,10 +649,10 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateFrontendAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, outputPath, iconUri, framework ->
                         viewModel.updateFrontendApp(appId, name, outputPath, iconUri, framework.name)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onNavigateToLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) }
                 )
@@ -623,26 +665,18 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 CreateNodeJsAppScreen(
                     existingAppId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onCreated = { name, nodejsConfig, iconUri, themeType ->
                         viewModel.updateNodeJsApp(appId, name, nodejsConfig, iconUri, themeType)
-                        navController.popBackStack()
+                        navController.popBackStackSafely()
                     },
                     onOpenLinuxEnv = { navController.navigate(Routes.LINUX_ENVIRONMENT) },
                 )
             }
 
-            composable(
-                route = Routes.PREVIEW,
-                arguments = listOf(navArgument("appId") { type = NavType.LongType })
-            ) { backStackEntry ->
-                val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
-                PreviewScreen(appId = appId, onBack = { navController.popBackStack() })
-            }
-
             composable(Routes.APP_MODIFIER) {
                 AppModifierScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onSelectApp = { packageName ->
                         navController.navigate(Routes.appModifierModify(packageName))
                     }
@@ -656,36 +690,36 @@ fun AppNavigation() {
                 val packageName = backStackEntry.arguments?.getString("packageName").orEmpty()
                 AppModifyFullScreen(
                     packageName = packageName,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStackSafely() }
                 )
             }
 
             composable(Routes.AI_SETTINGS) {
-                AiSettingsScreen(onBack = { navController.popBackStack() })
+                AiSettingsScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.AGENT) {
                 AgentScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onOpenAiSettings = { navController.navigate(Routes.AI_SETTINGS) },
                     onOpenApp = { appId -> navController.navigate(Routes.editApp(appId)) }
                 )
             }
 
             composable(Routes.BROWSER_KERNEL) {
-                BrowserKernelScreen(onBack = { navController.popBackStack() })
+                BrowserKernelScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.HOSTS_ADBLOCK) {
-                HostsAdBlockScreen(onBack = { navController.popBackStack() })
+                HostsAdBlockScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.RUNTIME_DEPS) {
-                RuntimeDepsScreen(onBack = { navController.popBackStack() })
+                RuntimeDepsScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.PORT_MANAGER) {
-                PortManagerScreen(onBack = { navController.popBackStack() })
+                PortManagerScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(
@@ -707,7 +741,7 @@ fun AppNavigation() {
                 val initialAppId = rawAppId.toLongOrNull()
                 val autoStart = backStackEntry.arguments?.getString("autoStart")?.equals("true", ignoreCase = true) == true
                 PlayStoreScreen(
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     initialAppId = initialAppId,
                     autoStartExport = autoStart,
                     viewModel = viewModel
@@ -715,7 +749,7 @@ fun AppNavigation() {
             }
 
             composable(Routes.FILE_MANAGER) {
-                FileManagerScreen(onBack = { navController.popBackStack() })
+                FileManagerScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(
@@ -725,7 +759,7 @@ fun AppNavigation() {
                 val appId = backStackEntry.arguments?.getLong("appId") ?: 0L
                 BuildApkScreen(
                     appId = appId,
-                    onBack = { navController.popBackStack() },
+                    onBack = { navController.popBackStackSafely() },
                     onExportAab = { id ->
                         navController.navigate(Routes.playStore(appId = id, autoStart = true))
                     }
@@ -733,16 +767,16 @@ fun AppNavigation() {
             }
 
             composable(Routes.ABOUT) {
-                AboutScreen(onBack = { navController.popBackStack() })
+                AboutScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.SETTINGS) {
-                SettingsScreen(onBack = { navController.popBackStack() })
+                SettingsScreen(onBack = { navController.popBackStackSafely() })
             }
 
             composable(Routes.PLUGINS) {
                 PluginManagerScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackSafely() },
                     onNavigateToEditor = { pluginId ->
                         if (pluginId == null) {
                             navController.navigate(Routes.PLUGIN_EDITOR)
@@ -767,7 +801,7 @@ fun AppNavigation() {
                 val rawTab = backStackEntry.arguments?.getString("initialTab") ?: "0"
                 val initialTab = rawTab.toIntOrNull() ?: 0
                 ModuleMarketScreen(
-                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateBack = { navController.popBackStackSafely() },
                     initialTab = initialTab,
                     onOpenHostsAdBlock = { navController.navigate(Routes.HOSTS_ADBLOCK) }
                 )
@@ -776,7 +810,7 @@ fun AppNavigation() {
             composable(Routes.PLUGIN_EDITOR) {
                 PluginEditorScreen(
                     pluginId = null,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStackSafely() }
                 )
             }
 
@@ -787,41 +821,9 @@ fun AppNavigation() {
                 val pluginId = backStackEntry.arguments?.getString("pluginId")
                 PluginEditorScreen(
                     pluginId = pluginId,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStackSafely() }
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun PreviewScreen(appId: Long, onBack: () -> Unit) {
-    val context = LocalContext.current
-    val repository = remember { WebToAppApplication.repository }
-    val webApp by repository.getWebAppById(appId).collectAsState(initial = null)
-    val hasLaunched = remember { androidx.compose.runtime.mutableStateOf(false) }
-
-    LaunchedEffect(webApp) {
-        val app = webApp
-        if (app != null && !hasLaunched.value) {
-            hasLaunched.value = true
-            when (app.appType) {
-                com.webtoapp.data.model.AppType.IMAGE,
-                com.webtoapp.data.model.AppType.VIDEO -> {
-                    com.webtoapp.ui.media.MediaAppActivity.startForPreview(context, app)
-                }
-
-                com.webtoapp.data.model.AppType.GALLERY -> {
-                    app.galleryConfig?.let { config ->
-                        com.webtoapp.ui.gallery.GalleryPlayerActivity.launch(context, config, 0, appId)
-                    }
-                }
-
-                else -> {
-                    com.webtoapp.ui.webview.WebViewActivity.start(context, appId)
-                }
-            }
-            onBack()
         }
     }
 }

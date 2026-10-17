@@ -54,6 +54,7 @@ data class ApkConfig(
     val language: String get() = meta.language
     val engineType: String get() = meta.engineType
     val targetSdkOverride: Int? get() = meta.targetSdkOverride
+    val minSdkOverride: Int? get() = meta.minSdkOverride
 
     val activationEnabled: Boolean get() = activation.enabled
     val activationCodes: List<String> get() = activation.codes
@@ -90,6 +91,8 @@ data class ApkConfig(
     val announcementTriggerIntervalMinutes: Int get() = announcement.triggerIntervalMinutes
 
     val adsEnabled: Boolean get() = ads.enabled
+    val adAppId: String get() = ads.appId
+    val adTestMode: Boolean get() = ads.testMode
     val adBannerEnabled: Boolean get() = ads.bannerEnabled
     val adBannerId: String get() = ads.bannerId
     val adInterstitialEnabled: Boolean get() = ads.interstitialEnabled
@@ -136,6 +139,7 @@ data class ApkConfig(
     val openExternalLinks: Boolean get() = webView.openExternalLinks
     val showFloatingBackButton: Boolean get() = webView.showFloatingBackButton
     val swipeRefreshEnabled: Boolean get() = webView.swipeRefreshEnabled
+    val overscrollEffectEnabled: Boolean get() = webView.overscrollEffectEnabled
     val swipeRefreshZone: String get() = webView.swipeRefreshZone
     val fullscreenEnabled: Boolean get() = webView.fullscreenEnabled
     val performanceOptimization: Boolean get() = webView.performanceOptimization
@@ -353,6 +357,7 @@ data class ApkConfig(
     val shareReceiveText: Boolean get() = shareReceive.text
     val shareDeliveryMode: String get() = shareReceive.deliveryMode
     val sharePromptBeforeUse: Boolean get() = shareReceive.promptBeforeUse
+    val shareShowReceivedToast: Boolean get() = shareReceive.showReceivedToast
     val shareReceiveMimeTypes: List<String> get() = shareReceive.mimeTypes
     val openWithEnabled: Boolean get() = openWith.enabled
 
@@ -420,7 +425,8 @@ data class MetaBlock(
     val engineType: String = "SYSTEM_WEBVIEW",
     val htmlUsesFileScheme: Boolean = false,
     val loggingEnabled: Boolean = false,
-    val targetSdkOverride: Int? = null
+    val targetSdkOverride: Int? = null,
+    val minSdkOverride: Int? = null
 )
 
 data class ActivationBlock(
@@ -468,12 +474,14 @@ data class AnnouncementBlock(
 
 data class AdsBlock(
     val enabled: Boolean = false,
+    val appId: String = "",
     val bannerEnabled: Boolean = false,
     val bannerId: String = "",
     val interstitialEnabled: Boolean = false,
     val interstitialId: String = "",
     val splashEnabled: Boolean = false,
-    val splashId: String = ""
+    val splashId: String = "",
+    val testMode: Boolean = false
 )
 
 data class WebViewBlock(
@@ -520,6 +528,8 @@ data class WebViewBlock(
     val backButtonBehavior: String = "GO_BACK",
     val swipeRefreshEnabled: Boolean = true,
     val swipeRefreshZone: String = "TOP_EDGE",
+    // Absent on configs exported before #1193. True keeps the platform stretch.
+    val overscrollEffectEnabled: Boolean = true,
     val fullscreenEnabled: Boolean = true,
     val performanceOptimization: Boolean = false,
     val pwaOfflineEnabled: Boolean = false,
@@ -782,7 +792,9 @@ data class BgmBlock(
     val volume: Float = 0.5f,
     val autoPlay: Boolean = true,
     val showLyrics: Boolean = true,
-    val lrcTheme: LrcShellTheme? = null
+    val lrcTheme: LrcShellTheme? = null,
+    val showFloatingPlayer: Boolean = true,
+    val showNotificationPlayer: Boolean = true
 )
 
 data class TranslateBlock(
@@ -844,6 +856,7 @@ data class ShareReceiveBlock(
     val text: Boolean = false,
     val deliveryMode: String = "BOTH",
     val promptBeforeUse: Boolean = true,
+    val showReceivedToast: Boolean = true,
     val mimeTypes: List<String> = emptyList()
 )
 
@@ -920,8 +933,13 @@ data class MultiWebBlock(
     val displayMode: String = "TABS",
     val refreshInterval: Int = 30,
     val showSiteIcons: Boolean = true,
+    val cardColumns: Int = 2,
+    val drawerColumns: Int = 1,
+    val cardAspectRatio: Float = 1.2f,
     val sitesUseOwnConfig: Boolean = false,
-    val projectId: String = ""
+    val projectId: String = "",
+    val startTab: String = "LAST",
+    val startSiteId: String = ""
 )
 
 data class BackgroundRunConfig(

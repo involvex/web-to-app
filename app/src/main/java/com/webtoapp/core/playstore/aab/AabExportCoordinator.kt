@@ -2,6 +2,8 @@ package com.webtoapp.core.playstore.aab
 
 import android.content.Context
 import com.webtoapp.core.apkbuilder.ApkBuilder
+import com.webtoapp.core.host.AdvancedAppTypes
+import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.apkbuilder.BuildResult
 import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.core.playstore.aab.axml.ProtoManifestRewriter
@@ -24,6 +26,13 @@ class AabExportCoordinator(private val context: Context) {
         webApp: WebApp,
         onProgress: ((stage: AabExporter.Stage, percent: Int) -> Unit)? = null
     ): AabExporter.Result {
+
+        if (!AdvancedAppTypes.isUsable(context, webApp.appType)) {
+            throw AabExportException(
+                FailureStage.BUILD_APK,
+                Strings.advancedFeaturesOff
+            )
+        }
 
         // The AAB pipeline rewrites targetSdk to the Play-required level (>= 29). A
         // server-runtime app (Node/PHP/Python/Go/WordPress, directly or via a multi-web

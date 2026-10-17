@@ -69,6 +69,7 @@ import com.webtoapp.ui.animation.CardCollapseTransition
 import com.webtoapp.data.model.PortConflictMode
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
+import com.webtoapp.ui.theme.LocalShowDescriptions
 import com.webtoapp.ui.design.WtaSettingCard
 import com.webtoapp.ui.design.WtaToggleRow
 import com.webtoapp.ui.design.WtaSectionDivider
@@ -80,7 +81,7 @@ private data class HtmlEditorStateSnapshot(
     val appIcon: Uri? = null,
     val enableJavaScript: Boolean = true,
     val enableLocalStorage: Boolean = true,
-    val loadMode: HtmlLoadMode = HtmlLoadMode.FILE
+    val loadMode: HtmlLoadMode = HtmlLoadMode.AUTO
 )
 
 private fun HtmlProjectProcessor.ProjectIssue.isActionableAnalysisIssue(): Boolean {
@@ -149,7 +150,7 @@ fun CreateHtmlAppScreen(
 
     var enableJavaScript by remember { mutableStateOf(true) }
     var enableLocalStorage by remember { mutableStateOf(true) }
-    var loadMode by remember { mutableStateOf(HtmlLoadMode.FILE) }
+    var loadMode by remember { mutableStateOf(HtmlLoadMode.AUTO) }
     var serverPort by remember { mutableStateOf(0) }
     var portConflictMode by remember { mutableStateOf(PortConflictMode.AUTO_KILL) }
 
@@ -955,25 +956,43 @@ fun CreateHtmlAppScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     val isLocalServer = loadMode == HtmlLoadMode.LOCAL_HTTP
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
-                            Text(Strings.localServerToggle)
+                    Text(
+                        text = Strings.htmlLoadModeTitle,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    if (LocalShowDescriptions.current) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = Strings.htmlLoadModeHint,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    listOf(
+                        HtmlLoadMode.AUTO to Strings.htmlLoadModeAuto,
+                        HtmlLoadMode.FILE to Strings.htmlLoadModeFile,
+                        HtmlLoadMode.LOCAL_HTTP to Strings.htmlLoadModeServer
+                    ).forEach { (mode, label) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(MaterialTheme.shapes.small)
+                                .clickable { loadMode = mode }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = loadMode == mode,
+                                onClick = { loadMode = mode }
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = if (isLocalServer) Strings.localServerOnDesc else Strings.localServerFileDesc,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                text = label,
+                                style = MaterialTheme.typography.bodySmall
                             )
                         }
-                        WtaSwitch(
-                            checked = isLocalServer,
-                            onCheckedChange = { enabled ->
-                                loadMode = if (enabled) HtmlLoadMode.LOCAL_HTTP else HtmlLoadMode.FILE
-                            }
-                        )
                     }
 
                     androidx.compose.animation.AnimatedVisibility(

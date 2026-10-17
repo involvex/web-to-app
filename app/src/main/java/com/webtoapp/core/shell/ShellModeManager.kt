@@ -262,6 +262,12 @@ data class ShellConfig(
     @SerializedName("adsEnabled")
     val adsEnabled: Boolean = false,
 
+    @SerializedName("adAppId")
+    val adAppId: String = "",
+
+    @SerializedName("adTestMode")
+    val adTestMode: Boolean = false,
+
     @SerializedName("adBannerEnabled")
     val adBannerEnabled: Boolean = false,
 
@@ -345,6 +351,14 @@ data class ShellConfig(
 
     @SerializedName("bgmLrcTheme")
     val bgmLrcTheme: LrcShellTheme? = null,
+
+    /** Null in an older export means the floating player is on. */
+    @SerializedName("bgmShowFloatingPlayer")
+    val bgmShowFloatingPlayer: Boolean? = null,
+
+    /** Null in an older export means the notification player is on. */
+    @SerializedName("bgmShowNotificationPlayer")
+    val bgmShowNotificationPlayer: Boolean? = null,
 
     @SerializedName("themeType")
     val themeType: String = "AURORA",
@@ -890,11 +904,29 @@ data class MultiWebShellConfig(
     @SerializedName("showSiteIcons")
     val showSiteIcons: Boolean = true,
 
+    // A missing key keeps the default below. Runtime treats a raw 0 as the old layout.
+    @SerializedName("cardColumns")
+    val cardColumns: Int = 2,
+
+    @SerializedName("drawerColumns")
+    val drawerColumns: Int = 1,
+
+    @SerializedName("cardAspectRatio")
+    val cardAspectRatio: Float = 1.2f,
+
     @SerializedName("sitesUseOwnConfig")
     val sitesUseOwnConfig: Boolean = false,
 
     @SerializedName("projectId")
-    val projectId: String = ""
+    val projectId: String = "",
+
+    // LAST reopens the last session's site. SITE opens startSiteId.
+    // A missing key stays LAST.
+    @SerializedName("startTab")
+    val startTab: String = "LAST",
+
+    @SerializedName("startSiteId")
+    val startSiteId: String = ""
 )
 
 data class MultiWebSiteShellConfig(
@@ -1208,6 +1240,9 @@ data class WebViewShellConfig(
     @SerializedName("sharePromptBeforeUse")
     val sharePromptBeforeUse: Boolean = true,
 
+    @SerializedName("shareShowReceivedToast")
+    val shareShowReceivedToast: Boolean = true,
+
     // "Open with" file association (ACTION_VIEW file/content intents). Must match
     // ApkConfigJsonFactory.webViewConfigPayload exactly — Gson drops unknown keys silently.
     @SerializedName("openWithEnabled")
@@ -1497,6 +1532,10 @@ data class WebViewShellConfig(
 
     @SerializedName("swipeRefreshZone")
     val swipeRefreshZone: String = "TOP_EDGE",
+
+    /** Missing on pre-#1193 exports. True keeps the platform edge effect. */
+    @SerializedName("overscrollEffectEnabled")
+    val overscrollEffectEnabled: Boolean = true,
 
     @SerializedName("fullscreenEnabled")
     val fullscreenEnabled: Boolean = true,

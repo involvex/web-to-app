@@ -22,7 +22,7 @@ Runtime Kotlin is authored under `app/` and synced into `shell/` by `syncShellRu
 ## The three Gradle modules
 
 - **`:app`** — the builder. `applicationId = com.webtoapp`, `compileSdk = 36`, `minSdk = 23`, `targetSdk = 36`, `buildConfigField SHELL_RUNTIME_ONLY = false`.
-- **`:shell`** — the runtime template embedded into generated APKs. Same `compileSdk`/`minSdk`/version as `:app`, but `targetSdk = 28` (generated apps keep the low targetSdk for fork+exec runtimes) and `SHELL_RUNTIME_ONLY = true`. Its sources are synced from `app/`.
+- **`:shell`** — the runtime template embedded into generated APKs. Same `compileSdk`/`minSdk`/version as `:app`, but `targetSdk = 35` (export can pin a different target via `ApkExportConfig.targetSdk`, and raise `minSdk` via `ApkExportConfig.minSdk`) and `SHELL_RUNTIME_ONLY = true`. Its sources are synced from `app/`.
 - **`:clone-host`** — a minimal `com.android.library` (namespace `com.webtoapp.clone`) with no dependencies, compiled to a DEX asset for `AppCloner`.
 
 ## Package structure (`app/src/main/java/com/webtoapp`)
@@ -35,9 +35,28 @@ Runtime Kotlin is authored under `app/` and synced into `shell/` by `syncShellRu
 
 Native C++ lives under `app/src/main/cpp/` (crypto, integrity, anti-debug, `node_bridge`, `node_launcher`, `go_exec_loader`).
 
+## Inspect a WebView over USB
+
+Debug builds enable Android WebView remote debugging when an ordinary app page
+is configured, including host previews and debug shell builds. Release builds
+do not enable it. The in-app console is separate from Chrome DevTools.
+
+An APK exported by the builder still uses the release shell template; installing
+a debug host does not enable inspection in exported release apps. This is a
+build-time capability, not an editor setting.
+
+1. Install a debug build and open the web app you want to inspect.
+2. Enable USB debugging on the Android device, connect it to your computer,
+   and accept the device's USB debugging authorization prompt.
+3. Open `chrome://inspect/#devices` in desktop Chrome, enable **Discover USB
+   devices**, and select **inspect** next to the page.
+
+For a full setup guide, see [Chrome's WebView debugging documentation](https://developer.chrome.com/docs/devtools/remote-debugging/webviews).
+
 ## Where to read next
 
 - [Architecture](/developer/architecture) — the preview-vs-export mental model.
 - [Export Pipeline](/developer/export-pipeline) — how a `WebApp` becomes a signed APK.
 - [Shell Sync & Template](/developer/shell-sync) — how runtime code reaches generated apps.
 - [Config Field Drift](/developer/config-drift) — the most common silent failure.
+- [F-Droid](/developer/fdroid) — `-Pfdroid=true` flavor, listing copy, fdroiddata recipe.

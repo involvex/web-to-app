@@ -8,7 +8,12 @@ type Lang = "en" | "zh";
 
 const t = {
   en: {
-    nav: { guide: "Guide", developer: "Developer", extensions: "Plugins" },
+    nav: {
+      guide: "Guide",
+      developer: "Developer",
+      extensions: "Plugins",
+      privacy: "Privacy",
+    },
     cc: {
       title: "Common Config",
       basicInfo: "Basic Info",
@@ -97,7 +102,7 @@ const t = {
       usageStats: "Usage Stats",
       googlePlay: "Google Play",
       fileManager: "File Manager",
-      batchImport: "Batch Import",
+      dataBackup: "Data Backup",
       about: "About",
       config: "App Configuration",
       configOverview: "Overview",
@@ -116,6 +121,7 @@ const t = {
       configDrift: "Config Field Drift",
       i18n: "Internationalization",
       recipes: "Change Recipes",
+      fdroid: "F-Droid",
       contributing: "Contributing",
     },
     ext: {
@@ -130,7 +136,12 @@ const t = {
     },
   },
   zh: {
-    nav: { guide: "使用手册", developer: "开发者", extensions: "插件" },
+    nav: {
+      guide: "使用手册",
+      developer: "开发者",
+      extensions: "插件",
+      privacy: "隐私权政策",
+    },
     cc: {
       title: "通用配置",
       basicInfo: "基本信息",
@@ -219,7 +230,7 @@ const t = {
       usageStats: "使用统计",
       googlePlay: "Google Play",
       fileManager: "文件管理",
-      batchImport: "批量导入",
+      dataBackup: "数据备份",
       about: "关于",
       config: "应用配置",
       configOverview: "总览",
@@ -238,6 +249,7 @@ const t = {
       configDrift: "配置字段漂移",
       i18n: "国际化",
       recipes: "常见改动配方",
+      fdroid: "F-Droid",
       contributing: "贡献指南",
     },
     ext: {
@@ -259,6 +271,7 @@ function nav(lang: Lang, prefix: string) {
     { text: s.nav.guide, link: `${prefix}/guide/introduction` },
     { text: s.nav.developer, link: `${prefix}/developer/` },
     { text: s.nav.extensions, link: `${prefix}/extensions/` },
+    { text: s.nav.privacy, link: `${prefix}/privacy` },
   ];
 }
 
@@ -443,10 +456,6 @@ function sidebar(lang: Lang, prefix: string) {
                 text: s.cc.translate,
                 link: `${prefix}/guide/app-actions/edit-common-config/translate`,
               },
-              {
-                text: s.cc.streamingPip,
-                link: `${prefix}/guide/app-actions/edit-common-config/streaming-pip`,
-              },
             ],
           },
           {
@@ -502,6 +511,10 @@ function sidebar(lang: Lang, prefix: string) {
               {
                 text: s.cc.apkExport,
                 link: `${prefix}/guide/app-actions/edit-common-config/apk-export`,
+              },
+              {
+                text: s.cc.streamingPip,
+                link: `${prefix}/guide/app-actions/edit-common-config/streaming-pip`,
               },
             ],
           },
@@ -585,8 +598,8 @@ function sidebar(lang: Lang, prefix: string) {
                 link: `${prefix}/guide/more-features/file-manager`,
               },
               {
-                text: s.guide.batchImport,
-                link: `${prefix}/guide/more-features/batch-import`,
+                text: s.guide.dataBackup,
+                link: `${prefix}/guide/more-features/data-backup`,
               },
               {
                 text: s.guide.about,
@@ -631,6 +644,7 @@ function sidebar(lang: Lang, prefix: string) {
           { text: s.dev.configDrift, link: `${prefix}/developer/config-drift` },
           { text: s.dev.i18n, link: `${prefix}/developer/i18n` },
           { text: s.dev.recipes, link: `${prefix}/developer/recipes` },
+          { text: s.dev.fdroid, link: `${prefix}/developer/fdroid` },
           {
             text: s.dev.contributing,
             link: `${prefix}/developer/contributing`,
@@ -678,6 +692,12 @@ function themeConfig(lang: Lang, prefix: string) {
     editLink: {
       pattern: "https://github.com/shiaho777/web-to-app/edit/main/docs/:path",
       text: isZh ? "在 GitHub 上编辑此页" : "Edit this page on GitHub",
+    },
+    footer: {
+      message: isZh ? "以 Unlicense 发布。" : "Released under the Unlicense.",
+      copyright: isZh
+        ? 'Built by shiaho · <a href="https://shiaho777.github.io/web-to-app/zh/privacy">隐私权政策</a>'
+        : 'Built by shiaho · <a href="https://shiaho777.github.io/web-to-app/privacy">Privacy Policy</a>',
     },
   };
 }
@@ -747,9 +767,5 @@ export default defineConfig({
       { icon: "github", link: "https://github.com/shiaho777/web-to-app" },
       { icon: "x", link: "https://x.com/shiaho777" },
     ],
-    footer: {
-      message: "Released under the Unlicense.",
-      copyright: "Built by shiaho · WebToApp",
-    },
   },
 });

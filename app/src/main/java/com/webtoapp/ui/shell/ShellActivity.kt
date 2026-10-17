@@ -74,6 +74,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     private var statusBarBackgroundImageDark: String? = null
     private var statusBarBackgroundAlphaDark: Float = 1.0f
     private var statusBarAutoColor: String? = null
+    private var topTabBarColor: String? = null
+    private var pageBottomAutoColor: String? = null
     private var keyboardAdjustMode: KeyboardAdjustMode = KeyboardAdjustMode.RESIZE
 
     private var pendingFloatingWindowLaunch = false
@@ -83,6 +85,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     private var shareReceiveMimeTypes: List<String> = emptyList()
     private var shareDeliveryMode: com.webtoapp.data.model.ShareDeliveryMode =
         com.webtoapp.data.model.ShareDeliveryMode.BOTH
+    private var shareShowReceivedToast: Boolean = true
 
     // "Open with" file association (ACTION_VIEW on file/content URIs), same inbox.
     private var openWithEnabled = false
@@ -99,6 +102,11 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     private var webViewStateBundle: Bundle? = null
     private var shellConfig: com.webtoapp.core.shell.ShellConfig? = null
+
+    // Optional admob feature stack (issue #1115) — null unless the build
+    // config enables ads AND the stack DEX was grafted into this APK.
+    private var adManager: com.webtoapp.core.ads.AdManager? = null
+    private var bannerContainer: android.widget.FrameLayout? = null
 
     /**
      * External-pointer normalizer (#1031): feeds the touch stream so a quirky
@@ -155,9 +163,33 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         }
         val effectiveColorMode = if (systemDark) statusBarColorModeDark else statusBarColorMode
         val effectiveCustomColor = if (systemDark) statusBarCustomColorDark else statusBarCustomColor
-        val effectiveDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons
         val effectiveAlpha = if (systemDark) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
-        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, systemDark, effectiveAlpha)
+        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, resolvedStatusIcons(systemDark), systemDark, effectiveAlpha)
+        applyPageEdgeNavigation(systemDark)
+    }
+
+    private fun resolvedStatusIcons(isDark: Boolean): Boolean? {
+        val explicit = if (isDark) statusBarDarkIconsDark else statusBarDarkIcons
+        if (explicit != null) return explicit
+        val mode = if (isDark) statusBarColorModeDark else statusBarColorMode
+        if (mode != "TRANSPARENT" && mode != "PAGE_TOP") return null
+        val hex = (if (mode == "TRANSPARENT") topTabBarColor else null) ?: statusBarAutoColor ?: return null
+        val color = runCatching { android.graphics.Color.parseColor(hex) }.getOrNull() ?: return null
+        return com.webtoapp.ui.shared.WindowHelper.isColorLight(color)
+    }
+
+    private fun applyPageEdgeNavigation(isDark: Boolean) {
+        val mode = if (isDark) statusBarColorModeDark else statusBarColorMode
+        val custom = if (isDark) statusBarCustomColorDark else statusBarCustomColor
+        com.webtoapp.ui.shared.PageEdgeChrome.applyNavigationBar(
+            activity = this,
+            mode = mode,
+            sampleBottom = pageBottomAutoColor,
+            sampleTop = statusBarAutoColor,
+            custom = custom,
+            darkIcons = if (isDark) statusBarDarkIconsDark else statusBarDarkIcons,
+            isDark = isDark
+        )
     }
 
     private fun isSystemInDarkMode(): Boolean =
@@ -183,11 +215,14 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
             showStatusBar = effectiveShowStatusBar,
             statusBarColorMode = resolved.first,
             statusBarCustomColor = resolved.second,
-            statusBarDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons,
+            statusBarDarkIcons = resolvedStatusIcons(systemDark),
             statusBarBgType = if (systemDark) statusBarBackgroundTypeDark else statusBarBackgroundType,
             keyboardAdjustMode = keyboardAdjustMode,
             tag = "ShellActivity"
         )
+        // showNavigationBarInFullscreen only applies while fullscreen is on.
+        // Leaving fullscreen always shows the system navigation bar.
+        if (!enabled || !shouldHideNavBar) applyPageEdgeNavigation(systemDark)
     }
 
     /**
@@ -343,9 +378,32 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     ) = permissionDelegate.handleDownloadWithPermission(url, userAgent, contentDisposition, mimeType, contentLength, webView)
 
     private fun resetFreshBrowsingSession() {
-        com.webtoapp.core.webview.WebViewManager.beginFreshBrowsingSession()
-        com.webtoapp.core.webview.WebViewManager.clearBrowsingData(this, webView)
+        // Drop any restored navigation first. A saved bundle would reload the
+        // previous document, including a dead EventSource, on top of the clear.
         webViewStateBundle = null
+        com.webtoapp.core.webview.WebViewManager.beginFreshBrowsingSession()
+        val gecko = com.webtoapp.core.engine.EngineType.fromString(shellConfig?.engineType ?: "") ==
+            com.webtoapp.core.engine.EngineType.GECKOVIEW
+        if (gecko) {
+            // Cold start clears inside GeckoViewEngine.createView, which owns
+            // runtime creation. A warm process already has a runtime, so the
+            // profile has to be cleared here before the next loadUrl.
+            if (com.webtoapp.core.engine.GeckoViewEngine.hasLiveRuntime()) {
+                com.webtoapp.core.engine.GeckoViewEngine.clearStoredDataHoldingNavigation()
+            }
+            return
+        }
+        val wiped = com.webtoapp.core.webview.WebViewProfileWiper.wipeIfProviderInactive(applicationContext)
+        com.webtoapp.core.webview.WebViewManager.noteFreshProfileWiped(wiped)
+        if (!wiped) {
+            // Provider is already live (launcher relaunch inside this process).
+            // Deleting app_webview now would corrupt the open cookie database.
+            com.webtoapp.core.webview.WebViewManager.clearBrowsingData(
+                this,
+                webView,
+                holdNavigation = true
+            )
+        }
     }
 
     /**
@@ -377,7 +435,9 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
 
     private fun loadInBrowser(url: String) {
-        browserSurface?.loadUrl(url) ?: webView?.loadUrl(url)
+        com.webtoapp.core.webview.WebViewManager.runWhenFreshSessionReady {
+            browserSurface?.loadUrl(url) ?: webView?.loadUrl(url)
+        }
     }
 
     private fun reloadBrowser() {
@@ -389,7 +449,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         // The shell manifest declares configChanges including uiMode, so switching the system
         // dark/light theme does NOT recreate this activity. Compose recomposition already
         // refreshes the chrome (status bar etc.), but the WebView's dark-mode switch
-        // (FORCE_DARK, static, targetSdk 28) must be re-derived from the new uiMode
+        // (FORCE_DARK / algorithmic darkening, static flags) must be re-derived from the new uiMode
         // explicitly — see WebViewManager.refreshSystemDarkMode (#301 / #341 / #485).
         try {
             val config = WebToAppApplication.shellMode.getConfig()
@@ -457,15 +517,18 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
         com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "配置加载成功: ${config.appName}")
         shellConfig = config
+        // Before AdMob or anything else that can spin up a WebView. Once the
+        // provider is live, the on-disk profile can no longer be deleted.
+        clearBrowsingDataOnLaunch = config.webViewConfig.clearBrowsingDataOnLaunch
+        if (clearBrowsingDataOnLaunch) {
+            resetFreshBrowsingSession()
+        }
+        initAdStack(config)
         notificationPolyfillEnabled = config.webViewConfig.enableNotificationPolyfill
         com.webtoapp.core.engine.GeckoViewEngine.applyEnterpriseRootsEnabled(
             config.networkTrustConfig.trustUserCa
         )
         AppLogger.d("ShellActivity", "WebView UA config from shell: userAgentMode=${config.webViewConfig.userAgentMode}, customUserAgent=${config.webViewConfig.customUserAgent}, userAgent=${config.webViewConfig.userAgent}")
-        clearBrowsingDataOnLaunch = config.webViewConfig.clearBrowsingDataOnLaunch
-        if (clearBrowsingDataOnLaunch) {
-            resetFreshBrowsingSession()
-        }
 
         try {
             val appLanguage = runCatching {
@@ -540,6 +603,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         shareDeliveryMode = try {
             com.webtoapp.data.model.ShareDeliveryMode.valueOf(config.webViewConfig.shareDeliveryMode)
         } catch (e: Exception) { com.webtoapp.data.model.ShareDeliveryMode.BOTH }
+        shareShowReceivedToast = config.webViewConfig.shareShowReceivedToast
         openWithEnabled = config.webViewConfig.openWithEnabled
 
         immersiveFullscreenEnabled = config.webViewConfig.hideToolbar
@@ -616,14 +680,15 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                     statusBarCustomColorDark,
                     statusBarDarkIconsDark,
                     statusBarBackgroundAlphaDark,
-                    statusBarAutoColor
+                    statusBarAutoColor,
+                    pageBottomAutoColor
                 ) {
                     if (!immersiveFullscreenEnabled) {
                         val effectiveColorMode = if (systemDark) statusBarColorModeDark else statusBarColorMode
                         val effectiveCustomColor = if (systemDark) statusBarCustomColorDark else statusBarCustomColor
-                        val effectiveDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons
                         val effectiveAlpha = if (systemDark) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
-                        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, systemDark, effectiveAlpha)
+                        applyStatusBarColor(effectiveColorMode, effectiveCustomColor, resolvedStatusIcons(systemDark), systemDark, effectiveAlpha)
+                        applyPageEdgeNavigation(systemDark)
                     }
                 }
 
@@ -827,6 +892,16 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                     statusBarAutoColor = color
                     refreshStatusBarAppearance()
                 },
+                onPageBottomColorChanged = { color ->
+                    if (pageBottomAutoColor == color) return@ShellScreen
+                    pageBottomAutoColor = color
+                    refreshStatusBarAppearance()
+                },
+                onTopTabColor = { color ->
+                    if (topTabBarColor == color) return@ShellScreen
+                    topTabBarColor = color
+                    refreshStatusBarAppearance()
+                },
                 onFileChooser = { callback, params ->
                     permissionDelegate.handleFileChooser(callback, params)
                 },
@@ -967,6 +1042,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                 val effectiveDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons
                 val effectiveAlpha = if (systemDark) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
                 applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, systemDark, effectiveAlpha)
+                applyPageEdgeNavigation(systemDark)
             }
         }
     }
@@ -1078,11 +1154,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                 )
 
                 if (accepted.any { !it.isText }) {
-                    Toast.makeText(
-                        this@ShellActivity,
-                        Strings.shareReceivedToast,
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    maybeShowShareReceivedToast()
                 }
 
                 deliverPendingShares()
@@ -1124,17 +1196,28 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                     "收到打开方式文件: ${item.name}(${item.mimeType}, ${item.size}B)"
                 )
 
-                Toast.makeText(
-                    this@ShellActivity,
-                    Strings.shareReceivedToast,
-                    Toast.LENGTH_SHORT
-                ).show()
+                maybeShowShareReceivedToast()
 
                 deliverPendingShares()
             } catch (e: Exception) {
                 com.webtoapp.core.shell.ShellLogger.e("ShellActivity", "接收打开方式文件失败: ${e.message}", e)
             }
         }
+    }
+
+    /**
+     * The chooser-path hint. Pages that only listen for `wta:share` (JS_EVENT, or the
+     * author turned the toast off) already know the content arrived — the upload-button
+     * copy would be wrong.
+     */
+    private fun maybeShowShareReceivedToast() {
+        if (!shareShowReceivedToast) return
+        if (shareDeliveryMode == com.webtoapp.data.model.ShareDeliveryMode.JS_EVENT) return
+        Toast.makeText(
+            this,
+            Strings.shareReceivedToast,
+            Toast.LENGTH_SHORT
+        ).show()
     }
 
     /** A new document started loading; hold deliveries until it has finished. */
@@ -1278,7 +1361,54 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         geckoMediaAdapter = null
         shellNativeBridge?.runCatching { release() }
         shellNativeBridge = null
+        adManager?.destroy()
+        adManager = null
         super.onDestroy()
+    }
+
+    /**
+     * Ad feature stack (issue #1115): initialized only when the exported config
+     * enables ads. When the stack DEX was not grafted into this APK, [AdManager]
+     * resolves no implementation and every call no-ops. The banner docks to the
+     * bottom via a decor-level container; the splash app-open ad runs inside its
+     * own activity, so neither touches the Compose tree.
+     */
+    private fun initAdStack(config: com.webtoapp.core.shell.ShellConfig) {
+        if (!config.adsEnabled) return
+        val manager = com.webtoapp.core.ads.AdManager(this).apply {
+            initialize(
+                com.webtoapp.data.model.AdConfig(
+                    appId = config.adAppId,
+                    bannerEnabled = config.adBannerEnabled,
+                    bannerId = config.adBannerId,
+                    interstitialEnabled = config.adInterstitialEnabled,
+                    interstitialId = config.adInterstitialId,
+                    splashEnabled = config.adSplashEnabled,
+                    splashId = config.adSplashId,
+                    testMode = config.adTestMode
+                )
+            )
+        }
+        adManager = manager
+
+        if (config.adBannerEnabled) {
+            val container = android.widget.FrameLayout(this)
+            bannerContainer = container
+            addContentView(
+                container,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
+                    android.view.Gravity.BOTTOM
+                )
+            )
+            manager.showBannerAd(container)
+        }
+
+        if (config.adSplashEnabled) {
+            val content = findViewById<ViewGroup>(android.R.id.content)
+            manager.showSplashAd(this, content, onFinished = {}, onSkipped = {})
+        }
     }
 
     private fun showPasswordDialog() {

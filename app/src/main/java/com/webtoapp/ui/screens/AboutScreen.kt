@@ -9,9 +9,11 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,9 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FavoriteBorder
+import androidx.compose.material.icons.outlined.FilterNone
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material.icons.outlined.Hub
 import androidx.compose.material.icons.outlined.ForkRight
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material.icons.outlined.Groups
@@ -73,18 +78,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webtoapp.R
+import com.webtoapp.core.agent.mcp.HostMcpController
+import com.webtoapp.core.host.HostRuntimePrefs
 import com.webtoapp.core.i18n.AppLanguage
 import com.webtoapp.core.i18n.Strings
-import com.webtoapp.ui.components.DataBackupCard
+import com.webtoapp.ui.webview.WebViewDocumentActivity
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaSettingRow
@@ -98,6 +108,7 @@ import com.webtoapp.ui.design.rememberHapticClick
 import com.webtoapp.ui.design.wtaPressScale
 import com.webtoapp.ui.theme.LocalIsDarkTheme
 import com.webtoapp.ui.theme.LocalShowDescriptions
+import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.ui.theme.ThemeManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -134,12 +145,10 @@ fun AboutScreen(onBack: () -> Unit) {
 
             DescriptionsToggleCard()
 
-            WtaSection(
-                title = Strings.dataBackupTitle,
-                headerStyle = WtaSectionHeaderStyle.Quiet
-            ) {
-                DataBackupCard()
-            }
+            SeparateTasksCard()
+            AdvancedFeaturesCard()
+
+            LocalMcpCard()
 
             OtherProjectsSection()
 
@@ -165,7 +174,7 @@ private fun DescriptionsToggleCard() {
         WtaSettingRow(
             icon = Icons.Outlined.Subtitles,
             title = Strings.showDescriptions,
-            subtitle = Strings.showDescriptionsHint,
+            subtitle = Strings.showDescriptionsHint.ifDescriptionsShown(),
             onClick = { scope.launch { themeManager.setShowDescriptions(!showDescriptions) } },
             trailing = {
                 WtaSwitch(
@@ -177,6 +186,196 @@ private fun DescriptionsToggleCard() {
             }
         )
     }
+}
+
+@Composable
+private fun AdvancedFeaturesCard() {
+    val context = LocalContext.current
+    val hostPrefs = remember { HostRuntimePrefs.getInstance(context) }
+    val enabled by hostPrefs.advancedFeaturesFlow.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    WtaCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = WtaCardTone.Elevated,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) {
+        WtaSettingRow(
+            icon = Icons.Outlined.Tune,
+            title = Strings.advancedFeatures,
+            subtitle = Strings.advancedFeaturesDesc.ifDescriptionsShown(),
+            onClick = { scope.launch { hostPrefs.setAdvancedFeaturesEnabled(!enabled) } },
+            trailing = {
+                WtaSwitch(
+                    checked = enabled,
+                    onCheckedChange = { scope.launch { hostPrefs.setAdvancedFeaturesEnabled(it) } }
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun SeparateTasksCard() {
+    val context = LocalContext.current
+    val hostPrefs = remember { HostRuntimePrefs.getInstance(context) }
+    val separateTasks by hostPrefs.separateTasksFlow.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    fun apply(enabled: Boolean) {
+        scope.launch {
+            hostPrefs.setSeparateTasksEnabled(enabled)
+            if (!enabled) {
+                WebViewDocumentActivity.finishAllDocumentTasks()
+            }
+        }
+    }
+
+    WtaCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = WtaCardTone.Elevated,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) {
+        WtaSettingRow(
+            icon = Icons.Outlined.FilterNone,
+            title = Strings.webAppSeparateTasks,
+            subtitle = Strings.webAppSeparateTasksDesc.ifDescriptionsShown(),
+            onClick = { apply(!separateTasks) },
+            trailing = {
+                WtaSwitch(
+                    checked = separateTasks,
+                    onCheckedChange = { apply(it) }
+                )
+            }
+        )
+    }
+}
+
+@Composable
+private fun LocalMcpCard() {
+    val context = LocalContext.current
+    val hostPrefs = remember { HostRuntimePrefs.getInstance(context) }
+    val mcp by hostPrefs.mcpFlow.collectAsStateWithLifecycle()
+    val status by HostMcpController.status.collectAsStateWithLifecycle()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    fun setEnabled(enabled: Boolean) {
+        scope.launch {
+            hostPrefs.setMcpEnabled(enabled)
+            HostMcpController.apply(context.applicationContext)
+        }
+    }
+
+    WtaCard(
+        modifier = Modifier.fillMaxWidth(),
+        tone = WtaCardTone.Elevated,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)
+    ) {
+        Column {
+            WtaSettingRow(
+                icon = Icons.Outlined.Hub,
+                title = Strings.localMcp,
+                subtitle = Strings.localMcpDesc.ifDescriptionsShown(),
+                onClick = { setEnabled(!mcp.enabled) },
+                trailing = {
+                    WtaSwitch(
+                        checked = mcp.enabled,
+                        onCheckedChange = { setEnabled(it) }
+                    )
+                }
+            )
+            AnimatedVisibility(
+                visible = mcp.enabled,
+                enter = com.webtoapp.ui.animation.CardExpandTransition,
+                exit = com.webtoapp.ui.animation.CardCollapseTransition
+            ) {
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+                ) {
+                    val port = (status as? HostMcpController.Status.Running)?.port ?: mcp.port
+                    CopyOnLongPressText(
+                        text = "http://127.0.0.1:$port/mcp",
+                        clipLabel = "webtoapp-mcp-url",
+                        toast = Strings.localMcpAddressCopied,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (mcp.token.isNotEmpty()) {
+                        CopyOnLongPressText(
+                            text = mcp.token,
+                            clipLabel = "webtoapp-mcp-token",
+                            toast = Strings.localMcpTokenCopied,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    val failed = status as? HostMcpController.Status.Failed
+                    if (failed != null) {
+                        Text(
+                            text = Strings.localMcpBindFailed(failed.message),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    if (LocalShowDescriptions.current) {
+                        Text(
+                            text = Strings.localMcpAdb(port),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(WtaSpacing.Small)) {
+                        TextButton(onClick = {
+                            context.copyToClipboard(
+                                "webtoapp-mcp",
+                                HostMcpController.configSnippet(port, mcp.token)
+                            )
+                            Toast.makeText(context, Strings.localMcpCopied, Toast.LENGTH_SHORT).show()
+                        }) {
+                            Text(Strings.localMcpCopyConfig)
+                        }
+                        TextButton(onClick = {
+                            scope.launch { hostPrefs.rotateMcpToken() }
+                        }) {
+                            Text(Strings.localMcpRotateToken)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun CopyOnLongPressText(
+    text: String,
+    clipLabel: String,
+    toast: String,
+    style: TextStyle,
+    color: Color,
+) {
+    val context = LocalContext.current
+    val haptics = LocalHapticFeedback.current
+    Text(
+        text = text,
+        style = style,
+        color = color,
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    context.copyToClipboard(clipLabel, text)
+                    Toast.makeText(context, toast, Toast.LENGTH_SHORT).show()
+                }
+            )
+    )
 }
 
 @Composable
@@ -526,7 +725,6 @@ private fun ContactGrid() {
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)) {
             GitHubRepoCard(onClick = { context.openUrl("https://github.com/shiaho777/web-to-app") })
-            SwiftproxySponsorCard()
             entries.chunked(2).forEach { pair ->
                 Row(horizontalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)) {
                     pair.forEach { entry ->
@@ -624,76 +822,6 @@ private fun GitHubRepoCard(onClick: () -> Unit) {
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontFamily = FontFamily.Monospace,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(30.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Outlined.NorthEast,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun SwiftproxySponsorCard() {
-    val isDark = LocalIsDarkTheme.current
-    val context = LocalContext.current
-
-    WtaCard(
-        onClick = { context.openUrl("https://www.swiftproxy.net/") },
-        modifier = Modifier.fillMaxWidth(),
-        tone = WtaCardTone.Elevated,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(18.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(if (isDark) Color(0xFF12211F) else Color(0xFFE8FBF4)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_swiftproxy_mark),
-                    contentDescription = null,
-                    modifier = Modifier.size(26.dp),
-                    tint = Color.Unspecified
-                )
-            }
-            Spacer(Modifier.width(14.dp))
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Text(
-                    text = "Swiftproxy",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                AnimatedVisibility(visible = LocalShowDescriptions.current) {
-                    Text(
-                        text = Strings.sponsorSwiftproxyDesc,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
                 }

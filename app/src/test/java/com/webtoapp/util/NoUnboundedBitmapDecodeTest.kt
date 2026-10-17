@@ -26,7 +26,7 @@ class NoUnboundedBitmapDecodeTest {
         "com/webtoapp/util/FaviconFetcher.kt",
         // Build-time background recompression: output quality requires pixels;
         // OOM there fails one file (caught), never a draw call.
-        "com/webtoapp/core/linux/PerformanceOptimizer.kt"
+        "com/webtoapp/core/linux/PerformanceOptimizerApk.kt"
     )
 
     private val rawDecodeCall = Regex(
@@ -47,7 +47,9 @@ class NoUnboundedBitmapDecodeTest {
             root.walkTopDown()
                 .filter { it.isFile && it.extension == "kt" }
                 .forEach { file ->
-                    val relPath = file.relativeTo(root).path
+                    // invariantSeparatorsPath keeps the allowlist keys above
+                    // ("com/webtoapp/...") matchable on Windows too.
+                    val relPath = file.relativeTo(root).invariantSeparatorsPath
                     if (relPath in allowedFiles) return@forEach
                     file.useLines { lines ->
                         lines.forEachIndexed { index, raw ->

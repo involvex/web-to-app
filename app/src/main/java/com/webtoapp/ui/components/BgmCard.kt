@@ -21,6 +21,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.BgmConfig
+import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.data.model.BgmPlayMode
 import com.webtoapp.data.model.PresetLrcThemes
 import com.webtoapp.ui.design.*
@@ -43,7 +44,7 @@ fun BgmCard(
         BgmPlayMode.SHUFFLE -> Strings.shuffleMode
     }
     val summary = when {
-        !enabled -> Strings.notEnabled
+        !enabled -> null
         config.playlist.isEmpty() -> Strings.selectMusic
         else -> Strings.bgmTrackCount.format(config.playlist.size) + " · " + playModeLabel
     }
@@ -87,13 +88,15 @@ fun BgmCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = summary,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        summary?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -221,6 +224,38 @@ fun BgmCard(
                             WtaSwitch(
                                 checked = config.autoPlay,
                                 onCheckedChange = { onConfigChange(config.copy(autoPlay = it)) }
+                            )
+                        }
+                    )
+
+                    WtaSettingRow(
+                        title = Strings.bgmFloatingPlayer,
+                        subtitle = Strings.bgmFloatingPlayerHint.ifDescriptionsShown(),
+                        icon = Icons.Outlined.OpenWith,
+                        active = config.showFloatingPlayer != false,
+                        onClick = {
+                            onConfigChange(config.copy(showFloatingPlayer = config.showFloatingPlayer == false))
+                        },
+                        trailing = {
+                            WtaSwitch(
+                                checked = config.showFloatingPlayer != false,
+                                onCheckedChange = { onConfigChange(config.copy(showFloatingPlayer = it)) }
+                            )
+                        }
+                    )
+
+                    WtaSettingRow(
+                        title = Strings.bgmNotificationPlayer,
+                        subtitle = Strings.bgmNotificationPlayerHint.ifDescriptionsShown(),
+                        icon = Icons.Outlined.Notifications,
+                        active = config.showNotificationPlayer != false,
+                        onClick = {
+                            onConfigChange(config.copy(showNotificationPlayer = config.showNotificationPlayer == false))
+                        },
+                        trailing = {
+                            WtaSwitch(
+                                checked = config.showNotificationPlayer != false,
+                                onCheckedChange = { onConfigChange(config.copy(showNotificationPlayer = it)) }
                             )
                         }
                     )

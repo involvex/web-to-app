@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.webtoapp.BuildConfig
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.NotificationExportConfig
 import com.webtoapp.data.model.NotificationType
@@ -31,6 +32,8 @@ import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.design.WtaTextField
+import com.webtoapp.ui.theme.LocalShowDescriptions
+import com.webtoapp.ui.theme.ifDescriptionsShown
 
 private val POLL_INTERVAL_PRESETS = listOf(5, 15, 30, 60, 120)
 
@@ -94,13 +97,15 @@ fun NotificationConfigCard(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Text(
-                            text = if (enabled) typeLabel else Strings.notEnabled,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        if (enabled) {
+                            Text(
+                                text = typeLabel,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                 }
 
@@ -152,13 +157,15 @@ fun NotificationConfigCard(
                             },
                             label = Strings.notificationTypeWebsocket
                         )
-                        WtaChip(
-                            selected = config.type == NotificationType.FCM,
-                            onClick = {
-                                onConfigChange(config.copy(type = NotificationType.FCM))
-                            },
-                            label = Strings.notificationTypeFcm
-                        )
+                        if (!BuildConfig.FDROID) {
+                            WtaChip(
+                                selected = config.type == NotificationType.FCM,
+                                onClick = {
+                                    onConfigChange(config.copy(type = NotificationType.FCM))
+                                },
+                                label = Strings.notificationTypeFcm
+                            )
+                        }
                     }
 
                     when (config.type) {
@@ -263,7 +270,7 @@ private fun PollingSection(
                     }
                 },
                 label = Strings.notificationPollInterval,
-                supportingText = Strings.notificationPollIntervalHint,
+                supportingText = Strings.notificationPollIntervalHint.ifDescriptionsShown(),
                 isError = !intervalValid,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
@@ -511,6 +518,7 @@ private fun FcmSection(
 /** 一行小字提示：图标 + 说明，替代过去的整幅 Banner。 */
 @Composable
 private fun HintLine(text: String) {
+    if (!LocalShowDescriptions.current) return
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.Top

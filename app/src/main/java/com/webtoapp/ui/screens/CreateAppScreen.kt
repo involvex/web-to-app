@@ -44,6 +44,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.theme.LocalShowDescriptions
 import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.data.model.*
 import com.webtoapp.ui.components.ActivationCodeCard
@@ -196,6 +197,11 @@ fun CreateAppScreen(
                     onSelectIcon = { imagePickerLauncher.launch("image/*") },
                     onSelectIconFromLibrary = { path ->
                         viewModel.updateEditState { copy(savedIconPath = path, iconUri = null) }
+                    },
+                    onIconBackgroundColorChange = { color ->
+                        viewModel.updateEditState {
+                            copy(apkExportConfig = apkExportConfig.copy(iconBackgroundColor = color))
+                        }
                     }
                 )
             }
@@ -469,9 +475,6 @@ fun CreateAppScreen(
             }
 
             item {
-                if (hasConfiguredLegacyAds(editState)) {
-                    LegacyAdCapabilityWarningCard()
-                }
                 AdBlockCard(
                     editState = editState,
                     onEnabledChange = { viewModel.updateEditState { copy(adBlockEnabled = it) } },
@@ -529,7 +532,11 @@ fun CreateAppScreen(
                     onConfigChange = { viewModel.updateEditState { copy(webViewConfig = it) } },
                     runtimePermissions = editState.apkExportConfig?.runtimePermissions
                         ?: com.webtoapp.data.model.ApkRuntimePermissions(),
-                    onRuntimePermissionsTransform = viewModel::updateRuntimePermissions
+                    onRuntimePermissionsTransform = viewModel::updateRuntimePermissions,
+                    adsEnabled = editState.adsEnabled,
+                    adConfig = editState.adConfig,
+                    onAdsEnabledChange = { viewModel.updateEditState { copy(adsEnabled = it) } },
+                    onAdConfigChange = { viewModel.updateEditState { copy(adConfig = it) } }
                 )
             }
 
@@ -546,7 +553,15 @@ fun CreateAppScreen(
                     },
                     autoStartConfig = editState.autoStartConfig,
                     bgmEnabled = editState.bgmEnabled,
-                    appType = editState.appType
+                    appType = editState.appType,
+                    featureDefaults = permissionFeatureDefaults(
+                        appType = editState.appType,
+                        htmlLoadMode = editState.htmlConfig?.loadMode,
+                        enableMediaSession = editState.webViewConfig.enableMediaSession,
+                        bgmEnabled = editState.bgmEnabled,
+                        scheduledStartEnabled = editState.autoStartConfig?.scheduledStartEnabled == true,
+                        activationEnabled = editState.activationEnabled
+                    )
                 )
             }
 
@@ -594,7 +609,8 @@ private fun ExportAndPermissionDrawer(
     onClientCertificateAuthEnabledChange: (Boolean) -> Unit,
     autoStartConfig: AutoStartConfig?,
     bgmEnabled: Boolean,
-    appType: AppType
+    appType: AppType,
+    featureDefaults: PermissionFeatureDefaults
 ) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     val featureReasons = remember(
@@ -652,7 +668,8 @@ private fun ExportAndPermissionDrawer(
                             permissions = exportConfig.runtimePermissions,
                             onPermissionsTransform = onRuntimePermissionsTransform,
                             showDescription = false,
-                            featureReasons = featureReasons
+                            featureReasons = featureReasons,
+                            featureDefaults = featureDefaults
                         )
                     }
                 }
@@ -717,42 +734,120 @@ private fun CreateAppBottomBar(
     }
 }
 
-private fun hasConfiguredLegacyAds(editState: EditState): Boolean {
-    val config = editState.adConfig
-    return editState.adsEnabled ||
-        config.bannerId.isNotBlank() ||
-        config.interstitialId.isNotBlank() ||
-        config.splashId.isNotBlank()
+/**
+ * AdMob monetization controls. Rendered inside
+ * [SpecialSettingsCard]'s monetization section — no card wrapper here.
+ */
+@Composable
+fun AdsMonetizationSection(
+    enabled: Boolean,
+    config: AdConfig,
+    onEnabledChange: (Boolean) -> Unit,
+    onConfigChange: (AdConfig) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        WtaToggleRow(
+            icon = Icons.Outlined.MonetizationOn,
+            title = Strings.adsMonetization,
+            subtitle = Strings.adsMonetizationHint.ifDescriptionsShown(),
+            checked = enabled,
+            onCheckedChange = onEnabledChange
+        )
+
+        AnimatedVisibility(
+            visible = enabled,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
+        ) {
+            Column {
+                WtaSectionDivider()
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    ),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    PremiumTextField(
+                        value = config.appId,
+                        onValueChange = { onConfigChange(config.copy(appId = it.trim())) },
+                        label = { Text(Strings.adMobAppId) },
+                        supportingText = if (LocalShowDescriptions.current) {
+                            { Text(Strings.adMobAppIdHint) }
+                        } else {
+                            null
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    WtaToggleRow(
+                        title = Strings.adTestMode,
+                        subtitle = Strings.adTestModeHint.ifDescriptionsShown(),
+                        checked = config.testMode,
+                        onCheckedChange = { onConfigChange(config.copy(testMode = it)) }
+                    )
+
+                    AdUnitRow(
+                        title = Strings.adBannerAd,
+                        enabled = config.bannerEnabled,
+                        unitId = config.bannerId,
+                        onEnabledChange = { onConfigChange(config.copy(bannerEnabled = it)) },
+                        onUnitIdChange = { onConfigChange(config.copy(bannerId = it.trim())) }
+                    )
+
+                    AdUnitRow(
+                        title = Strings.adInterstitialAd,
+                        enabled = config.interstitialEnabled,
+                        unitId = config.interstitialId,
+                        onEnabledChange = { onConfigChange(config.copy(interstitialEnabled = it)) },
+                        onUnitIdChange = { onConfigChange(config.copy(interstitialId = it.trim())) }
+                    )
+
+                    AdUnitRow(
+                        title = Strings.adSplashAd,
+                        enabled = config.splashEnabled,
+                        unitId = config.splashId,
+                        onEnabledChange = { onConfigChange(config.copy(splashEnabled = it)) },
+                        onUnitIdChange = { onConfigChange(config.copy(splashId = it.trim())) }
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
-private fun LegacyAdCapabilityWarningCard() {
-    EnhancedElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.tertiaryContainer
+private fun AdUnitRow(
+    title: String,
+    enabled: Boolean,
+    unitId: String,
+    onEnabledChange: (Boolean) -> Unit,
+    onUnitIdChange: (String) -> Unit
+) {
+    Column {
+        WtaToggleRow(
+            title = title,
+            checked = enabled,
+            onCheckedChange = onEnabledChange
         )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+        AnimatedVisibility(
+            visible = enabled,
+            enter = CardExpandTransition,
+            exit = CardCollapseTransition
         ) {
-            Icon(
-                Icons.Outlined.Warning,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onTertiaryContainer
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = Strings.adSdkNotIntegrated,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onTertiaryContainer
+            PremiumTextField(
+                value = unitId,
+                onValueChange = onUnitIdChange,
+                label = { Text(Strings.adUnitIdLabel) },
+                placeholder = { Text(Strings.adUnitIdPlaceholder) },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
             )
         }
     }
-
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -762,7 +857,8 @@ fun BasicInfoCard(
     onNameChange: (String) -> Unit,
     onUrlChange: (String) -> Unit,
     onSelectIcon: () -> Unit,
-    onSelectIconFromLibrary: (String) -> Unit = {}
+    onSelectIconFromLibrary: (String) -> Unit = {},
+    onIconBackgroundColorChange: (String?) -> Unit = {}
 ) {
     WtaSettingCard {
         val coroutineScope = rememberCoroutineScope()
@@ -781,6 +877,8 @@ fun BasicInfoCard(
                     iconUri = editState.iconUri,
                     iconPath = editState.savedIconPath,
                     websiteUrl = if (editState.appType == AppType.WEB) editState.url else null,
+                    iconBackgroundColor = editState.apkExportConfig.iconBackgroundColor,
+                    onIconBackgroundColorChange = onIconBackgroundColorChange,
                     onSelectFromGallery = onSelectIcon,
                     onSelectFromLibrary = onSelectIconFromLibrary
                 )
@@ -1218,11 +1316,13 @@ fun AppThemeCard(
                 )
             }
 
-            Text(
-                text = Strings.exportAppThemeHint,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            if (LocalShowDescriptions.current) {
+                Text(
+                    text = Strings.exportAppThemeHint,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
             ExposedDropdownMenuBox(
                 expanded = expanded,
@@ -1304,11 +1404,13 @@ fun TranslateCard(
                     ),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                Text(
-                    text = Strings.autoTranslateHint,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (LocalShowDescriptions.current) {
+                    Text(
+                        text = Strings.autoTranslateHint,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
 
                 ExposedDropdownMenuBox(
                     expanded = langExpanded,

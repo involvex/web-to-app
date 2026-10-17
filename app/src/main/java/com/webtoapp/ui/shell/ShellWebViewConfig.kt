@@ -96,6 +96,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             com.webtoapp.data.model.ShareDeliveryMode.valueOf(config.webViewConfig.shareDeliveryMode)
         } catch (e: Exception) { com.webtoapp.data.model.ShareDeliveryMode.BOTH },
         sharePromptBeforeUse = config.webViewConfig.sharePromptBeforeUse,
+        shareShowReceivedToast = config.webViewConfig.shareShowReceivedToast,
         openWithEnabled = config.webViewConfig.openWithEnabled,
         enableZoomPolyfill = config.webViewConfig.enableZoomPolyfill,
         enableCrossOriginIsolation = config.webViewConfig.enableCrossOriginIsolation,
@@ -260,6 +261,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         ),
 
         swipeRefreshEnabled = config.webViewConfig.swipeRefreshEnabled,
+        overscrollEffectEnabled = config.webViewConfig.overscrollEffectEnabled,
         swipeRefreshZone = try {
             com.webtoapp.data.model.SwipeRefreshZone.valueOf(config.webViewConfig.swipeRefreshZone)
         } catch (e: Exception) {

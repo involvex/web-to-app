@@ -48,7 +48,7 @@ features:
 
 1. **选择类型**
 
-   从 [12 种应用类型](/zh/guide/app-types/)里选 —— 普通的 [Web](/zh/guide/app-types/web) 封装、[HTML](/zh/guide/app-types/html) 或 [Frontend](/zh/guide/app-types/frontend) 构建,或是设备端运行的 [Node.js](/zh/guide/app-types/nodejs)、[PHP](/zh/guide/app-types/php)、[Python](/zh/guide/app-types/python)、[Go](/zh/guide/app-types/go)、[WordPress](/zh/guide/app-types/wordpress) 服务器。
+   从 [12 种应用类型](/zh/guide/app-types/)里选 —— 普通的 [Web](/zh/guide/app-types/web) 封装、[HTML](/zh/guide/app-types/html) 或 [Frontend](/zh/guide/app-types/frontend) 构建,或是设备端运行的 [Node.js](/zh/guide/app-types/nodejs)、[PHP](/zh/guide/app-types/php)、[Python](/zh/guide/app-types/python)、[Go](/zh/guide/app-types/go)、[WordPress](/zh/guide/app-types/wordpress) 服务器。服务端类型和图片/视频在打开[关于 → 高级功能](/zh/guide/more-features/about)之前保持隐藏。
 
 2. **填写基本信息**
 
@@ -56,7 +56,7 @@ features:
 
 3. **构建并分享**
 
-   [构建 APK](/zh/guide/app-actions/build-apk) 用 V1/V2/V3 在设备上完成签名,再[分享](/zh/guide/app-actions/share-apk)出去或[导出 Play 级 AAB](/zh/guide/app-actions/export-apk)。无需电脑,没有构建队列。
+   [构建 APK](/zh/guide/app-actions/build-apk) 用 V1/V2/V3 在设备上完成签名,再[分享](/zh/guide/app-actions/share-apk)出去、[导出源码](/zh/guide/app-actions/export-apk),或[导出 Play 级 AAB](/zh/guide/more-features/google-play)。无需电脑,没有构建队列。
 
 </div>
 
@@ -122,13 +122,13 @@ fork+exec Node.js、PHP、Python、Go 原生二进制,在本地端口提供服�
 
 [**Agent**](/zh/guide/more-features/agent)
 
-内置最多 57 个工具的调用式助手,可以构建、编辑、操作整个应用。
+内置最多 60 个工具的调用式助手,可以构建、编辑、操作整个应用。
 
 </div>
 
 <div class="wta-tile">
 
-[**扩展模块**](/zh/guide/more-features/extension-modules)
+[**管理插件**](/zh/guide/more-features/extension-modules)
 
 向任何生成的应用注入 JS/CSS、油猴脚本或 MV3 Chrome 扩展。
 
@@ -174,7 +174,7 @@ Termux 风格的设备端环境,带有构建和运行项目所需的真实工具
 
 <div class="wta-stat"><b>12</b><span>种应用类型</span></div>
 
-<div class="wta-stat"><b>57</b><span>个 Agent 工具(上限)</span></div>
+<div class="wta-stat"><b>60</b><span>个 Agent 工具(上限)</span></div>
 
 <div class="wta-stat"><b>10</b><span>种界面语言</span></div>
 
@@ -182,7 +182,7 @@ Termux 风格的设备端环境,带有构建和运行项目所需的真实工具
 
 </div>
 
-构建器自己做二进制手术 —— AXML/ARSC 重写、权限裁剪、AES-256-GCM 资源加密、16 KB 页对齐的原生库 —— 并让 shell 保持低 targetSdk,使 fork+exec 运行时持续可用。[开发者文档](/zh/developer/architecture)覆盖了完整的导出管线。
+构建器自己做二进制手术 —— AXML/ARSC 重写、权限裁剪、AES-256-GCM 资源加密、16 KB 页对齐的原生库 —— 并让 shell 携带 `targetSdk` 35。[开发者文档](/zh/developer/architecture)覆盖了完整的导出管线。
 
 <div class="wta-cta">
 

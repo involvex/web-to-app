@@ -5,7 +5,11 @@ import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.webtoapp.core.home.AppListSortStore
 import com.webtoapp.data.dao.WebAppSummary
+import com.webtoapp.data.home.AppListSort
+import com.webtoapp.data.home.mergeVisibleOrder
+import com.webtoapp.data.home.sortedForHome
 import com.webtoapp.data.model.*
 import com.webtoapp.data.repository.AppCategoryRepository
 import com.webtoapp.ui.theme.ThemeManager
@@ -50,6 +54,7 @@ class MainViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val categoryFilterStore = com.webtoapp.core.category.CategoryFilterStore(application)
+    private val appListSortStore = AppListSortStore(application)
 
     private val _selectedCategoryId = MutableStateFlow<Long?>(null)
     val selectedCategoryId: StateFlow<Long?> = _selectedCategoryId.asStateFlow()
@@ -86,6 +91,47 @@ class MainViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _appListSort = MutableStateFlow(appListSortStore.load())
+    val appListSort: StateFlow<AppListSort> = _appListSort.asStateFlow()
+
+    fun setAppListSort(sort: AppListSort) {
+        if (_appListSort.value == sort) return
+        _appListSort.value = sort
+        appListSortStore.save(sort)
+    }
+
+    /**
+     * Starts a drag from a non-custom sort: pin the list the user is looking
+     * at as custom order so the rows do not jump, then keep later drops.
+     */
+    fun switchToCustomOrder(visibleIds: List<Long>) {
+        if (visibleIds.isEmpty()) return
+        if (_appListSort.value != AppListSort.CUSTOM) {
+            _appListSort.value = AppListSort.CUSTOM
+            appListSortStore.save(AppListSort.CUSTOM)
+        }
+        saveVisibleHomeOrder(visibleIds)
+    }
+
+    /**
+     * Writes custom order for the whole library. [visibleIdsInOrder] is the
+     * list the user just dragged, which may be one category; hidden apps keep
+     * their slots. Does not change `updatedAt`.
+     */
+    fun saveVisibleHomeOrder(visibleIdsInOrder: List<Long>) {
+        if (visibleIdsInOrder.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val fullIds = webAppSummaries.value
+                    .sortedForHome(AppListSort.CUSTOM)
+                    .map { it.id }
+                repository.setHomeSortOrder(mergeVisibleOrder(fullIds, visibleIdsInOrder))
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: Strings.saveFailed)
+            }
+        }
+    }
+
     private val _pwaAnalysisState = MutableStateFlow<PwaAnalysisState>(PwaAnalysisState.Idle)
     val pwaAnalysisState: StateFlow<PwaAnalysisState> = _pwaAnalysisState.asStateFlow()
 
@@ -101,8 +147,9 @@ class MainViewModel(
     val filteredApps: StateFlow<List<WebApp>> = combine(
         webApps,
         searchQuery.debounce(300),
-        selectedCategoryId
-    ) { apps, query, categoryId ->
+        selectedCategoryId,
+        appListSort
+    ) { apps, query, categoryId, sort ->
         var filtered = apps
 
         filtered = when (categoryId) {
@@ -118,14 +165,15 @@ class MainViewModel(
             }
         }
 
-        filtered
+        filtered.sortedForHome(sort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val filteredSummaries: StateFlow<List<WebAppSummary>> = combine(
         webAppSummaries,
         searchQuery.debounce(300),
-        selectedCategoryId
-    ) { summaries, query, categoryId ->
+        selectedCategoryId,
+        appListSort
+    ) { summaries, query, categoryId, sort ->
         var filtered = summaries
 
         filtered = when (categoryId) {
@@ -141,7 +189,7 @@ class MainViewModel(
             }
         }
 
-        filtered
+        filtered.sortedForHome(sort)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     suspend fun getWebApp(id: Long): WebApp? = repository.getWebApp(id)
@@ -848,7 +896,7 @@ class MainViewModel(
         iconUri: Uri?,
         enableJavaScript: Boolean = true,
         enableLocalStorage: Boolean = true,
-        loadMode: HtmlLoadMode = HtmlLoadMode.FILE,
+        loadMode: HtmlLoadMode = HtmlLoadMode.AUTO,
         port: Int = 0,
         portConflictMode: com.webtoapp.data.model.PortConflictMode = com.webtoapp.data.model.PortConflictMode.AUTO_KILL
     ) = createApp("HTML", iconUri) { savedIconPath, currentThemeType, categoryId ->
@@ -1386,7 +1434,7 @@ class MainViewModel(
         iconUri: Uri?,
         enableJavaScript: Boolean = true,
         enableLocalStorage: Boolean = true,
-        loadMode: HtmlLoadMode = HtmlLoadMode.FILE,
+        loadMode: HtmlLoadMode = HtmlLoadMode.AUTO,
         port: Int = 0,
         portConflictMode: com.webtoapp.data.model.PortConflictMode = com.webtoapp.data.model.PortConflictMode.AUTO_KILL
     ) = updateApp(appId, "HTML", iconUri) { existingApp, savedIconPath ->

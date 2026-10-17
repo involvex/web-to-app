@@ -60,7 +60,8 @@ class AgentToolSchemaAlignmentTest {
         val names = registry.all.map { it.name }
         assertThat(names).doesNotContain(null)
         assertThat(names).hasSize(names.distinct().size)
-        assertThat(names).hasSize(62)
+        // 63 base + 2 plan-mode (imagery tools are absent without an image-capable model).
+        assertThat(names).hasSize(65)
     }
 
     @Test

@@ -123,6 +123,7 @@ class ApkBuildCache(private val context: Context) {
             encryptionEnabled = encryptionEnabled,
             abiFilters = abiFilters,
             iconPath = webApp.iconPath,
+            iconBackgroundColor = webApp.apkExportConfig?.iconBackgroundColor,
             nativeLibsFingerprint = nativeLibsFingerprint,
             hostVersionCode = hostVersionCode,
             manifestFingerprint = manifestFingerprint.orEmpty() +
@@ -362,6 +363,7 @@ class ApkBuildCache(private val context: Context) {
         encryptionEnabled: Boolean,
         abiFilters: List<String>,
         iconPath: String?,
+        iconBackgroundColor: String? = null,
         nativeLibsFingerprint: String? = null,
         hostVersionCode: Int = 0,
         manifestFingerprint: String? = null,
@@ -387,6 +389,7 @@ class ApkBuildCache(private val context: Context) {
         parts += "abi=${abiFilters.sorted().joinToString(",")}"
         parts += "enc=$encryptionEnabled"
         parts += "icon=${fileFingerprint(iconPath)}"
+        parts += "iconBg=${iconBackgroundColor ?: "auto"}"
         parts += "deeplinkHosts=${config.deepLinkHosts.sorted().joinToString(",")}"
         parts += "deeplinkSchemes=${config.deepLinkSchemes.sorted().joinToString(",")}"
         // Inbound share sheet (#943) also rewrites the manifest — the ACTION_SEND
@@ -403,9 +406,10 @@ class ApkBuildCache(private val context: Context) {
         // unsigned APK. Otherwise REUSE_UNSIGNED serves a stale unaligned lib that dlopen
         // rejects on Android 15+ (16KB-page) devices.
         parts += "nativeLibs=${nativeLibsFingerprint ?: "none"}"
-        // targetSdk override changes the manifest's <uses-sdk>; without this a cached unsigned
-        // APK with targetSdk 28 would be reused after the user raises it, defeating the change.
-        parts += "targetSdk=${config.targetSdkOverride ?: 28}"
+        // targetSdk / minSdk overrides change the manifest's <uses-sdk>; without
+        // these a cached unsigned APK would be reused after the user changes them.
+        parts += "targetSdk=${config.targetSdkOverride ?: GeneratedSdkLevels.TEMPLATE_TARGET_SDK}"
+        parts += "minSdk=${config.minSdkOverride ?: GeneratedSdkLevels.TEMPLATE_MIN_SDK}"
         // The derived manifest permission/component set: CONTENT_OVERLAY reuses the
         // cached base's AndroidManifest, so a config change that alters this set without
         // touching any other identity part (e.g. enabling scheduled start →

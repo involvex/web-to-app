@@ -37,6 +37,25 @@ val hasReleaseSigningConfig = releaseSigningStoreFile?.isFile == true &&
     !localProperties.getProperty("signing.keyAlias").isNullOrBlank() &&
     !localProperties.getProperty("signing.keyPassword").isNullOrBlank()
 
+// -Pfdroid=true builds the host and the embedded shell template without Firebase,
+// Play Services, or AdMob, and leaves the release APK unsigned for F-Droid to sign.
+// One Gradle invocation is one mode: do not mix this flag with a normal release.
+val isFdroidBuild: Boolean = run {
+    val raw = findProperty("fdroid")?.toString()?.trim()?.lowercase()
+    raw != null && raw != "false" && raw != "0" && raw != "no"
+}
+
+if (isFdroidBuild) {
+    // Direct Firebase / sign-in / ads deps are already omitted. This also drops
+    // GeckoView's Play Services FIDO client (WebAuthn only). Those two GeckoView
+    // classes fail if WebAuthn runs; nothing else in the engine references them.
+    configurations.configureEach {
+        exclude(group = "com.google.android.gms")
+        exclude(group = "com.google.firebase")
+        exclude(group = "com.google.android.libraries.identity.googleid")
+    }
+}
+
 android {
 
     signingConfigs {
@@ -57,9 +76,10 @@ android {
         minSdk = 23
 
         targetSdk = 36
-        versionCode = 71
-        versionName = "2.6.9"
+        versionCode = 77
+        versionName = "2.7.9"
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "false")
+        buildConfigField("boolean", "FDROID", isFdroidBuild.toString())
 
         vectorDrawables {
             useSupportLibrary = true
@@ -71,8 +91,7 @@ android {
 
         externalNativeBuild {
             cmake {
-                cppFlags += "-std=c++17"
-                arguments += "-DANDROID_STL=c++_shared"
+                // All native sources are C; no CXX flags or shared STL needed.
             }
         }
     }
@@ -104,8 +123,13 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug").also {
-                if (!hasReleaseSigningConfig) {
+            // F-Droid builds are unsigned (the F-Droid client signs them). Otherwise use the
+            // release keystore when one is configured; this fork falls back to the debug key
+            // so release builds work without local.properties.
+            signingConfig = when {
+                isFdroidBuild -> null
+                hasReleaseSigningConfig -> signingConfigs.getByName("release")
+                else -> signingConfigs.getByName("debug").also {
                     logger.warn(
                         "No release signing config found — release APK will be signed with the debug key. " +
                             "Configure signing.storeFile / signing.storePassword / signing.keyAlias / " +
@@ -207,9 +231,29 @@ android {
         // Django gettext sources (*.po, runtime reads .mo only) and Gecko's
         // omni.ja (downloaded on demand). packaging.resources.excludes does
         // NOT cover assets, hence aapt-level filtering (verified by APK audit).
-        ignoreAssetsPattern = "*.po:*.ja"
+        ignoreAssetsPattern = if (isFdroidBuild) "*.po:*.ja:admob.zip" else "*.po:*.ja"
 
         localeFilters += listOf("zh", "en", "ar")
+    }
+
+    sourceSets {
+        getByName("main") {
+            // Google-typed sources stay out of src/main so shell-synced call sites
+            // compile against either the real client or the F-Droid no-op.
+            if (isFdroidBuild) {
+                java.srcDir("src/fdroid/java")
+            } else {
+                java.srcDir("src/google/java")
+            }
+        }
+        if (isFdroidBuild) {
+            getByName("debug") {
+                manifest.srcFile("src/fdroid/AndroidManifest.xml")
+            }
+            getByName("release") {
+                manifest.srcFile("src/fdroid/AndroidManifest.xml")
+            }
+        }
     }
 }
 
@@ -228,6 +272,32 @@ tasks.register<Copy>("syncShellTemplateApk") {
 tasks.matching { it.name == "preBuild" }.configureEach {
     if (!skipShellTemplateSync.get()) {
         dependsOn("syncShellTemplateApk")
+    }
+    if (!isFdroidBuild && !skipStackBundlesSync.get()) {
+        dependsOn("syncStackBundles")
+    }
+}
+
+// Optional feature stacks (issue #1115): bundle zips produced by
+// feature-stacks/* modules land in assets/stacks/ and are grafted into
+// generated APKs only for configs that enable them.
+val skipStackBundlesSync = providers.gradleProperty("skipStackBundlesSync").map(String::toBoolean).orElse(false)
+
+// Pre-configure the stack module during this script's configuration phase —
+// deferring it to task-graph resolution trips Gradle's class-loader-scope
+// locking under configuration-on-demand. F-Droid builds skip the module so
+// the proprietary ads SDK is neither compiled nor copied into assets.
+if (!isFdroidBuild) {
+    evaluationDependsOn(":feature-stacks:admob")
+
+    tasks.register<Copy>("syncStackBundles") {
+        description = "Copies built feature-stack bundles into app assets for optional APK grafting."
+        group = "build"
+        dependsOn(":feature-stacks:admob:bundleAdmobStack")
+        from(rootProject.layout.projectDirectory.dir("feature-stacks/admob/build/outputs/stack")) {
+            include("*.zip")
+        }
+        into(file("src/main/assets/stacks"))
     }
 }
 
@@ -606,8 +676,10 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-dnsoverhttps:4.12.0")
 
-    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
-    implementation("com.google.firebase:firebase-messaging")
+    if (!isFdroidBuild) {
+        implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+        implementation("com.google.firebase:firebase-messaging")
+    }
 
     implementation("org.bouncycastle:bcpkix-jdk15to18:1.78.1")
     implementation("org.bouncycastle:bcprov-jdk15to18:1.78.1")
@@ -636,9 +708,12 @@ dependencies {
     implementation("com.google.zxing:core:3.5.2")
 
     // Native Google sign-in through the Jetpack Credential Manager (NativeBridge).
-    implementation("androidx.credentials:credentials:1.5.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Omitted from -Pfdroid=true builds; GoogleSignInRuntime is a no-op there.
+    if (!isFdroidBuild) {
+        implementation("androidx.credentials:credentials:1.5.0")
+        implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+        implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    }
     implementation("androidx.browser:browser:1.8.0")
 
     implementation("androidx.media:media:1.7.0")
@@ -689,12 +764,29 @@ tasks.register("checkConfigFieldDrift") {
     val shellConfigFile = file("src/main/java/com/webtoapp/core/shell/ShellModeManager.kt")
     val allowlist = rootProject.file("scripts/config_field_drift_allowlist.json")
     // Configuration-cache safe: capture values at configuration time; the doLast action
-    // must not reach through Project.
+    // must not reach through Project or the build-script object. Python resolution is
+    // inlined below — a script-scope function call would serialize a script reference,
+    // while probing at configuration time trips the external-process restriction.
     val rootDir = rootProject.projectDir
     inputs.files(script, payloadFile, apkConfigFile, shellConfigFile, allowlist)
     outputs.upToDateWhen { false }
     doLast {
-        val pb = ProcessBuilder(resolvePython3Command() + script.absolutePath)
+        val isWindows = System.getProperty("os.name").lowercase().contains("windows")
+        val candidates: List<List<String>> = if (isWindows) {
+            listOf(listOf("python3"), listOf("python"), listOf("py", "-3"))
+        } else {
+            listOf(listOf("python3"), listOf("python"))
+        }
+        val python3Cmd = candidates.firstOrNull { candidate ->
+            try {
+                val probe = ProcessBuilder(candidate + "--version").redirectErrorStream(true).start()
+                probe.waitFor() == 0 &&
+                    probe.inputStream.bufferedReader().readText().contains("Python 3")
+            } catch (_: Exception) {
+                false
+            }
+        } ?: listOf("python3")
+        val pb = ProcessBuilder(python3Cmd + script.absolutePath)
         pb.directory(rootDir)
         pb.redirectErrorStream(true)
         val proc = pb.start()

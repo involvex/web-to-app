@@ -4,7 +4,7 @@ Export a generated app as a Play-ready signed AAB. Open it from [⋮ → Google 
 
 ## Which apps can be published
 
-Almost all of them. The generated APK's low `targetSdk` is an APK-packaging detail and never reaches Play — you upload the AAB, and the exporter gives it a Play-compliant `targetSdk` (currently 36).
+WebView app types export a Play-ready AAB. Node.js, PHP, Python, Go, and WordPress do not: their APKs are pinned to `targetSdk` 28 so they can fork+exec, and Play's required level turns on W^X. The APK `targetSdk` never reaches Play — you upload the AAB, and the exporter rewrites it to 36.
 
 | App type | Play AAB |
 | --- | --- |
@@ -37,5 +37,5 @@ Create, import, and manage the signing keys used for the AAB.
 ## Notes
 
 - You can also launch AAB export for a specific app from its [Build APK](/guide/app-actions/build-apk) dialog.
-- The generated APK keeps `targetSdk` 28 by default (required for fork+exec runtimes); only the AAB is rewritten for Play. WebView-only app types can optionally raise the standalone APK's `targetSdk` from the APK export section; see [Build APK](/guide/app-actions/build-apk).
+- WebView APKs inherit the shell template's `targetSdk` 35 (overridable in APK export config). Server-runtime APKs are pinned to 28 and ignore the target override. minSdk stays 23 unless raised in the same drawer. Only the AAB is rewritten for Play. See [Build APK](/guide/app-actions/build-apk).
 - A pre-upload advisory and warning are shown before exporting.

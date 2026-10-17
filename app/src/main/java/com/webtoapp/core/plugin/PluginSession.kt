@@ -218,7 +218,7 @@ class PluginSession(
                 .map { r ->
                     PluginHostState.Entry(
                         pluginId = r.plugin.id,
-                        name = r.plugin.name,
+                        name = r.plugin.localizedName(),
                         icon = r.plugin.icon,
                         kind = r.plugin.kind,
                         matchesCurrentUrl = r.plugin.matchesUrl(currentUrl),
@@ -298,6 +298,18 @@ class PluginSession(
 
     /** Chrome popup/options pages are hosted by this factory inside the panel host. */
     var popupWebViewFactory: ((String) -> WebView?)? = null
+
+    /** `hcj.share` — wired by the WebView owner to a system share sheet. */
+    var shareHandler: ((title: String, text: String, url: String) -> Unit)? = null
+
+    /** `hcj.openExternal` — wired by the WebView owner to ACTION_VIEW. */
+    var openExternalHandler: ((url: String) -> Unit)? = null
+
+    /** `hcj.clearData` — wired by the WebView owner to a browsing-data wipe. */
+    var clearDataHandler: (() -> Unit)? = null
+
+    /** `hcj.exitApp` — wired by the WebView owner to finish the host activity. */
+    var exitAppHandler: (() -> Unit)? = null
 
     /**
      * Entry-point tap on a plugin sheet row / pinned icon:
@@ -382,6 +394,22 @@ class PluginSession(
 
         override fun onNotify(pluginId: String, title: String, body: String) {
             notifySink(pluginId, title, body)
+        }
+
+        override fun onShare(pluginId: String, title: String, text: String, url: String) {
+            shareHandler?.invoke(title, text, url)
+        }
+
+        override fun onOpenExternal(pluginId: String, url: String) {
+            openExternalHandler?.invoke(url)
+        }
+
+        override fun onClearData(pluginId: String) {
+            clearDataHandler?.invoke()
+        }
+
+        override fun onExitApp(pluginId: String) {
+            exitAppHandler?.invoke()
         }
     }
 

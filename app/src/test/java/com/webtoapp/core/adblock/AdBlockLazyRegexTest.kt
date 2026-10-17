@@ -76,6 +76,52 @@ class AdBlockLazyRegexTest {
     }
 
     @Test
+    fun `importing thousands of unanchored rules stays linear`() {
+        val rules = List(12_000) { i -> "/ads/slot-$i.js" }
+        adBlocker.initialize(rules, useDefaultRules = false)
+        assertThat(
+            adBlocker.shouldBlock(
+                "https://cdn.example/ads/slot-11999.js",
+                "cdn.example", "script", true
+            )
+        ).isTrue()
+        assertThat(
+            adBlocker.shouldBlock(
+                "https://cdn.example/content/story.html",
+                "cdn.example", "other", true
+            )
+        ).isFalse()
+        // initialize() rebuilds the index at the end, so the per-rule append is
+        // only visible by calling trackUnanchored. `list + idx` allocates a new
+        // list on every rule; the fix must keep appending to one MutableList.
+        // A wall-clock bound is not used: the linear import already exceeded 3s
+        // on the GitHub runner.
+        assertTrackUnanchoredAppendsInPlace()
+    }
+
+    private fun assertTrackUnanchoredAppendsInPlace() {
+        val method = AdBlocker::class.java.getDeclaredMethod(
+            "trackUnanchored",
+            java.util.List::class.java,
+            Int::class.javaPrimitiveType
+        )
+        method.isAccessible = true
+        val filters = mutableListOf<Any>()
+        method.invoke(adBlocker, filters, 0)
+        val indexField = AdBlocker::class.java.getDeclaredField("unanchoredFilterIndex")
+        indexField.isAccessible = true
+        @Suppress("UNCHECKED_CAST")
+        val index = indexField.get(adBlocker) as Map<Any, MutableList<Int>>
+        val first = index.getValue(filters)
+        repeat(4_000) { i -> method.invoke(adBlocker, filters, i + 1) }
+        val after = index.getValue(filters)
+        assertThat(after).isSameInstanceAs(first)
+        assertThat(after).hasSize(4_001)
+        assertThat(after.first()).isEqualTo(0)
+        assertThat(after.last()).isEqualTo(4_000)
+    }
+
+    @Test
     fun `export serialization does not compile regexes`() {
         adBlocker.addRule("||example.com/ads/banner*.js")
         // Must round-trip the ORIGINAL rule text (modifiers preserved opaquely).
