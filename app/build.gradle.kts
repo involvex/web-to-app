@@ -73,11 +73,12 @@ android {
 
     defaultConfig {
         applicationId = "com.webtoapp"
-        minSdk = 23
+        // Play automatic protection rejects a bundle below 24. Both flavors share this floor.
+        minSdk = 24
 
         targetSdk = 36
-        versionCode = 77
-        versionName = "2.7.9"
+        versionCode = 82
+        versionName = "2.8.3"
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "false")
         buildConfigField("boolean", "FDROID", isFdroidBuild.toString())
 
@@ -91,7 +92,12 @@ android {
 
         externalNativeBuild {
             cmake {
-                // All native sources are C; no CXX flags or shared STL needed.
+                // libnode.so (nodejs-mobile) is linked against the shared C++
+                // runtime. The host must ship libc++_shared.so: on-device npm
+                // dlopens libnode from the download cache, and NODEJS_APP export
+                // copies this file out of nativeLibraryDir. The shell stays
+                // c++_static and strips the library from the template.
+                arguments += "-DANDROID_STL=c++_shared"
             }
         }
     }
@@ -100,14 +106,10 @@ android {
     productFlavors {
         create("standard") {
             // Sideloaded variant (GitHub releases, keeps `com.webtoapp` for the existing
-            // update path). Identical to gplay in every way except the applicationId —
-            // both inherit targetSdk 36 from defaultConfig and run the same code paths
-            // (runtime capability gates key off the installed targetSdk, not the channel).
+            // update path). Same minSdk, targetSdk, and code as gplay.
         }
         create("gplay") {
-            // Google Play variant. Only Play's applicationId requirement differs
-            // (`com.webtoapp` is registered on Google Play by another party); behavior,
-            // targetSdk and every build rule are shared with the standard flavor.
+            // Google Play variant. `com.webtoapp` is registered on Play by another party.
             applicationId = "shiaho.webtoapp"
         }
     }

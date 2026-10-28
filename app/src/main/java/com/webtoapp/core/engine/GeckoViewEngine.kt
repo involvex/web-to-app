@@ -1,9 +1,12 @@
 package com.webtoapp.core.engine
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
 import android.security.KeyChain
+import androidx.core.content.ContextCompat
 import com.webtoapp.core.logging.AppLogger
 import android.view.View
 import com.webtoapp.data.model.UserAgentMode
@@ -111,6 +114,18 @@ class GeckoViewEngine(
                 val requestJson = when (message) {
                     is String -> message
                     else -> message.toString()
+                }
+                val op = runCatching {
+                    org.json.JSONObject(requestJson).optString("op")
+                }.getOrNull()
+                if (op == "scope") {
+                    return GeckoResult.fromValue(
+                        org.json.JSONObject().apply {
+                            put("ok", true)
+                            put("op", "scope")
+                            put("scope", bridge.networkBridgeScope())
+                        }.toString()
+                    )
                 }
                 // onMessage runs on the UI thread. The blocking OkHttp call has to
                 // leave it, or Android throws NetworkOnMainThreadException and the
@@ -766,6 +781,8 @@ class GeckoViewEngine(
     private var lastUserAgentOverride: String? = null
     /** URL we already injected page zoom into, so a javascript: eval cannot loop. */
     private var pageZoomInjectedUrl: String? = null
+    /** Same guard for the background-playback script. */
+    private var backgroundMediaInjectedUrl: String? = null
 
     /**
      * True while the session is detached from its GeckoView for a hidden
@@ -797,6 +814,7 @@ class GeckoViewEngine(
         // owned by this engine from counting against the recreate decision.
         session?.let { old ->
             unbindNativeBridge(old)
+            GeckoShareExtension.detach(old)
             try { old.close() } catch (_: Exception) {}
             liveSessions.remove(old)
             session = null
@@ -832,6 +850,7 @@ class GeckoViewEngine(
                 webViewProvider = { null },
                 capabilities = config.nativeBridgeCapabilities,
                 corsBypass = config.enableCorsBypass,
+                networkScope = config.privateNetworkScope.name,
                 downloadLocationMode = config.downloadLocationMode,
                 customDownloadDirUri = config.customDownloadDirUri,
                 appOriginUrl = appOriginUrl,
@@ -881,6 +900,10 @@ class GeckoViewEngine(
         newSession.open(runtime)
         liveSessions.add(newSession)
         session = newSession
+        if (config.enableShareBridge) {
+            GeckoShareExtension.ensure(runtime, context)
+            GeckoShareExtension.attach(newSession)
+        }
         nativeBridge?.let { bindNativeBridge(newSession, it) }
         if (nativeBridge != null) {
             armBridgeGate(newSession)
@@ -1000,6 +1023,20 @@ class GeckoViewEngine(
              * Gecko. BasePrompt.confirm() is protected on AlertPrompt; dismiss() is the
              * public completion and carries the same meaning for an alert (no return value).
              */
+            override fun onSharePrompt(
+                session: GeckoSession,
+                prompt: GeckoSession.PromptDelegate.SharePrompt
+            ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                if (!config.enableShareBridge) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
+                com.webtoapp.core.webview.ShareBridge(viewContext.applicationContext)
+                    .shareText(null, prompt.text, prompt.uri)
+                return GeckoResult.fromValue(
+                    prompt.confirm(GeckoSession.PromptDelegate.SharePrompt.Result.SUCCESS)
+                )
+            }
+
             override fun onAlertPrompt(
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.AlertPrompt
@@ -1070,6 +1107,13 @@ class GeckoViewEngine(
                 session: GeckoSession,
                 prompt: GeckoSession.PromptDelegate.TextPrompt
             ): GeckoResult<GeckoSession.PromptDelegate.PromptResponse>? {
+                if (com.webtoapp.core.webview.PageKeyEvents.claimGeckoPrompt(
+                        prompt.message,
+                        prompt.defaultValue
+                    )
+                ) {
+                    return GeckoResult.fromValue(prompt.dismiss())
+                }
                 val activity = viewContext.findActivity()
                 if (activity == null || activity.isFinishing || activity.isDestroyed) {
                     return GeckoResult.fromValue(prompt.dismiss())
@@ -1894,10 +1938,96 @@ class GeckoViewEngine(
                 session: GeckoSession,
                 uri: String
             ): GeckoResult<GeckoSession>? {
-                loadUrl(uri)
-                return null
+                // A new session is the opener relationship Google's popup
+                // sign-in uses. Loading the URI here instead drops
+                // window.opener and the completion page never closes (#1316).
+                return openScriptPopup(uri)
             }
         }
+    }
+
+    /**
+     * Child session for `window.open`. Gecko opens the session after this
+     * returns; the view is attached on the first paint so the popup can
+     * `postMessage` its opener and then `window.close()` (#1316).
+     */
+    private fun openScriptPopup(uri: String): GeckoResult<GeckoSession>? {
+        if (!ScriptPopupHost.canShow(context)) {
+            if (uri.isNotBlank() && uri != "about:blank") loadUrl(uri)
+            return null
+        }
+        val settings = GeckoSessionSettings.Builder()
+            .usePrivateMode(false)
+            .useTrackingProtection(false)
+            .userAgentMode(lastGeckoUaMode)
+            .viewportMode(lastGeckoViewportMode)
+            .allowJavascript(lastAllowJavascript)
+            .build()
+        val popupSession = GeckoSession(settings)
+        if (lastConfig?.enableShareBridge == true) {
+            GeckoShareExtension.attach(popupSession)
+        }
+        lastUserAgentOverride?.let { popupSession.settings.userAgentOverride = it }
+        val popupView = GeckoView(context)
+        var canGoBack = false
+        var closed = false
+        var attached = false
+        fun closePopup() {
+            if (closed) return
+            closed = true
+            ScriptPopupHost.dismiss(popupView)
+            liveSessions.remove(popupSession)
+            runCatching { popupView.releaseSession() }
+            runCatching { popupSession.close() }
+        }
+        fun attach() {
+            if (attached) return
+            try {
+                popupView.setSession(popupSession)
+                attached = true
+                ScriptPopupHost.show(
+                    context = context,
+                    content = popupView,
+                    onBack = {
+                        if (!canGoBack) return@show false
+                        popupSession.goBack()
+                        true
+                    },
+                    onDismiss = { closePopup() }
+                )
+            } catch (e: Exception) {
+                AppLogger.w(TAG, "Script popup not attached yet: ${e.message}")
+            }
+        }
+        popupSession.contentDelegate = object : GeckoSession.ContentDelegate {
+            override fun onCloseRequest(session: GeckoSession) {
+                closePopup()
+            }
+
+            override fun onFirstComposite(session: GeckoSession) {
+                attach()
+            }
+        }
+        popupSession.navigationDelegate = object : GeckoSession.NavigationDelegate {
+            override fun onCanGoBack(session: GeckoSession, value: Boolean) {
+                canGoBack = value
+            }
+
+            override fun onNewSession(
+                session: GeckoSession,
+                nextUri: String
+            ): GeckoResult<GeckoSession>? {
+                return openScriptPopup(nextUri)
+            }
+        }
+        popupSession.progressDelegate = object : GeckoSession.ProgressDelegate {
+            override fun onPageStart(session: GeckoSession, url: String) {
+                attach()
+            }
+        }
+        liveSessions.add(popupSession)
+        AppLogger.d(TAG, "Script popup session created for $uri")
+        return GeckoResult.fromValue(popupSession)
     }
 
     private fun isLoopbackHost(host: String): Boolean {
@@ -1931,12 +2061,21 @@ class GeckoViewEngine(
     }
 
     /**
-     * GeckoView has no `setInitialScale`. The same viewport script the system
+     * GeckoView has no `setInitialScale`. The same CSS-zoom script the system
      * WebView runs at document-start is applied once the page has stopped, so
-     * a non-100 `pageZoomPercent` is not a WebView-only feature (#1264).
+     * a non-100 `pageZoomPercent` is not a WebView-only feature (#1264, #1317).
      * `evaluateJavascript` loads a `javascript:` URI; skip those URLs so the
      * injection cannot schedule itself again.
      */
+    private fun injectBackgroundMediaScript(url: String?) {
+        val cfg = lastConfig ?: return
+        if (!cfg.backgroundMediaPlayback || !cfg.javaScriptEnabled) return
+        if (url.isNullOrBlank() || url.startsWith("javascript:") || url.startsWith("about:")) return
+        if (backgroundMediaInjectedUrl == url) return
+        backgroundMediaInjectedUrl = url
+        evaluateJavascript(com.webtoapp.core.webview.BackgroundMediaScript.INSTALL, null)
+    }
+
     private fun injectPageZoomIfNeeded(url: String?) {
         val cfg = lastConfig ?: return
         if (!cfg.javaScriptEnabled) return
@@ -1963,13 +2102,17 @@ class GeckoViewEngine(
                 // that also land here are ignored by [injectPageZoomIfNeeded].
                 if (!url.startsWith("javascript:")) {
                     pageZoomInjectedUrl = null
+                    backgroundMediaInjectedUrl = null
                 }
                 callback.onPageStarted(url)
             }
 
             override fun onPageStop(session: GeckoSession, success: Boolean) {
                 callback.onPageFinished(currentUrl)
-                if (success) injectPageZoomIfNeeded(currentUrl)
+                if (success) {
+                    injectBackgroundMediaScript(currentUrl)
+                    injectPageZoomIfNeeded(currentUrl)
+                }
             }
 
             override fun onProgressChange(session: GeckoSession, progress: Int) {
@@ -2020,7 +2163,42 @@ class GeckoViewEngine(
                 audio: Array<GeckoSession.PermissionDelegate.MediaSource>?,
                 callback: GeckoSession.PermissionDelegate.MediaCallback
             ) {
-                callback.grant(video?.firstOrNull(), audio?.firstOrNull())
+                // Granting the content devices before the OS permission exists makes
+                // Gecko open the camera and abort the process. Ask first when the
+                // earlier onAndroidPermissionsRequest did not already obtain it.
+                val needed = ArrayList<String>(2)
+                if (!video.isNullOrEmpty()) needed.add(Manifest.permission.CAMERA)
+                if (!audio.isNullOrEmpty()) needed.add(Manifest.permission.RECORD_AUDIO)
+                val missing = needed.filter {
+                    ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                }
+                fun finish(granted: Boolean) {
+                    try {
+                        if (granted) callback.grant(video?.firstOrNull(), audio?.firstOrNull())
+                        else callback.reject()
+                    } catch (e: Exception) {
+                        AppLogger.e(TAG, "media permission callback failed", e)
+                        if (granted) {
+                            try {
+                                callback.reject()
+                            } catch (rejectError: Exception) {
+                                AppLogger.w(TAG, "media reject failed: ${rejectError.message}")
+                            }
+                        }
+                    }
+                }
+                if (missing.isEmpty()) {
+                    finish(true)
+                    return
+                }
+                val host = this@GeckoViewEngine.callback
+                if (host == null) {
+                    finish(false)
+                    return
+                }
+                host.onAndroidPermissionsRequest(missing.toTypedArray()) { granted ->
+                    finish(granted)
+                }
             }
 
             override fun onAndroidPermissionsRequest(

@@ -111,10 +111,10 @@ A quick scan of what's in the box. Each links to the detailed feature map below.
 | **Browser engines** | System WebView by default; optional GeckoView (Firefox) runtime |
 | **Network & anti-censorship** | DoH (7 providers), TLS fingerprint spoofing + MITM bridge, ECH, static/PAC/SOCKS5 proxies, CORS bypass |
 | **Privacy & hardening** | 50+ vector browser fingerprint disguise, resource encryption (AES-256-GCM), anti-debug, activation gating |
-| **Local runtimes** | Native Node.js 18.20, PHP 8.4 + Composer 2.10, Python 3.14, official Go 1.26, WordPress 7.x over SQLite |
+| **Local runtimes** | Native Node.js 18.20, PHP 8.4 + Composer 2.10, Python 3.14, official Go 1.26.10, WordPress 7.x over SQLite |
 | **Extensions** | Built-in modules, userscripts with `GM_*`, MV3 Chrome extensions, live Chrome Web Store search |
 | **APK/AAB output** | On-device V1/V2/V3 signing, Google Play AAB export with targetSdk rewrite, keystore management |
-| **Agent** | Full-app automation via up to 60 tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx |
+| **Agent** | Full-app automation via up to 60 tools: generate, build, export, manage ports/engines/runtimes, clone apps, ad-block rules, config templates, and more; auto-retry on 429/5xx, and rotate to another saved key when a provider rate-limits the session |
 | **Host languages** | **10 UI languages** — 中文 · English · العربية · Português · Español · Français · Deutsch · Русский · 日本語 · 한국어 (Arabic RTL) |
 
 ---
@@ -159,8 +159,8 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **Dual engine** — System WebView by default, or an optional GeckoView (Firefox) runtime downloaded on first use.
 - **Kernel flavor disguise** — present as Chrome, Edge, Samsung Internet, Firefox, or Safari-style while keeping the real engine.
 - **Desktop mode**, custom User-Agent, and JS/CSS injection at document-start / end / idle.
-- **Page zoom** — a per-app percent that locks the layout viewport, so text, layout, images, and canvas scale together on the system WebView and on GeckoView.
-- **Popup handling** — same window, external browser, popup window, or block.
+- **Page zoom** — a per-app percent applied with CSS zoom on the document root, so text, layout, images, and canvas scale together on the system WebView and on GeckoView. A page that restores its own viewport meta does not reload.
+- **Popup handling** — same window, external browser, popup window, or block. A script-opened window stays a real child, so popup sign-in can reach `window.opener`.
 - **Proxies** — static HTTP/HTTPS/SOCKS5, PAC, authentication, bypass rules, and a local HTTP-to-SOCKS bridge.
 - **DNS-over-HTTPS** — Cloudflare, Google, AdGuard, NextDNS, CleanBrowsing, Quad9, Mullvad, plus custom endpoints; strict or automatic modes.
 - **Encrypted Client Hello (ECH)** — encrypt the SNI in the TLS handshake on **both engines**: GeckoView via TRR + its ECH prefs, the system WebView via the MITM bridge's Chromium upstream (auto-downloaded on first use, embedded in exported APKs). Auto-wires DoH when toggled; a SOCKS upstream proxy takes precedence.
@@ -168,7 +168,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **CORS bypass** — on by default for static SPAs that call external APIs blocked by CORS; same-origin traffic is left alone, and CORS-only apps can use a lightweight `PrivateNetworkNativeBridgeAdapter` without the full Native Bridge surface.
 - **Failover** — automatic fallback to mirror URLs when the primary target is unreachable.
 - **PWA** offline cache strategies, custom error pages, per-app host overrides, and payment-scheme handlers.
-- **Compatibility toggles** — blob download interception, scroll memory, image repair, clipboard / orientation / notification polyfills, private-network bridging, and Native Bridge capability gates.
+- **Compatibility toggles** — blob download interception, scroll memory, image repair, clipboard / orientation / notification polyfills, private-network bridging, and Native Bridge capability gates. The folder gate lets a page keep one chosen directory and read and write files inside it.
 - **Download location** — system Downloads, app-private storage, a user-picked SAF folder, or the system save dialog on every download, wired through the full packaging passthrough chain.
 
 </details>
@@ -235,6 +235,7 @@ WebToApp has a large number of switches. The sections below group them by use ca
 - **Custom package name**, `versionName`, `versionCode`, icon, label, architecture target, and export format. A transparent icon gets a white adaptive plate by default, or a solid color you pick, or a transparent plate. An opaque icon keeps its edge color.
 - **SDK levels** — raise minSdk above 23, and pin targetSdk to 28, 31, 33, 34, 35, or 36. Server-runtime types stay at 28. Play AAB export still rewrites targetSdk to 36.
 - **Build-time permission injection** — one row per permission a third-party app can declare from API 23 through Android 17. Unused permissions are pruned from the template manifest.
+- **Foreground service types** — a generated APK declares a type only when that service ships. Media playback is omitted when media session is off. `DATA_SYNC` stays on the host.
 - **One-tap AAB export** — auto-builds the APK on demand, converts it to a Play-ready signed AAB with `targetSdk` rewritten to the Play-required level (currently 36) and protobuf metadata generated locally; cancellable mid-build. Available for every app type except the server-runtime ones and encrypted builds — see [which apps can be published](https://shiaho777.github.io/web-to-app/guide/more-features/google-play).
 - **Keystore management** — create, import, export, delete, and certificate-fingerprint viewing; PKCS12/PFX/JKS/BKS import including Android Studio upload-key cases where store and key passwords differ.
 - **Signature schemes** — V1, V2, V3 independently controlled, with auto-fallback for legacy certificates; custom V1 signer filename for `META-INF/<name>.SF` / `.RSA`.
@@ -426,6 +427,12 @@ Advanced features such as device disguise are intended for technical demonstrati
 ## Acknowledgements
 
 [daoxe.com](https://daoxe.com) — AI API relay for personal use.
+
+## Community Support
+
+Trading fees from the associated pump.fun token help support continued development:
+
+[https://pump.fun/coin/H2mNeSJV75VuQpGA9C11FwWoT9DU7sMCYUNVaMyQpump](https://pump.fun/coin/H2mNeSJV75VuQpGA9C11FwWoT9DU7sMCYUNVaMyQpump)
 
 ---
 

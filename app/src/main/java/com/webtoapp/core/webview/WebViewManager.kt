@@ -56,12 +56,16 @@ class WebViewManager(
     private val blobCacheHookHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val cloudflareCompatScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val backStateGuardScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val backgroundMediaScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val shareBridgeScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val printBridgeScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val screenCaptureHelperHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val geolocationShimHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val shareInboxScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val cosmeticFilterScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val pageZoomScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val videoFitScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val wasmStreamScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val kernelFlavorScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
 
     companion object {
@@ -179,11 +183,26 @@ class WebViewManager(
 
         private val WEBVIEW_WV_MARKER_REGEX = Regex(";\\s*wv\\s*\\)")
 
+        /**
+         * Android WebView appends `Version/4.0` beside `Chrome/`. That token is the
+         * old Android browser marker, not a Safari version. Emscripten still treats
+         * any UA containing `Safari/` and `Version/` as Safari, so a Godot web
+         * export throws "requires Safari 15.2" while `index.js` evaluates and the
+         * canvas stays blank.
+         */
+        private val WEBVIEW_VERSION_TOKEN_REGEX = Regex("\\sVersion/4\\.0(?=\\s)")
+
         @JvmStatic
         fun stripWebViewMarker(userAgent: String): String {
             if (userAgent.isEmpty()) return userAgent
-            if (!userAgent.contains("wv")) return userAgent
-            return WEBVIEW_WV_MARKER_REGEX.replace(userAgent, ")")
+            var ua = userAgent
+            if (ua.contains("wv")) {
+                ua = WEBVIEW_WV_MARKER_REGEX.replace(ua, ")")
+            }
+            if (ua.contains("Chrome/") && ua.contains("Version/4.0")) {
+                ua = WEBVIEW_VERSION_TOKEN_REGEX.replace(ua, "")
+            }
+            return ua
         }
 
         /**
@@ -1272,6 +1291,9 @@ class WebViewManager(
         """
     }
 
+    /** First page load waits here while a downloaded rule list is parsed off the main thread. */
+    fun runWhenAdBlockRulesReady(block: () -> Unit) = adBlocker.runWhenRulesInstalled(block)
+
     private var appPluginPayloads: List<com.webtoapp.core.plugin.PluginSession.Resolved> = emptyList()
 
     private var pluginsEnabled: Boolean = true
@@ -1758,23 +1780,35 @@ class WebViewManager(
 
                 val identity = resolvedBrowserIdentity
                 if (identity.userAgent != null) {
-
-                    userAgentString = stripWebViewMarker(identity.userAgent)
+                    val stripped = stripWebViewMarker(identity.userAgent)
+                    userAgentString = stripped
+                    com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+                        webView,
+                        com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(stripped) ?: identity.profile
+                    )
                     AppLogger.d(
                         "WebViewManager",
                         "Browser identity applied (${identity.profile?.flavor?.name ?: "derived-from-UA"}): " +
                             "${userAgentString.take(80)}..."
                     )
                 } else {
-
-                    userAgentString = stripWebViewMarker(userAgentString)
+                    val stripped = stripWebViewMarker(userAgentString)
+                    userAgentString = stripped
+                    // The engine's own Sec-CH-UA still says "Android WebView" after the `; wv`
+                    // token is removed. Hints have to describe the string we actually send.
+                    com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(stripped)?.let { profile ->
+                        com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, profile)
+                        // Modern WebView publishes these hints into every frame, including
+                        // the Turnstile iframe. Older WebViews need the flavor script there.
+                        if (!androidx.webkit.WebViewFeature.isFeatureSupported(
+                                androidx.webkit.WebViewFeature.USER_AGENT_METADATA
+                            ) && cachedKernelFlavorJs.isNullOrEmpty()
+                        ) {
+                            cachedKernelFlavorJs = profile.buildFlavorJs().takeIf { it.isNotEmpty() }
+                        }
+                    }
                     AppLogger.d("WebViewManager", "User-Agent (system default, wv stripped): ${userAgentString.take(80)}...")
                 }
-
-                // Client hints are part of the same identity, never a separate decision: the
-                // engine would otherwise advertise its real brands in `Sec-CH-UA` while the UA
-                // above claims a different browser.
-                com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, identity.profile)
 
                 if (!isDesktopModeRequested && identity.userAgent == null) {
                     val hasActiveChromeExt = getActivePluginsForCurrentApp().any { plugin ->
@@ -1914,13 +1948,21 @@ class WebViewManager(
                 setInitialScale(0)
             }
 
-            settings.setSupportMultipleWindows(config.newWindowBehavior != NewWindowBehavior.SAME_WINDOW)
+            // Scripted window.open must reach onCreateWindow even when popups are
+            // configured to fold into the same page. Otherwise Google's sign-in
+            // popup replaces the app and window.close() never returns (#1316).
+            val scriptWindowsAllowed = config.javaScriptCanOpenWindows &&
+                config.jsOpenWindowsPolicy != com.webtoapp.data.model.JsOpenWindowsPolicy.BLOCK &&
+                config.newWindowBehavior != NewWindowBehavior.BLOCK
+            settings.setSupportMultipleWindows(scriptWindowsAllowed)
 
             webViewClient = createWebViewClient(config, callbacks)
 
             webChromeClient = createWebChromeClient(config, callbacks)
 
             installPageZoomDocumentStart(this, config)
+            installVideoFitDocumentStart(this, config)
+            installWasmStreamDocumentStart(this, config)
             installKernelFlavorDocumentStart(this)
 
             if (config.enablePrivateNetworkBridge || config.enableCorsBypass) {
@@ -1933,6 +1975,10 @@ class WebViewManager(
 
             if (config.enableBackStatePreservation) {
                 installBackStateGuardDocumentStart(this)
+            }
+
+            if (config.backgroundMediaPlayback) {
+                installBackgroundMediaDocumentStart(this)
             }
 
             if (config.downloadEnabled) {
@@ -1950,6 +1996,7 @@ class WebViewManager(
 
             if (config.enableShareBridge) {
                 addJavascriptInterface(ShareBridge(context), "NativeShareBridge")
+                installShareBridgeDocumentStart(this)
             }
 
             if (config.enableShareReceive) {
@@ -1971,6 +2018,13 @@ class WebViewManager(
             if (config.enableNativeBridge && config.nativeBridgeCapabilities.screenCapture) {
                 installScreenCaptureHelperDocumentStart(this)
             }
+
+            if (config.enableNotificationPolyfill) {
+                WebNotificationBridge.install(context)
+                installNotificationPolyfillDocumentStart(this)
+            }
+
+
             // Cosmetic filtering at document start so the hide stylesheet and the
             // mutation observer are in place before the page can paint (#998).
             if (adBlocker.isEnabled() && config.javaScriptEnabled) {
@@ -2215,6 +2269,7 @@ class WebViewManager(
                     dnsManager = dnsManager
                 )
                 if (bridgePort > 0) {
+                    TranslateProxyRoute.useHttp("127.0.0.1", bridgePort)
                     val bridgeMode = if (hostsMappingCanApply && dohCanApplyViaLocalProxy) {
                         "hosts mapping + DoH"
                     } else if (dohCanApplyViaLocalProxy) {
@@ -2273,6 +2328,13 @@ class WebViewManager(
                 request?.let {
                     val url = it.url?.toString() ?: ""
                     diagRequestCount++
+
+                    // Service-worker notification bridge. Some WebView versions fetch the
+                    // worker script through this client; the process-wide service-worker
+                    // client covers the rest. Both serve the same response.
+                    if (config.enableNotificationPolyfill) {
+                        WebNotificationBridge.intercept(context, url)?.let { bridged -> return bridged }
+                    }
 
                     // Feed the TLS-MITM bridge's host allowlist: every request the WebView
                     // issues passes through here before its network stack CONNECTs through
@@ -2518,6 +2580,13 @@ class WebViewManager(
                 }
 
                 view?.let { wv ->
+                    if (currentConfig?.backgroundMediaPlayback == true) {
+                        (wv as? WtaWebView)?.ensureBackgroundInterface()
+                        wv.evaluateJavascript(BackgroundMediaScript.INSTALL, null)
+                    }
+                    if (currentConfig?.enableShareBridge == true) {
+                        wv.evaluateJavascript(ShareBridgeScript.INSTALL, null)
+                    }
                     try {
                         val list = wv.copyBackForwardList()
                         val currentIndex = list.currentIndex
@@ -2629,6 +2698,7 @@ class WebViewManager(
                 view?.let { AudioUnlockInjector.inject(it) }
 
                 if (config.enableNotificationPolyfill) {
+                    WebNotificationBridge.install(context)
                     view?.let { injectNotificationPolyfill(it) }
                 }
 
@@ -2636,6 +2706,13 @@ class WebViewManager(
 
                 if (config.enableScrollMemory) {
                     startBatch.append("try{").append(SCROLL_SAVE_JS).append("}catch(e){};\n")
+                }
+
+                if (config.javaScriptEnabled) {
+                    // Fallback when document-start is unavailable. The script
+                    // no-ops once it is already installed on this document.
+                    startBatch.append("try{").append(VideoElementFit.SCRIPT).append("}catch(e){};\n")
+                    startBatch.append("try{").append(WasmStreamCompat.SCRIPT).append("}catch(e){};\n")
                 }
 
                 val pageZoomJs = view?.let { pageZoomScriptFor(it, config) }
@@ -3973,6 +4050,11 @@ class WebViewManager(
                 }
             }
 
+            override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+                AppLogger.d("WebViewManager", "onPermissionRequestCanceled")
+                callbacks.onPermissionRequestCanceled(request)
+            }
+
             override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
                 consoleMessage?.let {
                     val level = when (it.messageLevel()) {
@@ -4011,6 +4093,12 @@ class WebViewManager(
                 val href = view.hitTestResult.extra
 
                 AppLogger.d("WebViewManager", "onCreateWindow: href=$href, behavior=${config.newWindowBehavior}")
+
+                if (ScriptWindowPolicy.keepRealPopup(href, config.newWindowBehavior) &&
+                    com.webtoapp.core.engine.ScriptPopupHost.canShow(context)
+                ) {
+                    return openRealScriptPopup(view, resultMsg)
+                }
 
                 val originalWebView = view
 
@@ -4094,8 +4182,74 @@ class WebViewManager(
             override fun onCloseWindow(window: WebView?) {
                 super.onCloseWindow(window)
                 AppLogger.d("WebViewManager", "onCloseWindow")
+                if (window != null) {
+                    com.webtoapp.core.engine.ScriptPopupHost.dismiss(window)
+                }
             }
         }
+    }
+
+    /**
+     * Keeps a `window.open` child alive as its own WebView so `window.opener`
+     * and `window.close()` work. Google's popup sign-in depends on both (#1316).
+     */
+    @SuppressLint("SetJavaScriptEnabled")
+    private fun openRealScriptPopup(parent: WebView, resultMsg: android.os.Message?): Boolean {
+        val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+        val popup = WebView(context)
+        popup.settings.javaScriptEnabled = parent.settings.javaScriptEnabled
+        popup.settings.javaScriptCanOpenWindowsAutomatically = true
+        popup.settings.setSupportMultipleWindows(true)
+        popup.settings.domStorageEnabled = parent.settings.domStorageEnabled
+        popup.settings.databaseEnabled = parent.settings.databaseEnabled
+        val parentUa = parent.settings.userAgentString
+        if (!parentUa.isNullOrBlank()) {
+            popup.settings.userAgentString = parentUa
+        }
+        CookieManager.getInstance().setAcceptCookie(true)
+        CookieManager.getInstance().setAcceptThirdPartyCookies(popup, true)
+        popup.webViewClient = WebViewClient()
+        popup.webChromeClient = object : WebChromeClient() {
+            override fun onCloseWindow(window: WebView?) {
+                com.webtoapp.core.engine.ScriptPopupHost.dismiss(popup)
+            }
+
+            override fun onCreateWindow(
+                view: WebView?,
+                isDialog: Boolean,
+                isUserGesture: Boolean,
+                nested: android.os.Message?
+            ): Boolean {
+                val childParent = view ?: return false
+                return openRealScriptPopup(childParent, nested)
+            }
+        }
+        var destroyed = false
+        fun destroyPopup() {
+            if (destroyed) return
+            destroyed = true
+            runCatching { popup.stopLoading() }
+            runCatching { popup.destroy() }
+        }
+        // Attach before handing the transport over. A WebView with no window
+        // never becomes window.opener for the page that called window.open.
+        val shown = com.webtoapp.core.engine.ScriptPopupHost.show(
+            context = context,
+            content = popup,
+            onBack = {
+                if (!popup.canGoBack()) return@show false
+                popup.goBack()
+                true
+            },
+            onDismiss = { destroyPopup() }
+        )
+        if (!shown) {
+            destroyPopup()
+            return false
+        }
+        transport.webView = popup
+        resultMsg.sendToTarget()
+        return true
     }
 
     private fun normalizeHttpUrlForSecurity(url: String): String {
@@ -4320,6 +4474,7 @@ class WebViewManager(
                 removeJavascriptInterface(GeolocationBridge.JS_INTERFACE_NAME)
                 removeJavascriptInterface(com.webtoapp.core.extension.GreasemonkeyBridge.JS_INTERFACE_NAME)
                 removeJavascriptInterface(com.webtoapp.core.extension.ChromeExtensionRuntime.JS_BRIDGE_NAME)
+                com.webtoapp.core.extension.ChromeExtensionAuthChannel.remove(this)
                 removeJavascriptInterface(COSMETIC_BRIDGE_NAME)
 
                 (parent as? android.view.ViewGroup)?.removeView(this)
@@ -4372,6 +4527,14 @@ class WebViewManager(
             runCatching { handler.remove() }
         }
         pageZoomScriptHandlers.clear()
+        videoFitScriptHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        videoFitScriptHandlers.clear()
+        wasmStreamScriptHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        wasmStreamScriptHandlers.clear()
         kernelFlavorScriptHandlers.values.toList().forEach { handler ->
             runCatching { handler.remove() }
         }
@@ -4413,7 +4576,7 @@ class WebViewManager(
         val rules = setOf("*")
         if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             try {
-                privateNetworkScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+                privateNetworkScriptHandlers[webView] = addDocumentStartExceptChallenges(
                     webView,
                     privateNetworkScriptWithScope(config),
                     rules
@@ -4440,6 +4603,22 @@ class WebViewManager(
             webViewCssWidth(webView)
         )
     }
+
+    /**
+     * Other document-start scripts must not run inside a Turnstile / hCaptcha
+     * frame. Kernel flavor and device disguise are the exception: those frames
+     * have to see the same identity as the parent (#1121).
+     */
+    @Suppress("UNUSED_PARAMETER")
+    private fun addDocumentStartExceptChallenges(
+        webView: WebView,
+        script: String,
+        allowedOriginRules: Set<String>
+    ) = WebViewCompat.addDocumentStartJavaScript(
+        webView,
+        CloudflareCompat.exemptChallengeFrames(script),
+        setOf("*")
+    )
 
     /**
      * Chrome (and other kernel) flavor JS must run before the page's own scripts,
@@ -4470,8 +4649,9 @@ class WebViewManager(
     }
 
     /**
-     * Page zoom must run before the page's own viewport meta is applied.
-     * [android.webkit.WebView.setInitialScale] loses that race (#1264).
+     * Page zoom is CSS `zoom` on the root, installed before page scripts.
+     * Rewriting the viewport meta reloaded pages such as OpenChamber (#1317).
+     * [android.webkit.WebView.setInitialScale] loses to that meta (#1264).
      * Re-installs on every configure so a pooled WebView does not keep the
      * previous app's percent. Default zoom (100) removes a stale handler.
      */
@@ -4490,7 +4670,7 @@ class WebViewManager(
             return
         }
         try {
-            pageZoomScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            pageZoomScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 script,
                 setOf("*")
@@ -4501,6 +4681,52 @@ class WebViewManager(
         }
     }
 
+    /**
+     * Keep a `<video>` inside the CSS box the page asked for. System WebView
+     * otherwise lays it out at the media's intrinsic pixel size.
+     */
+    private fun installVideoFitDocumentStart(webView: WebView, config: WebViewConfig) {
+        if (!config.javaScriptEnabled) return
+        if (videoFitScriptHandlers.containsKey(webView)) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            AppLogger.d("WebViewManager", "Document-start unsupported; video fit will use onPageStarted")
+            return
+        }
+        try {
+            videoFitScriptHandlers[webView] = addDocumentStartExceptChallenges(
+                webView,
+                VideoElementFit.SCRIPT,
+                setOf("*")
+            )
+            AppLogger.d("WebViewManager", "Video fit installed at document start")
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start video fit install failed", e)
+        }
+    }
+
+    /**
+     * Godot (and other wasm loaders) clone the wasm response and read only one
+     * side. Install before page scripts so the clone cannot stall the download.
+     */
+    private fun installWasmStreamDocumentStart(webView: WebView, config: WebViewConfig) {
+        if (!config.javaScriptEnabled) return
+        if (wasmStreamScriptHandlers.containsKey(webView)) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+            AppLogger.d("WebViewManager", "Document-start unsupported; wasm stream compat will use onPageStarted")
+            return
+        }
+        try {
+            wasmStreamScriptHandlers[webView] = addDocumentStartExceptChallenges(
+                webView,
+                WasmStreamCompat.SCRIPT,
+                setOf("*")
+            )
+            AppLogger.d("WebViewManager", "Wasm stream compat installed at document start")
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start wasm stream compat install failed", e)
+        }
+    }
+
     private fun installCloudflareCompatDocumentStart(webView: WebView) {
         if (cloudflareCompatScriptHandlers.containsKey(webView)) return
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -4508,7 +4734,7 @@ class WebViewManager(
             return
         }
         try {
-            cloudflareCompatScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            cloudflareCompatScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 CloudflareCompat.generateCompatJs(),
                 setOf("*")
@@ -4519,6 +4745,35 @@ class WebViewManager(
         }
     }
 
+    private fun installShareBridgeDocumentStart(webView: WebView) {
+        if (shareBridgeScriptHandlers.containsKey(webView)) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+        try {
+            shareBridgeScriptHandlers[webView] = addDocumentStartExceptChallenges(
+                webView,
+                ShareBridgeScript.INSTALL,
+                setOf("*")
+            )
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start share bridge install failed", e)
+        }
+    }
+
+    private fun installBackgroundMediaDocumentStart(webView: WebView) {
+        (webView as? WtaWebView)?.ensureBackgroundInterface()
+        if (backgroundMediaScriptHandlers.containsKey(webView)) return
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+        try {
+            backgroundMediaScriptHandlers[webView] = addDocumentStartExceptChallenges(
+                webView,
+                BackgroundMediaScript.INSTALL,
+                setOf("*")
+            )
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Document-start background media install failed", e)
+        }
+    }
+
     private fun installBackStateGuardDocumentStart(webView: WebView) {
         if (backStateGuardScriptHandlers.containsKey(webView)) return
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -4526,7 +4781,7 @@ class WebViewManager(
             return
         }
         try {
-            backStateGuardScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            backStateGuardScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 BACK_STATE_GUARD_JS,
                 setOf("*")
@@ -4547,7 +4802,7 @@ class WebViewManager(
 
             val cfg = currentConfig
             val script = if (cfg != null) downloadBridgeScriptWithScope(cfg) else DownloadBridge.getInjectionScript()
-            downloadBridgeScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            downloadBridgeScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 script,
                 setOf("*")
@@ -4573,7 +4828,7 @@ class WebViewManager(
             return
         }
         try {
-            shareInboxScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            shareInboxScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 com.webtoapp.core.share.SHARE_INBOX_BOOTSTRAP_JS,
                 setOf("*")
@@ -4591,7 +4846,7 @@ class WebViewManager(
             return
         }
         try {
-            geolocationShimHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            geolocationShimHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 GeolocationBridge.getShimScript(),
                 setOf("*")
@@ -4610,7 +4865,7 @@ class WebViewManager(
             return
         }
         try {
-            blobCacheHookHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            blobCacheHookHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 DownloadBridge.getBlobCacheHookScript(),
                 setOf("*")
@@ -4654,7 +4909,7 @@ class WebViewManager(
         }
         try {
             webView.addJavascriptInterface(CosmeticFilterJsInterface(), COSMETIC_BRIDGE_NAME)
-            cosmeticFilterScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            cosmeticFilterScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 COSMETIC_DOCUMENT_START_JS,
                 setOf("*")
@@ -4769,6 +5024,7 @@ class WebViewManager(
                     openOptionsPageHandler = { extId, optionsPath -> showChromeExtensionPage(extId, optionsPath) }
                 )
                 webView.addJavascriptInterface(contentBridge, com.webtoapp.core.extension.ChromeExtensionRuntime.JS_BRIDGE_NAME)
+                com.webtoapp.core.extension.ChromeExtensionAuthChannel.install(webView, contentBridge)
                 AppLogger.d(
                     "WebViewManager",
                     "Registered WtaExtBridge for ${allChromeExtPlugins.map { it.chromeExtId }.distinct().size} extension(s)"
@@ -4936,7 +5192,7 @@ class WebViewManager(
             return
         }
         try {
-            printBridgeScriptHandlers[webView] = WebViewCompat.addDocumentStartJavaScript(
+            printBridgeScriptHandlers[webView] = addDocumentStartExceptChallenges(
                 webView,
                 PrintBridge.getInjectionScript(),
                 setOf("*")
@@ -5205,72 +5461,9 @@ class WebViewManager(
                 """.trimIndent())
             }
 
-            if (config.enableShareBridge && !conservativeMode) {
-                scripts.add("""
-                    (function() {
-                        'use strict';
-
-                        if (typeof NativeShareBridge !== 'undefined') {
-                            function __wta_readFileAsBase64(file) {
-                                return new Promise(function(resolve, reject) {
-                                    var reader = new FileReader();
-                                    reader.onload = function() {
-                                        try {
-                                            var arr = new Uint8Array(reader.result);
-                                            var chunkSize = 0x8000;
-                                            var binary = '';
-                                            for (var i = 0; i < arr.length; i += chunkSize) {
-                                                binary += String.fromCharCode.apply(null, arr.subarray(i, i + chunkSize));
-                                            }
-                                            resolve(btoa(binary));
-                                        } catch(e) { reject(e); }
-                                    };
-                                    reader.onerror = function() { reject(reader.error); };
-                                    reader.readAsArrayBuffer(file);
-                                });
-                            }
-
-                            navigator.share = function(data) {
-                                return new Promise(function(resolve, reject) {
-                                    try {
-                                        var title = data.title || '';
-                                        var text = data.text || '';
-                                        var url = data.url || '';
-                                        var files = data.files;
-
-                                        if (files && files.length > 0) {
-                                            var file = files[0];
-                                            __wta_readFileAsBase64(file).then(function(base64) {
-                                                NativeShareBridge.shareFile(title, base64, file.type || 'application/octet-stream', file.name || 'shared_file');
-                                                resolve();
-                                            }).catch(function(e) { reject(e); });
-                                        } else {
-                                            NativeShareBridge.shareText(title, text, url);
-                                            resolve();
-                                        }
-                                    } catch(e) {
-                                        reject(e);
-                                    }
-                                });
-                            };
-
-                            navigator.canShare = function(data) {
-                                if (!data) return false;
-                                if (data.files && data.files.length > 0) {
-                                    return typeof NativeShareBridge.canShareFiles === 'function'
-                                        ? NativeShareBridge.canShareFiles() : true;
-                                }
-                                return !!(data.text || data.url || data.title);
-                            };
-                        }
-                    })();
-                """.trimIndent())
-            }
-
             // Inbound share bootstrap (#943). Added on every page phase because WebView
             // versions without DOCUMENT_START_SCRIPT never got the early install; the script
-            // is idempotent. Not gated on conservativeMode — unlike the navigator.share
-            // polyfill above, this only *adds* an API and overrides nothing the page owns.
+            // is idempotent. Not gated on conservativeMode — it only adds an API.
             if (config.enableShareReceive) {
                 scripts.add(com.webtoapp.core.share.SHARE_INBOX_BOOTSTRAP_JS)
             }
@@ -5829,13 +6022,26 @@ class WebViewManager(
     ) {
         val identity = resolvedBrowserIdentity
         if (identity.userAgent != null) {
-            webView.settings.userAgentString = stripWebViewMarker(identity.userAgent)
-            com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, identity.profile)
+            val stripped = stripWebViewMarker(identity.userAgent)
+            webView.settings.userAgentString = stripped
+            com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
+                webView,
+                com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(stripped) ?: identity.profile
+            )
             AppLogger.d(
                 "WebViewManager",
                 "Browser identity re-applied (${identity.profile?.flavor?.name ?: "derived-from-UA"}): " +
                     "${webView.settings.userAgentString.take(80)}..."
             )
+        } else {
+            val current = webView.settings.userAgentString
+            if (current.isNotBlank()) {
+                val stripped = stripWebViewMarker(current)
+                webView.settings.userAgentString = stripped
+                com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(stripped)?.let { profile ->
+                    com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, profile)
+                }
+            }
         }
 
         if (!isDesktopModeRequested && identity.userAgent == null) {
@@ -6388,11 +6594,8 @@ class WebViewManager(
                 'use strict';
 
                 if (window.__webtoapp_notification_polyfill__) return;
+                if (typeof NativeBridge === 'undefined') return;
                 window.__webtoapp_notification_polyfill__ = true;
-
-                if (typeof NativeBridge === 'undefined') {
-                    return;
-                }
 
                 function getPermission() {
                     try {
@@ -6487,20 +6690,22 @@ class WebViewManager(
                     window.PushSubscription = WebToAppPushSubscription;
                 }
 
+                function showFromPage(title, options) {
+                    return new Promise(function(resolve, reject) {
+                        try {
+                            showNativeNotification(title, options);
+                            resolve();
+                        } catch (e) {
+                            reject(e);
+                        }
+                    });
+                }
+
                 if (navigator.serviceWorker && navigator.serviceWorker.ready) {
                     navigator.serviceWorker.ready.then(function(reg) {
-                        if (!reg.showNotification) {
-                            reg.showNotification = function(title, options) {
-                                return new Promise(function(resolve, reject) {
-                                    try {
-                                        showNativeNotification(title, options);
-                                        resolve();
-                                    } catch (e) {
-                                        reject(e);
-                                    }
-                                });
-                            };
-                        }
+                        reg.showNotification = function(title, options) {
+                            return showFromPage(title, options);
+                        };
                         if (!reg.pushManager) {
                             try {
                                 reg.pushManager = new window.PushManager();
@@ -6510,6 +6715,51 @@ class WebViewManager(
                             reg.getNotifications = function() { return Promise.resolve([]); };
                         }
                     }).catch(function(){});
+                }
+
+                // WebView never delivers ServiceWorkerRegistration.showNotification.
+                // Sites that post to the worker (秋秋机's SHOW_LOCAL_NOTIFICATION) only
+                // reach the shade if the worker script itself calls back into the bridge.
+                if (navigator.serviceWorker && navigator.serviceWorker.register &&
+                        !navigator.serviceWorker.__wtaRegisterPatched) {
+                    var originalRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+                    navigator.serviceWorker.__wtaRegisterPatched = true;
+                    navigator.serviceWorker.register = function(scriptURL, options) {
+                        try {
+                            if (options && options.type === 'module') {
+                                return originalRegister(scriptURL, options);
+                            }
+                            var abs = new URL(scriptURL, window.location.href);
+                            if (abs.protocol !== 'http:' && abs.protocol !== 'https:') {
+                                return originalRegister(scriptURL, options);
+                            }
+                            if (abs.origin !== window.location.origin || abs.pathname === '${WebNotificationBridge.BRIDGE_PATH}') {
+                                return originalRegister(scriptURL, options);
+                            }
+                            var scopeUrl = (options && options.scope)
+                                ? new URL(options.scope, window.location.href)
+                                : new URL('./', abs);
+                            var proxy = new URL('${WebNotificationBridge.BRIDGE_PATH}', window.location.origin);
+                            proxy.searchParams.set('src', abs.href);
+                            proxy.searchParams.set('wta', '${WebNotificationBridge.WRAPPER_VERSION}');
+                            var opts = {};
+                            if (options) {
+                                for (var key in options) {
+                                    if (Object.prototype.hasOwnProperty.call(options, key)) opts[key] = options[key];
+                                }
+                            }
+                            opts.scope = scopeUrl.href;
+                            return originalRegister(proxy.href, opts);
+                        } catch (e) {
+                            return originalRegister(scriptURL, options);
+                        }
+                    };
+                    navigator.serviceWorker.addEventListener('message', function(event) {
+                        var data = event.data;
+                        if (!data || data.__wtaShowNotification !== 1) return;
+                        if (window.top !== window) return;
+                        showFromPage(data.title, { body: data.body, tag: data.tag }).catch(function(){});
+                    });
                 }
 
             })();
@@ -6902,6 +7152,15 @@ class WebViewManager(
                 }
             })();
         """.trimIndent()
+    }
+
+    private fun installNotificationPolyfillDocumentStart(webView: WebView) {
+        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) return
+        try {
+            addDocumentStartExceptChallenges(webView, getNotificationPolyfillScript(), setOf("*"))
+        } catch (e: Exception) {
+            AppLogger.w("WebViewManager", "Notification polyfill document-start failed", e)
+        }
     }
 
     private fun injectNotificationPolyfill(webView: WebView) {

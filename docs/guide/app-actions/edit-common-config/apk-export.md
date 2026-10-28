@@ -24,6 +24,7 @@ This list is the official set a **third-party app can declare and request**, fro
 
 - Older saved switches still export as the same bundle. Camera still declares `CAMERA` and `FOREGROUND_SERVICE_CAMERA`. Turning one row off in this list affects only that permission.
 - Features still auto-check the permissions they need (`RuntimePermissionSync`). Export prunes template permissions the app does not use.
+- **Foreground service types** follow the services that remain. `DATA_SYNC` is host-only. A generated app declares `specialUse` only for the services it keeps, and `mediaPlayback` only when media session is on.
 - **Local network** (`ACCESS_LOCAL_NETWORK`) is declared when the app needs the network, so Android 16/17 LAN loads do not fail. You can turn that row off. File HTML with no network omits `INTERNET`, `ACCESS_NETWORK_STATE`, and this permission.
 - **Installed app list** (`QUERY_ALL_PACKAGES`) is off by default. It is written into the generated APK only when checked, and Play may reject it. The GitHub host flavor already declares it for the builder; that does not apply to generated APKs.
 - SMS, call log, outgoing-call processing, all-files access, usage access, unknown-app install, and exact alarms are each their own row and marked Play-restricted. Turning one on writes it into the manifest. Dangerous permissions prompt on first launch. Page JS has no matching API.
@@ -43,7 +44,7 @@ This applies only to generated APKs, not the builder host. Export writes `com.ob
 
 These are chosen when you [Build APK](/guide/app-actions/build-apk):
 
-- **Resource encryption** — PBKDF2 + AES-256-GCM, with an optional custom password.
+- **Resource encryption** — PBKDF2 + AES-256-GCM, with an optional custom password. An encrypted HTML site stays ciphertext in the APK and is decrypted in memory for each request. An invalid AdMob app id is refused before export, including an empty id or an ad-unit id in the app-id field.
 - **Isolation** — per-app isolation of storage/WebRTC/Canvas/Audio/WebGL/fonts/headers/IP. Fingerprints identify as a phone, and the request User-Agent matches the client hints. A saved desktop fingerprint is replaced on the next launch. A custom User-Agent, desktop mode, and a desktop kernel flavor stay as you set them.
 - **Background run** — keep a service alive (`backgroundRunConfig`).
 - **Notifications** — scheduled/persistent notifications and polling (`notificationConfig`).

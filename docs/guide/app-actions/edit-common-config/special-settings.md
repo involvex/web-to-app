@@ -7,14 +7,14 @@ Compatibility polyfills, bridges, and other specialized toggles. This card colle
 ## Polyfills & bridges
 
 - **Clipboard polyfill** — `enableClipboardPolyfill`.
-- **Notification polyfill** — Web Notification support (`enableNotificationPolyfill`).
+- **Notification polyfill** — Web Notification support (`enableNotificationPolyfill`). With web notifications on at export, or this switch on, `new Notification()` and a same-origin service worker's `showNotification` both reach the system shade.
 - **Orientation polyfill** — `enableOrientationPolyfill`.
 - **Compat polyfills** — a bundle of compatibility shims (`enableCompatPolyfills`).
-- **Native bridge** — expose a native bridge with capability gates (`enableNativeBridge`, `nativeBridgeCapabilities`).
-- **Screen capture** — native bridge screen capture (`nativeBridgeCapabilities.screenCapture`). Exposes `window.WtaScreenCapture`.
+- **Native bridge** — expose [`window.NativeBridge`](/extensions/native-bridge) with capability gates (`enableNativeBridge`, `nativeBridgeCapabilities`). The **Folder** capability stays off until enabled. The page then picks one directory and can list, read, and write it through `WtaDirectory` on the system WebView. The grant is kept on that device, so an exported app asks again.
 - **Print bridge** — intercept `window.print()` and PDF output to the Android print framework (`enablePrintBridge`).
 - **Media Session bridge** — bridge web media to the system media notification and lock-screen controls, including Bluetooth headsets and Android Auto (`enableMediaSession`).
-- **Share bridge** — `enableShareBridge`.
+- **Keep playing in background** — audio that is already playing continues after you leave, and the notification can pause it. The picture stops until you come back (`backgroundMediaPlayback`, off by default; turning it on also turns on the media session).
+- **Share from the page** — the page hands text and files to the system share sheet, and the user picks the target app (`enableShareBridge`, on by default). A caption can go with the files. Documents use the same MIME types as the file chooser.
 - **Zoom polyfill** — `enableZoomPolyfill`.
 
 ## Media & content
@@ -24,7 +24,6 @@ Compatibility polyfills, bridges, and other specialized toggles. This card colle
 - **Scroll memory** — remember scroll position (`enableScrollMemory`).
 - **Back-state preservation** — `enableBackStatePreservation`.
 - **Blob download interception** — with scope and size threshold (`enableBlobDownloadInterception`, `blobInterceptThresholdMb`).
-- **Streaming PiP** — enable the **Video Enhance** or **Streaming PiP** plugins (picture-in-picture, speed control, background play, auto-detect for HLS/DASH/YouTube). See [Streaming PiP](/guide/app-actions/edit-common-config/streaming-pip) for details.
 - **Receive shared content** — the generated app appears in the Android share sheet; incoming images/text arrive via the `wta:share` DOM event or prefill the page's file chooser (`receiveShareImages`, `receiveShareText`, `shareDeliveryMode`, `sharePromptBeforeUse`). See [Receive Shared Content](/guide/more-features/share-receive).
 
 ## JavaScript & windows
@@ -64,76 +63,11 @@ For platforms that return to an **https** callback on the wrapped site's own hos
 - **PWA offline** — offline cache strategy (`pwaOfflineEnabled`, `pwaOfflineStrategy`).
 - **Fresh session on launch** — on the **Network & Offline** card, next to PWA offline (`clearBrowsingDataOnLaunch`). Off by default. The generated APK then clears cookies, site storage, and the on-disk WebView profile on each cold start, including the second launch. It cannot be on together with PWA offline. Leaving it off keeps the profile.
 - **Floating back button** — `showFloatingBackButton`.
-- **Keyboard adjust mode** — `keyboardAdjustMode` (resize, …). On Android 10 and below, the RESIZE mode uses the classic window-resize path (the window is not edge-to-edge), so the keyboard resizes content reliably.
+- **Keyboard adjust mode** — `keyboardAdjustMode` (resize, …). On Android 11 and later, RESIZE keeps the top of the page still while the keyboard moves, scrolls the document only enough to keep the focused field visible, and clips at the keyboard. It does not resize the WebView when the animation ends, so the field is not painted a second time. On Android 10 and below, RESIZE uses the classic window-resize path (the window is not edge-to-edge).
 - **Fullscreen video orientation** — how fullscreen video orients (`fullscreenVideoOrientation`), e.g. auto sensor landscape.
 - **Hide URL preview** — `hideUrlPreview`.
 
 ## Notes
 
 - These are power-user toggles; most apps leave them at defaults.
-
-## Screen Capture
-
-Enable **Screen capture** on the Special settings card (it must also be allowed
-by the **Native bridge** capability set). When on, the page gains
-`window.WtaScreenCapture` — a promise-based API backed by the native bridge.
-
-::: details One-shot WebView content capture
-
-Returns a base64 JPEG of the current WebView viewport (no permissions).
-
-```js
-const imageData = await WtaScreenCapture.capture({ quality: 80 });
-const img = document.createElement('img');
-img.src = 'data:image/jpeg;base64,' + imageData;
-document.body.appendChild(img);
-```
-
-:::
-
-::: details Device screen capture (MediaProjection)
-
-Captures the device screen (status bar, other apps) via a one-time consent
-dialog. Resolves a real `MediaStream` so it works in `<video>` and WebRTC.
-
-```js
-window.onDeviceFrame = (base64) => {
-  // base64 = each captured frame as JPEG data URI body
-};
-
-const stream = await WtaScreenCapture.getDisplayMedia({
-  source: 'auto',          // 'device' | 'webview' | 'auto' (falls back silently)
-  quality: 70,             // 0-100
-  interval: 500,           // ms between frames
-  frameTimeout: 15000,     // reject if no first frame in 15s
-  onFrame: window.onDeviceFrame
-});
-
-const video = document.createElement('video');
-video.srcObject = stream;
-document.body.appendChild(video);
-video.play();
-
-// later
-WtaScreenCapture.stopStream(stream);
-```
-
-`requestDeviceAccess()` resolves `true`/`false` when the consent flow completes
-(timeout 120s by default):
-
-```js
-const granted = await WtaScreenCapture.requestDeviceAccess();
-if (granted) { /* safe to call getDisplayMedia */ }
-```
-
-Notes:
-
-- Device capture is unavailable in **floating-window** apps and Gecko-engine
-  previews — `getDisplayMedia` with `source: 'auto'` transparently falls back to
-  WebView-content capture there.
-- If the system revokes the grant mid-capture, the stream's tracks end and
-  `onFrame` receives `'revoked'`.
-- The native loop is shared: multiple streams multiplex onto one capture, and
-  `stopStream`/`stopAll` tear down everything.
-
 - **Defaults:** the safe experience features default to **ON** for new apps — clipboard / orientation / compat polyfills, media session, share, zoom and print bridges, image repair, scroll memory, back-state preservation, blob interception, JS windows, user-activation priming, base64 deep links, app return, private-network bridge, and the native bridge. Deliberately **OFF**: notification polyfill (it would prompt `POST_NOTIFICATIONS` on every export), geolocation, mixed content, third-party cookies, autoplay, and popup blocking.

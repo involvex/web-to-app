@@ -1364,6 +1364,71 @@ object StringsA {
         AppLanguage.KOREAN -> "%d개 사이트"
     }
 
+    val multiWebSearchSites: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "搜索站点"
+        AppLanguage.ENGLISH -> "Search sites"
+        AppLanguage.ARABIC -> "البحث في المواقع"
+        AppLanguage.PORTUGUESE -> "Pesquisar sites"
+        AppLanguage.SPANISH -> "Buscar sitios"
+        AppLanguage.FRENCH -> "Rechercher des sites"
+        AppLanguage.GERMAN -> "Seiten suchen"
+        AppLanguage.RUSSIAN -> "Поиск сайтов"
+        AppLanguage.JAPANESE -> "サイトを検索"
+        AppLanguage.KOREAN -> "사이트 검색"
+    }
+
+    val multiWebSearchEmpty: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "没有匹配的站点"
+        AppLanguage.ENGLISH -> "No matching sites"
+        AppLanguage.ARABIC -> "لا توجد مواقع مطابقة"
+        AppLanguage.PORTUGUESE -> "Nenhum site correspondente"
+        AppLanguage.SPANISH -> "Ningún sitio coincide"
+        AppLanguage.FRENCH -> "Aucun site correspondant"
+        AppLanguage.GERMAN -> "Keine passenden Seiten"
+        AppLanguage.RUSSIAN -> "Нет подходящих сайтов"
+        AppLanguage.JAPANESE -> "一致するサイトがありません"
+        AppLanguage.KOREAN -> "일치하는 사이트 없음"
+    }
+
+    val multiWebSavedSites: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已保存"
+        AppLanguage.ENGLISH -> "Saved"
+        AppLanguage.ARABIC -> "المحفوظة"
+        AppLanguage.PORTUGUESE -> "Salvos"
+        AppLanguage.SPANISH -> "Guardados"
+        AppLanguage.FRENCH -> "Enregistrés"
+        AppLanguage.GERMAN -> "Gespeichert"
+        AppLanguage.RUSSIAN -> "Сохранённые"
+        AppLanguage.JAPANESE -> "保存済み"
+        AppLanguage.KOREAN -> "저장됨"
+    }
+
+    val multiWebSaveSite: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "保存站点"
+        AppLanguage.ENGLISH -> "Save site"
+        AppLanguage.ARABIC -> "حفظ الموقع"
+        AppLanguage.PORTUGUESE -> "Salvar site"
+        AppLanguage.SPANISH -> "Guardar sitio"
+        AppLanguage.FRENCH -> "Enregistrer le site"
+        AppLanguage.GERMAN -> "Seite speichern"
+        AppLanguage.RUSSIAN -> "Сохранить сайт"
+        AppLanguage.JAPANESE -> "サイトを保存"
+        AppLanguage.KOREAN -> "사이트 저장"
+    }
+
+    val multiWebUnsaveSite: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "取消保存"
+        AppLanguage.ENGLISH -> "Remove saved site"
+        AppLanguage.ARABIC -> "إزالة الموقع المحفوظ"
+        AppLanguage.PORTUGUESE -> "Remover site salvo"
+        AppLanguage.SPANISH -> "Quitar sitio guardado"
+        AppLanguage.FRENCH -> "Retirer le site enregistré"
+        AppLanguage.GERMAN -> "Gespeicherte Seite entfernen"
+        AppLanguage.RUSSIAN -> "Убрать сохранённый сайт"
+        AppLanguage.JAPANESE -> "保存を解除"
+        AppLanguage.KOREAN -> "저장 해제"
+    }
+
     val multiWebDeleteSite: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "删除站点"
         AppLanguage.ENGLISH -> "Delete Site"
@@ -6696,6 +6761,19 @@ object StringsA {
         AppLanguage.KOREAN -> "기본 포트"
     }
 
+    val portRangeHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "请输入 1024 到 65535 之间的端口"
+        AppLanguage.ENGLISH -> "Enter a port from 1024 to 65535"
+        AppLanguage.ARABIC -> "أدخل منفذًا من 1024 إلى 65535"
+        AppLanguage.PORTUGUESE -> "Digite uma porta de 1024 a 65535"
+        AppLanguage.SPANISH -> "Introduce un puerto del 1024 al 65535"
+        AppLanguage.FRENCH -> "Saisissez un port de 1024 à 65535"
+        AppLanguage.GERMAN -> "Geben Sie einen Port von 1024 bis 65535 ein"
+        AppLanguage.RUSSIAN -> "Введите порт от 1024 до 65535"
+        AppLanguage.JAPANESE -> "1024 から 65535 のポートを入力"
+        AppLanguage.KOREAN -> "1024에서 65535 사이의 포트를 입력"
+    }
+
     val orientationModeLabel: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "屏幕方向"
         AppLanguage.ENGLISH -> "Screen Orientation"
@@ -10018,6 +10096,54 @@ object StringsA {
         AppLanguage.JAPANESE -> "期限 %s"
         AppLanguage.KOREAN -> "만료 %s"
     }
+    val showRemainingDaysOnLaunch: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "每次启动显示剩余天数"
+        AppLanguage.ENGLISH -> "Show remaining days on each launch"
+        AppLanguage.ARABIC -> "عرض الأيام المتبقية عند كل تشغيل"
+        AppLanguage.PORTUGUESE -> "Mostrar dias restantes a cada inicialização"
+        AppLanguage.SPANISH -> "Mostrar días restantes en cada inicio"
+        AppLanguage.FRENCH -> "Afficher les jours restants à chaque lancement"
+        AppLanguage.GERMAN -> "Verbleibende Tage bei jedem Start anzeigen"
+        AppLanguage.RUSSIAN -> "Показывать оставшиеся дни при каждом запуске"
+        AppLanguage.JAPANESE -> "起動のたびに残り日数を表示"
+        AppLanguage.KOREAN -> "실행할 때마다 남은 일수 표시"
+    }
+    val showRemainingDaysOnLaunchHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "用这张卡激活后，应用每次启动都会提示还剩多少天。"
+        AppLanguage.ENGLISH -> "After this code is activated, each launch shows how many days are left."
+        AppLanguage.ARABIC -> "بعد التفعيل بهذه البطاقة، يعرض كل تشغيل الأيام المتبقية."
+        AppLanguage.PORTUGUESE -> "Depois de ativar com este código, cada inicialização mostra quantos dias restam."
+        AppLanguage.SPANISH -> "Tras activar con este código, cada inicio muestra cuántos días quedan."
+        AppLanguage.FRENCH -> "Une fois ce code activé, chaque lancement indique les jours restants."
+        AppLanguage.GERMAN -> "Nach der Aktivierung mit diesem Code zeigt jeder Start die verbleibenden Tage."
+        AppLanguage.RUSSIAN -> "После активации этим кодом каждый запуск показывает, сколько дней осталось."
+        AppLanguage.JAPANESE -> "このコードで認証すると、起動のたびに残り日数を表示します。"
+        AppLanguage.KOREAN -> "이 코드로 인증하면 실행할 때마다 남은 일수를 보여 줍니다."
+    }
+    val remainingDaysOnLaunchTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "剩余天数"
+        AppLanguage.ENGLISH -> "Days remaining"
+        AppLanguage.ARABIC -> "الأيام المتبقية"
+        AppLanguage.PORTUGUESE -> "Dias restantes"
+        AppLanguage.SPANISH -> "Días restantes"
+        AppLanguage.FRENCH -> "Jours restants"
+        AppLanguage.GERMAN -> "Verbleibende Tage"
+        AppLanguage.RUSSIAN -> "Осталось дней"
+        AppLanguage.JAPANESE -> "残り日数"
+        AppLanguage.KOREAN -> "남은 일수"
+    }
+    fun remainingDaysOnLaunchMessage(days: Long, hours: Long): String = when (Strings.lang) {
+        AppLanguage.CHINESE -> "还剩 $days 天 $hours 小时"
+        AppLanguage.ENGLISH -> "$days days $hours hours left"
+        AppLanguage.ARABIC -> "متبقٍ $days يوم و $hours ساعة"
+        AppLanguage.PORTUGUESE -> "Restam $days dias e $hours horas"
+        AppLanguage.SPANISH -> "Quedan $days días y $hours horas"
+        AppLanguage.FRENCH -> "Il reste $days jours et $hours heures"
+        AppLanguage.GERMAN -> "Noch $days Tage und $hours Stunden"
+        AppLanguage.RUSSIAN -> "Осталось $days дн. $hours ч."
+        AppLanguage.JAPANESE -> "残り $days 日 $hours 時間"
+        AppLanguage.KOREAN -> "${days}일 ${hours}시간 남음"
+    }
 
     val usageCount: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "使用次数"
@@ -13276,7 +13402,7 @@ object StringsA {
         AppLanguage.CHINESE -> "控制台"
         AppLanguage.ENGLISH -> "Console"
         AppLanguage.ARABIC -> "وحدة التحكم"
-        AppLanguage.PORTUGUESE -> "Consola"
+        AppLanguage.PORTUGUESE -> "Console"
         AppLanguage.SPANISH -> "Consola"
         AppLanguage.FRENCH -> "Console"
         AppLanguage.GERMAN -> "Konsole"

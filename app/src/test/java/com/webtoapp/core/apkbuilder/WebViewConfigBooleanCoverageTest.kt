@@ -49,7 +49,8 @@ class WebViewConfigBooleanCoverageTest {
             "hideStatusBarInVideoFullscreen",
             "showNavigationBarInFullscreen", "showToolbarInFullscreen", "landscapeMode",
             "longPressMenuEnabled", "popupBlockerEnabled", "popupBlockerToggleEnabled",
-            "openExternalLinks", "showFloatingBackButton", "swipeRefreshEnabled",
+            "openExternalLinks", "showFloatingBackButton", "forwardVolumeKeys",
+            "consumeVolumeKeys", "swipeRefreshEnabled",
             "overscrollEffectEnabled",
             "fullscreenEnabled", "performanceOptimization", "pwaOfflineEnabled",
             "staticAssetPackEnabled", "staticAssetPackIncludeImages", "staticAssetPackIncludeCdn",
@@ -60,6 +61,7 @@ class WebViewConfigBooleanCoverageTest {
             "enableOrientationPolyfill", "enableCompatPolyfills",
             "enableCorsBypass", "allowMixedContent",
             "enableBlobDownloadInterception", "enablePrintBridge", "enableMediaSession",
+            "backgroundMediaPlayback",
             "enableCloudflareCompat", "enableCookiePersistence",
             "enablePrivateNetworkBridge", "enableNativeBridge",
             "enablePaymentSchemes", "enableShareBridge", "enableZoomPolyfill",
@@ -185,6 +187,7 @@ class WebViewConfigBooleanCoverageTest {
             "nativeBridgeFullscreen", "nativeBridgePrint", "nativeBridgeScreenCapture",
             "nativeBridgePip", "nativeBridgeRating",
             "nativeBridgeGoogleSignIn",
+            "nativeBridgeDirectory",
             "failoverTriggerNetworkError", "failoverTriggerHttp5xx",
             "failoverTriggerHttp4xx", "failoverTriggerTimeout"
         )
@@ -216,6 +219,7 @@ class WebViewConfigBooleanCoverageTest {
                 mixedContentMode = com.webtoapp.data.model.MixedContentMode.COMPATIBILITY,
                 swipeRefreshZone = com.webtoapp.data.model.SwipeRefreshZone.ANYWHERE,
                 autoRefreshIntervalSec = 120,
+                mediaAlbumName = "Novels",
                 blobInterceptThresholdMb = 10,
                 screenAwakeTimeoutMinutes = 15,
                 pageZoomPercent = 125,
@@ -226,7 +230,8 @@ class WebViewConfigBooleanCoverageTest {
                 fullscreenContentPaddingEndDp = 12,
                 nativeBridgeCapabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
                     googleSignIn = true,
-                    googleSignInClientId = "test-client-id.apps.googleusercontent.com"
+                    googleSignInClientId = "test-client-id.apps.googleusercontent.com",
+                    directory = true
                 )
             )
         )
@@ -250,6 +255,7 @@ class WebViewConfigBooleanCoverageTest {
         readShell("cloudflareCompatMode", "ALWAYS_ON")
         readShell("swipeRefreshZone", "ANYWHERE")
         readShell("autoRefreshIntervalSec", 120)
+        readShell("mediaAlbumName", "Novels")
         readShell("blobInterceptThresholdMb", 10)
         readShell("screenAwakeTimeoutMinutes", 15)
         readShell("pageZoomPercent", 125)
@@ -264,6 +270,7 @@ class WebViewConfigBooleanCoverageTest {
         // the export, or the generated app silently falls back to the disabled state.
         readShell("nativeBridgeGoogleSignIn", true)
         readShell("nativeBridgeGoogleSignInClientId", "test-client-id.apps.googleusercontent.com")
+        readShell("nativeBridgeDirectory", true)
     }
 
     @Test
@@ -517,6 +524,8 @@ class WebViewConfigBooleanCoverageTest {
             popupBlockerToggleEnabled = bool("popupBlockerToggleEnabled"),
             openExternalLinks = bool("openExternalLinks"),
             showFloatingBackButton = bool("showFloatingBackButton"),
+            forwardVolumeKeys = bool("forwardVolumeKeys"),
+            consumeVolumeKeys = bool("consumeVolumeKeys"),
             swipeRefreshEnabled = bool("swipeRefreshEnabled"),
             overscrollEffectEnabled = bool("overscrollEffectEnabled"),
             fullscreenEnabled = bool("fullscreenEnabled"),
@@ -539,6 +548,7 @@ class WebViewConfigBooleanCoverageTest {
             enableBlobDownloadInterception = bool("enableBlobDownloadInterception"),
             enablePrintBridge = bool("enablePrintBridge"),
             enableMediaSession = bool("enableMediaSession"),
+            backgroundMediaPlayback = bool("backgroundMediaPlayback"),
             enableCloudflareCompat = bool("enableCloudflareCompat"),
             enableCookiePersistence = bool("enableCookiePersistence"),
             enablePrivateNetworkBridge = bool("enablePrivateNetworkBridge"),

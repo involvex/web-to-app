@@ -28,17 +28,20 @@ object NodeDependencyManager {
 
     enum class MirrorRegion { CN, GLOBAL }
 
-    // capawesome-team fork: same Node 18.20.4 core, Android binaries pre-built with 16 KB page
-    // alignment (upstream `release18-20-4+16kb-fix` branch) — no runtime ELF rewrite needed.
-    private val NODE_GITHUB_URL = "https://github.com/capawesome-team/nodejs-mobile/releases/download/v18.20.4-capawesome.1/nodejs-mobile-v18.20.4-capawesome.1-android.zip"
+    // capawesome-team fork: Node 18.20.4 with 16 KB page alignment and full ICU.
+    // The earlier capawesome.1 binary was small-icu, so V8 rejected Unicode
+    // property escapes such as \p{ID_Start} (path-to-regexp / Express 5).
+    private val NODE_GITHUB_URL = "https://github.com/capawesome-team/nodejs-mobile/releases/download/v18.20.4-capawesome.3/nodejs-mobile-v18.20.4-capawesome.3-android.zip"
 
     /**
-     * SHA-256 of nodejs-mobile-v18.20.4-capawesome.1-android.zip.
+     * SHA-256 of nodejs-mobile-v18.20.4-capawesome.3-android.zip.
      * Verify with `shasum -a 256 <zip>` against the GitHub release when bumping
      * [NODE_GITHUB_URL] / NODE_VERSION — mismatches fail the download loudly.
      */
     private const val NODE_ZIP_SHA256 =
-        "1b3c7979c81aec89a7f51b29af1f4875a5d637727ad6e2c392cdf2e127715da9"
+        "0a8d094d3f60bcd3b8ff0ad98e4aafeeb59c933fbf53af82eb7cdeab015c503f"
+
+    private const val RUNTIME_STAMP_NAME = "runtime.sha256"
 
     data class MirrorConfig(
 
@@ -128,8 +131,22 @@ object NodeDependencyManager {
 
     /** The libnode.so cached for [abi], or null when the runtime zip never provided it. */
     fun nodeLibForAbi(context: Context, abi: String): File? {
+        if (!cachedRuntimeIsCurrent(context)) return null
         val lib = File(getNodeDir(context, abi), NODE_BINARY_NAME)
         return lib.takeIf { it.exists() && it.isFile && it.length() > 0L }
+    }
+
+    /**
+     * True when the on-disk Node zip matches [NODE_ZIP_SHA256]. A cache left by
+     * an older build (small-icu 18.20.4) must not count as installed.
+     */
+    internal fun cachedRuntimeIsCurrent(context: Context): Boolean {
+        val stamp = File(getDepsDir(context), RUNTIME_STAMP_NAME)
+        return stamp.isFile && stamp.readText().trim() == NODE_ZIP_SHA256
+    }
+
+    internal fun writeRuntimeStamp(context: Context) {
+        File(getDepsDir(context), RUNTIME_STAMP_NAME).writeText(NODE_ZIP_SHA256)
     }
 
     /**
@@ -190,10 +207,12 @@ object NodeDependencyManager {
     }
 
     const val NODE_BINARY_NAME = "libnode.so"
+    const val CXX_SHARED_NAME = "libc++_shared.so"
 
     fun isNodeReady(context: Context): Boolean {
         val nativeNode = File(context.applicationInfo.nativeLibraryDir, NODE_BINARY_NAME)
-        if (nativeNode.exists()) return true
+        if (nativeNode.exists() && nativeNode.length() > 0L) return true
+        if (!cachedRuntimeIsCurrent(context)) return false
         val downloadedNode = File(getNodeDir(context), NODE_BINARY_NAME)
         return downloadedNode.exists() && downloadedNode.length() > 0
     }
@@ -205,7 +224,7 @@ object NodeDependencyManager {
             return nativeNode.absolutePath
         }
         val downloadedNode = File(getNodeDir(context), NODE_BINARY_NAME)
-        if (downloadedNode.exists()) {
+        if (downloadedNode.exists() && cachedRuntimeIsCurrent(context)) {
             AppLogger.d(TAG, "Using downloaded Node: ${downloadedNode.absolutePath}")
             return downloadedNode.absolutePath
         }
@@ -232,6 +251,7 @@ object NodeDependencyManager {
                 }
                 ensureLibnodePageAligned(staged)
                 if (staged.exists() && staged.length() > 0L && isElfPageAlignmentCompatible(staged)) {
+                    stageCxxSharedBeside(context, staged)
                     AppLogger.d(TAG, "libnode.so path (staged+aligned from nativeLibraryDir): ${staged.absolutePath}")
                     return staged.absolutePath
                 }
@@ -245,13 +265,37 @@ object NodeDependencyManager {
             return nativeNode.absolutePath
         }
         val downloadedNode = File(getNodeDir(context), NODE_BINARY_NAME)
-        if (downloadedNode.exists() && downloadedNode.length() > 0) {
+        if (downloadedNode.exists() && downloadedNode.length() > 0 && cachedRuntimeIsCurrent(context)) {
             ensureLibnodePageAligned(downloadedNode)
+            stageCxxSharedBeside(context, downloadedNode)
             AppLogger.d(TAG, "libnode.so path (download cache): ${downloadedNode.absolutePath}")
             return downloadedNode.absolutePath
         }
         AppLogger.w(TAG, "libnode.so is missing from both nativeLibraryDir and download cache")
         return null
+    }
+
+    /**
+     * libnode.so's DT_NEEDED entry is libc++_shared.so. A dlopen from the
+     * download directory does not search the APK's lib dir unless that file
+     * is also beside libnode.so (and on LD_LIBRARY_PATH for the launcher).
+     */
+    fun stageCxxSharedBeside(context: Context, libnode: File) {
+        val dir = libnode.parentFile ?: return
+        val staged = File(dir, CXX_SHARED_NAME)
+        val source = File(context.applicationInfo.nativeLibraryDir, CXX_SHARED_NAME)
+        if (!source.isFile || source.length() <= 0L) {
+            if (!staged.isFile) {
+                AppLogger.e(TAG, "libc++_shared.so missing at ${source.absolutePath}")
+            }
+            return
+        }
+        if (source.absolutePath == staged.absolutePath) return
+        val stale = !staged.isFile || staged.length() != source.length() ||
+            staged.lastModified() < source.lastModified()
+        if (!stale) return
+        source.copyTo(staged, overwrite = true)
+        AppLogger.i(TAG, "Staged libc++_shared.so beside libnode.so: ${staged.absolutePath}")
     }
 
     private fun ensureLibnodePageAligned(lib: File) {
@@ -366,6 +410,7 @@ object NodeDependencyManager {
                 ensureLibnodePageAligned(File(getNodeDir(context, extractedAbi), NODE_BINARY_NAME))
             }
 
+            writeRuntimeStamp(context)
             archiveFile.delete()
             return true
         } catch (e: Exception) {
@@ -875,4 +920,13 @@ object NodeDependencyManager {
             dst[off + i] = ((value ushr (8 * i)) and 0xffL).toByte()
         }
     }
+}
+
+internal fun nodeLinkerPath(libnodeDir: String?, nativeLibDir: String, existing: String): String {
+    return listOfNotNull(libnodeDir, nativeLibDir, existing)
+        .flatMap { it.split(File.pathSeparator) }
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinct()
+        .joinToString(File.pathSeparator)
 }

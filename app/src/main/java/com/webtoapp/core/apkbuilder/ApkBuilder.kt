@@ -28,6 +28,7 @@ import com.webtoapp.data.model.PermissionFeatureDefaults
 import com.webtoapp.data.model.AnnouncementTemplateType
 import com.webtoapp.data.model.HtmlLoadMode
 import com.webtoapp.data.model.WebApp
+import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.data.model.withRuntimePermissionsSyncedFromFeatures
 import com.webtoapp.data.model.getActivationCodeStrings
 import com.webtoapp.ui.components.announcement.toUiTemplate
@@ -382,6 +383,11 @@ class ApkBuilder(private val context: Context) {
     ): BuildResult {
         if (!AdvancedAppTypes.isUsable(context, webApp.appType)) {
             return BuildResult.Error(Strings.advancedFeaturesOff)
+        }
+        if (webApp.adsEnabled && !com.webtoapp.BuildConfig.FDROID &&
+            AdMobAppIds.manifestValue(webApp.adConfig?.appId.orEmpty(), webApp.adConfig?.testMode == true) == null
+        ) {
+            return BuildResult.Error(Strings.adMobAppIdInvalid)
         }
         return withContext(Dispatchers.IO) {
         // Serialize builds of the same package across all entry points (export screen,
@@ -1632,7 +1638,12 @@ class ApkBuilder(private val context: Context) {
                             stackBundles.forEach { bundle ->
                                 modifiedData = featureStackGrafter.graftManifest(
                                     modifiedData, bundle, config.packageName,
-                                    mapOf("admobAppId" to config.adAppId)
+                                    mapOf(
+                                        "admobAppId" to (
+                                            AdMobAppIds.manifestValue(config.adAppId, config.adTestMode)
+                                                ?: config.adAppId
+                                            )
+                                    )
                                 )
                             }
                             writeEntryDeflated(zipOut, entry.name, modifiedData)
@@ -2873,7 +2884,9 @@ class ApkBuilder(private val context: Context) {
 
         val reqFile = File(projectDir, "requirements.txt")
         val sitePackages = File(projectDir, ".pypackages")
-        if (reqFile.exists() && !com.webtoapp.core.python.PythonDependencyManager.hasInstalledPackages(sitePackages)) {
+        val needsPrebundle = com.webtoapp.core.python.PythonDependencyManager.hasInstallableRequirements(reqFile) &&
+            !com.webtoapp.core.python.PythonDependencyManager.hasInstalledPackages(sitePackages)
+        if (needsPrebundle) {
             val pythonBin = com.webtoapp.core.python.PythonDependencyManager.getPythonExecutablePath(context)
             val muslLinker = com.webtoapp.core.python.PythonDependencyManager.getMuslLinkerPath(context)
             val pythonBinaryReady = File(pythonBin).exists()
@@ -2904,6 +2917,8 @@ class ApkBuilder(private val context: Context) {
             }
         } else if (com.webtoapp.core.python.PythonDependencyManager.hasInstalledPackages(sitePackages)) {
             logger.log("Python .pypackages already exists (${sitePackages.listFiles()?.size ?: 0} packages), skipping pre-install")
+        } else if (reqFile.isFile) {
+            logger.log("requirements.txt has no installable dependencies; embedding it with the project files")
         }
 
         RuntimeAssetEmbedder.embedProjectFiles(zipOut, projectDir, RuntimeAssetEmbedder.pythonConfig(), logger)
@@ -3738,17 +3753,29 @@ builtins.__import__ = _w2a_import
 
             val configJson = template.createConfigJson(config)
             val encryptedData = encryptor.encryptJson(configJson, "app_config.json")
-            writeEntryDeflated(zipOut, ApkTemplate.CONFIG_PATH + ".enc", encryptedData)
+            writeConfigBytes(zipOut, ApkTemplate.CONFIG_PATH + ".enc", encryptedData)
 
             val stubJson = template.createEncryptedStubJson(config)
             val stubData = stubJson.toByteArray(Charsets.UTF_8)
-            writeEntryDeflated(zipOut, ApkTemplate.CONFIG_PATH, stubData)
+            writeConfigBytes(zipOut, ApkTemplate.CONFIG_PATH, stubData)
             AppLogger.d("ApkBuilder", "Config file encrypted (minimal stub, no sensitive data)")
         } else {
 
             val configJson = template.createConfigJson(config)
             val data = configJson.toByteArray(Charsets.UTF_8)
-            writeEntryDeflated(zipOut, ApkTemplate.CONFIG_PATH, data)
+            writeConfigBytes(zipOut, ApkTemplate.CONFIG_PATH, data)
+        }
+    }
+
+    /**
+     * AssetManager will not open a deflated entry whose uncompressed size
+     * exceeds 1 MiB, and plugin bodies live in this JSON.
+     */
+    private fun writeConfigBytes(zipOut: ZipOutputStream, name: String, data: ByteArray) {
+        if (ZipUtils.configBytesShouldBeStored(data.size)) {
+            ZipUtils.writeEntryStoredSimple(zipOut, name, data)
+        } else {
+            writeEntryDeflated(zipOut, name, data)
         }
     }
 
@@ -3892,7 +3919,10 @@ builtins.__import__ = _w2a_import
             permissions = config.runtimePermissions,
             defaults = PermissionFeatureDefaults(
                 network = config.requiresNetworkPermissions(),
-                mediaSessionOrBgm = config.bgmEnabled || config.enableMediaSession,
+                mediaPlayback = config.enableMediaSession || config.backgroundMediaPlayback,
+                specialUse = config.backgroundRunEnabled ||
+                    config.notificationEnabled ||
+                    config.floatingWindowEnabled,
                 scheduledExactAlarm = config.scheduledStartEnabled,
                 activationBiometric = config.activationEnabled
             ),
@@ -3930,6 +3960,10 @@ builtins.__import__ = _w2a_import
 
         if (config.floatingWindowEnabled) {
             components += "com.webtoapp.core.floatingwindow.FloatingWindowService"
+        }
+
+        if (config.enableMediaSession || config.backgroundMediaPlayback) {
+            components += "com.webtoapp.core.webview.WebMediaPlaybackService"
         }
 
         if (config.bootStartEnabled || config.scheduledStartEnabled) {
@@ -4306,6 +4340,9 @@ private fun com.webtoapp.data.model.WebViewConfig.toWebViewBlock(context: androi
         openExternalLinks = openExternalLinks,
         showFloatingBackButton = showFloatingBackButton,
         backButtonBehavior = backButtonBehavior,
+        forwardVolumeKeys = forwardVolumeKeys,
+        consumeVolumeKeys = consumeVolumeKeys,
+        mediaAlbumName = mediaAlbumName,
         swipeRefreshEnabled = swipeRefreshEnabled,
         swipeRefreshZone = swipeRefreshZone.name,
         overscrollEffectEnabled = overscrollEffectEnabled,
@@ -4338,7 +4375,15 @@ private fun WebApp.buildWebViewBlock(context: android.content.Context?): WebView
     }
 }
 
-private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBehaviorBlock(
+private fun WebApp.exportsWebNotificationPolyfill(): Boolean =
+    webViewConfig.enableNotificationPolyfill ||
+        (apkExportConfig?.let {
+            it.notificationEnabled && it.notificationConfig?.type?.key == "web_api"
+        } == true)
+
+private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock {
+    val webNotificationPolyfill = exportsWebNotificationPolyfill()
+    return WebViewBehaviorBlock(
     initialScale = webViewConfig.initialScale,
     pageZoomPercent = webViewConfig.pageZoomPercent,
     viewportMode = webViewConfig.viewportMode.name,
@@ -4363,10 +4408,7 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     enableBackStatePreservation = webViewConfig.enableBackStatePreservation,
     followSystemDarkMode = webViewConfig.followSystemDarkMode,
     enableClipboardPolyfill = webViewConfig.enableClipboardPolyfill,
-    enableNotificationPolyfill = webViewConfig.enableNotificationPolyfill ||
-        (apkExportConfig?.let {
-            it.notificationEnabled && it.notificationConfig?.type?.key == "web_api"
-        } == true),
+    enableNotificationPolyfill = webNotificationPolyfill,
     geolocationEnabled = webViewConfig.geolocationEnabled ||
         (apkExportConfig?.runtimePermissions?.location == true),
     geolocationAccuracy = webViewConfig.geolocationAccuracy.name,
@@ -4378,7 +4420,9 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     nativeBridgeVibration = webViewConfig.nativeBridgeCapabilities.vibration,
     nativeBridgeGeolocation = webViewConfig.nativeBridgeCapabilities.geolocation,
     nativeBridgeBrightness = webViewConfig.nativeBridgeCapabilities.brightness,
-    nativeBridgeNotification = webViewConfig.nativeBridgeCapabilities.notification,
+    nativeBridgeNotification = webViewConfig.nativeBridgeCapabilities
+        .withNotificationPolyfill(webNotificationPolyfill)
+        .notification,
     nativeBridgeNotificationScheduled = webViewConfig.nativeBridgeCapabilities.notificationScheduled,
     nativeBridgeNotificationPersistent = webViewConfig.nativeBridgeCapabilities.notificationPersistent,
     nativeBridgeDownload = webViewConfig.nativeBridgeCapabilities.download,
@@ -4403,6 +4447,9 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     ratingTriggerDays = webViewConfig.ratingTriggerDays,
     ratingTriggerLaunches = webViewConfig.ratingTriggerLaunches,
     pictureInPictureEnabled = webViewConfig.pictureInPictureEnabled,
+
+    nativeBridgeDirectory = webViewConfig.nativeBridgeCapabilities.directory,
+
     javaScriptCanOpenWindows = webViewConfig.javaScriptCanOpenWindows,
     jsOpenWindowsPolicy = webViewConfig.jsOpenWindowsPolicy.name,
     databaseEnabled = webViewConfig.databaseEnabled,
@@ -4417,6 +4464,7 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     blobInterceptThresholdMb = webViewConfig.blobInterceptThresholdMb,
     enablePrintBridge = webViewConfig.enablePrintBridge,
     enableMediaSession = webViewConfig.enableMediaSession,
+    backgroundMediaPlayback = webViewConfig.backgroundMediaPlayback,
     enableCloudflareCompat = webViewConfig.enableCloudflareCompat,
     cloudflareCompatMode = webViewConfig.cloudflareCompatMode.name,
     primeUserActivation = webViewConfig.primeUserActivation,
@@ -4435,6 +4483,7 @@ private fun WebApp.buildWebViewBehaviorBlock(): WebViewBehaviorBlock = WebViewBe
     autoRefreshIntervalSec = webViewConfig.autoRefreshIntervalSec,
     autoRefreshShowCountdown = webViewConfig.autoRefreshShowCountdown
 )
+}
 
 private fun WebApp.buildScreenAwakeBlock(): ScreenAwakeBlock = ScreenAwakeBlock(
     keepScreenOn = webViewConfig.keepScreenOn,
@@ -5271,90 +5320,109 @@ private fun buildOAuthReturnSchemes(
     return schemes.distinct()
 }
 
-fun WebApp.toApkConfigWithModules(packageName: String, context: android.content.Context): ApkConfig {
-    val baseConfig = toApkConfig(packageName, context)
-    val extensionFileManager = com.webtoapp.core.extension.ExtensionFileManager(context)
-
-    val embeddedPlugins = if (pluginIds.isNotEmpty()) {
+/**
+ * Resolve each id on its own. A missing plugin or a throw from one package
+ * is omitted and logged. It must not blank the plugins that did resolve.
+ */
+internal fun <T> embedPlugins(
+    ids: List<String>,
+    resolve: (String) -> T?,
+): List<T> {
+    val out = ArrayList<T>(ids.size)
+    for (id in ids) {
         try {
-            val pluginStore = com.webtoapp.core.plugin.PluginStore.getInstance(context)
-
-            kotlinx.coroutines.runBlocking {
-                kotlinx.coroutines.withTimeoutOrNull(5000L) {
-                    pluginStore.awaitLoaded()
-                }
-            }
-
-            val resolvedPlugins = pluginStore.getPluginsByIds(pluginIds)
-
-            if (resolvedPlugins.size < pluginIds.size) {
-                val foundIds = resolvedPlugins.map { it.id }.toSet()
-                val missingIds = pluginIds.filter { it !in foundIds }
-                AppLogger.w(
-                    "ApkBuilder",
-                    "Plugin resolution: requested ${pluginIds.size}, found ${resolvedPlugins.size}. " +
-                        "Missing IDs (will NOT be embedded in APK): $missingIds"
-                )
-            }
-
-            resolvedPlugins.map { plugin ->
-                val code = pluginStore.loadPackageCode(plugin)
-                val resolvedRequireContents = linkedMapOf<String, String>()
-                plugin.requireUrls.forEach { url ->
-                    extensionFileManager.getCachedRequire(url)?.let { resolvedRequireContents[url] = it }
-                }
-
-                val resolvedResources = linkedMapOf<String, String>()
-                plugin.resources.forEach { (name, url) ->
-                    resolvedResources[name] = extensionFileManager.getCachedResource(name, url) ?: url
-                }
-
-                EmbeddedPlugin(
-                    id = plugin.id,
-                    name = plugin.name,
-                    kind = plugin.kind.name,
-                    description = plugin.description,
-                    icon = plugin.icon,
-                    versionName = plugin.versionName,
-                    authorName = plugin.authorName,
-                    matches = plugin.matches.map { rule ->
-                        EmbeddedMatchPattern(
-                            pattern = rule.pattern,
-                            regex = rule.isRegex,
-                            exclude = rule.exclude
-                        )
-                    },
-                    runAt = plugin.runAt.name,
-                    permissions = plugin.permissions.map { it.name },
-                    toolbar = plugin.showInToolbar,
-                    hasPanel = hasPanelMarkup(code.panelHtml),
-                    entryStyle = plugin.entryStyle.name,
-                    panelStyle = plugin.panelStyle.name,
-                    mainJs = code.mainJs,
-                    css = code.css,
-                    panelHtml = code.panelHtml,
-                    gmGrants = plugin.gmGrants,
-                    requireUrls = plugin.requireUrls,
-                    requireContents = resolvedRequireContents,
-                    resources = resolvedResources,
-                    chromeExtId = plugin.chromeExtId,
-                    manifestJson = plugin.manifestJson,
-                    backgroundScript = plugin.backgroundScript,
-                    popupPath = plugin.popupPath,
-                    optionsPagePath = plugin.optionsPagePath,
-                    legacyCompat = plugin.legacyCompat
-                )
+            val item = resolve(id)
+            if (item == null) {
+                AppLogger.w("ApkBuilder", "Plugin $id is not installed; omitted from the APK")
+            } else {
+                out.add(item)
             }
         } catch (e: Exception) {
-            AppLogger.e("ApkBuilder", "Failed to resolve plugin data", e)
-            emptyList()
+            AppLogger.e("ApkBuilder", "Failed to embed plugin $id", e)
         }
-    } else {
-        emptyList()
+    }
+    return out
+}
+
+private fun embedOnePlugin(
+    plugin: com.webtoapp.core.plugin.Plugin,
+    pluginStore: com.webtoapp.core.plugin.PluginStore,
+    extensionFileManager: com.webtoapp.core.extension.ExtensionFileManager,
+): EmbeddedPlugin {
+    val code = pluginStore.loadPackageCode(plugin)
+    val resolvedRequireContents = linkedMapOf<String, String>()
+    plugin.requireUrls.forEach { url ->
+        extensionFileManager.getCachedRequire(url)?.let { resolvedRequireContents[url] = it }
+    }
+    val resolvedResources = linkedMapOf<String, String>()
+    plugin.resources.forEach { (name, url) ->
+        resolvedResources[name] = extensionFileManager.getCachedResource(name, url) ?: url
+    }
+    return EmbeddedPlugin(
+        id = plugin.id,
+        name = plugin.name,
+        kind = plugin.kind.name,
+        description = plugin.description,
+        icon = plugin.icon,
+        versionName = plugin.versionName,
+        authorName = plugin.authorName,
+        matches = plugin.matches.map { rule ->
+            EmbeddedMatchPattern(
+                pattern = rule.pattern,
+                regex = rule.isRegex,
+                exclude = rule.exclude
+            )
+        },
+        runAt = plugin.runAt.name,
+        permissions = plugin.permissions.map { it.name },
+        toolbar = plugin.showInToolbar,
+        hasPanel = hasPanelMarkup(code.panelHtml),
+        entryStyle = plugin.entryStyle.name,
+        panelStyle = plugin.panelStyle.name,
+        mainJs = code.mainJs,
+        css = code.css,
+        panelHtml = code.panelHtml,
+        gmGrants = plugin.gmGrants,
+        requireUrls = plugin.requireUrls,
+        requireContents = resolvedRequireContents,
+        resources = resolvedResources,
+        chromeExtId = plugin.chromeExtId,
+        manifestJson = plugin.manifestJson,
+        backgroundScript = plugin.backgroundScript,
+        popupPath = plugin.popupPath,
+        optionsPagePath = plugin.optionsPagePath,
+        legacyCompat = plugin.legacyCompat
+    )
+}
+
+fun WebApp.toApkConfigWithModules(packageName: String, context: android.content.Context): ApkConfig {
+    val baseConfig = toApkConfig(packageName, context)
+    // The switch off means nothing runs. Leave the stored id list as the user
+    // saved it and do not wait on the plugin store.
+    if (!pluginsEnabled) return baseConfig
+
+    val resolved = try {
+        val pluginStore = com.webtoapp.core.plugin.PluginStore.getInstance(context)
+        // Wait for the full load. A short timeout used to snapshot a
+        // half-loaded cache and ship pluginsEnabled with an empty list.
+        kotlinx.coroutines.runBlocking { pluginStore.awaitLoaded() }
+        val ids = pluginStore.effectiveIds(pluginsEnabled, pluginIds)
+        val extensionFileManager = com.webtoapp.core.extension.ExtensionFileManager(context)
+        val embedded = embedPlugins(ids) { id ->
+            val plugin = pluginStore.getPlugin(id) ?: return@embedPlugins null
+            embedOnePlugin(plugin, pluginStore, extensionFileManager)
+        }
+        ids to embedded
+    } catch (e: Exception) {
+        AppLogger.e("ApkBuilder", "Failed to resolve plugin data", e)
+        return baseConfig
     }
 
     return baseConfig.copy(
-        plugin = baseConfig.plugin.copy(embeddedPlugins = embeddedPlugins)
+        plugin = baseConfig.plugin.copy(
+            pluginIds = resolved.first,
+            embeddedPlugins = resolved.second
+        )
     )
 }
 

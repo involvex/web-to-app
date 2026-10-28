@@ -24,6 +24,7 @@
 
 - 以前保存的开关仍按原来的组合导出。例如打开相机仍会带上 `CAMERA` 和 `FOREGROUND_SERVICE_CAMERA`。在这一栏里单独关掉某一行，只影响这一条。
 - 功能仍会自动勾上自己需要的权限（`RuntimePermissionSync`）。导出时会裁掉模板里用不到的权限。
+- **前台服务类型**跟着留下来的服务走。`DATA_SYNC` 只属于宿主。生成的应用只为自己保留的服务声明 `specialUse`，媒体会话打开时才声明 `mediaPlayback`。
 - **局域网**（`ACCESS_LOCAL_NETWORK`）在应用需要网络时默认写入，避免 Android 16/17 访问局域网失败。可以单独关掉。纯 file、没有网络的 HTML 不会带上 `INTERNET`、`ACCESS_NETWORK_STATE` 和这条。
 - **读取应用列表**（`QUERY_ALL_PACKAGES`）默认没有。勾上才会写进生成的 APK，Play 可能拒审。宿主 GitHub 渠道自己的清单里已有这条，和生成 APK 无关。
 - 短信、通话记录、外拨电话、所有文件访问、使用情况、安装未知应用、精确闹钟这类 Play 会卡的权限各自成行，并标了受限。打开会写进清单；危险权限会在首次启动时弹系统框。网页里没有对应的 JS API。
@@ -43,7 +44,7 @@
 
 这些在你[构建 APK](/zh/guide/app-actions/build-apk) 时选择:
 
-- **资源加密** —— PBKDF2 + AES-256-GCM,可选自定义密码。
+- **资源加密** —— PBKDF2 + AES-256-GCM,可选自定义密码。加密的 HTML 站点以密文留在 APK 里,每次请求在内存中解密。无效的 AdMob 应用 ID 会在导出前被拒绝,包括空 ID,以及把广告单元 ID 填进应用 ID。
 - **隔离** —— 按应用隔离存储/WebRTC/Canvas/Audio/WebGL/字体/头部/IP。指纹以手机身份出现,请求的 User-Agent 与客户端提示一致。已保存的桌面指纹会在下次启动时换掉。自定义 User-Agent、桌面模式和桌面内核风味保持你的设置。
 - **后台运行** —— 保持服务存活(`backgroundRunConfig`)。
 - **通知** —— 定时/持久通知和轮询(`notificationConfig`)。

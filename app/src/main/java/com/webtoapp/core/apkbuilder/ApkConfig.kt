@@ -180,6 +180,7 @@ data class ApkConfig(
     val enableBlobDownloadInterception: Boolean get() = webViewBehavior.enableBlobDownloadInterception
     val enablePrintBridge: Boolean get() = webViewBehavior.enablePrintBridge
     val enableMediaSession: Boolean get() = webViewBehavior.enableMediaSession
+    val backgroundMediaPlayback: Boolean get() = webViewBehavior.backgroundMediaPlayback
     val downloadEnabled: Boolean get() = webView.downloadEnabled
     val downloadLocationMode: String get() = webView.downloadLocationMode
     val customDownloadDirUri: String get() = webView.customDownloadDirUri
@@ -526,6 +527,9 @@ data class WebViewBlock(
     val openExternalLinks: Boolean = false,
     val showFloatingBackButton: Boolean = false,
     val backButtonBehavior: String = "GO_BACK",
+    val forwardVolumeKeys: Boolean = false,
+    val consumeVolumeKeys: Boolean = false,
+    val mediaAlbumName: String = "",
     val swipeRefreshEnabled: Boolean = true,
     val swipeRefreshZone: String = "TOP_EDGE",
     // Absent on configs exported before #1193. True keeps the platform stretch.
@@ -610,6 +614,7 @@ data class WebViewBehaviorBlock(
     val ratingTriggerDays: Int = 7,
     val ratingTriggerLaunches: Int = 5,
     val pictureInPictureEnabled: Boolean = false,
+    val nativeBridgeDirectory: Boolean = false,
     val databaseEnabled: Boolean = true,
     val enableCookiePersistence: Boolean = true,
     val enablePrivateNetworkBridge: Boolean = false,
@@ -622,6 +627,7 @@ data class WebViewBehaviorBlock(
     val blobInterceptThresholdMb: Int = 5,
     val enablePrintBridge: Boolean = true,
     val enableMediaSession: Boolean = false,
+    val backgroundMediaPlayback: Boolean = false,
     val enableCloudflareCompat: Boolean = true,
     val cloudflareCompatMode: String = "AUTO_DETECT",
     val primeUserActivation: Boolean = false,

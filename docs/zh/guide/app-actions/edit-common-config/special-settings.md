@@ -7,14 +7,14 @@
 ## Polyfill 与桥接
 
 - **剪贴板 polyfill** —— `enableClipboardPolyfill`。
-- **通知 polyfill** —— Web Notification 支持(`enableNotificationPolyfill`)。
+- **通知 polyfill** —— Web Notification 支持(`enableNotificationPolyfill`)。导出时打开网页通知,或打开这个开关后,`new Notification()` 和同源 service worker 的 `showNotification` 都会进系统通知栏。
 - **方向 polyfill** —— `enableOrientationPolyfill`。
 - **兼容 polyfill** —— 一组兼容 shim(`enableCompatPolyfills`)。
-- **原生桥** —— 暴露带能力门控的原生桥(`enableNativeBridge`、`nativeBridgeCapabilities`)。
-- **屏幕截图** —— 原生桥屏幕截图功能(`nativeBridgeCapabilities.screenCapture`)。在页面中暴露 `window.WtaScreenCapture`。
+- **原生桥** —— 暴露带能力门控的 [`window.NativeBridge`](/zh/extensions/native-bridge)（`enableNativeBridge`、`nativeBridgeCapabilities`）。**文件夹**能力默认关闭。打开后，页面可选择一个目录，并在系统 WebView 上通过 `WtaDirectory` 列出、读取和写入。授权留在那台设备上，导出的应用需要再选一次。
 - **打印桥** —— 拦截 `window.print()` 和 PDF 输出到 Android 打印框架(`enablePrintBridge`)。
 - **媒体会话桥** —— 把网页媒体接入系统媒体通知和锁屏控制,支持蓝牙耳机和 Android Auto(`enableMediaSession`)。
-- **分享桥** —— `enableShareBridge`。
+- **后台继续播放** —— 离开应用后，正在播放的声音继续，通知栏可以暂停。画面会停，回到应用后接着播(`backgroundMediaPlayback`，默认关闭；打开时会同时打开媒体会话)。
+- **网页分享** —— 网页把文字和文件交给系统分享面板，由用户选择目标应用（`enableShareBridge`，默认开启）。说明文字可以和文件一起送出。文档使用和文件选择器相同的 MIME 类型。
 - **缩放 polyfill** —— `enableZoomPolyfill`。
 
 ## 媒体与内容
@@ -24,7 +24,6 @@
 - **滚动记忆** —— 记住滚动位置(`enableScrollMemory`)。
 - **返回状态保留** —— `enableBackStatePreservation`。
 - **Blob 下载拦截** —— 带范围和大小阈值(`enableBlobDownloadInterception`、`blobInterceptThresholdMb`)。
-- **流媒体画中画** —— 启用 **视频增强** 或 **流媒体画中画** 插件(画中画、倍速、后台播放,HLS/DASH/YouTube 自动检测)。详见[流媒体画中画](/zh/guide/app-actions/edit-common-config/streaming-pip)。
 - **接收分享内容** —— 生成的 App 出现在 Android 系统分享面板中;收到的图片/文本经 `wta:share` DOM 事件送达页面,或预填页面的文件选择器(`receiveShareImages`、`receiveShareText`、`shareDeliveryMode`、`sharePromptBeforeUse`)。见[接收分享内容](/zh/guide/more-features/share-receive)。
 
 ## JavaScript 与窗口
@@ -64,69 +63,11 @@
 - **PWA 离线** —— 离线缓存策略(`pwaOfflineEnabled`、`pwaOfflineStrategy`)。
 - **每次打开都是新会话** —— 在 **网络与离线** 卡片上,与 PWA 离线相邻(`clearBrowsingDataOnLaunch`)。默认关闭。生成的 APK 会在每次冷启动(包括第二次打开)清除 Cookie、站点存储和磁盘上的 WebView 资料。它不能和 PWA 离线同时开启。保持关闭则资料目录保留。
 - **浮动返回按钮** —— `showFloatingBackButton`。
-- **键盘调整模式** —— `keyboardAdjustMode`(resize……)。在 Android 10 及以下,RESIZE 模式走经典窗口缩放路径(窗口非 edge-to-edge),键盘可可靠地压缩内容。
+- **键盘调整模式** —— `keyboardAdjustMode`(resize……)。在 Android 11 及更高版本上,RESIZE 在键盘移动时保持页面顶部不动,只把文档滚动到刚好露出焦点输入框,并裁到键盘上沿。动画结束时不改 WebView 高度,输入框不会再被画一次。在 Android 10 及以下,RESIZE 走经典窗口缩放路径(窗口非 edge-to-edge)。
 - **全屏视频方向** —— 全屏视频如何转向(`fullscreenVideoOrientation`),如自动传感器横屏。
 - **隐藏 URL 预览** —— `hideUrlPreview`。
 
 ## 说明
 
 - 这些是高级用户开关;大多数应用保持默认即可。
-
-## 屏幕截图
-
-在**特殊设置**卡片中启用**屏幕截图**（同时需要**原生桥**能力集允许）。启用后，页面将获得 `window.WtaScreenCapture` —— 一个基于 Promise 的 API，由原生桥提供支持。
-
-::: details 一次性 WebView 内容截图
-
-返回当前 WebView 视口的 base64 JPEG 图像（无需权限）。
-
-```js
-const imageData = await WtaScreenCapture.capture({ quality: 80 });
-const img = document.createElement('img');
-img.src = 'data:image/jpeg;base64,' + imageData;
-document.body.appendChild(img);
-```
-
-:::
-
-::: details 设备屏幕截图（MediaProjection）
-
-通过一次性 consent 对话框捕获设备屏幕（状态栏、其他应用等）。返回一个真正的 `MediaStream`，适用于 `<video>` 和 WebRTC。
-
-```js
-window.onDeviceFrame = (base64) => {
-  // base64 = 每帧作为 JPEG 数据 URI 的主体
-};
-
-const stream = await WtaScreenCapture.getDisplayMedia({
-  source: 'auto',          // 'device' | 'webview' | 'auto'（不支持时静默回退）
-  quality: 70,             // 0-100
-  interval: 500,           // 帧间隔（毫秒）
-  frameTimeout: 15000,     // 15 秒内无首帧则拒绝
-  onFrame: window.onDeviceFrame
-});
-
-const video = document.createElement('video');
-video.srcObject = stream;
-document.body.appendChild(video);
-video.play();
-
-// 稍后
-WtaScreenCapture.stopStream(stream);
-```
-
-`requestDeviceAccess()` 在 consent 流程完成时resolve `true`/`false`（默认超时 120 秒）：
-
-```js
-const granted = await WtaScreenCapture.requestDeviceAccess();
-if (granted) { /* 可以安全调用 getDisplayMedia */ }
-```
-
-注意事项：
-
-- 设备截图在**悬浮窗**应用和 Gecko 引擎预览中不可用 —— 使用 `source: 'auto'`
-  时会自动回退到 WebView 内容截图。
-- 若系统在捕获过程中收回授权，流的 track 将结束，且 `onFrame` 会收到 `'revoked'`。
-- 原生循环是共享的：多个流复用单次捕获，`stopStream`/`stopAll` 会一并清理。
-
 - **默认值:**以下安全体验特性对新应用默认**开启**——剪贴板/方向/兼容 polyfill、媒体会话、分享、缩放与打印桥、图片修复、滚动记忆、返回状态保留、Blob 拦截、JS 窗口、用户激活预置、Base64 深链、应用回跳、私网桥和原生桥。刻意保持**关闭**:通知 polyfill(否则每个导出包都会弹通知权限)、定位、混合内容、第三方 Cookie、自动播放和弹窗拦截。

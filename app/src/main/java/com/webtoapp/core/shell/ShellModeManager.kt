@@ -1407,6 +1407,9 @@ data class WebViewShellConfig(
     @SerializedName("nativeBridgeGoogleSignInClientId")
     val nativeBridgeGoogleSignInClientId: String = "",
 
+    @SerializedName("nativeBridgeDirectory")
+    val nativeBridgeDirectory: Boolean = false,
+
     @SerializedName("javaScriptCanOpenWindows")
     val javaScriptCanOpenWindows: Boolean = false,
 
@@ -1448,6 +1451,9 @@ data class WebViewShellConfig(
 
     @SerializedName("enableMediaSession")
     val enableMediaSession: Boolean = false,
+
+    @SerializedName("backgroundMediaPlayback")
+    val backgroundMediaPlayback: Boolean = false,
 
     @SerializedName("enableCloudflareCompat")
     val enableCloudflareCompat: Boolean = true,
@@ -1514,6 +1520,15 @@ data class WebViewShellConfig(
 
     @SerializedName("backButtonBehavior")
     val backButtonBehavior: String = "GO_BACK",
+
+    @SerializedName("forwardVolumeKeys")
+    val forwardVolumeKeys: Boolean = false,
+
+    @SerializedName("consumeVolumeKeys")
+    val consumeVolumeKeys: Boolean = false,
+
+    @SerializedName("mediaAlbumName")
+    val mediaAlbumName: String = "",
 
     @SerializedName("downloadEnabled")
     val downloadEnabled: Boolean = true,

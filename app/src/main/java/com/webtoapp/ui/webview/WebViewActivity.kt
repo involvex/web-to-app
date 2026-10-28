@@ -1,5 +1,6 @@
 package com.webtoapp.ui.webview
 import com.webtoapp.core.engine.BrowserSurface
+import com.webtoapp.core.webview.BackgroundMediaRuntime
 import com.webtoapp.core.engine.EngineViewFactory
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.webtoapp.ui.components.PremiumButton
@@ -76,6 +77,7 @@ import com.webtoapp.data.model.HtmlLoadMode
 import com.webtoapp.data.model.SplashOrientation
 import com.webtoapp.data.model.SplashType
 import com.webtoapp.data.model.WebApp
+import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.data.model.hasAnyToolbarItem
 import com.webtoapp.data.model.resolveToolbarButtons
 import android.content.pm.ActivityInfo
@@ -124,6 +126,9 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         private const val EXTRA_TEST_URL = "test_url"
         private const val EXTRA_TEST_MODULE_IDS = "test_module_ids"
         private const val EXTRA_PREVIEW_APP_JSON = "preview_app_json"
+
+        /** Set only on desktop-shortcut launches. The separate-tasks switch must not close them. */
+        internal const val EXTRA_SHORTCUT_TASK = "shortcut_task"
 
         fun start(context: Context, appId: Long) {
             HostPreviewMotion.launch(
@@ -204,9 +209,47 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                 }
             }
         }
+
+        /**
+         * Desktop shortcuts always open a document task, ignoring the About
+         * "separate tasks" switch. That switch still controls in-app preview.
+         * A shortcut that shares [WebViewActivity]'s affinity lands on top of
+         * the builder, so Back reveals it (#1391).
+         */
+        fun buildShortcutLaunchIntent(context: Context, appId: Long): Intent {
+            return buildLaunchIntent(
+                context = context,
+                separateTasks = true,
+                documentUri = Uri.parse("webtoapp://webapp/$appId")
+            ) {
+                putExtra(EXTRA_APP_ID, appId)
+                putExtra(EXTRA_SHORTCUT_TASK, true)
+            }.apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+        }
+
+        /**
+         * An external launch (shortcut, autostart) carries [Intent.FLAG_ACTIVITY_NEW_TASK]
+         * and [EXTRA_APP_ID]. In-app preview does not set that flag. When the
+         * builder task already exists, the system still stacks the singleTask
+         * activity on it; the caller should re-launch the document task and
+         * leave.
+         */
+        internal fun shouldDetachExternalLaunch(
+            isDocumentActivity: Boolean,
+            isTaskRoot: Boolean,
+            intent: Intent,
+        ): Boolean {
+            if (isDocumentActivity || isTaskRoot) return false
+            if (intent.flags and Intent.FLAG_ACTIVITY_NEW_TASK == 0) return false
+            if (intent.hasExtra(EXTRA_PREVIEW_APP_JSON)) return false
+            return intent.getLongExtra(EXTRA_APP_ID, -1L) > 0L
+        }
     }
 
     private var webView: WebView? = null
+    internal var nativeBridge: com.webtoapp.core.webview.NativeBridge? = null
     internal var browserSurface: BrowserSurface? = null
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
@@ -236,7 +279,13 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         }
     }
 
-    private var pendingPermissionRequest: PermissionRequest? = null
+    internal val backgroundMedia = BackgroundMediaRuntime(
+        webView = { webView },
+        surface = { browserSurface }
+    )
+
+
+    private val capturePermission = com.webtoapp.core.webview.CapturePermissionBridge()
     private var pendingEnginePermissionCallback: ((Boolean) -> Unit)? = null
     private var pendingGeolocationOrigin: String? = null
     private var pendingGeolocationCallback: GeolocationPermissions.Callback? = null
@@ -387,32 +436,48 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
     }
 
     private var cameraPhotoUri: android.net.Uri? = null
+    private val directoryPickerHost = com.webtoapp.core.webview.DirectoryPickerHost(this)
 
     private val fileChooserActivityLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        val photoUri = cameraPhotoUri
+            ?: com.webtoapp.core.webview.FileChooserLifetime.cameraUri()
         val callback = filePathCallback
-        if (callback == null) return@registerForActivityResult
+            ?: com.webtoapp.core.webview.FileChooserLifetime.callback()
+        try {
+            if (callback == null) return@registerForActivityResult
 
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val resultUris = mutableListOf<android.net.Uri>()
-            val data = result.data
-            if (data == null || (data.data == null && data.clipData == null)) {
-                cameraPhotoUri?.let { resultUris.add(it) }
-            } else {
-                data.data?.let { resultUris.add(it) }
-                data.clipData?.let { clipData ->
-                    for (i in 0 until clipData.itemCount) {
-                        clipData.getItemAt(i).uri?.let { resultUris.add(it) }
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
+                val resultUris = mutableListOf<android.net.Uri>()
+                val data = result.data
+                if (data == null || (data.data == null && data.clipData == null)) {
+                    photoUri?.let { resultUris.add(it) }
+                } else {
+                    data.data?.let { resultUris.add(it) }
+                    data.clipData?.let { clipData ->
+                        for (i in 0 until clipData.itemCount) {
+                            clipData.getItemAt(i).uri?.let { resultUris.add(it) }
+                        }
                     }
                 }
+                callback.onReceiveValue(resultUris.toTypedArray())
+            } else {
+                callback.onReceiveValue(null)
             }
-            callback.onReceiveValue(resultUris.toTypedArray())
-        } else {
-            callback.onReceiveValue(null)
+        } catch (e: Exception) {
+            AppLogger.e("WebViewActivity", "File chooser result failed", e)
+            try {
+                callback?.onReceiveValue(null)
+            } catch (deliverError: Exception) {
+                AppLogger.w("WebViewActivity", "file chooser callback failed: ${deliverError.message}")
+            }
+        } finally {
+            com.webtoapp.core.webview.CameraCaptureIntents.revokeOutput(this, photoUri)
+            filePathCallback = null
+            cameraPhotoUri = null
+            com.webtoapp.core.webview.FileChooserLifetime.markClosed()
         }
-        filePathCallback = null
-        cameraPhotoUri = null
     }
 
     private var pendingFileChooserParams: android.webkit.WebChromeClient.FileChooserParams? = null
@@ -429,7 +494,12 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
     ): Boolean {
         filePathCallback?.onReceiveValue(null)
         filePathCallback = callback
+        com.webtoapp.core.webview.FileChooserLifetime.holdCallback(callback)
+        (webView ?: browserSurface?.webView)?.let {
+            com.webtoapp.core.webview.FileChooserLifetime.parkWebView(it)
+        }
         if (callback == null) return false
+        com.webtoapp.core.webview.FileChooserLifetime.markOpen()
 
         val needsCamera = isCameraRequiredForChooser(params)
         val hasCam = androidx.core.content.ContextCompat.checkSelfPermission(
@@ -438,7 +508,13 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
 
         if (needsCamera && !hasCam) {
             pendingFileChooserParams = params
-            cameraForChooserPermLauncher.launch(android.Manifest.permission.CAMERA)
+            try {
+                cameraForChooserPermLauncher.launch(android.Manifest.permission.CAMERA)
+            } catch (e: Exception) {
+                AppLogger.e("WebViewActivity", "Camera permission request failed", e)
+                pendingFileChooserParams = null
+                launchFileChooserIntent(params)
+            }
         } else {
             launchFileChooserIntent(params)
         }
@@ -531,34 +607,42 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                         val ts = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
                         val dir = java.io.File(cacheDir, "camera_photos").apply { mkdirs() }
                         val photoFile = java.io.File.createTempFile("IMG_${ts}_", ".jpg", dir)
-                        cameraPhotoUri = androidx.core.content.FileProvider.getUriForFile(
+                        val output = androidx.core.content.FileProvider.getUriForFile(
                             this, "${packageName}.fileprovider", photoFile
                         )
-                        captureIntent.putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraPhotoUri)
-                        captureIntent.addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        cameraPhotoUri = output
+                        com.webtoapp.core.webview.FileChooserLifetime.holdCamera(output)
+                        com.webtoapp.core.webview.CameraCaptureIntents.attachOutput(this, captureIntent, output)
                     } catch (e: Exception) {
                         AppLogger.e("WebViewActivity", "Camera capture file creation failed", e)
+                        cameraPhotoUri = null
                     }
                 }
                 if (captureIntent.resolveActivity(packageManager) != null) {
-                    fileChooserActivityLauncher.launch(captureIntent)
-                    AppLogger.d("WebViewActivity", "Direct camera capture launched: action=$captureAction")
-                    return
+                    try {
+                        fileChooserActivityLauncher.launch(captureIntent)
+                        AppLogger.d("WebViewActivity", "Direct camera capture launched: action=$captureAction")
+                        return
+                    } catch (e: Exception) {
+                        AppLogger.e("WebViewActivity", "Direct camera capture failed", e)
+                    }
                 }
             }
 
             val extraIntents = mutableListOf<android.content.Intent>()
             if (hasCam) {
                 try {
+                    com.webtoapp.core.webview.CameraCaptureIntents.revokeOutput(this, cameraPhotoUri)
                     val ts = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
                     val dir = java.io.File(cacheDir, "camera_photos").apply { mkdirs() }
                     val photoFile = java.io.File.createTempFile("IMG_${ts}_", ".jpg", dir)
-                    cameraPhotoUri = androidx.core.content.FileProvider.getUriForFile(
+                    val output = androidx.core.content.FileProvider.getUriForFile(
                         this, "${packageName}.fileprovider", photoFile
                     )
+                    cameraPhotoUri = output
+                    com.webtoapp.core.webview.FileChooserLifetime.holdCamera(output)
                     val camIntent = android.content.Intent(android.provider.MediaStore.ACTION_IMAGE_CAPTURE).apply {
-                        putExtra(android.provider.MediaStore.EXTRA_OUTPUT, cameraPhotoUri)
-                        addFlags(android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        com.webtoapp.core.webview.CameraCaptureIntents.attachOutput(this@WebViewActivity, this, output)
                     }
                     if (camIntent.resolveActivity(packageManager) != null) extraIntents.add(camIntent)
                     val vidIntent = android.content.Intent(android.provider.MediaStore.ACTION_VIDEO_CAPTURE)
@@ -601,21 +685,22 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
             AppLogger.e("WebViewActivity", "File chooser launch failed", e)
             filePathCallback?.onReceiveValue(null)
             filePathCallback = null
+            com.webtoapp.core.webview.FileChooserLifetime.markClosed()
         }
     }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        pendingPermissionRequest?.let { request ->
-            if (allGranted) {
-                request.grant(request.resources)
-            } else {
-                request.deny()
-            }
-            pendingPermissionRequest = null
+        com.webtoapp.core.webview.FileChooserLifetime.endPermissionDialog()
+        val allGranted = permissions.isNotEmpty() && permissions.values.all { it }
+        if (capturePermission.onRuntimeResult(allGranted)) {
+            window.decorView.post { reloadBrowser() }
         }
+    }
+
+    fun onCapturePermissionCanceled(request: PermissionRequest) {
+        capturePermission.onCanceled(request)
     }
 
     /**
@@ -628,9 +713,10 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
     private val enginePermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.values.all { it }
-        pendingEnginePermissionCallback?.invoke(allGranted)
+        com.webtoapp.core.webview.FileChooserLifetime.endPermissionDialog()
+        val callback = pendingEnginePermissionCallback
         pendingEnginePermissionCallback = null
+        callback?.invoke(permissions.values.all { it })
     }
 
     fun handleAndroidPermissionsRequest(permissions: Array<String>, onResult: (Boolean) -> Unit) {
@@ -643,11 +729,20 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
             onResult(true)
             return
         }
+        val previous = pendingEnginePermissionCallback
+        if (previous != null) {
+            pendingEnginePermissionCallback = { granted ->
+                previous(granted)
+                onResult(granted)
+            }
+            return
+        }
         pendingEnginePermissionCallback = onResult
-        try {
+        val launched = com.webtoapp.core.webview.FileChooserLifetime.runPermissionDialog {
             enginePermissionLauncher.launch(notGranted.toTypedArray())
-        } catch (e: Exception) {
-            AppLogger.e("WebViewActivity", "Engine permission request failed", e)
+        }
+        if (!launched) {
+            AppLogger.e("WebViewActivity", "Engine permission request failed")
             pendingEnginePermissionCallback = null
             onResult(false)
         }
@@ -811,7 +906,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
 
         if (uniquePermissions.isEmpty()) {
 
-            request.grant(resources)
+            com.webtoapp.core.webview.WebPermissionRequests.settle(request, true)
             return
         }
 
@@ -823,11 +918,17 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
 
         if (notGranted.isEmpty()) {
 
-            request.grant(resources)
+            com.webtoapp.core.webview.WebPermissionRequests.settle(request, true)
         } else {
 
-            pendingPermissionRequest = request
-            permissionLauncher.launch(notGranted.toTypedArray())
+            capturePermission.remember(request)
+            val launched = com.webtoapp.core.webview.FileChooserLifetime.runPermissionDialog {
+                permissionLauncher.launch(notGranted.toTypedArray())
+            }
+            if (!launched) {
+                capturePermission.clear()
+                com.webtoapp.core.webview.WebPermissionRequests.settle(request, false)
+            }
         }
     }
 
@@ -906,6 +1007,8 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         }
 
         super.onCreate(savedInstanceState)
+        if (detachExternalLaunchIfStacked(intent)) return
+        com.webtoapp.core.webview.DirectoryPickerRegistry.install(directoryPickerHost)
         HostPreviewMotion.install(this)
 
         requestNotificationPermissionIfNeeded()
@@ -963,6 +1066,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         )
 
         enableBackStatePreservation = previewApp?.webViewConfig?.enableBackStatePreservation ?: false
+        backgroundMedia.enabled = previewApp?.webViewConfig?.backgroundMediaPlayback == true
         activeFollowSystemDarkMode = previewApp?.webViewConfig?.followSystemDarkMode
         com.webtoapp.core.engine.GeckoViewEngine.applyEnterpriseRootsEnabled(
             previewApp?.apkExportConfig?.networkTrustConfig?.trustUserCa == true
@@ -1035,6 +1139,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                     // only covers intent-carried preview apps.
                     if (previewApp == null) {
                         enableBackStatePreservation = app.webViewConfig.enableBackStatePreservation
+                        backgroundMedia.enabled = app.webViewConfig.backgroundMediaPlayback
                         activeFollowSystemDarkMode = app.webViewConfig.followSystemDarkMode
                         com.webtoapp.core.engine.GeckoViewEngine.applyEnterpriseRootsEnabled(
                             app.apkExportConfig?.networkTrustConfig?.trustUserCa == true
@@ -1054,7 +1159,8 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                         this@WebViewActivity,
                         lifecycleScope,
                         effectiveDownloadConfig?.downloadLocationMode ?: com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD,
-                        effectiveDownloadConfig?.customDownloadDirUri ?: ""
+                        effectiveDownloadConfig?.customDownloadDirUri ?: "",
+                        effectiveDownloadConfig?.mediaAlbumName ?: ""
                     )
                     wv.addJavascriptInterface(downloadBridge, com.webtoapp.core.webview.DownloadBridge.JS_INTERFACE_NAME)
 
@@ -1074,13 +1180,16 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                     // install the media bridge, otherwise playback started from the
                     // app list never publishes a media session.
                     val effectiveMediaConfig = previewApp?.webViewConfig ?: loadedApp?.webViewConfig
-                    if (effectiveMediaConfig?.enableMediaSession == true) {
+                    if (effectiveMediaConfig?.enableMediaSession == true ||
+                        effectiveMediaConfig?.backgroundMediaPlayback == true
+                    ) {
                         val mediaBridge = com.webtoapp.core.webview.MediaSessionBridge(
                             this@WebViewActivity,
                             wv
                         )
                         mediaBridge.install()
                         mediaSessionBridge = mediaBridge
+                        backgroundMedia.bind(mediaBridge)
                     }
 
                     if (previewApp?.translateEnabled == true || loadedApp?.translateEnabled == true) {
@@ -1119,11 +1228,32 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                     else -> {
 
                         val wv = webView
-                        // "Exit app" back behavior (#151): leave immediately instead of walking
-                        // web history (preview parity with the generated shell).
-                        val backBehaviorConfig = previewApp ?: resolvedSavedApp
-                        if (backBehaviorConfig?.webViewConfig?.backButtonBehavior == "EXIT") {
+                        // "Exit app" (#151) leaves immediately. "Exit at first page"
+                        // (#1329) still walks history, then leaves on one press.
+                        val backBehavior = (previewApp ?: resolvedSavedApp)?.webViewConfig?.backButtonBehavior
+                        if (backBehavior == com.webtoapp.data.model.WebViewConfig.BACK_EXIT) {
                             finish()
+                            return
+                        }
+                        val confirmExit = backBehavior != com.webtoapp.data.model.WebViewConfig.BACK_GO_BACK_EXIT
+                        if (backBehavior == com.webtoapp.data.model.WebViewConfig.BACK_JS) {
+                            com.webtoapp.core.webview.PageKeyEvents.dispatchBack(wv, browserSurface) { prevented ->
+                                if (prevented) return@dispatchBack
+                                if (wv != null) {
+                                    ShellWebViewNavigation.goBackOrFinish(
+                                        this@WebViewActivity,
+                                        wv,
+                                        useJsHistoryBack = enableBackStatePreservation,
+                                        confirmExit = confirmExit,
+                                    )
+                                } else {
+                                    ShellWebViewNavigation.goBackOrFinish(
+                                        this@WebViewActivity,
+                                        browserSurface,
+                                        confirmExit = confirmExit,
+                                    )
+                                }
+                            }
                             return
                         }
                         if (wv != null) {
@@ -1142,14 +1272,23 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                                     return@evaluateJavascript
                                 }
 
-                                ShellWebViewNavigation.goBackOrFinish(this@WebViewActivity, wv, useJsHistoryBack = enableBackStatePreservation)
+                                ShellWebViewNavigation.goBackOrFinish(
+                                    this@WebViewActivity,
+                                    wv,
+                                    useJsHistoryBack = enableBackStatePreservation,
+                                    confirmExit = confirmExit,
+                                )
                             }
                         } else {
                             // GeckoView engine: no WebView handle — walk the engine's own
                             // history through the surface. The Escape-key JS probe is skipped
                             // (it needs an eval result, which Gecko's javascript: URI path
                             // cannot return).
-                            ShellWebViewNavigation.goBackOrFinish(this@WebViewActivity, browserSurface)
+                            ShellWebViewNavigation.goBackOrFinish(
+                                this@WebViewActivity,
+                                browserSurface,
+                                confirmExit = confirmExit,
+                            )
                         }
                     }
                 }
@@ -1204,6 +1343,17 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val volumeConfig = (launchPreviewApp ?: resolvedSavedApp)?.webViewConfig
+        if (com.webtoapp.core.webview.PageKeyEvents.handleVolume(
+                event,
+                forward = volumeConfig?.forwardVolumeKeys == true,
+                consume = volumeConfig?.consumeVolumeKeys == true,
+                webView = webView,
+                surface = browserSurface
+            )
+        ) {
+            return true
+        }
         // Same Enter/modifier diagnostics as the shell path (#1032).
         val isEnter = event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
@@ -1249,11 +1399,51 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         return super.dispatchGenericMotionEvent(ev)
     }
 
+    override fun onUserLeaveHint() {
+        backgroundMedia.onFocusLost(!isFinishing && !isChangingConfigurations)
+        super.onUserLeaveHint()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
+            backgroundMedia.onFocusGained()
             applyImmersiveFullscreen(customView != null || immersiveFullscreenEnabled)
+        } else {
+            backgroundMedia.onFocusLost(!isFinishing && !isChangingConfigurations)
         }
+    }
+
+    private var externalDetachScheduled = false
+
+    /**
+     * Old pinned shortcuts still target the shared singleTask activity. Open a
+     * document task, then send the builder task to the back, so Back returns
+     * to the launcher.
+     *
+     * Posted until the decor is attached: [moveTaskToBack] during [onCreate]
+     * returns false, and moving the task to the back before [startActivity]
+     * makes Android 12+ treat the relaunch as a background start and drop it.
+     * Starting first keeps the privilege of the resumed activity; the move
+     * then places the builder behind the launcher, under the new document.
+     */
+    private fun detachExternalLaunchIfStacked(source: Intent): Boolean {
+        if (!shouldDetachExternalLaunch(this is WebViewDocumentActivity, isTaskRoot, source)) {
+            return false
+        }
+        if (externalDetachScheduled) return true
+        externalDetachScheduled = true
+        val appId = source.getLongExtra(EXTRA_APP_ID, -1L)
+        window.decorView.post {
+            if (isFinishing || appId <= 0L) {
+                finish()
+                return@post
+            }
+            startActivity(buildShortcutLaunchIntent(this, appId))
+            moveTaskToBack(true)
+            finish()
+        }
+        return true
     }
 
     private fun applySeparateTaskDescription(label: String) {
@@ -1277,6 +1467,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         val previousKey = getIntent()?.let { PreviewSessions.sessionKey(it) }
         super.onNewIntent(intent)
         setIntent(intent)
+        if (detachExternalLaunchIfStacked(intent)) return
         HostPreviewMotion.install(this)
         // Same preview document brought forward. Recreating here would wipe the
         // page the agent is in the middle of operating.
@@ -1333,15 +1524,22 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
 
     override fun onResume() {
         super.onResume()
+        backgroundMedia.onHostResume()
         webView?.onResume()
         webView?.resumeTimers()
+        browserSurface?.onResume()
+        nativeBridge?.onWebViewResume()
         if (trackedAppId > 0) usageTracker?.trackResume(trackedAppId)
     }
 
     override fun onPause() {
         if (trackedAppId > 0) usageTracker?.trackPause(trackedAppId)
         persistResumeUrl()
-        webView?.onPause()
+        val keepMedia = backgroundMedia.onHostPause(!isFinishing && !isChangingConfigurations)
+        if (!keepMedia) {
+            webView?.onPause()
+            nativeBridge?.onWebViewPause()
+        }
         android.webkit.CookieManager.getInstance().flush()
         super.onPause()
     }
@@ -1477,6 +1675,8 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
     }
 
     override fun onDestroy() {
+        directoryPickerHost.cancelPending()
+        com.webtoapp.core.webview.DirectoryPickerRegistry.uninstall(directoryPickerHost)
 
         if (trackedAppId > 0) usageTracker?.trackClose(trackedAppId)
 
@@ -1485,6 +1685,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         // record so a cold restart can resume on the same page.
         if (isFinishing) resumeStore.clear(sessionKey)
 
+        backgroundMedia.close()
         mediaSessionBridge?.release()
         mediaSessionBridge = null
         geckoMediaAdapter?.runCatching { release() }
@@ -1552,6 +1753,11 @@ fun WebViewScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var showActivationDialog by remember { mutableStateOf(false) }
     var showAnnouncementDialog by remember { mutableStateOf(false) }
+    var remainingDaysNotice by remember {
+        mutableStateOf<com.webtoapp.core.activation.RemainingDaysNotice?>(null)
+    }
+    var remainingDaysIncludeSplash by remember { mutableStateOf(false) }
+    var remainingDaysFromLaunch by remember { mutableStateOf(true) }
 
     // URL delivered by the remote activation server (dynamic URL mode). Takes precedence over
     // the configured app URL for plain WEB apps, mirroring ShellScreen.dynamicUrl.
@@ -1615,6 +1821,35 @@ fun WebViewScreen(
     var longPressTouchY by remember { mutableFloatStateOf(0f) }
     val scope = rememberCoroutineScope()
     val longPressHandler = remember { LongPressHandler(context, scope) }
+
+    suspend fun openPreviewAnnouncement(fromLaunch: Boolean) {
+        val app = webApp ?: return
+        if (!isActivated || !app.announcementEnabled) return
+        showAnnouncementDialog = if (fromLaunch) {
+            if (app.announcement?.triggerOnLaunch == true) {
+                announcement.shouldShowAnnouncementForTrigger(appId, app.announcement, isLaunch = true)
+            } else {
+                false
+            }
+        } else {
+            announcement.shouldShowAnnouncement(appId, app.announcement)
+        }
+    }
+
+    fun openPreviewSplash() {
+        val app = webApp ?: return
+        if (!isActivated || !app.splashEnabled) return
+        val splash = app.splashConfig ?: return
+        val mediaPath = splash.mediaPath
+        if (mediaPath != null && File(mediaPath).exists()) {
+            showSplash = true
+            splashCountdown = splash.duration
+            if (splash.orientation == SplashOrientation.LANDSCAPE) {
+                originalOrientation = activity.requestedOrientation
+                activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            }
+        }
+    }
 
     var showConsole by remember { mutableStateOf(false) }
     var showFindBar by remember { mutableStateOf(false) }
@@ -1821,16 +2056,21 @@ fun WebViewScreen(
                 activity.finish()
                 return@LaunchedEffect
             }
+            if (previewApp.adBlockEnabled) adBlocker.holdRuleInstall()
             webApp = previewApp
             isActivated = true
             isActivationChecked = true
 
-            adBlocker.prepareRuntimeFilters(
-                context = context,
-                enabled = previewApp.adBlockEnabled,
-                customRules = previewApp.adBlockRules,
-                subscriptionUrls = previewApp.adBlockSubscriptions
-            )
+            try {
+                adBlocker.prepareRuntimeFilters(
+                    context = context,
+                    enabled = previewApp.adBlockEnabled,
+                    customRules = previewApp.adBlockRules,
+                    subscriptionUrls = previewApp.adBlockSubscriptions
+                )
+            } finally {
+                if (previewApp.adBlockEnabled) adBlocker.releaseRuleInstall()
+            }
 
             (activity as? WebViewActivity)?.fullscreenVideoOrientation =
                 previewApp.webViewConfig.fullscreenVideoOrientation
@@ -1884,15 +2124,19 @@ fun WebViewScreen(
                 activity.finish()
                 return@LaunchedEffect
             }
+            if (app?.adBlockEnabled == true) adBlocker.holdRuleInstall()
             webApp = app
             if (app != null) {
-
-                adBlocker.prepareRuntimeFilters(
-                    context = context,
-                    enabled = app.adBlockEnabled,
-                    customRules = app.adBlockRules,
-                    subscriptionUrls = app.adBlockSubscriptions
-                )
+                try {
+                    adBlocker.prepareRuntimeFilters(
+                        context = context,
+                        enabled = app.adBlockEnabled,
+                        customRules = app.adBlockRules,
+                        subscriptionUrls = app.adBlockSubscriptions
+                    )
+                } finally {
+                    if (app.adBlockEnabled) adBlocker.releaseRuleInstall()
+                }
 
                 onSavedAppLoaded?.invoke(app)
 
@@ -1936,26 +2180,22 @@ fun WebViewScreen(
                     isActivationChecked = true
                 }
 
-                if (app.announcementEnabled && isActivated && app.announcement?.triggerOnLaunch == true) {
-                    val shouldShow = announcement.shouldShowAnnouncementForTrigger(
-                        appId,
-                        app.announcement,
-                        isLaunch = true
-                    )
-                    showAnnouncementDialog = shouldShow
+                val launchNotice = if (
+                    isActivated &&
+                    app.activationEnabled &&
+                    app.activationRemoteConfig?.enabled != true
+                ) {
+                    activation.remainingDaysNoticeForLaunch(appId, app.activationCodeList)
+                } else {
+                    null
                 }
-
-                if (app.splashEnabled && app.splashConfig != null && isActivated) {
-                    val mediaPath = app.splashConfig.mediaPath
-                    if (mediaPath != null && File(mediaPath).exists()) {
-                        showSplash = true
-                        splashCountdown = app.splashConfig.duration
-
-                        if (app.splashConfig.orientation == SplashOrientation.LANDSCAPE) {
-                            originalOrientation = activity.requestedOrientation
-                            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                        }
-                    }
+                if (launchNotice != null) {
+                    remainingDaysNotice = launchNotice
+                    remainingDaysIncludeSplash = true
+                    remainingDaysFromLaunch = true
+                } else {
+                    openPreviewAnnouncement(fromLaunch = true)
+                    openPreviewSplash()
                 }
 
                 if (app.bgmEnabled && app.bgmConfig != null && isActivated) {
@@ -3037,6 +3277,10 @@ fun WebViewScreen(
                 }
             }
 
+            override fun onPermissionRequestCanceled(request: PermissionRequest?) {
+                request?.let { (activity as? WebViewActivity)?.onCapturePermissionCanceled(it) }
+            }
+
             override fun onShowFileChooser(
                 filePathCallback: ValueCallback<Array<Uri>>?,
                 fileChooserParams: WebChromeClient.FileChooserParams?
@@ -3064,6 +3308,7 @@ fun WebViewScreen(
                     downloadLocationMode = effectiveApp?.webViewConfig?.downloadLocationMode
                         ?: com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD,
                     customDownloadDirUri = effectiveApp?.webViewConfig?.customDownloadDirUri ?: "",
+                    albumName = effectiveApp?.webViewConfig?.mediaAlbumName ?: "",
                     onBlobDownload = { blobUrl, filename ->
                         val safeBlobUrl = org.json.JSONObject.quote(blobUrl)
                         val safeFilename = org.json.JSONObject.quote(filename)
@@ -3261,6 +3506,10 @@ fun WebViewScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                val skipProbe = com.webtoapp.core.webview.FileChooserLifetime.consumeResumeProbeSkip()
+                if (com.webtoapp.core.webview.FileChooserLifetime.isOpen() || skipProbe) {
+                    return@LifecycleEventObserver
+                }
                 if (memoryTeardownPending) {
                     memoryTeardownPending = false
                     webViewRecreationKey++
@@ -3298,6 +3547,10 @@ fun WebViewScreen(
             override fun onLowMemory() {}
             override fun onTrimMemory(level: Int) {
                 if (!com.webtoapp.core.webview.WebViewMemoryTrimmer.onTrimMemory(level, context)) return
+                if (com.webtoapp.core.webview.FileChooserLifetime.isOpen()) {
+                    AppLogger.w("WebViewActivity", "WebView callback in flight — keeping the WebView through trim")
+                    return
+                }
                 val wv = webViewRef ?: return
                 if (memoryTeardownPending) return
                 val bundle = android.os.Bundle()
@@ -3749,26 +4002,35 @@ fun WebViewScreen(
                 val mwApp = webApp
                 val multiWebConfig = mwApp?.multiWebConfig
                 if (mwApp != null && multiWebConfig != null && multiWebConfig.sites.isNotEmpty()) {
-                    // App-level plugins: resolve the multi-web app's attached
-                    // set into embedded records so site configs consume the same
-                    // payload shape as a generated APK.
-                    val mwEmbeddedPlugins by androidx.compose.runtime.produceState<List<com.webtoapp.core.shell.EmbeddedShellPlugin>?>(
+                    // App-level plugins: same rule as export. An explicit id list
+                    // wins. With the switch on and no list, the enabled set from
+                    // Manage Plugins is used. The switch off injects nothing.
+                    val pluginStore = remember {
+                        com.webtoapp.core.plugin.PluginStore.getInstance(context)
+                    }
+                    val globalEnabledIds by pluginStore.enabledIds.collectAsStateWithLifecycle()
+                    val mwPlugins by androidx.compose.runtime.produceState<
+                        Pair<List<String>, List<com.webtoapp.core.shell.EmbeddedShellPlugin>>?
+                    >(
                         initialValue = null,
-                        mwApp.pluginIds
+                        mwApp.pluginsEnabled,
+                        mwApp.pluginIds,
+                        globalEnabledIds
                     ) {
-                        value = if (mwApp.pluginIds.isEmpty() || !mwApp.pluginsEnabled) {
-                            emptyList()
+                        value = if (!mwApp.pluginsEnabled) {
+                            emptyList<String>() to emptyList()
                         } else {
                             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                                val store = com.webtoapp.core.plugin.PluginStore.getInstance(context)
-                                store.awaitLoaded()
-                                store.resolveForInjection(mwApp.pluginIds)
+                                pluginStore.awaitLoaded()
+                                val ids = pluginStore.effectiveIds(true, mwApp.pluginIds)
+                                val embedded = pluginStore.resolveForInjection(ids)
                                     .map { com.webtoapp.core.shell.EmbeddedShellPlugin.fromResolved(it) }
+                                ids to embedded
                             }
                         }
                     }
-                    val readyEmbeddedPlugins = mwEmbeddedPlugins
-                    if (readyEmbeddedPlugins != null) {
+                    val readyPlugins = mwPlugins
+                    if (readyPlugins != null) {
                     val shellConfig = com.webtoapp.core.shell.ShellConfig(
                         appName = mwApp.name,
                         appType = "MULTI_WEB",
@@ -3830,8 +4092,8 @@ fun WebViewScreen(
                             }
                         ),
                         pluginsEnabled = mwApp.pluginsEnabled,
-                        pluginIds = mwApp.pluginIds,
-                        embeddedPlugins = readyEmbeddedPlugins,
+                        pluginIds = readyPlugins.first,
+                        embeddedPlugins = readyPlugins.second,
                         pluginEntryStyle = previewPluginEntryStyle.name,
                         pluginPanelStyle = previewPluginPanelStyle.name,
                         browserDisguiseConfig = mwApp.browserDisguiseConfig,
@@ -3878,12 +4140,15 @@ fun WebViewScreen(
                             // parity — MULTI_WEB previously never saw per-site surfaces).
                             browserSurfaceRef = surface
                             (context as? WebViewActivity)?.browserSurface = surface
-                            if (surface.webView == null && mwApp.webViewConfig.enableMediaSession) {
+                            if (surface.webView == null &&
+                                (mwApp.webViewConfig.enableMediaSession || mwApp.webViewConfig.backgroundMediaPlayback)
+                            ) {
                                 val geckoEngine = surface.engine as? com.webtoapp.core.engine.GeckoViewEngine
                                 if (geckoEngine != null) {
                                     (context as? WebViewActivity)?.let { host ->
                                         host.geckoMediaAdapter?.runCatching { release() }
                                         host.geckoMediaAdapter = com.webtoapp.core.engine.GeckoMediaSessionAdapter(host, geckoEngine)
+                                        host.backgroundMedia.bind(host.geckoMediaAdapter)
                                     }
                                 }
                             }
@@ -3918,7 +4183,24 @@ fun WebViewScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
 
                     AndroidView(
-                        factory = { ctx ->
+                        factory = factory@{ ctx ->
+                            val parked = com.webtoapp.core.webview.FileChooserLifetime.takeDetachedWebView()
+                            if (parked != null) {
+                                return@factory WebSwipeRefreshLayout(ctx).apply {
+                                    layoutParams = ViewGroup.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    isEnabled = swipeRefreshEnabled
+                                    val surface = com.webtoapp.core.engine.BrowserSurface.fromWebView(parked)
+                                    tag = surface
+                                    browserSurfaceRef = surface
+                                    (context as? WebViewActivity)?.browserSurface = surface
+                                    webViewRef = parked
+                                    onWebViewCreated(parked, webApp)
+                                    addView(parked)
+                                }
+                            }
                             WebSwipeRefreshLayout(ctx).apply {
                                 layoutParams = ViewGroup.LayoutParams(
                                     ViewGroup.LayoutParams.MATCH_PARENT,
@@ -3943,13 +4225,14 @@ fun WebViewScreen(
                                     WebScrollTracker.scrollUpBlocked(wv, wv.scrollY)
                                 }
 
-                                val pluginIds = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
-                                    testModuleIds
+                                val explicitTestIds = isTestMode && !testModuleIds.isNullOrEmpty()
+                                val pluginIds = if (explicitTestIds) {
+                                    testModuleIds!!
                                 } else {
                                     webApp?.pluginIds ?: emptyList()
                                 }
 
-                                val pluginsEnabled = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
+                                val pluginsEnabled = if (explicitTestIds) {
                                     true
                                 } else {
                                     webApp?.pluginsEnabled == true
@@ -3975,12 +4258,20 @@ fun WebViewScreen(
                                 // Plugin code resolution does package IO; resolve off the main
                                 // thread and push payloads into the session once ready. The
                                 // session is already attached so late payloads still inject.
+                                // Empty attached ids still resolve: the switch on uses the
+                                // enabled set from Manage Plugins. Test ids stay explicit.
                                 val previewWebView = surface.webView
-                                if (pluginsEnabled && pluginIds.isNotEmpty() && previewWebView != null) {
+                                if (pluginsEnabled && previewWebView != null) {
                                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                                        com.webtoapp.core.plugin.PluginStore.getInstance(ctx).awaitLoaded()
-                                        val payloads = com.webtoapp.core.plugin.PluginStore.getInstance(ctx)
-                                            .resolveForInjection(pluginIds)
+                                        val store = com.webtoapp.core.plugin.PluginStore.getInstance(ctx)
+                                        val ids = if (explicitTestIds) {
+                                            pluginIds
+                                        } else {
+                                            store.awaitLoaded()
+                                            store.effectiveIds(true, pluginIds)
+                                        }
+                                        if (ids.isEmpty()) return@launch
+                                        val payloads = store.resolveForInjection(ids)
                                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                             webViewManager.updatePluginPayloads(previewWebView, payloads)
                                         }
@@ -3991,7 +4282,8 @@ fun WebViewScreen(
                                 (context as? WebViewActivity)?.browserSurface = surface
                                 val createdWebView = surface.webView
                                 if (createdWebView == null &&
-                                    webApp?.webViewConfig?.enableMediaSession == true
+                                    (webApp?.webViewConfig?.enableMediaSession == true ||
+                                        webApp?.webViewConfig?.backgroundMediaPlayback == true)
                                 ) {
                                     // Gecko engine preview: bridge Gecko's own media
                                     // session events into the shared native core (#593).
@@ -4000,6 +4292,7 @@ fun WebViewScreen(
                                         (context as? WebViewActivity)?.let { host ->
                                             host.geckoMediaAdapter?.runCatching { release() }
                                             host.geckoMediaAdapter = com.webtoapp.core.engine.GeckoMediaSessionAdapter(host, geckoEngine)
+                                            host.backgroundMedia.bind(host.geckoMediaAdapter)
                                         }
                                     }
                                 }
@@ -4016,11 +4309,19 @@ fun WebViewScreen(
                                                 context = context,
                                                 scope = scope,
                                                 webViewProvider = { this },
-                                                capabilities = effectiveWebApp.webViewConfig.nativeBridgeCapabilities,
+                                                capabilities = effectiveWebApp.webViewConfig.nativeBridgeCapabilities
+                                                    .withNotificationPolyfill(
+                                                        effectiveWebApp.webViewConfig.enableNotificationPolyfill
+                                                    ),
                                                 corsBypass = effectiveWebApp.webViewConfig.enableCorsBypass,
                                                 downloadLocationMode = effectiveWebApp.webViewConfig.downloadLocationMode,
                                                 customDownloadDirUri = effectiveWebApp.webViewConfig.customDownloadDirUri,
-                                                appOriginUrl = effectiveWebApp.url
+                                                appOriginUrl = effectiveWebApp.url,
+                                                directoryGrantKey = if (effectiveWebApp.id > 0) {
+                                                    "app-${effectiveWebApp.id}"
+                                                } else {
+                                                    "draft-${effectiveWebApp.packageName ?: effectiveWebApp.url}"
+                                                }
                                             )
                                             addJavascriptInterface(
                                                 nb,
@@ -4030,6 +4331,10 @@ fun WebViewScreen(
                                                 host.previewNativeBridge?.runCatching { release() }
                                                 host.previewNativeBridge = nb
                                             }
+
+                                            (context as? WebViewActivity)?.nativeBridge = nb
+                                            nb.installDirectoryHelper(this)
+
                                         } else if (effectiveWebApp.webViewConfig.enablePrivateNetworkBridge || effectiveWebApp.webViewConfig.enableCorsBypass) {
                                             val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                                                 context = context,
@@ -4136,11 +4441,12 @@ fun WebViewScreen(
                                         // current entry instead of the configured start URL
                                         // (same contract as ShellBrowserView's state_restored tag).
                                         host?.markResumeConsumed()
-                                        reload()
+                                        adBlocker.runWhenRulesInstalled { reload() }
                                     } else {
                                         // Cold-start path: resume the last visited page after
                                         // process death when the store still matches this target.
-                                        loadUrl(host?.consumeResumeUrl() ?: targetUrl)
+                                        val startUrl = host?.consumeResumeUrl() ?: targetUrl
+                                        adBlocker.runWhenRulesInstalled { loadUrl(startUrl) }
                                     }
                                     }
                                     swipeChildWebView = createdWebView
@@ -4162,7 +4468,8 @@ fun WebViewScreen(
                                     // loadUrl(targetUrl); this branch never navigated at all, so
                                     // plain WEB/HTML previews on Gecko/ECH showed a blank view.
                                     if (targetUrl.isNotEmpty()) {
-                                        loadInBrowser((context as? WebViewActivity)?.consumeResumeUrl() ?: targetUrl)
+                                        val startUrl = (context as? WebViewActivity)?.consumeResumeUrl() ?: targetUrl
+                                        adBlocker.runWhenRulesInstalled { loadInBrowser(startUrl) }
                                     }
                                 }
                             }
@@ -4178,11 +4485,19 @@ fun WebViewScreen(
                         // otherwise the renderer outlives its view (#1033).
                         onRelease = { swipeLayout ->
                             val surface = swipeLayout.tag as? BrowserSurface
-                            surface?.webView?.let { webViewManager.discardWebView(it) }
-                            surface?.destroy()
-                            if (browserSurfaceRef === surface) browserSurfaceRef = null
-                            (context as? WebViewActivity)?.releaseSurfaceRefs(surface)
-                            swipeLayout.removeAllViews()
+                            val retained = surface?.webView
+                            if (retained != null &&
+                                com.webtoapp.core.webview.FileChooserLifetime.shouldRetain(retained)
+                            ) {
+                                (retained.parent as? android.view.ViewGroup)?.removeView(retained)
+                                swipeLayout.removeAllViews()
+                            } else {
+                                surface?.webView?.let { webViewManager.discardWebView(it) }
+                                surface?.destroy()
+                                if (browserSurfaceRef === surface) browserSurfaceRef = null
+                                (context as? WebViewActivity)?.releaseSurfaceRefs(surface)
+                                swipeLayout.removeAllViews()
+                            }
                         },
                         modifier = Modifier.weight(weight = 1f, fill = true)
                     )
@@ -4394,12 +4709,22 @@ fun WebViewScreen(
             // TOOLBAR/MENU entries live in the top app bar; FLOATING_HANDLE
             // renders the draggable launcher here.
             if (previewPluginsEnabled || webApp?.appType == com.webtoapp.data.model.AppType.MULTI_WEB) {
+                val pluginEngineName = webApp?.apkExportConfig?.engineType
+                val pluginWebConfig = webApp?.webViewConfig ?: com.webtoapp.data.model.WebViewConfig()
+                val pluginsUnsupported = remember(pluginEngineName, pluginWebConfig.dnsConfig.echEffective) {
+                    com.webtoapp.core.engine.EngineViewFactory.resolveEngineType(
+                        pluginEngineName,
+                        pluginWebConfig,
+                        context
+                    ) == com.webtoapp.core.engine.EngineType.GECKOVIEW
+                }
                 com.webtoapp.ui.plugin.PluginSurfaceHost(
                     entryStyle = previewPluginEntryStyle,
                     toolbarVisible = shouldShowTopBar,
                     floatingHandleModifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(bottom = 24.dp)
+                        .padding(bottom = 24.dp),
+                    pluginsUnsupported = pluginsUnsupported
                 )
             }
 
@@ -4409,8 +4734,16 @@ fun WebViewScreen(
     // On the classic pre-API-30 resize path nothing draws behind the status bar and the bar
     // itself is chrome-owned, so a Compose overlay would only paint a floating band over the
     // web content (issue #683); the window-level bar color comes from WindowHelper instead.
+    val previewStatusMode = if (com.webtoapp.ui.theme.LocalIsDarkTheme.current) {
+        webApp?.webViewConfig?.statusBarColorModeDark
+    } else {
+        webApp?.webViewConfig?.statusBarColorMode
+    }
+    val previewPaintsBand = previewStatusMode != null &&
+        previewStatusMode != com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT
     if (!com.webtoapp.ui.shared.WindowHelper.isClassicSystemBarsWindow(activity) &&
-        hideToolbar && webApp?.webViewConfig?.showStatusBarInFullscreen == true
+        previewPaintsBand &&
+        (hideToolbar && webApp?.webViewConfig?.showStatusBarInFullscreen == true || !hideToolbar)
     ) {
         val overlayIsDark = com.webtoapp.ui.theme.LocalIsDarkTheme.current
         com.webtoapp.ui.components.StatusBarOverlay(
@@ -4486,15 +4819,41 @@ fun WebViewScreen(
             activation.isActivated(appId).collect { activated ->
                 if (activated) {
                     isActivated = true
+                    val remoteOn = webApp?.activationRemoteConfig?.enabled == true
+                    val notice = if (!remoteOn) {
+                        activation.remainingDaysNoticeForLaunch(
+                            appId,
+                            webApp?.activationCodeList.orEmpty()
+                        )
+                    } else {
+                        null
+                    }
                     showActivationDialog = false
-
-                    if (webApp?.announcementEnabled == true) {
-                        val shouldShow = announcement.shouldShowAnnouncement(appId, webApp?.announcement)
-                        showAnnouncementDialog = shouldShow
+                    if (notice != null) {
+                        remainingDaysNotice = notice
+                        remainingDaysIncludeSplash = false
+                        remainingDaysFromLaunch = false
+                    } else {
+                        openPreviewAnnouncement(fromLaunch = false)
                     }
                 }
             }
         }
+    }
+
+    remainingDaysNotice?.let { notice ->
+        com.webtoapp.ui.components.RemainingDaysNoticeDialog(
+            notice = notice,
+            onDismiss = {
+                val includeSplash = remainingDaysIncludeSplash
+                val fromLaunch = remainingDaysFromLaunch
+                remainingDaysNotice = null
+                scope.launch {
+                    openPreviewAnnouncement(fromLaunch)
+                    if (includeSplash) openPreviewSplash()
+                }
+            }
+        )
     }
 
     if (showAnnouncementDialog && webApp?.announcement != null) {

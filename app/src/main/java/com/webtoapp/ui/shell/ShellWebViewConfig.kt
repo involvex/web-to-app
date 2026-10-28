@@ -161,6 +161,11 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
             screenCapture = config.webViewConfig.nativeBridgeScreenCapture,
             pip = config.webViewConfig.nativeBridgePip,
             rating = config.webViewConfig.nativeBridgeRating,
+
+            googleSignIn = config.webViewConfig.nativeBridgeGoogleSignIn,
+            googleSignInClientId = config.webViewConfig.nativeBridgeGoogleSignInClientId,
+            directory = config.webViewConfig.nativeBridgeDirectory,
+
         ),
         javaScriptCanOpenWindows = config.webViewConfig.javaScriptCanOpenWindows,
         jsOpenWindowsPolicy = try {
@@ -184,6 +189,7 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         blobInterceptThresholdMb = config.webViewConfig.blobInterceptThresholdMb,
         enablePrintBridge = config.webViewConfig.enablePrintBridge,
         enableMediaSession = config.webViewConfig.enableMediaSession,
+        backgroundMediaPlayback = config.webViewConfig.backgroundMediaPlayback,
         enableCloudflareCompat = config.webViewConfig.enableCloudflareCompat,
         cloudflareCompatMode = try {
             com.webtoapp.data.model.CloudflareCompatMode.valueOf(config.webViewConfig.cloudflareCompatMode)
@@ -216,6 +222,9 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         screenBrightness = config.webViewConfig.screenBrightness,
         showFloatingBackButton = config.webViewConfig.showFloatingBackButton,
         backButtonBehavior = config.webViewConfig.backButtonBehavior,
+        forwardVolumeKeys = config.webViewConfig.forwardVolumeKeys,
+        consumeVolumeKeys = config.webViewConfig.consumeVolumeKeys,
+        mediaAlbumName = config.webViewConfig.mediaAlbumName,
 
         keyboardAdjustMode = try {
             com.webtoapp.data.model.KeyboardAdjustMode.valueOf(config.webViewConfig.keyboardAdjustMode)

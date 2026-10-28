@@ -30,23 +30,25 @@ GeckoView is a complete second engine independent of the system WebView, not a W
 - JS dialogs (alert / confirm / prompt)
 - Page-load error UI, back / forward history navigation, auto-refresh, find-in-page, console script execution
 - Media session / lock-screen playback controls (native Gecko implementation)
+- Page zoom — CSS `zoom` on the document root, the same script as the system WebView. Pinch zoom stays the engine's own
+- Remote `fetch` and XHR stay on the engine, so a Cloudflare challenge can finish. The native bridge wraps those calls only on local pages
+- Script-opened windows stay real child windows, so popup sign-in can post to `window.opener` and then close
 
 ### Not available yet (choose the system WebView kernel if you need these)
 
 - **[Ad blocking](/guide/app-actions/edit-common-config/ad-blocking)** — neither network-rule filtering nor cosmetic hiding takes effect
-- **[Userscripts](/extensions/userscript) (GM_\* APIs) and [Chrome MV3 extensions](/extensions/chrome-mv3)** (incl. declarativeNetRequest / webRequest rules)
-- **The full [NativeBridge](/extensions/api-reference) JS API** — clipboard, notifications, vibration, printing, sharing, screen wake, orientation, Google sign-in, etc.; on GeckoView only the CORS-bypass / private-network `httpRequest` entry point is available
+- **[Userscripts](/extensions/userscript) (GM_\* APIs) and [Chrome MV3 extensions](/extensions/chrome-mv3)** (incl. declarativeNetRequest / webRequest rules). The plugin list says this kernel can't run plugins, instead of saying none are enabled
+- **The full [NativeBridge](/extensions/native-bridge) JS API** — clipboard, notifications, vibration, printing, sharing, screen wake, orientation, Google sign-in, etc.; on GeckoView only the CORS-bypass / private-network `httpRequest` entry point is available
 - **JS-injection features** — browser fingerprint disguise, [device disguise](/guide/app-actions/edit-common-config/device-disguise), kernel disguise & flavors, [page translation](/guide/app-actions/edit-common-config/translate), audio unlock, clipboard / notification / orientation polyfills, Cloudflare compatibility helpers, custom injected scripts, popup blocking, scroll-position memory, image repair, hide-link-preview
 - **PWA offline (service-worker injection), static asset packs, encrypted asset loading** — therefore **HTML / [front-end offline-package](/guide/app-types/frontend) apps with resource encryption enabled must use the system WebView kernel**
 - blob / data: download interception
 - The [long-press menu](/guide/app-actions/edit-common-config/long-press-menu) (save image/video, copy link, etc.)
 - Status-bar auto color sampling (follow page-top color; solid-color / theme modes are unaffected)
-- Text zoom (GeckoView applies the page-zoom percent by rewriting the layout viewport when the page finishes loading, and keeps its own pinch zoom)
 - Follow-system dark mode
 - Cookie policy (GeckoView always accepts all cookies)
 - Hosts mapping (domain → IP)
 - Console message capture and eval result return (scripts do run, but the panel receives no messages or return values)
-- New-window policy (GeckoView popups always load in the current window)
+- New-window policy for ordinary links (same window, external browser, or block). A script-opened window is a real child window instead
 - Proxy username / password authentication
 - WebView state save / restore (session restore after process death)
 

@@ -24,8 +24,10 @@ import kotlinx.coroutines.launch
 import com.webtoapp.WebToAppApplication
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.theme.ShellTheme
+import com.webtoapp.core.webview.BackgroundMediaRuntime
 import com.webtoapp.core.webview.TranslateBridge
 import com.webtoapp.data.model.KeyboardAdjustMode
+import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.core.floatingwindow.FloatingWindowService
 import com.webtoapp.ui.shared.WindowHelper
 
@@ -37,12 +39,19 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     private var webView: WebView? = null
     private var browserSurface: BrowserSurface? = null
+    private var nativeBridge: com.webtoapp.core.webview.NativeBridge? = null
+    private val backgroundMedia = BackgroundMediaRuntime(
+        webView = { webView },
+        surface = { browserSurface },
+        dispatchHidden = { dispatchVisibilityEvent(visible = false) }
+    )
     private var customView: View? = null
     private var customViewCallback: WebChromeClient.CustomViewCallback? = null
 
     private var deepLinkUrl = mutableStateOf<String?>(null)
 
     val permissionDelegate = ShellPermissionDelegate(this)
+    private val directoryPickerHost = com.webtoapp.core.webview.DirectoryPickerHost(this)
     private val startupPermissions = ShellStartupPermissions(this)
 
     override fun requestScreenCaptureConsent(onResult: (Int, Intent?) -> Unit) =
@@ -294,6 +303,17 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val volumeConfig = shellConfig?.webViewConfig
+        if (com.webtoapp.core.webview.PageKeyEvents.handleVolume(
+                event,
+                forward = volumeConfig?.forwardVolumeKeys == true,
+                consume = volumeConfig?.consumeVolumeKeys == true,
+                webView = webView,
+                surface = browserSurface
+            )
+        ) {
+            return true
+        }
         // Enter diagnostics for hardware-keyboard modifier loss (#1032): if the
         // IME translated the key into an editor action it never reaches us — a
         // missing log line is itself the signal; a logged meta=0x0 means the
@@ -350,6 +370,13 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     }
 
     fun handlePermissionRequest(request: PermissionRequest) = permissionDelegate.handlePermissionRequest(request)
+
+    fun onCapturePermissionCanceled(request: PermissionRequest) =
+        permissionDelegate.onCapturePermissionCanceled(request)
+
+    internal fun reloadForCapturePermission() {
+        reloadBrowser()
+    }
     fun handleAndroidPermissionsRequest(permissions: Array<String>, onResult: (Boolean) -> Unit) =
         permissionDelegate.requestAndroidPermissions(permissions, onResult)
     fun handleGeolocationPermission(origin: String?, callback: GeolocationPermissions.Callback?) {
@@ -485,6 +512,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         }
 
         super.onCreate(savedInstanceState)
+        com.webtoapp.core.webview.DirectoryPickerRegistry.install(directoryPickerHost)
 
         if (!isTaskRoot &&
             intent?.action == Intent.ACTION_MAIN &&
@@ -525,6 +553,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         }
         initAdStack(config)
         notificationPolyfillEnabled = config.webViewConfig.enableNotificationPolyfill
+        backgroundMedia.enabled = config.webViewConfig.backgroundMediaPlayback
         com.webtoapp.core.engine.GeckoViewEngine.applyEnterpriseRootsEnabled(
             config.networkTrustConfig.trustUserCa
         )
@@ -606,7 +635,27 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         shareShowReceivedToast = config.webViewConfig.shareShowReceivedToast
         openWithEnabled = config.webViewConfig.openWithEnabled
 
-        immersiveFullscreenEnabled = config.webViewConfig.hideToolbar
+        // Decide the launch window before any immersive flags. Fullscreen mode
+        // sets FLAG_FULLSCREEN; doing that first keeps this activity on screen
+        // and the floating-window service never becomes the app the user sees.
+        if (ShellActivityInit.opensAsFloatingWindow(config)) {
+            immersiveFullscreenEnabled = false
+            val floatingWindowConfig = config.webViewConfig.floatingWindowConfig
+            com.webtoapp.core.shell.ShellLogger.i(
+                "ShellActivity",
+                "悬浮窗优先于全屏模式: size=${floatingWindowConfig.windowSizePercent}%, opacity=${floatingWindowConfig.opacity}%"
+            )
+            if (FloatingWindowService.canDrawOverlays(this)) {
+                launchFloatingWindowAndFinish(config)
+                return
+            }
+            pendingFloatingWindowLaunch = true
+            com.webtoapp.core.shell.ShellLogger.w("ShellActivity", "悬浮窗权限未授予，引导用户授权")
+            Toast.makeText(this, Strings.floatingWindowPermissionRequired, Toast.LENGTH_LONG).show()
+            FloatingWindowService.requestOverlayPermission(this)
+        }
+
+        immersiveFullscreenEnabled = ShellActivityInit.appliesFullscreenLaunch(config)
         try {
             applyImmersiveFullscreen(immersiveFullscreenEnabled)
             com.webtoapp.core.shell.ShellLogger.d("ShellActivity", "沉浸式全屏模式: $immersiveFullscreenEnabled")
@@ -622,22 +671,6 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
             lp.screenBrightness = shellBrightness / 100f
             window.attributes = lp
             com.webtoapp.core.shell.ShellLogger.d("ShellActivity", "屏幕亮度: ${shellBrightness}%")
-        }
-
-        val floatingWindowConfig = config.webViewConfig.floatingWindowConfig
-        if (floatingWindowConfig.enabled) {
-            com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "悬浮窗配置: size=${floatingWindowConfig.windowSizePercent}%, opacity=${floatingWindowConfig.opacity}%")
-            if (FloatingWindowService.canDrawOverlays(this)) {
-
-                launchFloatingWindowAndFinish(config)
-                return
-            } else {
-
-                pendingFloatingWindowLaunch = true
-                com.webtoapp.core.shell.ShellLogger.w("ShellActivity", "悬浮窗权限未授予，引导用户授权")
-                Toast.makeText(this, Strings.floatingWindowPermissionRequired, Toast.LENGTH_LONG).show()
-                FloatingWindowService.requestOverlayPermission(this)
-            }
         }
 
         // Issue #1029: relaunching the task from Recents replays its original launch
@@ -702,7 +735,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                         com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "Browser surface created (GeckoView), ECH engine active")
                         // GeckoView implements the web Media Session API itself;
                         // its engine events feed the shared native core (#593).
-                        if (config.webViewConfig.enableMediaSession) {
+                        if (config.webViewConfig.enableMediaSession || config.webViewConfig.backgroundMediaPlayback) {
                             val geckoEngine = surface.engine as? com.webtoapp.core.engine.GeckoViewEngine
                             if (geckoEngine != null) {
                                 geckoMediaAdapter?.release()
@@ -710,6 +743,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                     this@ShellActivity,
                                     geckoEngine
                                 )
+                                backgroundMedia.bind(geckoMediaAdapter)
                                 com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "[MediaSession] Gecko adapter attached")
                             }
                         }
@@ -725,7 +759,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                         wv.resumeTimers()
                         com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "WebView 创建成功, timers resumed")
 
-                        val savedState = webViewStateBundle
+                        val chooserRetained = com.webtoapp.core.webview.FileChooserLifetime.consumeReattached(wv)
+                        val savedState = if (chooserRetained) null else webViewStateBundle
                         // Multi-web surfaces save with their site id; a bundle
                         // tagged for another site must wait for that site's
                         // own view instead of being grafted onto whichever
@@ -778,7 +813,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 this@ShellActivity,
                                 lifecycleScope,
                                 downloadLocationMode,
-                                config.webViewConfig.customDownloadDirUri
+                                config.webViewConfig.customDownloadDirUri,
+                                config.webViewConfig.mediaAlbumName
                             )
                             wv.addJavascriptInterface(downloadBridge, com.webtoapp.core.webview.DownloadBridge.JS_INTERFACE_NAME)
                         }
@@ -818,6 +854,9 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                         }
 
                         if (config.webViewConfig.enableMediaSession) {
+
+                        if (config.webViewConfig.enableMediaSession || config.webViewConfig.backgroundMediaPlayback) {
+
                             val mediaBridge = com.webtoapp.core.webview.MediaSessionBridge(
                                 this@ShellActivity,
                                 wv
@@ -828,6 +867,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 com.webtoapp.core.shell.ShellLogger.w("ShellActivity", "[MediaSession] Document-start unsupported, will re-inject on page finish")
                             }
                             mediaSessionBridge = mediaBridge
+                            backgroundMedia.bind(mediaBridge)
                         }
 
                         if (config.webViewConfig.enableNativeBridge) {
@@ -857,7 +897,8 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 rating = config.webViewConfig.nativeBridgeRating,
                                 googleSignIn = config.webViewConfig.nativeBridgeGoogleSignIn,
                                 googleSignInClientId = config.webViewConfig.nativeBridgeGoogleSignInClientId,
-                            )
+                                directory = config.webViewConfig.nativeBridgeDirectory,
+                            ).withNotificationPolyfill(config.webViewConfig.enableNotificationPolyfill)
                             val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                                 context = this@ShellActivity,
                                 scope = lifecycleScope,
@@ -866,10 +907,15 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                                 corsBypass = config.webViewConfig.enableCorsBypass,
                                 downloadLocationMode = downloadLocationMode,
                                 customDownloadDirUri = config.webViewConfig.customDownloadDirUri,
-                                appOriginUrl = config.targetUrl
+                                appOriginUrl = config.targetUrl,
+                                directoryGrantKey = config.packageName
                             )
+                            this@ShellActivity.nativeBridge = nativeBridge
                             wv.addJavascriptInterface(nativeBridge, com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME)
                             shellNativeBridge = nativeBridge
+
+                            nativeBridge.installDirectoryHelper(wv)
+
                         } else if (config.webViewConfig.enablePrivateNetworkBridge || config.webViewConfig.enableCorsBypass) {
                             val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                                 context = this@ShellActivity,
@@ -903,6 +949,9 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                     refreshStatusBarAppearance()
                 },
                 onFileChooser = { callback, params ->
+                    (webView ?: browserSurface?.webView)?.let {
+                        com.webtoapp.core.webview.FileChooserLifetime.parkWebView(it)
+                    }
                     permissionDelegate.handleFileChooser(callback, params)
                 },
                 onShowCustomView = { view, callback ->
@@ -1030,8 +1079,18 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         finish()
     }
 
+    override fun onUserLeaveHint() {
+        backgroundMedia.onFocusLost(!isFinishing && !isChangingConfigurations)
+        super.onUserLeaveHint()
+    }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            backgroundMedia.onFocusGained()
+        } else {
+            backgroundMedia.onFocusLost(!isFinishing && !isChangingConfigurations)
+        }
         if (hasFocus) {
             if (customView != null || immersiveFullscreenEnabled) {
                 applyImmersiveFullscreen(true, isDarkTheme = isSystemInDarkMode())
@@ -1269,6 +1328,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     override fun onResume() {
         super.onResume()
+        backgroundMedia.onHostResume()
 
         if (pendingFloatingWindowLaunch) {
             val config = WebToAppApplication.shellMode.getConfig()
@@ -1283,26 +1343,36 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         browserSurface?.onResume() ?: webView?.onResume()
 
         browserSurface?.resumeTimers() ?: webView?.resumeTimers()
+        nativeBridge?.onWebViewResume()
         dispatchVisibilityEvent(visible = true)
         com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onResume - WebView resumed, timers resumed")
     }
 
     override fun onPause() {
+        val keepMedia = backgroundMedia.onHostPause(!isFinishing && !isChangingConfigurations)
         super.onPause()
 
-        dispatchVisibilityEvent(visible = false)
+        if (!keepMedia) {
+            dispatchVisibilityEvent(visible = false)
+        }
 
-        if (notificationPolyfillEnabled && browserSurface == null) {
+        if (keepMedia) {
+            com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onPause - background media playing, leaving the page running")
+        } else if (notificationPolyfillEnabled && browserSurface == null) {
             // Keep JavaScript timers running so background web notifications can fire.
             // Only applies to system WebView (NativeBridge is unavailable in GeckoView).
             // The foreground service keeps the process alive.
             com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onPause - notification polyfill active, keeping JS timers alive")
         } else {
             browserSurface?.onPause() ?: webView?.onPause()
+            nativeBridge?.onWebViewPause()
         }
 
         android.webkit.CookieManager.getInstance().flush()
-        com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onPause - WebView paused, cookies flushed")
+        com.webtoapp.core.shell.ShellLogger.logLifecycle(
+            "ShellActivity",
+            if (keepMedia) "onPause - media kept alive, cookies flushed" else "onPause - WebView paused, cookies flushed"
+        )
     }
 
     /**
@@ -1340,6 +1410,9 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     }
 
     override fun onDestroy() {
+        backgroundMedia.close()
+        directoryPickerHost.cancelPending()
+        com.webtoapp.core.webview.DirectoryPickerRegistry.uninstall(directoryPickerHost)
         com.webtoapp.core.shell.ShellLogger.logLifecycle("ShellActivity", "onDestroy")
 
         android.webkit.CookieManager.getInstance().flush()

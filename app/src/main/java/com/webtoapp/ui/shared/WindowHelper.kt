@@ -2,6 +2,7 @@ package com.webtoapp.ui.shared
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
+import android.graphics.Rect
 import android.os.Build
 import android.view.View
 import android.view.ViewGroup
@@ -59,6 +60,11 @@ object WindowHelper {
     ) {
         val controller = WindowInsetsControllerCompat(activity.window, activity.window.decorView)
         val alpha = backgroundAlpha.coerceIn(0f, 1f)
+        // Android 15 ignores window status-bar color and may lay a light scrim on top.
+        // That scrim stays white when the page or theme goes dark, so the icons vanish.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            activity.window.isStatusBarContrastEnforced = false
+        }
         // The classic resize window (below API 30, RESIZE mode) does not draw behind the
         // status bar, so a transparent bar would just show the window background.
         val colorMode = if (colorMode == "TRANSPARENT" && isClassicKeyboardResizeWindow(activity.window)) {
@@ -403,8 +409,8 @@ object WindowHelper {
                         WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING or
                             WindowManager.LayoutParams.SOFT_INPUT_STATE_UNSPECIFIED
                     )
-                    installManualImePadding(activity, contentView)
-                    AppLogger.d(tag, "键盘模式: RESIZE (边到边 + 手动动画)")
+                    installManualImePadding(contentView)
+                    AppLogger.d(tag, "键盘模式: RESIZE (边到边，只滚动被挡住的内容并裁到键盘上沿，结束时不改高度)")
                 }
             }
 
@@ -423,7 +429,7 @@ object WindowHelper {
         }
     }
 
-    private fun installManualImePadding(activity: Activity, contentView: View) {
+    private fun installManualImePadding(contentView: View) {
         if (contentView in manualImeInstalled) {
             ViewCompat.requestApplyInsets(contentView)
             return
@@ -431,18 +437,80 @@ object WindowHelper {
         manualImeInstalled.add(contentView)
 
         var imeAnimating = false
-        var targetImeBottom = 0
+        val follow = ImeAnimationFollow()
+        val documentScroll = ImeDocumentScroll()
 
-        fun applyImeBottomPadding(bottom: Int) {
-            if (contentView.paddingBottom != bottom) {
+        fun applyFrame(frame: ImeFrame) {
+            // Never leave a pan or a bottom padding in place. Padding shrinks
+            // the WebView at the moment the field meets the keyboard, and
+            // Chromium then applies the window IME inset again, so the field
+            // flashes. Translation does the same to fixed elements (#1398).
+            if (contentView.translationY != 0f) contentView.translationY = 0f
+            if (contentView.paddingBottom != 0) {
                 contentView.setPadding(
                     contentView.paddingLeft,
                     contentView.paddingTop,
                     contentView.paddingRight,
-                    bottom
+                    0
                 )
+                publishImeOcclusion(contentView, 0)
             }
-            publishImeOcclusion(contentView, bottom)
+            val clip = frame.clipBottom
+            if (clip != null && clip > 0 && contentView.height > 0 && contentView.width > 0) {
+                val clipBottom = (contentView.height - clip).coerceAtLeast(0)
+                contentView.clipBounds = Rect(0, 0, contentView.width, clipBottom)
+            } else if (clip == 0 && contentView.clipBounds != null) {
+                contentView.clipBounds = null
+            }
+        }
+
+        var latestImeBottom = 0
+
+        fun beginDocumentScroll() {
+            documentScroll.begin()
+        }
+
+        fun applyDocumentScroll(webView: android.webkit.WebView, imeBottom: Int) {
+            if (imeBottom <= 0 || webView.height <= 0) return
+            val web = IntArray(2)
+            val content = IntArray(2)
+            webView.getLocationInWindow(web)
+            contentView.getLocationInWindow(content)
+            val overlap = keyboardOverlapPx(
+                web[1], webView.height, content[1], contentView.height, imeBottom,
+            )
+            val delta = documentScroll.scrollDelta(webView.height, overlap)
+            if (delta > 0) webView.scrollBy(0, delta)
+        }
+
+        fun scrollCoveredField(imeBottom: Int) {
+            latestImeBottom = imeBottom
+            val webView = findWebViewInHierarchy(contentView) ?: return
+            if (webView.height <= 0 || imeBottom <= 0) return
+            val generation = documentScroll.requestSnapshot()
+            if (generation != null) {
+                val heightPx = webView.height
+                webView.evaluateJavascript(FOCUSED_FIELD_SNAPSHOT_JS) { raw ->
+                    val snap = parseFocusedFieldSnapshot(raw)
+                    if (snap == null) {
+                        documentScroll.snapshotMissed(generation)
+                        return@evaluateJavascript
+                    }
+                    documentScroll.capture(
+                        snap.topCss,
+                        snap.bottomCss,
+                        snap.viewportHeightCss,
+                        heightPx,
+                        generation,
+                    )
+                    // The rect arrives after this frame. Catch up immediately
+                    // instead of waiting for the next inset tick.
+                    webView.post {
+                        if (webView.isAttachedToWindow) applyDocumentScroll(webView, latestImeBottom)
+                    }
+                }
+            }
+            applyDocumentScroll(webView, imeBottom)
         }
 
         ViewCompat.setWindowInsetsAnimationCallback(
@@ -453,6 +521,8 @@ object WindowHelper {
                 override fun onPrepare(animation: WindowInsetsAnimationCompat) {
                     if (animation.typeMask and WindowInsetsCompat.Type.ime() != 0) {
                         imeAnimating = true
+                        follow.onPrepare()
+                        beginDocumentScroll()
                     }
                 }
 
@@ -460,7 +530,17 @@ object WindowHelper {
                     insets: WindowInsetsCompat,
                     runningAnimations: MutableList<WindowInsetsAnimationCompat>
                 ): WindowInsetsCompat {
-                    applyImeBottomPadding(insets.getInsets(WindowInsetsCompat.Type.ime()).bottom)
+                    if (runningAnimations.any { it.typeMask and WindowInsetsCompat.Type.ime() != 0 }) {
+                        if (!imeAnimating) {
+                            imeAnimating = true
+                            follow.onPrepare()
+                            beginDocumentScroll()
+                        }
+                        val shown = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+                        val frame = follow.onFrame(shown)
+                        applyFrame(frame)
+                        if (frame.scrollDocument) scrollCoveredField(shown)
+                    }
                     return insets
                 }
 
@@ -471,21 +551,26 @@ object WindowHelper {
                     val rootInsets = ViewCompat.getRootWindowInsets(contentView)
                     val imeVisible = rootInsets?.isVisible(WindowInsetsCompat.Type.ime()) ?: false
                     val imeBottom = rootInsets?.getInsets(WindowInsetsCompat.Type.ime())?.bottom ?: 0
-                    targetImeBottom = if (imeVisible) imeBottom else 0
-                    applyImeBottomPadding(targetImeBottom)
-
-                    if (imeVisible) {
-                        checkAndScrollWebViewToFocusedInput(activity)
-                    }
+                    val finalBottom = if (imeVisible) imeBottom else 0
+                    // Last step of the same scroll, still in the unresized
+                    // coordinate space. Do not scrollIntoView afterwards:
+                    // the field is already on the keyboard, and a second
+                    // scroll is the flash.
+                    if (finalBottom > follow.settledBottom) scrollCoveredField(finalBottom)
+                    documentScroll.end()
+                    applyFrame(follow.onEnd(finalBottom))
                 }
             }
         )
 
         ViewCompat.setOnApplyWindowInsetsListener(contentView) { _, windowInsets ->
-            if (!imeAnimating) {
-                val imeBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
-                targetImeBottom = imeBottom
-                applyImeBottomPadding(imeBottom)
+            val imeBottom = windowInsets.getInsets(WindowInsetsCompat.Type.ime()).bottom
+            if (imeAnimating) {
+                // The dispatch during an animation carries the final inset. Keep it
+                // for direction, and let onProgress move the page without a layout.
+                follow.onTarget(imeBottom)
+            } else {
+                applyFrame(follow.jumpTo(imeBottom))
             }
             windowInsets
         }
@@ -497,6 +582,8 @@ object WindowHelper {
         manualImeInstalled.remove(contentView)
         ViewCompat.setWindowInsetsAnimationCallback(contentView, null)
         ViewCompat.setOnApplyWindowInsetsListener(contentView, null)
+        contentView.translationY = 0f
+        contentView.clipBounds = null
         if (contentView.paddingBottom != 0) {
             contentView.setPadding(
                 contentView.paddingLeft,
@@ -506,49 +593,6 @@ object WindowHelper {
             )
         }
         publishImeOcclusion(contentView, 0)
-    }
-
-    private fun checkAndScrollWebViewToFocusedInput(activity: Activity) {
-        val webView = findWebViewInHierarchy(activity.window.decorView) ?: return
-        webView.post {
-            try {
-                webView.evaluateJavascript("""
-                    (function() {
-                        var el = document.activeElement;
-                        if (!el || (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA' && !el.isContentEditable)) {
-                            return 'no_input';
-                        }
-                        var rect = el.getBoundingClientRect();
-                        var viewportHeight = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-                        var viewportTop = window.visualViewport ? window.visualViewport.offsetTop : 0;
-                        if (rect.top >= viewportTop && rect.bottom <= (viewportTop + viewportHeight)) {
-                            return 'already_visible';
-                        }
-                        el.scrollIntoView({ block: 'center' });
-                        return 'scrolled';
-                    })();
-                """.trimIndent(), null)
-            } catch (e: Exception) {
-                AppLogger.w("WindowHelper", "checkAndScrollWebViewToFocusedInput failed", e)
-            }
-        }
-    }
-
-    private fun scrollWebViewToFocusedInput(activity: Activity) {
-        try {
-
-            val webView = findWebViewInHierarchy(activity.window.decorView)
-            webView?.evaluateJavascript("""
-                (function() {
-                    var el = document.activeElement;
-                    if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
-                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                })();
-            """.trimIndent(), null)
-        } catch (e: Exception) {
-            AppLogger.w("WindowHelper", "scrollWebViewToFocusedInput failed", e)
-        }
     }
 
     private fun findWebViewInHierarchy(view: View): android.webkit.WebView? {

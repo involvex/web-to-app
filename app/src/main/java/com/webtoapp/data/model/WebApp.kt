@@ -431,6 +431,12 @@ data class WebViewConfig(
      * registered app id (so it cannot be shipped as a general-purpose default).
      */
     val customAppReturnSchemes: List<String> = emptyList(),
+
+    /**
+     * Outbound Web Share. The page's `navigator.share({ text, url, files })` opens the
+     * system share sheet with the caption and the files together. The user picks the
+     * target app. On for new apps. Remote https pages get the same bridge as local ones.
+     */
     val enableShareBridge: Boolean = true,
 
     /**
@@ -549,6 +555,12 @@ data class WebViewConfig(
 
     val enableMediaSession: Boolean = true,
 
+    // Off by default. While on, audio that is already playing keeps going after
+    // the user leaves. The picture stops with the window and resumes on return.
+    // Requires the media-session foreground service; the editor turns that on
+    // together with this switch.
+    val backgroundMediaPlayback: Boolean = false,
+
     val primeUserActivation: Boolean = true,
     val primeUserActivationMode: PrimeUserActivationMode = PrimeUserActivationMode.SYNTHETIC_TAP,
     val primeUserActivationTiming: PrimeUserActivationTiming = PrimeUserActivationTiming.ON_PAGE_FINISHED,
@@ -585,9 +597,17 @@ data class WebViewConfig(
     val staticAssetPackMaxTotalSizeMb: Int = 50,
 
     val showFloatingBackButton: Boolean = false,
-    // System back button behavior: "GO_BACK" (default, walk web history then exit)
-    // or "EXIT" (leave the app immediately). See issue #151.
-    val backButtonBehavior: String = "GO_BACK",
+    // System back button behavior. See [BACK_GO_BACK], [BACK_GO_BACK_EXIT], [BACK_EXIT], [BACK_JS].
+    val backButtonBehavior: String = BACK_GO_BACK,
+    /** Deliver volume keys to the page as `wta:volume`. Off leaves the system volume keys alone. */
+    val forwardVolumeKeys: Boolean = false,
+    /** While [forwardVolumeKeys] is on, swallow the key so the system volume does not change. */
+    val consumeVolumeKeys: Boolean = false,
+    /**
+     * Gallery subdirectory for system-download media (`Pictures/<name>`, and the
+     * matching movie/music folders). One path segment. Blank becomes WebToApp.
+     */
+    val mediaAlbumName: String = "",
     val floatingWindowConfig: FloatingWindowConfig = FloatingWindowConfig(),
     val proxyMode: String = "NONE",
     val proxyHost: String = "",
@@ -640,6 +660,27 @@ data class WebViewConfig(
     /** Whether received content is announced to the page as a DOM event. */
     val broadcastsShareEvent: Boolean get() = enableShareReceive &&
         shareDeliveryMode != ShareDeliveryMode.FILE_CHOOSER_PREFILL
+
+    companion object {
+        /** Walk history. On the first page, Back asks for a second press before leaving. */
+        const val BACK_GO_BACK = "GO_BACK"
+
+        /**
+         * Walk history the same way as [BACK_GO_BACK]. On the first page, one Back
+         * press leaves immediately. Issue #1329.
+         */
+        const val BACK_GO_BACK_EXIT = "GO_BACK_EXIT"
+
+        /** Leave immediately. Back does not walk history. Issue #151. */
+        const val BACK_EXIT = "EXIT"
+
+        /**
+         * Dispatch a cancelable `wta:back` event. `preventDefault()` keeps the
+         * page in front. If the page does not handle it, Back walks history the
+         * same way as [BACK_GO_BACK].
+         */
+        const val BACK_JS = "JS"
+    }
 }
 
 data class HostMappingEntry(
@@ -1872,7 +1913,20 @@ data class NativeBridgeCapabilities(
     // project and provide its Web client ID.
     val googleSignIn: Boolean = false,
     val googleSignInClientId: String = "",
+    // One user-picked folder the page can list, read, and write. Off by default:
+    // a remote page that talks the user into choosing Downloads or DCIM can
+    // read everything in that tree. The grant is a persistable SAF permission,
+    // not a broad storage permission.
+    val directory: Boolean = false,
 )
+
+/**
+ * The web Notification polyfill calls [com.webtoapp.core.webview.NativeBridge.showWebNotification].
+ * That method reports permission denied while [notification] is off, so a polyfill
+ * that is on by itself never posts a system notification.
+ */
+fun NativeBridgeCapabilities.withNotificationPolyfill(polyfillEnabled: Boolean): NativeBridgeCapabilities =
+    if (polyfillEnabled) copy(notification = true) else this
 
 enum class GeolocationAccuracy {
 

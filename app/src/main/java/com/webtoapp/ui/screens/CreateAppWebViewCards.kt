@@ -1139,12 +1139,18 @@ fun BrowserAdvancedConfigCard(
                                     vertical = WtaSpacing.ContentGap
                                 )
                             )
-                            Text(
-                                text = Strings.backButtonBehaviorHint,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = WtaSpacing.RowHorizontal)
-                            )
+                            AnimatedVisibility(
+                                visible = LocalShowDescriptions.current,
+                                enter = CardExpandTransition,
+                                exit = CardCollapseTransition
+                            ) {
+                                Text(
+                                    text = Strings.backButtonBehaviorHint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = WtaSpacing.RowHorizontal)
+                                )
+                            }
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1156,17 +1162,51 @@ fun BrowserAdvancedConfigCard(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 WtaChip(
-                                    selected = config.backButtonBehavior == "GO_BACK",
-                                    onClick = { onConfigChange(config.copy(backButtonBehavior = "GO_BACK")) },
+                                    selected = config.backButtonBehavior == com.webtoapp.data.model.WebViewConfig.BACK_GO_BACK,
+                                    onClick = { onConfigChange(config.copy(backButtonBehavior = com.webtoapp.data.model.WebViewConfig.BACK_GO_BACK)) },
                                     label = Strings.backButtonGoBack,
                                     showSelectedCheck = false
                                 )
                                 WtaChip(
-                                    selected = config.backButtonBehavior == "EXIT",
-                                    onClick = { onConfigChange(config.copy(backButtonBehavior = "EXIT")) },
+                                    selected = config.backButtonBehavior == com.webtoapp.data.model.WebViewConfig.BACK_GO_BACK_EXIT,
+                                    onClick = { onConfigChange(config.copy(backButtonBehavior = com.webtoapp.data.model.WebViewConfig.BACK_GO_BACK_EXIT)) },
+                                    label = Strings.backButtonExitAtRoot,
+                                    showSelectedCheck = false
+                                )
+                                WtaChip(
+                                    selected = config.backButtonBehavior == com.webtoapp.data.model.WebViewConfig.BACK_EXIT,
+                                    onClick = { onConfigChange(config.copy(backButtonBehavior = com.webtoapp.data.model.WebViewConfig.BACK_EXIT)) },
                                     label = Strings.backButtonExitApp,
                                     showSelectedCheck = false
                                 )
+                                WtaChip(
+                                    selected = config.backButtonBehavior == com.webtoapp.data.model.WebViewConfig.BACK_JS,
+                                    onClick = { onConfigChange(config.copy(backButtonBehavior = com.webtoapp.data.model.WebViewConfig.BACK_JS)) },
+                                    label = Strings.backButtonRunJs,
+                                    showSelectedCheck = false
+                                )
+                            }
+                            WtaSectionDivider()
+                            WtaToggleRow(
+                                title = Strings.forwardVolumeKeysLabel,
+                                subtitle = Strings.forwardVolumeKeysHint.ifDescriptionsShown(),
+                                checked = config.forwardVolumeKeys,
+                                onCheckedChange = { onConfigChange(config.copy(forwardVolumeKeys = it)) }
+                            )
+                            AnimatedVisibility(
+                                visible = config.forwardVolumeKeys,
+                                enter = CardExpandTransition,
+                                exit = CardCollapseTransition
+                            ) {
+                                Column {
+                                    WtaSectionDivider()
+                                    WtaToggleRow(
+                                        title = Strings.consumeVolumeKeysLabel,
+                                        subtitle = Strings.consumeVolumeKeysHint.ifDescriptionsShown(),
+                                        checked = config.consumeVolumeKeys,
+                                        onCheckedChange = { onConfigChange(config.copy(consumeVolumeKeys = it)) }
+                                    )
+                                }
                             }
                             WtaSectionDivider()
                             WtaToggleRow(
@@ -3533,7 +3573,37 @@ fun SpecialSettingsCard(
                                 subtitle = Strings.enableMediaSessionDesc.ifDescriptionsShown(),
                                 icon = Icons.Outlined.PlayCircle,
                                 checked = config.enableMediaSession,
-                                onCheckedChange = { onConfigChange(config.copy(enableMediaSession = it)) }
+                                onCheckedChange = { enabled ->
+                                    onConfigChange(
+                                        config.copy(
+                                            enableMediaSession = enabled,
+                                            backgroundMediaPlayback = if (enabled) {
+                                                config.backgroundMediaPlayback
+                                            } else {
+                                                false
+                                            }
+                                        )
+                                    )
+                                }
+                            )
+                            WtaSectionDivider()
+                            WtaToggleRow(
+                                title = Strings.backgroundMediaPlaybackTitle,
+                                subtitle = Strings.backgroundMediaPlaybackDesc.ifDescriptionsShown(),
+                                icon = Icons.Outlined.Headphones,
+                                checked = config.backgroundMediaPlayback,
+                                onCheckedChange = { enabled ->
+                                    onConfigChange(
+                                        if (enabled) {
+                                            config.copy(
+                                                backgroundMediaPlayback = true,
+                                                enableMediaSession = true
+                                            )
+                                        } else {
+                                            config.copy(backgroundMediaPlayback = false)
+                                        }
+                                    )
+                                }
                             )
                         }
                         SpecialAdvancedRow(
@@ -3802,6 +3872,11 @@ fun SpecialSettingsCard(
                                     selected = caps.rating,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(rating = !caps.rating))) },
                                     label = Strings.nativeBridgeCapsRating,
+
+                                    selected = caps.directory,
+                                    onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(directory = !caps.directory))) },
+                                    label = Strings.nativeBridgeCapsDirectory,
+
                                     showSelectedCheck = false
                                 )
                                 if (!BuildConfig.FDROID) {
@@ -3812,6 +3887,18 @@ fun SpecialSettingsCard(
                                         showSelectedCheck = false
                                     )
                                 }
+                            }
+
+                            AnimatedVisibility(
+                                visible = caps.directory && LocalShowDescriptions.current,
+                                enter = CardExpandTransition,
+                                exit = CardCollapseTransition
+                            ) {
+                                Text(
+                                    text = Strings.nativeBridgeDirectoryHint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
 
                             if (!BuildConfig.FDROID) {
@@ -4009,6 +4096,14 @@ fun SpecialSettingsCard(
                                 }
                             }
                             WtaSectionDivider()
+                            WtaToggleRow(
+                                title = Strings.outboundShareTitle,
+                                subtitle = Strings.outboundShareDesc.ifDescriptionsShown(),
+                                icon = Icons.Outlined.Share,
+                                checked = config.enableShareBridge,
+                                onCheckedChange = { onConfigChange(config.copy(enableShareBridge = it)) }
+                            )
+                            WtaSectionDivider()
                             ShareReceiveRows(
                                 webViewConfig = config,
                                 onWebViewConfigChange = onConfigChange
@@ -4069,6 +4164,24 @@ fun SpecialSettingsCard(
                                 selected = config.downloadLocationMode,
                                 onSelect = { onConfigChange(config.copy(downloadLocationMode = it)) }
                             )
+                            if (config.downloadLocationMode == com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD) {
+                                PremiumTextField(
+                                    value = config.mediaAlbumName,
+                                    onValueChange = { raw ->
+                                        val cleaned = raw.replace(Regex("""[\\/:*?"<>|]"""), "").take(64)
+                                        onConfigChange(config.copy(mediaAlbumName = cleaned))
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    singleLine = true,
+                                    label = { Text(Strings.mediaAlbumNameLabel) },
+                                    placeholder = { Text("WebToApp") },
+                                    supportingText = if (LocalShowDescriptions.current) {
+                                        { Text(Strings.mediaAlbumNameHint) }
+                                    } else {
+                                        null
+                                    }
+                                )
+                            }
                             if (config.downloadLocationMode == com.webtoapp.data.model.DownloadLocationMode.CUSTOM) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),

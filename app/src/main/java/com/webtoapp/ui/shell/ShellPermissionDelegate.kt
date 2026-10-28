@@ -22,6 +22,7 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
+import com.webtoapp.core.webview.mimeTypeForFileExtension
 import com.webtoapp.util.DownloadHelper
 import java.io.File
 import java.text.SimpleDateFormat
@@ -32,7 +33,7 @@ private const val KEY_PENDING_CAMERA_PHOTO = "wta_pending_camera_photo"
 
 class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
-    private var pendingPermissionRequest: PermissionRequest? = null
+    private val capturePermission = com.webtoapp.core.webview.CapturePermissionBridge()
     private var pendingGeolocationOrigin: String? = null
     private var pendingGeolocationCallback: GeolocationPermissions.Callback? = null
     private val pendingLocationAccessCallbacks = mutableListOf<(Boolean) -> Unit>()
@@ -63,6 +64,15 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
         return mode to (config?.webViewConfig?.customDownloadDirUri ?: "")
     }
 
+    private fun resolveAlbumName(): String {
+        val config = try {
+            com.webtoapp.WebToAppApplication.shellMode.getConfig()
+        } catch (e: Exception) {
+            null
+        }
+        return config?.webViewConfig?.mediaAlbumName ?: ""
+    }
+
     private var cameraPhotoUri: Uri? = null
 
     private var pendingFilePathCallback: android.webkit.ValueCallback<Array<Uri>>? = null
@@ -79,45 +89,65 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
     fun onRestoreInstanceState(state: Bundle?) {
         val uri = state?.getString(KEY_PENDING_CAMERA_PHOTO)?.let(Uri::parse) ?: return
+        if (com.webtoapp.core.webview.FileChooserLifetime.isOpen()) {
+            com.webtoapp.core.webview.FileChooserLifetime.holdCamera(uri)
+            cameraPhotoUri = uri
+            return
+        }
+        com.webtoapp.core.webview.CameraCaptureIntents.revokeOutput(activity, uri)
         runCatching { activity.contentResolver.delete(uri, null, null) }
     }
 
     private val fileChooserActivityLauncher = activity.registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        val photoUri = cameraPhotoUri
+            ?: com.webtoapp.core.webview.FileChooserLifetime.cameraUri()
         val callback = pendingFilePathCallback
-        if (callback == null) {
-            AppLogger.w("ShellPermission", "fileChooserActivityLauncher: no pending callback")
-            return@registerForActivityResult
-        }
-
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val resultUris = mutableListOf<Uri>()
-
-            val data = result.data
-            if (data == null || (data.data == null && data.clipData == null)) {
-
-                cameraPhotoUri?.let { resultUris.add(it) }
-            } else {
-
-                data.data?.let { uri -> resultUris.add(uri) }
-                data.clipData?.let { clipData ->
-                    for (i in 0 until clipData.itemCount) {
-                        clipData.getItemAt(i).uri?.let { resultUris.add(it) }
-                    }
-                }
+            ?: com.webtoapp.core.webview.FileChooserLifetime.callback()
+        try {
+            if (callback == null) {
+                AppLogger.w("ShellPermission", "fileChooserActivityLauncher: no pending callback")
+                return@registerForActivityResult
             }
 
-            AppLogger.d("ShellPermission", "File chooser result: ${resultUris.size} files")
-            callback.onReceiveValue(resultUris.toTypedArray())
-        } else {
+            if (result.resultCode == android.app.Activity.RESULT_OK) {
+                val resultUris = mutableListOf<Uri>()
 
-            AppLogger.d("ShellPermission", "File chooser cancelled")
-            callback.onReceiveValue(null)
+                val data = result.data
+                if (data == null || (data.data == null && data.clipData == null)) {
+
+                    photoUri?.let { resultUris.add(it) }
+                } else {
+
+                    data.data?.let { uri -> resultUris.add(uri) }
+                    data.clipData?.let { clipData ->
+                        for (i in 0 until clipData.itemCount) {
+                            clipData.getItemAt(i).uri?.let { resultUris.add(it) }
+                        }
+                    }
+                }
+
+                AppLogger.d("ShellPermission", "File chooser result: ${resultUris.size} files")
+                callback.onReceiveValue(resultUris.toTypedArray())
+            } else {
+
+                AppLogger.d("ShellPermission", "File chooser cancelled")
+                callback.onReceiveValue(null)
+            }
+        } catch (e: Exception) {
+            AppLogger.e("ShellPermission", "File chooser result failed", e)
+            try {
+                callback?.onReceiveValue(null)
+            } catch (deliverError: Exception) {
+                AppLogger.w("ShellPermission", "file chooser callback failed: ${deliverError.message}")
+            }
+        } finally {
+            com.webtoapp.core.webview.CameraCaptureIntents.revokeOutput(activity, photoUri)
+            pendingFilePathCallback = null
+            cameraPhotoUri = null
+            com.webtoapp.core.webview.FileChooserLifetime.markClosed()
         }
-
-        pendingFilePathCallback = null
-        cameraPhotoUri = null
     }
 
     private var pendingFileChooserParams: WebChromeClient.FileChooserParams? = null
@@ -136,6 +166,7 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
         pendingFilePathCallback?.onReceiveValue(null)
         pendingFilePathCallback = filePathCallback
+        com.webtoapp.core.webview.FileChooserLifetime.holdCallback(filePathCallback)
 
         if (filePathCallback == null) return false
 
@@ -155,6 +186,9 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
      * something the camera can supply, then the chooser itself.
      */
     private fun continueWithSystemPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
+        // Keep the WebView that owns the ValueCallback alive until the picker
+        // returns. Tearing it down here reloads the start URL (#1319).
+        com.webtoapp.core.webview.FileChooserLifetime.markOpen()
         val needsCamera = isCameraRequired(fileChooserParams)
         val hasCameraPermission = ContextCompat.checkSelfPermission(
             activity, Manifest.permission.CAMERA
@@ -162,7 +196,13 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
         if (needsCamera && !hasCameraPermission) {
             pendingFileChooserParams = fileChooserParams
-            cameraForFileChooserPermLauncher.launch(Manifest.permission.CAMERA)
+            try {
+                cameraForFileChooserPermLauncher.launch(Manifest.permission.CAMERA)
+            } catch (e: Exception) {
+                AppLogger.e("ShellPermission", "Camera permission request failed", e)
+                pendingFileChooserParams = null
+                launchFileChooserIntent(fileChooserParams)
+            }
         } else {
             launchFileChooserIntent(fileChooserParams)
         }
@@ -329,21 +369,29 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                 if (captureAction == MediaStore.ACTION_IMAGE_CAPTURE) {
                     try {
                         val photoFile = createImageFile()
-                        cameraPhotoUri = FileProvider.getUriForFile(
+                        val output = FileProvider.getUriForFile(
                             activity,
                             "${activity.packageName}.fileprovider",
                             photoFile
                         )
-                        captureIntent.putExtra(MediaStore.EXTRA_OUTPUT, cameraPhotoUri)
-                        captureIntent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        cameraPhotoUri = output
+                        com.webtoapp.core.webview.FileChooserLifetime.holdCamera(output)
+                        com.webtoapp.core.webview.CameraCaptureIntents.attachOutput(
+                            activity, captureIntent, output
+                        )
                     } catch (e: Exception) {
                         AppLogger.e("ShellPermission", "Camera capture file creation failed", e)
+                        cameraPhotoUri = null
                     }
                 }
                 if (captureIntent.resolveActivity(activity.packageManager) != null) {
-                    fileChooserActivityLauncher.launch(captureIntent)
-                    AppLogger.d("ShellPermission", "Direct camera capture launched: action=$captureAction")
-                    return
+                    try {
+                        fileChooserActivityLauncher.launch(captureIntent)
+                        AppLogger.d("ShellPermission", "Direct camera capture launched: action=$captureAction")
+                        return
+                    } catch (e: Exception) {
+                        AppLogger.e("ShellPermission", "Direct camera capture failed", e)
+                    }
                 }
             }
 
@@ -351,16 +399,20 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
 
             if (hasCameraPermission) {
                 try {
+                    com.webtoapp.core.webview.CameraCaptureIntents.revokeOutput(activity, cameraPhotoUri)
                     val photoFile = createImageFile()
-                    cameraPhotoUri = FileProvider.getUriForFile(
+                    val output = FileProvider.getUriForFile(
                         activity,
                         "${activity.packageName}.fileprovider",
                         photoFile
                     )
+                    cameraPhotoUri = output
+                    com.webtoapp.core.webview.FileChooserLifetime.holdCamera(output)
 
                     val cameraIntent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-                        putExtra(MediaStore.EXTRA_OUTPUT, cameraPhotoUri)
-                        addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                        com.webtoapp.core.webview.CameraCaptureIntents.attachOutput(
+                            activity, this, output
+                        )
                     }
 
                     if (cameraIntent.resolveActivity(activity.packageManager) != null) {
@@ -423,6 +475,7 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
             AppLogger.e("ShellPermission", "Failed to launch file chooser", e)
             pendingFilePathCallback?.onReceiveValue(null)
             pendingFilePathCallback = null
+            com.webtoapp.core.webview.FileChooserLifetime.markClosed()
         }
     }
 
@@ -432,78 +485,7 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
         return File.createTempFile("IMG_${timestamp}_", ".jpg", imageDir)
     }
 
-    private fun extensionToMimeType(ext: String): String {
-        return when (ext) {
-
-            ".json" -> "application/json"
-            ".xml" -> "application/xml"
-            ".csv" -> "text/csv"
-            ".txt" -> "text/plain"
-            ".pdf" -> "application/pdf"
-            ".doc" -> "application/msword"
-            ".docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            ".xls" -> "application/vnd.ms-excel"
-            ".xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            ".ppt" -> "application/vnd.ms-powerpoint"
-            ".pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
-            ".rtf" -> "application/rtf"
-            ".odt" -> "application/vnd.oasis.opendocument.text"
-            ".ods" -> "application/vnd.oasis.opendocument.spreadsheet"
-
-            ".html", ".htm" -> "text/html"
-            ".css" -> "text/css"
-            ".js" -> "application/javascript"
-            ".ts" -> "application/typescript"
-            ".py" -> "text/x-python"
-            ".java" -> "text/x-java-source"
-            ".kt" -> "text/x-kotlin"
-            ".yaml", ".yml" -> "application/x-yaml"
-            ".toml" -> "application/toml"
-            ".ini", ".conf", ".cfg" -> "text/plain"
-            ".md" -> "text/markdown"
-            ".log" -> "text/plain"
-
-            ".jpg", ".jpeg" -> "image/jpeg"
-            ".png" -> "image/png"
-            ".gif" -> "image/gif"
-            ".webp" -> "image/webp"
-            ".svg" -> "image/svg+xml"
-            ".bmp" -> "image/bmp"
-            ".heic", ".heif" -> "image/heif"
-            ".ico" -> "image/x-icon"
-
-            ".mp3" -> "audio/mpeg"
-            ".wav" -> "audio/wav"
-            ".ogg" -> "audio/ogg"
-            ".flac" -> "audio/flac"
-            ".aac" -> "audio/aac"
-            ".m4a" -> "audio/mp4"
-
-            ".mp4" -> "video/mp4"
-            ".webm" -> "video/webm"
-            ".mkv" -> "video/x-matroska"
-            ".avi" -> "video/x-msvideo"
-            ".mov" -> "video/quicktime"
-            ".3gp" -> "video/3gpp"
-
-            ".zip" -> "application/zip"
-            ".tar" -> "application/x-tar"
-            ".gz", ".gzip" -> "application/gzip"
-            ".rar" -> "application/vnd.rar"
-            ".7z" -> "application/x-7z-compressed"
-
-            ".apk" -> "application/vnd.android.package-archive"
-            ".wasm" -> "application/wasm"
-            ".sql" -> "application/sql"
-            ".db", ".sqlite" -> "application/x-sqlite3"
-            else -> {
-
-                val extWithoutDot = ext.removePrefix(".")
-                android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extWithoutDot)
-                    ?: "application/octet-stream"
-            }
-        }
-    }
+    private fun extensionToMimeType(ext: String): String = mimeTypeForFileExtension(ext)
 
     @Deprecated("Use handleFileChooser() instead")
     var onFileChooserResult: ((Array<android.net.Uri>) -> Unit)? = null
@@ -531,7 +513,8 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                     contentLength = download.contentLength,
                     scope = activity.lifecycleScope,
                     downloadLocationMode = mode,
-                    customDownloadDirUri = customDir
+                    customDownloadDirUri = customDir,
+                    albumName = resolveAlbumName()
                 )
             }
         } else {
@@ -548,7 +531,8 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                     contentLength = download.contentLength,
                     scope = activity.lifecycleScope,
                     downloadLocationMode = mode,
-                    customDownloadDirUri = customDir
+                    customDownloadDirUri = customDir,
+                    albumName = resolveAlbumName()
                 )
             }
         }
@@ -558,21 +542,28 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
     private val permissionLauncher = activity.registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
+        com.webtoapp.core.webview.FileChooserLifetime.endPermissionDialog()
         AppLogger.d("ShellActivity", "Permission result received: $permissions")
-        val allGranted = permissions.values.all { it }
+        val allGranted = permissions.isNotEmpty() && permissions.values.all { it }
         AppLogger.d("ShellActivity", "All permissions granted: $allGranted")
-        pendingPermissionRequest?.let { request ->
-            if (allGranted) {
-                AppLogger.d("ShellActivity", "Granting WebView permission request")
-                request.grant(request.resources)
-            } else {
-                AppLogger.d("ShellActivity", "Denying WebView permission request")
-                request.deny()
-            }
-            pendingPermissionRequest = null
-        } ?: run {
-            AppLogger.w("ShellActivity", "pendingPermissionRequest is null!")
+        if (capturePermission.onRuntimeResult(allGranted)) {
+            AppLogger.d("ShellActivity", "Capture request died during the dialog; reloading")
+            reloadAfterCaptureGrant()
         }
+    }
+
+    fun onCapturePermissionCanceled(request: PermissionRequest) {
+        capturePermission.onCanceled(request)
+    }
+
+    private fun reloadAfterCaptureGrant() {
+        val reload = { (activity as? ShellActivity)?.reloadForCapturePermission() }
+        val decor = try {
+            activity.window.decorView
+        } catch (e: Exception) {
+            null
+        }
+        if (decor != null) decor.post { reload() } else reload()
     }
 
     private var pendingAndroidPermissionsCallback: ((Boolean) -> Unit)? = null
@@ -580,10 +571,12 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
     private val androidPermissionLauncher = activity.registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
+        com.webtoapp.core.webview.FileChooserLifetime.endPermissionDialog()
         val allGranted = permissions.values.all { it }
         AppLogger.d("ShellActivity", "Android permissions (engine) result: $permissions allGranted=$allGranted")
-        pendingAndroidPermissionsCallback?.invoke(allGranted)
+        val callback = pendingAndroidPermissionsCallback
         pendingAndroidPermissionsCallback = null
+        callback?.invoke(allGranted)
     }
 
     /**
@@ -599,8 +592,22 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
             onResult(true)
             return
         }
+        val previous = pendingAndroidPermissionsCallback
+        if (previous != null) {
+            pendingAndroidPermissionsCallback = { granted ->
+                previous(granted)
+                onResult(granted)
+            }
+            return
+        }
         pendingAndroidPermissionsCallback = onResult
-        androidPermissionLauncher.launch(notGranted.toTypedArray())
+        val launched = com.webtoapp.core.webview.FileChooserLifetime.runPermissionDialog {
+            androidPermissionLauncher.launch(notGranted.toTypedArray())
+        }
+        if (!launched) {
+            pendingAndroidPermissionsCallback = null
+            onResult(false)
+        }
     }
 
     private val locationPermissionLauncher = activity.registerForActivityResult(
@@ -780,7 +787,7 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
         if (uniquePermissions.isEmpty()) {
 
             AppLogger.d("ShellActivity", "No Android permissions needed, granting WebView request directly")
-            request.grant(resources)
+            com.webtoapp.core.webview.WebPermissionRequests.settle(request, true)
             return
         }
 
@@ -793,12 +800,18 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
         if (notGranted.isEmpty()) {
 
             AppLogger.d("ShellActivity", "All permissions already granted, granting WebView request directly")
-            request.grant(resources)
+            com.webtoapp.core.webview.WebPermissionRequests.settle(request, true)
         } else {
 
             AppLogger.d("ShellActivity", "Requesting Android permissions: ${notGranted.joinToString()}")
-            pendingPermissionRequest = request
-            permissionLauncher.launch(notGranted.toTypedArray())
+            capturePermission.remember(request)
+            val launched = com.webtoapp.core.webview.FileChooserLifetime.runPermissionDialog {
+                permissionLauncher.launch(notGranted.toTypedArray())
+            }
+            if (!launched) {
+                capturePermission.clear()
+                com.webtoapp.core.webview.WebPermissionRequests.settle(request, false)
+            }
         }
     }
 
@@ -961,7 +974,8 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                 scope = activity.lifecycleScope,
                 onBlobDownload = onBlobDownload,
                 downloadLocationMode = downloadLocationMode,
-                customDownloadDirUri = customDownloadDirUri
+                customDownloadDirUri = customDownloadDirUri,
+                albumName = resolveAlbumName()
             )
             return
         }
@@ -982,7 +996,8 @@ class ShellPermissionDelegate(private val activity: AppCompatActivity) {
                 scope = activity.lifecycleScope,
                 onBlobDownload = onBlobDownload,
                 downloadLocationMode = downloadLocationMode,
-                customDownloadDirUri = customDownloadDirUri
+                customDownloadDirUri = customDownloadDirUri,
+                albumName = resolveAlbumName()
             )
         } else {
 

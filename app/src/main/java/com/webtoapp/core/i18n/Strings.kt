@@ -158,6 +158,11 @@ object Strings {
     val multiWebSiteList: String get() = StringsA.multiWebSiteList
     val multiWebNoSites: String get() = StringsA.multiWebNoSites
     val multiWebSiteCount: String get() = StringsA.multiWebSiteCount
+    val multiWebSearchSites: String get() = StringsA.multiWebSearchSites
+    val multiWebSearchEmpty: String get() = StringsA.multiWebSearchEmpty
+    val multiWebSavedSites: String get() = StringsA.multiWebSavedSites
+    val multiWebSaveSite: String get() = StringsA.multiWebSaveSite
+    val multiWebUnsaveSite: String get() = StringsA.multiWebUnsaveSite
     val multiWebDeleteSite: String get() = StringsA.multiWebDeleteSite
     val multiWebDisableSite: String get() = StringsA.multiWebDisableSite
     val multiWebEnableSite: String get() = StringsA.multiWebEnableSite
@@ -528,6 +533,7 @@ object Strings {
     val portConflictAlert: String get() = StringsA.portConflictAlert
     val portConflictAlertHint: String get() = StringsA.portConflictAlertHint
     val portDefaultLabel: String get() = StringsA.portDefaultLabel
+    val portRangeHint: String get() = StringsA.portRangeHint
     val orientationModeLabel: String get() = StringsA.orientationModeLabel
     val orientationModeHint: String get() = StringsA.orientationModeHint
     val orientationLandscape: String get() = StringsA.orientationLandscape
@@ -784,6 +790,10 @@ object Strings {
     val validityDays: String get() = StringsA.validityDays
     val activationCodeExpiryDays: String get() = StringsA.activationCodeExpiryDays
     val activationCodeValidUntil: String get() = StringsA.activationCodeValidUntil
+    val showRemainingDaysOnLaunch: String get() = StringsA.showRemainingDaysOnLaunch
+    val showRemainingDaysOnLaunchHint: String get() = StringsA.showRemainingDaysOnLaunchHint
+    val remainingDaysOnLaunchTitle: String get() = StringsA.remainingDaysOnLaunchTitle
+    fun remainingDaysOnLaunchMessage(days: Long, hours: Long): String = StringsA.remainingDaysOnLaunchMessage(days, hours)
     val usageCount: String get() = StringsA.usageCount
     val noteOptional: String get() = StringsA.noteOptional
     val vipUserOnly: String get() = StringsA.vipUserOnly
@@ -1728,6 +1738,9 @@ object Strings {
     val agentOutputTruncated: String get() = StringsB.agentOutputTruncated
     val agentContinuing: String get() = StringsB.agentContinuing
     val agentRateLimitRetry: (Int, Int, Long) -> String get() = StringsB.agentRateLimitRetry
+    val agentKeySwitched: (String) -> String get() = StringsB.agentKeySwitched
+    val agentKeysCooling: (Long) -> String get() = StringsB.agentKeysCooling
+    val agentNoReadyApiKey: String get() = StringsB.agentNoReadyApiKey
     val agentFileSaved: String get() = StringsB.agentFileSaved
     val agentFileOpen: String get() = StringsB.agentFileOpen
     val agentFileCopyPath: String get() = StringsB.agentFileCopyPath
@@ -2613,6 +2626,7 @@ object Strings {
     val customBaseUrlHint: String get() = StringsC.customBaseUrlHint
     val apiFormat: String get() = StringsC.apiFormat
     val apiKeyAliasPlaceholder: String get() = StringsC.apiKeyAliasPlaceholder
+    val apiKeyMultiHint: String get() = StringsC.apiKeyMultiHint
     val modelsEndpoint: String get() = StringsC.modelsEndpoint
     val modelsEndpointHint: String get() = StringsC.modelsEndpointHint
     val chatEndpoint: String get() = StringsC.chatEndpoint
@@ -3990,6 +4004,7 @@ object Strings {
     val adsMonetizationHint: String get() = StringsE.adsMonetizationHint
     val adMobAppId: String get() = StringsE.adMobAppId
     val adMobAppIdHint: String get() = StringsE.adMobAppIdHint
+    val adMobAppIdInvalid: String get() = StringsE.adMobAppIdInvalid
     val adTestMode: String get() = StringsE.adTestMode
     val adTestModeHint: String get() = StringsE.adTestModeHint
     val adBannerAd: String get() = StringsE.adBannerAd
@@ -4129,7 +4144,15 @@ object Strings {
     val staticAssetPackIncludeCdnTitle: String get() = StringsE.staticAssetPackIncludeCdnTitle
     val backButtonBehaviorLabel: String get() = StringsE.backButtonBehaviorLabel
     val backButtonBehaviorHint: String get() = StringsE.backButtonBehaviorHint
+    val backButtonRunJs: String get() = StringsE.backButtonRunJs
+    val forwardVolumeKeysLabel: String get() = StringsE.forwardVolumeKeysLabel
+    val forwardVolumeKeysHint: String get() = StringsE.forwardVolumeKeysHint
+    val consumeVolumeKeysLabel: String get() = StringsE.consumeVolumeKeysLabel
+    val consumeVolumeKeysHint: String get() = StringsE.consumeVolumeKeysHint
+    val mediaAlbumNameLabel: String get() = StringsE.mediaAlbumNameLabel
+    val mediaAlbumNameHint: String get() = StringsE.mediaAlbumNameHint
     val backButtonGoBack: String get() = StringsE.backButtonGoBack
+    val backButtonExitAtRoot: String get() = StringsE.backButtonExitAtRoot
     val backButtonExitApp: String get() = StringsE.backButtonExitApp
     val pwaStrategyNetworkFirst: String get() = StringsE.pwaStrategyNetworkFirst
     val pwaStrategyCacheFirst: String get() = StringsE.pwaStrategyCacheFirst
@@ -4809,6 +4832,10 @@ object Strings {
     val nativeBridgeCapsPip: String get() = StringsE.nativeBridgeCapsPip
     val nativeBridgeCapsRating: String get() = StringsE.nativeBridgeCapsRating
     val nativeBridgeCapsScreenCapture: String get() = StringsE.nativeBridgeCapsScreenCapture
+
+    val nativeBridgeCapsDirectory: String get() = StringsE.nativeBridgeCapsDirectory
+    val nativeBridgeDirectoryHint: String get() = StringsE.nativeBridgeDirectoryHint
+
     val googleSignInClientIdLabel: String get() = StringsE.googleSignInClientIdLabel
     val googleSignInClientIdPlaceholder: String get() = StringsE.googleSignInClientIdPlaceholder
     val googleSignInHint: String get() = StringsE.googleSignInHint
@@ -4963,6 +4990,8 @@ object Strings {
     val enablePrintBridgeDesc: String get() = StringsE.enablePrintBridgeDesc
     val enableMediaSessionTitle: String get() = StringsE.enableMediaSessionTitle
     val enableMediaSessionDesc: String get() = StringsE.enableMediaSessionDesc
+    val backgroundMediaPlaybackTitle: String get() = StringsE.backgroundMediaPlaybackTitle
+    val backgroundMediaPlaybackDesc: String get() = StringsE.backgroundMediaPlaybackDesc
     val previewBackendAppIntro: String get() = StringsE.previewBackendAppIntro
     val previewEntryNotFound: String get() = StringsE.previewEntryNotFound
     val previewFileNotFound: String get() = StringsE.previewFileNotFound
@@ -5194,6 +5223,8 @@ object Strings {
     // ── Inbound share sheet (issue #943) ────────────────────────────────────────
 
     val receiveShare: String get() = StringsE.receiveShare
+    val outboundShareTitle: String get() = StringsE.outboundShareTitle
+    val outboundShareDesc: String get() = StringsE.outboundShareDesc
     val receiveShareHint: String get() = StringsE.receiveShareHint
     val receiveShareImages: String get() = StringsE.receiveShareImages
     val receiveShareImagesHint: String get() = StringsE.receiveShareImagesHint
@@ -5271,6 +5302,7 @@ object Strings {
     val pluginNameRequired: String get() = StringsE.pluginNameRequired
     val pluginAttachEmpty: String get() = StringsE.pluginAttachEmpty
     val pluginAttachHint: String get() = StringsE.pluginAttachHint
+    val pluginGlobalEnable: String get() = StringsE.pluginGlobalEnable
     val pluginAdd: String get() = StringsE.pluginAdd
     val pluginSelectTitle: String get() = StringsE.pluginSelectTitle
     fun pluginSelectedCount(count: Int): String = StringsE.pluginSelectedCount(count)

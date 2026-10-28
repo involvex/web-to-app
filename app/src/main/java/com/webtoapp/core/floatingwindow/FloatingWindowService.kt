@@ -17,6 +17,7 @@ import com.webtoapp.core.shell.ShellServerLauncher
 import com.webtoapp.core.webview.DownloadBridge
 import com.webtoapp.core.webview.TranslateBridge
 import com.webtoapp.data.model.FloatingWindowConfig
+import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.ui.shell.injectTranslateScript
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -145,8 +146,11 @@ class FloatingWindowService : Service() {
                     com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD
                 }
                 val customDownloadDirUri = shellConfig?.webViewConfig?.customDownloadDirUri ?: ""
+                val mediaAlbumName = shellConfig?.webViewConfig?.mediaAlbumName ?: ""
                 val downloadBridgeFactory: (WebView) -> Unit = { webView ->
-                    val downloadBridge = DownloadBridge(this, serviceScope, downloadLocationMode, customDownloadDirUri)
+                    val downloadBridge = DownloadBridge(
+                        this, serviceScope, downloadLocationMode, customDownloadDirUri, mediaAlbumName
+                    )
                     webView.addJavascriptInterface(downloadBridge, DownloadBridge.JS_INTERFACE_NAME)
                 }
 
@@ -266,6 +270,7 @@ class FloatingWindowService : Service() {
             com.webtoapp.data.model.DownloadLocationMode.SYSTEM_DOWNLOAD
         }
         val customDownloadDirUri = shellConfig.webViewConfig.customDownloadDirUri
+        val mediaAlbumName = shellConfig.webViewConfig.mediaAlbumName
         val adBlocker = try {
             com.webtoapp.WebToAppApplication.adBlock
         } catch (e: Exception) {
@@ -308,6 +313,12 @@ class FloatingWindowService : Service() {
                                 googleSignIn = shellConfig.webViewConfig.nativeBridgeGoogleSignIn,
                                 googleSignInClientId = shellConfig.webViewConfig.nativeBridgeGoogleSignInClientId,
                             )
+
+                            googleSignIn = shellConfig.webViewConfig.nativeBridgeGoogleSignIn,
+                            googleSignInClientId = shellConfig.webViewConfig.nativeBridgeGoogleSignInClientId,
+                            directory = shellConfig.webViewConfig.nativeBridgeDirectory,
+                        ).withNotificationPolyfill(shellConfig.webViewConfig.enableNotificationPolyfill)
+
                         val nativeBridge = com.webtoapp.core.webview.NativeBridge(
                             context = this@FloatingWindowService,
                             scope = serviceScope,
@@ -316,12 +327,14 @@ class FloatingWindowService : Service() {
                             corsBypass = shellConfig.webViewConfig.enableCorsBypass,
                             downloadLocationMode = downloadLocationMode,
                             customDownloadDirUri = customDownloadDirUri,
-                            appOriginUrl = shellConfig.targetUrl
+                            appOriginUrl = shellConfig.targetUrl,
+                            directoryGrantKey = shellConfig.packageName
                         )
                         webView.addJavascriptInterface(
                             nativeBridge,
                             com.webtoapp.core.webview.NativeBridge.JS_INTERFACE_NAME
                         )
+                        nativeBridge.installDirectoryHelper(webView)
                     } else if (shellConfig.webViewConfig.enablePrivateNetworkBridge || shellConfig.webViewConfig.enableCorsBypass) {
                         val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                             context = this@FloatingWindowService,
@@ -424,7 +437,8 @@ class FloatingWindowService : Service() {
                         )
                     },
                     downloadLocationMode = downloadLocationMode,
-                    customDownloadDirUri = customDownloadDirUri
+                    customDownloadDirUri = customDownloadDirUri,
+                    albumName = mediaAlbumName
                 )
             }
 

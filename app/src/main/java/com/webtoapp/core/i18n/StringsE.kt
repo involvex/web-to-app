@@ -3478,16 +3478,16 @@ object StringsE {
         AppLanguage.KOREAN -> "뒤로 가기 버튼 동작"
     }
     val backButtonBehaviorHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "设置系统返回键的行为。"
-        AppLanguage.ENGLISH -> "Choose what the system Back button does."
-        AppLanguage.ARABIC -> "اختر ما يفعله زر الرجوع في النظام."
-        AppLanguage.PORTUGUESE -> "Escolha o que o botão Voltar do sistema faz."
-        AppLanguage.SPANISH -> "Elige lo que hace el botón Atrás del sistema."
-        AppLanguage.FRENCH -> "Choisissez ce que fait le bouton Retour du système."
-        AppLanguage.GERMAN -> "Wählen Sie, was die System-Zurück-Taste tut."
-        AppLanguage.RUSSIAN -> "Выберите, что делает системная кнопка назад."
-        AppLanguage.JAPANESE -> "システムの戻るボタンの動作を選択します。"
-        AppLanguage.KOREAN -> "시스템 뒤로 가기 버튼의 동작을 선택합니다."
+        AppLanguage.CHINESE -> "返回上一页会沿历史返回，到首页后再按一次才退出。首页一次退出同样沿历史返回，没有上一页时按一次就离开。直接退出应用会立刻离开。执行 JS 会先派发 wta:back，网页 preventDefault 后停在页面里，没人处理时仍按返回上一页。"
+        AppLanguage.ENGLISH -> "Go back in history walks pages, then asks for a second press on the first page. Exit at first page walks pages and leaves on one press when nothing is left. Exit app leaves immediately. Run JavaScript dispatches wta:back first. preventDefault stays on the page. If nothing handles it, Back still walks history."
+        AppLanguage.ARABIC -> "الرجوع في السجل يتنقل بين الصفحات، ثم يطلب ضغطة ثانية في الصفحة الأولى. الخروج من الصفحة الأولى يتنقل كذلك ويغادر بضغطة واحدة عند عدم وجود صفحة سابقة. الخروج من التطبيق يغادر فورًا. تنفيذ جافاسكربت يرسل wta:back أولًا. preventDefault يُبقي الصفحة. إذا لم يعالجه أحد، يستمر الرجوع في السجل."
+        AppLanguage.PORTUGUESE -> "Voltar no histórico percorre as páginas e pede um segundo toque na primeira. Sair na primeira página percorre o histórico e sai com um toque quando não há para onde voltar. Sair do app sai na hora. Executar JavaScript dispara wta:back primeiro. preventDefault fica na página. Se ninguém tratar, o Voltar ainda percorre o histórico."
+        AppLanguage.SPANISH -> "Retroceder en el historial recorre las páginas y pide una segunda pulsación en la primera. Salir en la primera página recorre el historial y sale con una pulsación cuando no queda nada atrás. Salir de la app sale al instante. Ejecutar JavaScript envía wta:back primero. preventDefault se queda en la página. Si nadie lo atiende, Atrás sigue recorriendo el historial."
+        AppLanguage.FRENCH -> "Reculer dans l'historique parcourt les pages, puis demande un second appui sur la première. Quitter à la première page parcourt l'historique et quitte d'un seul appui lorsqu'il ne reste rien. Quitter l'application part tout de suite. Exécuter le JavaScript envoie d'abord wta:back. preventDefault reste sur la page. Si personne ne le traite, Retour parcourt encore l'historique."
+        AppLanguage.GERMAN -> "Im Verlauf zurück geht durch die Seiten und verlangt auf der ersten Seite einen zweiten Druck. Auf der ersten Seite beenden geht ebenfalls zurück und verlässt die App mit einem Druck, sobald nichts mehr zurückliegt. App beenden verlässt sofort. JavaScript ausführen sendet zuerst wta:back. preventDefault bleibt auf der Seite. Wenn niemand das Ereignis annimmt, geht Zurück weiter durch den Verlauf."
+        AppLanguage.RUSSIAN -> "Назад по истории листает страницы и на первой просит нажать ещё раз. Выход с первой страницы листает историю и закрывает приложение одним нажатием, когда возвращаться некуда. Выйти из приложения закрывает сразу. Выполнить JavaScript сначала шлёт wta:back. preventDefault оставляет страницу. Если событие никто не обработал, Назад всё равно листает историю."
+        AppLanguage.JAPANESE -> "履歴を戻るはページを戻り、最初のページではもう一度押すと終了します。最初のページで終了は同じく履歴を戻り、戻るページがなければ一度で終了します。アプリを終了はすぐに閉じます。JavaScript を実行は先に wta:back を送ります。preventDefault ならページに留まります。誰も処理しなければ、履歴を戻ります。"
+        AppLanguage.KOREAN -> "기록에서 뒤로는 페이지를 이동하고, 첫 페이지에서는 한 번 더 눌러야 종료됩니다. 첫 페이지에서 종료는 똑같이 기록을 이동하고, 더 이상 돌아갈 페이지가 없으면 한 번에 종료됩니다. 앱 종료는 바로 닫습니다. JavaScript 실행은 먼저 wta:back 을 보냅니다. preventDefault 하면 페이지에 남습니다. 아무도 처리하지 않으면 기록으로 돌아갑니다."
     }
     val backButtonGoBack: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "返回上一页"
@@ -3501,6 +3501,18 @@ object StringsE {
         AppLanguage.JAPANESE -> "履歴を戻る"
         AppLanguage.KOREAN -> "기록에서 뒤로"
     }
+    val backButtonExitAtRoot: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "首页一次退出"
+        AppLanguage.ENGLISH -> "Exit at first page"
+        AppLanguage.ARABIC -> "الخروج من الصفحة الأولى"
+        AppLanguage.PORTUGUESE -> "Sair na primeira página"
+        AppLanguage.SPANISH -> "Salir en la primera página"
+        AppLanguage.FRENCH -> "Quitter à la première page"
+        AppLanguage.GERMAN -> "Auf der ersten Seite beenden"
+        AppLanguage.RUSSIAN -> "Выход с первой страницы"
+        AppLanguage.JAPANESE -> "最初のページで終了"
+        AppLanguage.KOREAN -> "첫 페이지에서 종료"
+    }
     val backButtonExitApp: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "直接退出应用"
         AppLanguage.ENGLISH -> "Exit app"
@@ -3512,6 +3524,90 @@ object StringsE {
         AppLanguage.RUSSIAN -> "Выйти из приложения"
         AppLanguage.JAPANESE -> "アプリを終了"
         AppLanguage.KOREAN -> "앱 종료"
+    }
+    val backButtonRunJs: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "执行 JS"
+        AppLanguage.ENGLISH -> "Run JavaScript"
+        AppLanguage.ARABIC -> "تنفيذ جافاسكربت"
+        AppLanguage.PORTUGUESE -> "Executar JavaScript"
+        AppLanguage.SPANISH -> "Ejecutar JavaScript"
+        AppLanguage.FRENCH -> "Exécuter le JavaScript"
+        AppLanguage.GERMAN -> "JavaScript ausführen"
+        AppLanguage.RUSSIAN -> "Выполнить JavaScript"
+        AppLanguage.JAPANESE -> "JavaScript を実行"
+        AppLanguage.KOREAN -> "JavaScript 실행"
+    }
+    val forwardVolumeKeysLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "把音量键交给网页"
+        AppLanguage.ENGLISH -> "Send volume keys to the page"
+        AppLanguage.ARABIC -> "إرسال مفاتيح الصوت إلى الصفحة"
+        AppLanguage.PORTUGUESE -> "Enviar as teclas de volume à página"
+        AppLanguage.SPANISH -> "Enviar las teclas de volumen a la página"
+        AppLanguage.FRENCH -> "Envoyer les touches de volume à la page"
+        AppLanguage.GERMAN -> "Lautstärketasten an die Seite senden"
+        AppLanguage.RUSSIAN -> "Отдавать клавиши громкости странице"
+        AppLanguage.JAPANESE -> "音量キーをページに渡す"
+        AppLanguage.KOREAN -> "음량 키를 페이지에 전달"
+    }
+    val forwardVolumeKeysHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "按下音量加、减或静音时，网页会收到 wta:volume，detail.key 为 VolumeUp、VolumeDown 或 VolumeMute。"
+        AppLanguage.ENGLISH -> "Volume up, down, and mute dispatch wta:volume. detail.key is VolumeUp, VolumeDown, or VolumeMute."
+        AppLanguage.ARABIC -> "ترسل مفاتيح رفع الصوت وخفضه وكتمه الحدث wta:volume. قيمة detail.key هي VolumeUp أو VolumeDown أو VolumeMute."
+        AppLanguage.PORTUGUESE -> "Aumentar, diminuir e silenciar disparam wta:volume. detail.key é VolumeUp, VolumeDown ou VolumeMute."
+        AppLanguage.SPANISH -> "Subir, bajar y silenciar envían wta:volume. detail.key es VolumeUp, VolumeDown o VolumeMute."
+        AppLanguage.FRENCH -> "Augmenter, baisser et couper envoient wta:volume. detail.key vaut VolumeUp, VolumeDown ou VolumeMute."
+        AppLanguage.GERMAN -> "Lauter, leiser und Stumm senden wta:volume. detail.key ist VolumeUp, VolumeDown oder VolumeMute."
+        AppLanguage.RUSSIAN -> "Громче, тише и без звука шлют wta:volume. detail.key — VolumeUp, VolumeDown или VolumeMute."
+        AppLanguage.JAPANESE -> "音量アップ、ダウン、ミュートで wta:volume が届きます。detail.key は VolumeUp、VolumeDown、VolumeMute です。"
+        AppLanguage.KOREAN -> "음량 올림, 내림, 음소거는 wta:volume 을 보냅니다. detail.key 는 VolumeUp, VolumeDown, VolumeMute 입니다."
+    }
+    val consumeVolumeKeysLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "接管时不改系统音量"
+        AppLanguage.ENGLISH -> "Do not change the system volume"
+        AppLanguage.ARABIC -> "عدم تغيير صوت النظام"
+        AppLanguage.PORTUGUESE -> "Não alterar o volume do sistema"
+        AppLanguage.SPANISH -> "No cambiar el volumen del sistema"
+        AppLanguage.FRENCH -> "Ne pas changer le volume du système"
+        AppLanguage.GERMAN -> "Systemlautstärke nicht ändern"
+        AppLanguage.RUSSIAN -> "Не менять системную громкость"
+        AppLanguage.JAPANESE -> "システムの音量は変えない"
+        AppLanguage.KOREAN -> "시스템 음량은 바꾸지 않음"
+    }
+    val consumeVolumeKeysHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "关掉时，网页仍能收到事件，系统音量也会跟着变。"
+        AppLanguage.ENGLISH -> "When this is off, the page still receives the event and the system volume still changes."
+        AppLanguage.ARABIC -> "عند الإيقاف، تستقبل الصفحة الحدث ويتغير صوت النظام أيضًا."
+        AppLanguage.PORTUGUESE -> "Desligado, a página ainda recebe o evento e o volume do sistema também muda."
+        AppLanguage.SPANISH -> "Apagado, la página sigue recibiendo el evento y el volumen del sistema también cambia."
+        AppLanguage.FRENCH -> "Désactivé, la page reçoit quand même l'événement et le volume du système change aussi."
+        AppLanguage.GERMAN -> "Aus: die Seite erhält das Ereignis weiterhin, und die Systemlautstärke ändert sich mit."
+        AppLanguage.RUSSIAN -> "Если выключено, страница всё равно получает событие, и системная громкость меняется."
+        AppLanguage.JAPANESE -> "オフのときは、ページはイベントを受け取り、システムの音量も変わります。"
+        AppLanguage.KOREAN -> "끄면 페이지는 이벤트를 받고, 시스템 음량도 함께 바뀝니다."
+    }
+    val mediaAlbumNameLabel: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "相册子目录"
+        AppLanguage.ENGLISH -> "Gallery folder"
+        AppLanguage.ARABIC -> "مجلد المعرض"
+        AppLanguage.PORTUGUESE -> "Pasta da galeria"
+        AppLanguage.SPANISH -> "Carpeta de la galería"
+        AppLanguage.FRENCH -> "Dossier de la galerie"
+        AppLanguage.GERMAN -> "Galerieordner"
+        AppLanguage.RUSSIAN -> "Папка галереи"
+        AppLanguage.JAPANESE -> "ギャラリーのフォルダ"
+        AppLanguage.KOREAN -> "갤러리 폴더"
+    }
+    val mediaAlbumNameHint: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "系统下载进相册时用的子目录名。留空则是 WebToApp。自定义文件夹里的图片、视频和音频会单独登记进相册。"
+        AppLanguage.ENGLISH -> "Subfolder used when a system download is saved to the gallery. Blank stays WebToApp. Pictures, video, and audio saved to a custom folder are registered with the gallery too."
+        AppLanguage.ARABIC -> "المجلد الفرعي المستخدم عند حفظ تنزيل النظام في المعرض. الفراغ يبقى WebToApp. الصور والفيديو والصوت في مجلد مخصص تُسجَّل أيضًا في المعرض."
+        AppLanguage.PORTUGUESE -> "Subpasta usada quando um download do sistema vai para a galeria. Em branco continua WebToApp. Imagens, vídeo e áudio numa pasta personalizada também entram na galeria."
+        AppLanguage.SPANISH -> "Subcarpeta usada cuando una descarga del sistema va a la galería. En blanco sigue siendo WebToApp. Las imágenes, el vídeo y el audio de una carpeta personalizada también se registran en la galería."
+        AppLanguage.FRENCH -> "Sous-dossier utilisé quand un téléchargement système va dans la galerie. Vide reste WebToApp. Les images, vidéos et sons d'un dossier personnalisé sont aussi inscrits dans la galerie."
+        AppLanguage.GERMAN -> "Unterordner, wenn ein Systemdownload in der Galerie landet. Leer bleibt WebToApp. Bilder, Videos und Audio in einem eigenen Ordner werden ebenfalls in der Galerie eingetragen."
+        AppLanguage.RUSSIAN -> "Подпапка, когда системная загрузка попадает в галерею. Пустое значение — WebToApp. Картинки, видео и аудио из своей папки тоже регистрируются в галерее."
+        AppLanguage.JAPANESE -> "システムのダウンロードをギャラリーに入れるときのサブフォルダです。空欄は WebToApp です。カスタムフォルダの画像、動画、音声もギャラリーに登録します。"
+        AppLanguage.KOREAN -> "시스템 다운로드를 갤러리에 넣을 때 쓰는 하위 폴더입니다. 비우면 WebToApp 입니다. 사용자 폴더의 사진, 동영상, 오디오도 갤러리에 등록합니다."
     }
     val pwaStrategyNetworkFirst: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "网络优先（推荐）— 优先使用最新内容，离线时用缓存"
@@ -11082,6 +11178,10 @@ object StringsE {
     val nativeBridgeCapsPip: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "画中画"; AppLanguage.ENGLISH -> "Picture-in-Picture"; AppLanguage.ARABIC -> "فيديو داخل فيديو"; AppLanguage.PORTUGUESE -> "PiP"; AppLanguage.SPANISH -> "PiP"; AppLanguage.FRENCH -> "Image dans l'image"; AppLanguage.GERMAN -> "Bild-in-Bild"; AppLanguage.RUSSIAN -> "Картинка в картинке"; AppLanguage.JAPANESE -> "ピクチャーインピクチャー"; AppLanguage.KOREAN -> "PIP"; }
     val nativeBridgeCapsRating: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "评分"; AppLanguage.ENGLISH -> "Rating"; AppLanguage.ARABIC -> "التقييم"; AppLanguage.PORTUGUESE -> "Avaliação"; AppLanguage.SPANISH -> "Valoración"; AppLanguage.FRENCH -> "Évaluation"; AppLanguage.GERMAN -> "Bewertung"; AppLanguage.RUSSIAN -> "Оценка"; AppLanguage.JAPANESE -> "評価"; AppLanguage.KOREAN -> "평가"; }
     val nativeBridgeCapsScreenCapture: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "屏幕截图"; AppLanguage.ENGLISH -> "Screen Capture"; AppLanguage.ARABIC -> "التقاط الشاشة"; AppLanguage.PORTUGUESE -> "Captura de Tela"; AppLanguage.SPANISH -> "Captura de Pantalla"; AppLanguage.FRENCH -> "Capture d'écran"; AppLanguage.GERMAN -> "Bildschirmaufnahme"; AppLanguage.RUSSIAN -> "Снимок экрана"; AppLanguage.JAPANESE -> "スクリーンショット"; AppLanguage.KOREAN -> "화면 캡처"; }
+
+    val nativeBridgeCapsDirectory: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "文件夹"; AppLanguage.ENGLISH -> "Folder"; AppLanguage.ARABIC -> "مجلد"; AppLanguage.PORTUGUESE -> "Pasta"; AppLanguage.SPANISH -> "Carpeta"; AppLanguage.FRENCH -> "Dossier"; AppLanguage.GERMAN -> "Ordner"; AppLanguage.RUSSIAN -> "Папка"; AppLanguage.JAPANESE -> "フォルダ"; AppLanguage.KOREAN -> "폴더"; }
+    val nativeBridgeDirectoryHint: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "页面可选择一个文件夹并记住授权，之后用 WtaDirectory 列出、读取和写入其中的文件。授权只留在这台设备上，导出的应用需要再选一次。仅系统 WebView。"; AppLanguage.ENGLISH -> "The page can pick one folder and keep that grant, then list, read, and write its files through WtaDirectory. The grant stays on this device, so an exported app asks again. System WebView only."; AppLanguage.ARABIC -> "يمكن للصفحة اختيار مجلد واحد والاحتفاظ بالإذن، ثم عرض ملفاته وقراءتها والكتابة فيها عبر WtaDirectory. يبقى الإذن على هذا الجهاز، لذا يطلب التطبيق المُصدَّر الاختيار مرة أخرى. متاح في WebView النظام فقط."; AppLanguage.PORTUGUESE -> "A página pode escolher uma pasta e guardar essa permissão, depois listar, ler e gravar os ficheiros com WtaDirectory. A permissão fica neste dispositivo, por isso a app exportada pede outra vez. Apenas na WebView do sistema."; AppLanguage.SPANISH -> "La página puede elegir una carpeta y conservar ese permiso, y luego listar, leer y escribir sus archivos con WtaDirectory. El permiso queda en este dispositivo, así que la app exportada vuelve a pedirlo. Solo en el WebView del sistema."; AppLanguage.FRENCH -> "La page peut choisir un dossier et conserver cette autorisation, puis lister, lire et écrire ses fichiers via WtaDirectory. L'autorisation reste sur cet appareil, donc l'app exportée redemande. WebView système uniquement."; AppLanguage.GERMAN -> "Die Seite kann einen Ordner wählen und diese Freigabe behalten, danach Dateien darin über WtaDirectory auflisten, lesen und schreiben. Die Freigabe bleibt auf diesem Gerät, eine exportierte App fragt erneut. Nur System-WebView."; AppLanguage.RUSSIAN -> "Страница может один раз выбрать папку и сохранить доступ, а затем читать, перечислять и записывать файлы через WtaDirectory. Доступ остаётся на этом устройстве, экспортированное приложение спросит снова. Только системный WebView."; AppLanguage.JAPANESE -> "ページはフォルダを 1 つ選び、その許可を保持したまま WtaDirectory で中のファイルを一覧、読み取り、書き込みできます。許可はこの端末に残るため、書き出したアプリでは選び直します。システムの WebView のみ。"; AppLanguage.KOREAN -> "페이지가 폴더를 하나 고르고 그 권한을 유지한 뒤 WtaDirectory로 파일을 나열하고 읽고 쓸 수 있습니다. 권한은 이 기기에 남으므로 내보낸 앱에서는 다시 고릅니다. 시스템 WebView만 해당합니다."; }
+
     val googleSignInClientIdLabel: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "Google Web Client ID"; AppLanguage.ENGLISH -> "Google Web Client ID"; AppLanguage.ARABIC -> "معرّف عميل Google للويب"; AppLanguage.PORTUGUESE -> "Client ID Web do Google"; AppLanguage.SPANISH -> "ID de Cliente Web de Google"; AppLanguage.FRENCH -> "ID client Web Google"; AppLanguage.GERMAN -> "Google Web-Client-ID"; AppLanguage.RUSSIAN -> "Веб-ID клиента Google"; AppLanguage.JAPANESE -> "Google ウェブクライアント ID"; AppLanguage.KOREAN -> "Google 웹 클라이언트 ID"; }
     val googleSignInClientIdPlaceholder: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.ENGLISH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.ARABIC -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.PORTUGUESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.SPANISH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.FRENCH -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.GERMAN -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.RUSSIAN -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.JAPANESE -> "xxxxxxxx.apps.googleusercontent.com"; AppLanguage.KOREAN -> "xxxxxxxx.apps.googleusercontent.com"; }
     val googleSignInHint: String get() = when (Strings.lang) { AppLanguage.CHINESE -> "使用设备上的 Google 账户一键登录。需在 Google Cloud Console 中注册本应用的包名与签名 SHA-1，并填入同一项目的 Web Client ID；网页通过 NativeBridge.googleSignIn() 获取 ID Token。"; AppLanguage.ENGLISH -> "One-tap sign-in with the device's Google accounts. Register this app's package name and signing SHA-1 in Google Cloud Console and enter that project's Web Client ID; the page obtains an ID token via NativeBridge.googleSignIn()."; AppLanguage.ARABIC -> "تسجيل دخول بنقرة واحدة بحسابات Google على الجهاز. سجّل اسم حزمة هذا التطبيق وبصمة SHA-1 للتوقيع في Google Cloud Console وأدخل Web Client ID الخاص بنفس المشروع؛ تحصل الصفحة على ID Token عبر NativeBridge.googleSignIn()."; AppLanguage.PORTUGUESE -> "Login com um toque usando as contas Google do dispositivo. Registre o nome do pacote e o SHA-1 de assinatura deste app no Google Cloud Console e insira o Web Client ID do mesmo projeto; a página obtém um ID Token via NativeBridge.googleSignIn()."; AppLanguage.SPANISH -> "Inicio de sesión con un toque usando las cuentas Google del dispositivo. Registra el nombre de paquete y la huella SHA-1 de firma de esta app en Google Cloud Console e introduce el Web Client ID del mismo proyecto; la página obtiene un ID Token mediante NativeBridge.googleSignIn()."; AppLanguage.FRENCH -> "Connexion en un geste avec les comptes Google de l'appareil. Enregistrez le nom de package et l'empreinte SHA-1 de signature de cette app dans Google Cloud Console et saisissez le Web Client ID du même projet ; la page obtient un ID Token via NativeBridge.googleSignIn()."; AppLanguage.GERMAN -> "Anmeldung mit einem Tipp über die Google-Konten des Geräts. Registrieren Sie den Paketnamen und Signatur-SHA-1 dieser App in der Google Cloud Console und geben Sie die Web-Client-ID desselben Projekts ein; die Seite erhält ein ID-Token über NativeBridge.googleSignIn()."; AppLanguage.RUSSIAN -> "Вход одним касанием через аккаунты Google на устройстве. Зарегистрируйте имя пакета и отпечаток подписи SHA-1 этого приложения в Google Cloud Console и укажите Web Client ID того же проекта; страница получает ID Token через NativeBridge.googleSignIn()."; AppLanguage.JAPANESE -> "端末上の Google アカウントでワンタップ ログイン。Google Cloud Console でこのアプリのパッケージ名と署名 SHA-1 を登録し、同じプロジェクトの Web Client ID を入力してください。ページは NativeBridge.googleSignIn() で ID トークンを取得します。"; AppLanguage.KOREAN -> "기기의 Google 계정으로 원탭 로그인. Google Cloud Console에 이 앱의 패키지 이름과 서명 SHA-1을 등록하고 같은 프로젝트의 웹 클라이언트 ID를 입력하세요. 페이지는 NativeBridge.googleSignIn()으로 ID 토큰을 받습니다."; }
@@ -12544,6 +12644,30 @@ object StringsE {
         AppLanguage.RUSSIAN -> "Связать веб-медиа с системными уведомлениями и экраном блокировки (Bluetooth, Android Auto)"
         AppLanguage.JAPANESE -> "ウェブメディアをシステム通知とロック画面コントロールに接続（Bluetooth、Android Auto）"
         AppLanguage.KOREAN -> "웹 미디어를 시스템 알림 및 잠금 화면 컨트롤에 연결 (Bluetooth, Android Auto)"
+    }
+    val backgroundMediaPlaybackTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "后台继续播放"
+        AppLanguage.ENGLISH -> "Keep playing in background"
+        AppLanguage.ARABIC -> "متابعة التشغيل في الخلفية"
+        AppLanguage.PORTUGUESE -> "Continuar a reproduzir em segundo plano"
+        AppLanguage.SPANISH -> "Seguir reproduciendo en segundo plano"
+        AppLanguage.FRENCH -> "Continuer la lecture en arrière-plan"
+        AppLanguage.GERMAN -> "Wiedergabe im Hintergrund fortsetzen"
+        AppLanguage.RUSSIAN -> "Продолжать воспроизведение в фоне"
+        AppLanguage.JAPANESE -> "バックグラウンドで再生を続ける"
+        AppLanguage.KOREAN -> "백그라운드에서 계속 재생"
+    }
+    val backgroundMediaPlaybackDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "离开应用后，正在播放的声音会继续。通知栏可以暂停。画面会停，回到应用后从刚才的进度接着播"
+        AppLanguage.ENGLISH -> "Audio that is already playing continues after you leave. Pause it from the notification. The picture stops until you come back, then picks up where it left off"
+        AppLanguage.ARABIC -> "يستمر الصوت الذي يعمل عند مغادرة التطبيق. يمكن إيقافه من الإشعار. تتوقف الصورة حتى تعود، ثم تكمل من حيث توقفت"
+        AppLanguage.PORTUGUESE -> "O áudio que já está a tocar continua quando sai da aplicação. Pause pelo aviso. A imagem para até voltar e retoma de onde ficou"
+        AppLanguage.SPANISH -> "El audio que ya se está reproduciendo continúa al salir. Puedes pausarlo desde la notificación. La imagen se detiene hasta que vuelves y sigue desde el mismo punto"
+        AppLanguage.FRENCH -> "Le son déjà en lecture continue quand vous quittez l'application. Mettez-le en pause depuis la notification. L'image s'arrête jusqu'au retour, puis reprend au même endroit"
+        AppLanguage.GERMAN -> "Ton, der schon läuft, spielt weiter, wenn Sie die App verlassen. Pausieren geht über die Benachrichtigung. Das Bild hält an und läuft nach der Rückkehr an derselben Stelle weiter"
+        AppLanguage.RUSSIAN -> "Уже играющий звук не останавливается, когда вы уходите из приложения. Пауза — из уведомления. Картинка останавливается и продолжается с того же места, когда вы возвращаетесь"
+        AppLanguage.JAPANESE -> "再生中の音声はアプリを離れても続きます。通知から一時停止できます。映像は止まり、戻ると続きから再生されます"
+        AppLanguage.KOREAN -> "이미 재생 중인 소리는 앱을 나가도 이어집니다. 알림에서 일시정지할 수 있습니다. 화면은 멈추고, 돌아오면 그 지점부터 다시 재생됩니다"
     }
     val previewBackendAppIntro: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "此项目是 %s 后端应用。"
@@ -15342,6 +15466,34 @@ object StringsE {
         AppLanguage.KOREAN -> "package.json을 찾을 수 없습니다"
     }
 
+    // ── Outbound Web Share ──────────────────────────────────────────────────────
+
+    val outboundShareTitle: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "网页分享"
+        AppLanguage.ENGLISH -> "Share from the page"
+        AppLanguage.ARABIC -> "مشاركة من الصفحة"
+        AppLanguage.PORTUGUESE -> "Compartilhar a partir da página"
+        AppLanguage.SPANISH -> "Compartir desde la página"
+        AppLanguage.FRENCH -> "Partager depuis la page"
+        AppLanguage.GERMAN -> "Von der Seite teilen"
+        AppLanguage.RUSSIAN -> "Поделиться со страницы"
+        AppLanguage.JAPANESE -> "ページから共有"
+        AppLanguage.KOREAN -> "페이지에서 공유"
+    }
+
+    val outboundShareDesc: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "网页可以把文字和文件交给系统分享面板，再由你选择 WhatsApp、Telegram 或其他应用"
+        AppLanguage.ENGLISH -> "The page can hand text and files to the system share sheet. You then pick WhatsApp, Telegram, or any other app"
+        AppLanguage.ARABIC -> "يمكن للصفحة تسليم النص والملفات إلى لوحة مشاركة النظام، ثم تختار واتساب أو تيليغرام أو أي تطبيق آخر"
+        AppLanguage.PORTUGUESE -> "A página pode entregar texto e arquivos ao menu de compartilhamento do sistema. Você escolhe o WhatsApp, o Telegram ou qualquer outro app"
+        AppLanguage.SPANISH -> "La página puede entregar texto y archivos a la hoja de compartir del sistema. Tú eliges WhatsApp, Telegram u otra aplicación"
+        AppLanguage.FRENCH -> "La page peut remettre le texte et les fichiers à la feuille de partage du système. Vous choisissez WhatsApp, Telegram ou une autre application"
+        AppLanguage.GERMAN -> "Die Seite kann Text und Dateien an das System-Teilen übergeben. Sie wählen WhatsApp, Telegram oder eine andere App"
+        AppLanguage.RUSSIAN -> "Страница может передать текст и файлы в системную панель «Поделиться». Дальше вы выбираете WhatsApp, Telegram или другое приложение"
+        AppLanguage.JAPANESE -> "ページはテキストとファイルをシステムの共有シートに渡せます。WhatsApp、Telegram、または他のアプリを選べます"
+        AppLanguage.KOREAN -> "페이지가 글과 파일을 시스템 공유 시트로 넘깁니다. WhatsApp, Telegram 또는 다른 앱을 고르면 됩니다"
+    }
+
     // ── Inbound share sheet (issue #943) ────────────────────────────────────────
 
     val receiveShare: String get() = when (Strings.lang) {
@@ -16301,29 +16453,42 @@ object StringsE {
     }
 
     val pluginAttachEmpty: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "未挂载插件"
-        AppLanguage.ENGLISH -> "No plugins attached"
-        AppLanguage.ARABIC -> "لا توجد إضافات مرفقة"
-        AppLanguage.PORTUGUESE -> "Nenhum plugin anexado"
-        AppLanguage.SPANISH -> "Sin plugins adjuntos"
-        AppLanguage.FRENCH -> "Aucun plugin attaché"
-        AppLanguage.GERMAN -> "Keine Plugins angehängt"
-        AppLanguage.RUSSIAN -> "Плагины не прикреплены"
-        AppLanguage.JAPANESE -> "プラグイン未アタッチ"
-        AppLanguage.KOREAN -> "연결된 플러그인 없음"
+        AppLanguage.CHINESE -> "未单独选择，使用已启用的插件"
+        AppLanguage.ENGLISH -> "None picked; uses enabled plugins"
+        AppLanguage.ARABIC -> "لم يُحدَّد شيء؛ تُستخدم الإضافات المفعّلة"
+        AppLanguage.PORTUGUESE -> "Nenhum escolhido; usa os plugins ativos"
+        AppLanguage.SPANISH -> "Ninguno elegido; se usan los plugins activos"
+        AppLanguage.FRENCH -> "Aucun choisi ; les plugins activés sont utilisés"
+        AppLanguage.GERMAN -> "Keine Auswahl; aktivierte Plugins werden verwendet"
+        AppLanguage.RUSSIAN -> "Ничего не выбрано; используются включённые плагины"
+        AppLanguage.JAPANESE -> "個別未選択。有効なプラグインを使います"
+        AppLanguage.KOREAN -> "따로 선택하지 않음. 켠 플러그인을 사용합니다"
     }
 
     val pluginAttachHint: String get() = when (Strings.lang) {
-        AppLanguage.CHINESE -> "挂载的插件只在此应用内运行"
-        AppLanguage.ENGLISH -> "Attached plugins run inside this app"
-        AppLanguage.ARABIC -> "تعمل الإضافات المرفقة داخل هذا التطبيق"
-        AppLanguage.PORTUGUESE -> "Plugins anexados rodam dentro deste app"
-        AppLanguage.SPANISH -> "Los plugins adjuntos se ejecutan en esta app"
-        AppLanguage.FRENCH -> "Les plugins attachés s'exécutent dans cette app"
-        AppLanguage.GERMAN -> "Angehängte Plugins laufen in dieser App"
-        AppLanguage.RUSSIAN -> "Прикреплённые плагины работают в этом приложении"
-        AppLanguage.JAPANESE -> "アタッチしたプラグインはこのアプリ内で動作"
-        AppLanguage.KOREAN -> "연결된 플러그인은 이 앱 내에서 실행됩니다"
+        AppLanguage.CHINESE -> "不单独选择时，用「管理插件」里已启用的插件。单独选择后只运行这些。"
+        AppLanguage.ENGLISH -> "With nothing picked, plugins enabled in Manage Plugins run here. A picked list runs only those."
+        AppLanguage.ARABIC -> "عند عدم الاختيار، تعمل الإضافات المفعّلة في «إدارة الإضافات». وعند الاختيار تعمل هذه فقط."
+        AppLanguage.PORTUGUESE -> "Sem uma escolha própria, entram os plugins ativos em Gerir plugins. Uma lista escolhida executa só esses."
+        AppLanguage.SPANISH -> "Si no eliges ninguno, se usan los plugins activos en Gestionar plugins. Una lista elegida ejecuta solo esos."
+        AppLanguage.FRENCH -> "Sans sélection, les plugins activés dans Gérer les plugins s'exécutent ici. Une liste choisie n'exécute que ceux-là."
+        AppLanguage.GERMAN -> "Ohne eigene Auswahl laufen die in Plugins verwalten aktivierten Plugins. Eine eigene Liste führt nur diese aus."
+        AppLanguage.RUSSIAN -> "Если ничего не выбрано, работают плагины, включённые в «Управление плагинами». Свой список запускает только их."
+        AppLanguage.JAPANESE -> "個別に選ばないときは「プラグイン管理」で有効なプラグインを使います。選ぶとその一覧だけが動きます。"
+        AppLanguage.KOREAN -> "따로 고르지 않으면 '플러그인 관리'에서 켠 플러그인이 실행됩니다. 고르면 그 목록만 실행됩니다."
+    }
+
+    val pluginGlobalEnable: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "启用插件"
+        AppLanguage.ENGLISH -> "Enable plugin"
+        AppLanguage.ARABIC -> "تفعيل الإضافة"
+        AppLanguage.PORTUGUESE -> "Ativar plugin"
+        AppLanguage.SPANISH -> "Activar plugin"
+        AppLanguage.FRENCH -> "Activer le plugin"
+        AppLanguage.GERMAN -> "Plugin aktivieren"
+        AppLanguage.RUSSIAN -> "Включить плагин"
+        AppLanguage.JAPANESE -> "プラグインを有効にする"
+        AppLanguage.KOREAN -> "플러그인 켜기"
     }
 
     val pluginAdd: String get() = when (Strings.lang) {
@@ -16416,6 +16581,19 @@ object StringsE {
         AppLanguage.RUSSIAN -> "В формате ca-app-pub-xxx~yyy — найдите в настройках приложения AdMob"
         AppLanguage.JAPANESE -> "ca-app-pub-xxx~yyy の形式 — AdMob のアプリ設定で確認できます"
         AppLanguage.KOREAN -> "ca-app-pub-xxx~yyy 형식 — AdMob 앱 설정에서 확인하세요"
+    }
+
+    val adMobAppIdInvalid: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "已开启 AdMob，但应用 ID 为空或格式不对。必须是 ca-app-pub- 加 16 位数字、波浪号、再加 10 位数字。广告位 ID（中间是斜杠）不能填在这里，否则安装后的应用一打开就会闪退"
+        AppLanguage.ENGLISH -> "AdMob is on, but the App ID is missing or malformed. It must look like ca-app-pub- followed by 16 digits, a tilde, and 10 digits. An ad unit ID (with a slash) does not belong here — the installed app crashes on launch without a valid App ID"
+        AppLanguage.ARABIC -> "AdMob مفعّل، لكن معرّف التطبيق فارغ أو بصيغة خاطئة. يجب أن يكون ca-app-pub- ثم 16 رقمًا ثم ~ ثم 10 أرقام. معرّف الوحدة الإعلانية (الذي يحتوي على /) لا يوضع هنا، وإلا يتعطل التطبيق عند الفتح"
+        AppLanguage.PORTUGUESE -> "O AdMob está ativado, mas o ID do app está vazio ou incorreto. Tem de ser ca-app-pub- seguido de 16 dígitos, um til e 10 dígitos. O ID do bloco de anúncios (com uma barra) não entra aqui — a app instalada fecha ao abrir sem um ID válido"
+        AppLanguage.SPANISH -> "AdMob está activado, pero el ID de la app falta o está mal. Debe ser ca-app-pub- seguido de 16 dígitos, una tilde y 10 dígitos. El ID del bloque (con una barra) no va aquí: la app instalada se cierra al abrirla sin un ID válido"
+        AppLanguage.FRENCH -> "AdMob est activé, mais l'ID d'application est vide ou incorrect. Il doit être ca-app-pub- suivi de 16 chiffres, un tilde et 10 chiffres. L'ID de bloc (avec une barre) ne va pas ici : l'application installée plante au lancement sans un ID valide"
+        AppLanguage.GERMAN -> "AdMob ist an, aber die App-ID fehlt oder ist falsch. Sie muss ca-app-pub- sein, dann 16 Ziffern, eine Tilde und 10 Ziffern. Eine Anzeigenblock-ID (mit Schrägstrich) gehört nicht hierher — die installierte App stürzt sonst beim Start ab"
+        AppLanguage.RUSSIAN -> "AdMob включён, но ID приложения пустой или неверного вида. Нужно ca-app-pub-, 16 цифр, тильда и ещё 10 цифр. ID рекламного блока (со слэшем) сюда нельзя — без верного ID приложение закрывается при запуске"
+        AppLanguage.JAPANESE -> "AdMob はオンですが、アプリ ID が空か形式が違います。ca-app-pub- の後に数字 16 桁、チルダ、数字 10 桁である必要があります。スラッシュ入りの広告ユニット ID はここには入れられません。正しいアプリ ID がないと、インストールしたアプリは起動時に落ちます"
+        AppLanguage.KOREAN -> "AdMob이 켜져 있지만 앱 ID가 비어 있거나 형식이 잘못되었습니다. ca-app-pub- 다음에 숫자 16자리, 물결표, 숫자 10자리여야 합니다. 슬래시가 있는 광고 단위 ID는 여기에 넣을 수 없습니다. 올바른 앱 ID가 없으면 설치한 앱이 실행 즉시 종료됩니다"
     }
 
     val adTestMode: String get() = when (Strings.lang) {

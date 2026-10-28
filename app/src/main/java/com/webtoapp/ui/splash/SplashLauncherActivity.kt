@@ -169,6 +169,9 @@ fun SplashLauncherScreen(
     }
 
     var showAnnouncementDialog by remember { mutableStateOf(false) }
+    var remainingDaysNotice by remember {
+        mutableStateOf<com.webtoapp.core.activation.RemainingDaysNotice?>(null)
+    }
 
     val scope = rememberCoroutineScope()
 
@@ -177,23 +180,31 @@ fun SplashLauncherScreen(
         if (splashType == SplashType.VIDEO) ((videoEndMs - videoStartMs) / 1000).toInt() else splashDuration
     ) }
 
+    suspend fun continueAfterActivationGate() {
+        // Respect showOnce/version pinning like the in-app announcement paths; without
+        // this gate the dialog re-appeared on every clone launch.
+        val announceNow = announcementEnabled && announcement.title.isNotEmpty() &&
+            com.webtoapp.WebToAppApplication.announcement.shouldShowAnnouncement(activationAppId, announcement)
+        if (announceNow) {
+            showAnnouncementDialog = true
+        } else if (hasValidSplash && splashPath != null) {
+            showSplash = true
+        } else {
+            onLaunchTarget()
+        }
+    }
+
     LaunchedEffect(isActivated) {
-        if (isActivated) {
-
-            // Respect showOnce/version pinning like the in-app announcement paths; without
-            // this gate the dialog re-appeared on every clone launch.
-            val announceNow = announcementEnabled && announcement.title.isNotEmpty() &&
-                com.webtoapp.WebToAppApplication.announcement.shouldShowAnnouncement(activationAppId, announcement)
-            if (announceNow) {
-                showAnnouncementDialog = true
-            } else {
-
-                if (hasValidSplash && splashPath != null) {
-                    showSplash = true
-                } else {
-                    onLaunchTarget()
-                }
-            }
+        if (!isActivated) return@LaunchedEffect
+        val notice = if (activationEnabled && !remoteConfig.enabled) {
+            activation.remainingDaysNoticeForLaunch(activationAppId, activationCodes)
+        } else {
+            null
+        }
+        if (notice != null) {
+            remainingDaysNotice = notice
+        } else {
+            continueAfterActivationGate()
         }
     }
 
@@ -273,7 +284,9 @@ fun SplashLauncherScreen(
             )
         }
 
-        if (!showActivationDialog && !showAnnouncementDialog && !showSplash && isActivated) {
+        if (!showActivationDialog && !showAnnouncementDialog && !showSplash &&
+            remainingDaysNotice == null && isActivated
+        ) {
             CircularProgressIndicator(color = Color.White)
         }
     }
@@ -315,6 +328,16 @@ fun SplashLauncherScreen(
             customSubtitle = dialogConfig.subtitle,
             customInputLabel = dialogConfig.inputLabel,
             customButtonText = dialogConfig.buttonText
+        )
+    }
+
+    remainingDaysNotice?.let { notice ->
+        com.webtoapp.ui.components.RemainingDaysNoticeDialog(
+            notice = notice,
+            onDismiss = {
+                remainingDaysNotice = null
+                scope.launch { continueAfterActivationGate() }
+            }
         )
     }
 
@@ -505,38 +528,44 @@ fun SplashContent(
             }
         }
 
-        Surface(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .statusBarsPadding()
-                .padding(16.dp),
-            shape = MaterialTheme.shapes.small,
-            color = Color.Black.copy(alpha = 0.6f)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically
+        val displayTime = if (splashType == SplashType.VIDEO) {
+            ((videoRemainingMs + 999) / 1000).toInt()
+        } else {
+            countdown
+        }
+        val showNumber = showCountdown && displayTime > 0
+        if (com.webtoapp.ui.shared.splashCornerChipVisible(showCountdown, displayTime, clickToSkip)) {
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(16.dp),
+                shape = MaterialTheme.shapes.small,
+                color = Color.Black.copy(alpha = 0.6f)
             ) {
-
-                val displayTime = if (splashType == SplashType.VIDEO) ((videoRemainingMs + 999) / 1000).toInt() else countdown
-                if (displayTime > 0) {
-                    Text(
-                        text = "${displayTime}s",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                }
-                if (clickToSkip) {
-                    if (displayTime > 0) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("|", color = Color.White.copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.width(8.dp))
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (showNumber) {
+                        Text(
+                            text = "${displayTime}s",
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
-                    Text(
-                        text = com.webtoapp.core.i18n.Strings.skip,
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    if (clickToSkip) {
+                        if (showNumber) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("|", color = Color.White.copy(alpha = 0.5f))
+                            Spacer(modifier = Modifier.width(8.dp))
+                        }
+                        Text(
+                            text = com.webtoapp.core.i18n.Strings.skip,
+                            color = Color.White,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             }
         }
