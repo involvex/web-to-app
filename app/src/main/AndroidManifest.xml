@@ -300,6 +300,7 @@
             android:exported="false"
             android:hardwareAccelerated="true"
             android:launchMode="singleTask"
+            android:supportsPictureInPicture="true"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.WebToApp.Shell" />
 

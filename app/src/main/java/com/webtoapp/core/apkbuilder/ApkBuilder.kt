@@ -1633,7 +1633,16 @@ class ApkBuilder(private val context: Context) {
                                 targetSdk = config.targetSdkOverride,
                                 minSdk = config.minSdkOverride,
                                 shareReceiveMimeTypes = config.shareReceiveMimeTypes,
-                                openWithEnabled = config.openWithEnabled
+                                openWithEnabled = config.openWithEnabled,
+                                // The manifest opt-in must match the runtime gate
+                                // (`NativeBridge.enterPiP` checks `capabilities.pip`). The editor
+                                // toggle writes both flags together, but imported/hand-edited
+                                // configs may set only one, and a mismatch fails silently at
+                                // runtime: Android refuses PiP for an activity whose manifest
+                                // does not declare it.
+                                pictureInPictureEnabled =
+                                    config.webViewBehavior.pictureInPictureEnabled ||
+                                        config.webViewBehavior.nativeBridgePip
                             )
                             stackBundles.forEach { bundle ->
                                 modifiedData = featureStackGrafter.graftManifest(

@@ -37,6 +37,9 @@ class AxmlRebuilder {
         private const val ATTR_MIME_TYPE = 0x01010026
         private const val ATTR_PATH_PATTERN = 0x0101002c
 
+        /** `android:supportsPictureInPicture`. The shell manifest declares it `false`. */
+        private const val ATTR_SUPPORTS_PICTURE_IN_PICTURE = 0x010104f7
+
         // Typed-value dataType codes (android.util.TypedValue).
         private const val TYPE_REFERENCE = 0x01
         private const val TYPE_STRING = 0x03
@@ -92,7 +95,8 @@ class AxmlRebuilder {
             "directBootAware" to 0x01010505,
             "usesNonSdkApi" to 0x01010514,
             "enableOnBackInvokedCallback" to 0x01010640,
-            "usesPermissionFlags" to 0x010104ef
+            "usesPermissionFlags" to 0x010104ef,
+            "supportsPictureInPicture" to 0x010104f7
         )
 
         /** `@android:<type>/<name>` references used by stack fragments. */
@@ -766,6 +770,32 @@ class AxmlRebuilder {
         if (addDirectLauncherToShell) {
             addLauncherIntentFilterToShellActivity(parsed)
         }
+    }
+
+    /**
+     * Applies the picture-in-picture opt-in to `ShellActivity`.
+     *
+     * The shell template declares `android:supportsPictureInPicture="false"` so an app that
+     * never enables PiP pays nothing; exports that enable it flip the existing attribute in
+     * place. A missing attribute (older template) is logged and skipped rather than
+     * fabricated — a wrong resource id would be worse than no PiP.
+     */
+    private fun setPictureInPictureSupport(parsed: ParsedAxml, enabled: Boolean) {
+        val attrIndex = parsed.resourceMap?.indexOf(ATTR_SUPPORTS_PICTURE_IN_PICTURE) ?: -1
+        if (attrIndex < 0) {
+            AppLogger.w(
+                TAG,
+                "android:supportsPictureInPicture not in resource map, leaving ShellActivity PiP unchanged"
+            )
+            return
+        }
+
+        setExistingBooleanAttributeOnActivity(
+            parsed = parsed,
+            activityClassName = "com.webtoapp.ui.shell.ShellActivity",
+            attrIndex = attrIndex,
+            value = enabled
+        )
     }
 
     private fun setExistingBooleanAttributeOnActivity(
@@ -1597,7 +1627,15 @@ class AxmlRebuilder {
          * text/config/code files so the exported app appears in the system's "open with"
          * sheet. The mime/extension sets are `ShareReceiveContract.OPEN_WITH_*` constants.
          */
-        openWithEnabled: Boolean = false
+        openWithEnabled: Boolean = false,
+        /**
+         * `WebViewConfig.pictureInPictureEnabled` — flips `android:supportsPictureInPicture`
+         * on `ShellActivity` from the template's `false` to `true`. The attribute must
+         * already exist in the template manifest: Android rejects the PiP entry path
+         * (`enterPictureInPictureMode`) for an activity that does not declare it, so the
+         * runtime gate alone is not enough.
+         */
+        pictureInPictureEnabled: Boolean = false
     ): ByteArray {
         val parsed = parseAxml(axmlData)
             ?: throw IllegalStateException("Failed to parse AndroidManifest.xml (full modification)")
@@ -1628,6 +1666,8 @@ class AxmlRebuilder {
             pruneRuntimeComponents(parsed, requiredComponents)
 
             rewireLauncherToShellActivity(parsed, addDirectLauncherToShell = true)
+
+            setPictureInPictureSupport(parsed, pictureInPictureEnabled)
 
             if (deepLinkHosts.isNotEmpty() || deepLinkSchemes.isNotEmpty()) {
                 addDeepLinkIntentFilter(parsed, deepLinkHosts, deepLinkSchemes)
