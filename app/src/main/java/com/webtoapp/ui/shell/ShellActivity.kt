@@ -853,10 +853,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                             }
                         }
 
-                        if (config.webViewConfig.enableMediaSession) {
-
                         if (config.webViewConfig.enableMediaSession || config.webViewConfig.backgroundMediaPlayback) {
-
                             val mediaBridge = com.webtoapp.core.webview.MediaSessionBridge(
                                 this@ShellActivity,
                                 wv

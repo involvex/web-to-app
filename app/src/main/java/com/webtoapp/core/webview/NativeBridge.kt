@@ -627,25 +627,6 @@ window.NativeBridgeGoogleSignInResult = function(requestId, payload) {
 };
 NativeBridge.googleSignIn('sign-in-' + Date.now());
 ```
-    """.trimIndent()
-
-        /**
-         * Compresses [bitmap] to JPEG at [quality] (0-100, coerced) and returns
-         * base64 (NO_WRAP) encoded bytes. Extracted from the instance helper so
-         * the encode/decode round-trip is unit-testable without a WebView.
-         */
-        internal fun encodeBitmapToBase64Jpeg(bitmap: Bitmap, quality: Int): String? {
-            return try {
-                val baos = java.io.ByteArrayOutputStream()
-                bitmap.compress(CompressFormat.JPEG, quality.coerceIn(0, 100), baos)
-                val bytes = baos.toByteArray()
-                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-            } catch (e: Exception) {
-                AppLogger.e("NativeBridge", "Failed to convert bitmap to base64", e)
-                null
-            }
-        }
-
 
 ### 本地文件夹
 
@@ -682,6 +663,22 @@ await WtaDirectory.write('exports/image.png', pngBytes);
 ```
         """.trimIndent()
 
+        /**
+         * Compresses [bitmap] to JPEG at [quality] (0-100, coerced) and returns
+         * base64 (NO_WRAP) encoded bytes. Extracted from the instance helper so
+         * the encode/decode round-trip is unit-testable without a WebView.
+         */
+        internal fun encodeBitmapToBase64Jpeg(bitmap: Bitmap, quality: Int): String? {
+            return try {
+                val baos = java.io.ByteArrayOutputStream()
+                bitmap.compress(CompressFormat.JPEG, quality.coerceIn(0, 100), baos)
+                val bytes = baos.toByteArray()
+                android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+            } catch (e: Exception) {
+                AppLogger.e("NativeBridge", "Failed to convert bitmap to base64", e)
+                null
+            }
+        }
 
         internal fun isPrivateNetworkHost(host: String?): Boolean {
             val normalized = host
@@ -2388,7 +2385,7 @@ await WtaDirectory.write('exports/image.png', pngBytes);
         }
     }
 
-     @JavascriptInterface
+    @JavascriptInterface
     fun enterPiP(): Boolean {
         if (!capabilities.pip) return false
         return try {
@@ -2561,6 +2558,9 @@ await WtaDirectory.write('exports/image.png', pngBytes);
                     dispatchScreenCaptureFrame(result)
                 }
                 delay(screenCaptureInterval)
+            }
+        }
+    }
 
     @JavascriptInterface
     fun directoryInfo(): String {
@@ -2819,6 +2819,7 @@ await WtaDirectory.write('exports/image.png', pngBytes);
         if (!started) {
             screenCaptureCallback?.let { invokeJsCallback(it, "false") }
         }
+    }
 
     private fun directoryDeliveryAllowed(current: String, callerOrigin: String?, callerPageUrl: String): Boolean {
         if (current.isBlank()) return false
@@ -2856,10 +2857,11 @@ private fun privateNetworkOnlyCapabilities(): com.webtoapp.data.model.NativeBrid
         fullscreen = false,
         print = false,
         screenCapture = false,
-        pip = false
-
+        pip = false,
+        rating = false,
+        googleSignIn = false,
+        googleSignInClientId = "",
         directory = false
-
     )
 }
 

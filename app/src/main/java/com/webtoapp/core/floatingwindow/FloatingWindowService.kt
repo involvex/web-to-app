@@ -186,13 +186,13 @@ class FloatingWindowService : Service() {
                         if (translateEnabled) {
                             injectTranslateScript(webView, translateTargetLanguage, translateShowButton)
                         }
-                webView.evaluateJavascript(DownloadBridge.getInjectionScript(), null)
-                if (shellConfig?.webViewConfig?.nativeBridgeScreenCapture == true) {
-                    webView.evaluateJavascript(
-                        com.webtoapp.core.webview.ScreenCaptureHelper.getInjectionScript(),
-                        null
-                    )
-                }
+                        webView.evaluateJavascript(DownloadBridge.getInjectionScript(), null)
+                        if (shellConfig?.webViewConfig?.nativeBridgeScreenCapture == true) {
+                            webView.evaluateJavascript(
+                                com.webtoapp.core.webview.ScreenCaptureHelper.getInjectionScript(),
+                                null
+                            )
+                        }
                     }
                 }
 
@@ -307,13 +307,9 @@ class FloatingWindowService : Service() {
                             findInPage = shellConfig.webViewConfig.nativeBridgeFindInPage,
                             orientation = shellConfig.webViewConfig.nativeBridgeOrientation,
                             fullscreen = shellConfig.webViewConfig.nativeBridgeFullscreen,
-                                screenCapture = shellConfig.webViewConfig.nativeBridgeScreenCapture,
-                                pip = shellConfig.webViewConfig.nativeBridgePip,
-                                rating = shellConfig.webViewConfig.nativeBridgeRating,
-                                googleSignIn = shellConfig.webViewConfig.nativeBridgeGoogleSignIn,
-                                googleSignInClientId = shellConfig.webViewConfig.nativeBridgeGoogleSignInClientId,
-                            )
-
+                            screenCapture = shellConfig.webViewConfig.nativeBridgeScreenCapture,
+                            pip = shellConfig.webViewConfig.nativeBridgePip,
+                            rating = shellConfig.webViewConfig.nativeBridgeRating,
                             googleSignIn = shellConfig.webViewConfig.nativeBridgeGoogleSignIn,
                             googleSignInClientId = shellConfig.webViewConfig.nativeBridgeGoogleSignInClientId,
                             directory = shellConfig.webViewConfig.nativeBridgeDirectory,

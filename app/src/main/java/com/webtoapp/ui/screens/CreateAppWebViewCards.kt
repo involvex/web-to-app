@@ -3872,11 +3872,12 @@ fun SpecialSettingsCard(
                                     selected = caps.rating,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(rating = !caps.rating))) },
                                     label = Strings.nativeBridgeCapsRating,
-
+                                    showSelectedCheck = false
+                                )
+                                WtaChip(
                                     selected = caps.directory,
                                     onClick = { onConfigChange(config.copy(nativeBridgeCapabilities = caps.copy(directory = !caps.directory))) },
                                     label = Strings.nativeBridgeCapsDirectory,
-
                                     showSelectedCheck = false
                                 )
                                 if (!BuildConfig.FDROID) {

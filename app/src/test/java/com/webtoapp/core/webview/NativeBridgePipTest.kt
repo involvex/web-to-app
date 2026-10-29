@@ -21,7 +21,7 @@ import org.robolectric.annotation.Config
  * - Not crash on any API level below O (no PictureInPictureParams available).
  */
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [23])
+@Config(sdk = [24])
 class NativeBridgePipTest {
 
     private fun bridgeWith(
