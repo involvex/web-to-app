@@ -71,7 +71,8 @@ class NodeDependencyManagerTest {
         assertThat(depsDir.exists()).isTrue()
         assertThat(nodeDir.exists()).isTrue()
         assertThat(projectDir.exists()).isTrue()
-        assertThat(nodeDir.absolutePath).contains("/nodejs_deps/node/")
+        assertThat(nodeDir.absolutePath)
+            .contains("${File.separator}nodejs_deps${File.separator}node${File.separator}")
     }
 
     @Test

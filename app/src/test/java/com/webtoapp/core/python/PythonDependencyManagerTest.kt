@@ -62,16 +62,16 @@ class PythonDependencyManagerTest {
         assertThat(depsDir.exists()).isTrue()
         assertThat(pythonDir.exists()).isTrue()
         assertThat(projectsDir.exists()).isTrue()
-        assertThat(pythonDir.absolutePath).contains("/python_deps/python")
+        assertThat(pythonDir.absolutePath).contains("${File.separator}python_deps${File.separator}python")
     }
 
     @Test
     fun `python readiness is false when runtime binaries are absent`() {
         assertThat(PythonDependencyManager.isPythonReady(context)).isFalse()
         assertThat(PythonDependencyManager.getPythonExecutablePath(context))
-            .contains("/python_deps/python/bin/python3")
+            .contains("${File.separator}python_deps${File.separator}python${File.separator}bin${File.separator}python3")
         assertThat(PythonDependencyManager.getPipPath(context))
-            .contains("/python_deps/python/bin/pip3")
+            .contains("${File.separator}python_deps${File.separator}python${File.separator}bin${File.separator}pip3")
     }
 
     @Test
