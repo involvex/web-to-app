@@ -2,6 +2,7 @@ package com.webtoapp.core.agent.session
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test
+import java.util.Locale
 
 /**
  * The attachment note is the contract that keeps uploads as path references:
@@ -39,6 +40,28 @@ class AttachmentNoteTest {
         assertThat(note).contains("47 files")
         assertThat(note).contains("18MB")
         assertThat(note).contains("NOT inlined")
+    }
+
+    @Test
+    fun `sizes render identically under comma-decimal and arabic-indic locales`() {
+        val att = UserAttachment(
+            path = "uploads/big.zip",
+            displayName = "big.zip",
+            mimeType = "application/zip",
+            isImage = false,
+            sizeBytes = 1L shl 30
+        )
+        val original = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val commaDecimal = AttachmentNote.build(listOf(att)) { null }
+            Locale.setDefault(Locale.forLanguageTag("ar-SA-u-nu-arab"))
+            val arabicIndic = AttachmentNote.build(listOf(att)) { null }
+            assertThat(commaDecimal).contains("1.0GB")
+            assertThat(arabicIndic).isEqualTo(commaDecimal)
+        } finally {
+            Locale.setDefault(original)
+        }
     }
 
     @Test
