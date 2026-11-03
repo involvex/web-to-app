@@ -2,11 +2,20 @@
 
 Instructions for coding agents working in this repository.
 
+## Facing a problem
+
+Do not start by looking for a way around the problem. Start by looking for the best direct solution.
+
+Treat it as a frontal problem when technical work can meet it head-on. If a real technique, or a real breakthrough, can produce the correct behavior, try that and verify it. A failure written on the door is not a reason to stop before the mechanism has been checked.
+
+Then judge, from the evidence, whether the problem is worth solving and worth the effort. Do not invent a fantasy fix, and do not spend that effort on something that is not actually broken or not ours to fix. Trying hard and declining the work are both decisions. Make the one the evidence supports.
+
 ## Code style
 
 - Do what you believe is right. Make the change complete and correct, not the smallest possible diff. If a fix calls for refactoring, renaming, or touching multiple files, do it.
 - Fix root causes, not symptoms. Do not paper over a defect with catch-and-swallow, degraded fallbacks, or UI workarounds that leave the underlying behavior broken. Trace the failure to where it originates and repair it there — even when that is harder.
 - Match the patterns and conventions already in the surrounding code.
+- **No comments in code.** Do not add line, block, KDoc, Javadoc, XML, or other explanatory comments to source files. Clear names and small functions carry the intent; put the reasoning in the commit message, PR description, or documentation. This applies to every source language. Machine-readable directives that a tool requires (a userscript metadata block, a shebang, a compiler pragma) are not explanatory comments and stay. Existing comments are legacy debt: remove them when you touch the file; do not add new ones.
 - Do not add copyright or license headers unless asked.
 
 ## Project layout
@@ -60,7 +69,7 @@ Mental model:
 ## Android and packaging constraints
 
 - Generated apps ship `minSdk` 23 / `targetSdk` 35 (the shell template). `ApkExportConfig.targetSdk` can pin another target (whitelist chips; process-exec types stay 28) and the AAB path forces `DEFAULT_PLAY_TARGET_SDK` (36). `ApkExportConfig.minSdk` can raise the floor only (`23..effectiveTargetSdk`); lowering below 23 is rejected because the packed DEX requires API 23. The shell runtime is already adapted to 35 (POST_NOTIFICATIONS gating, FGS types, exact-alarm fallback, `enableEdgeToEdge`) — keep those paths working if the value moves again.
-- The host app targets SDK 36 (antivirus reputation). Host-side exec of app-data binaries is SELinux W^X-blocked, so downloaded toolchains (esbuild, via `NativeNodeEngine`) must launch through `HostProcessLauncher` (`core/linux`) — it picks ProcessBuilder where exec is allowed or the memfd static exec bridge (`StaticExecProcess`/`RuntimeExecPolicy`) on W^X hosts, and returns a clear error when neither is available. A raw `Runtime.exec`/`ProcessBuilder` on a downloaded binary fails on the host (#795). The exec bridge is host-only — generated APKs exec nothing, and the bridge classes are excluded from the shell sync.
+- The host app targets SDK 36 (antivirus reputation) and floors at `minSdk` 24 — Play rejects a bundle below 24, and both the `standard` and `gplay` flavors share that floor, so the sideloaded APK needs Android 7.0 too. The host floor and the generated-app floor (23) are independent: do not let a generated-app `minSdk` change move the host, or vice versa. If the host floor moves, update the builder requirement in `README.md`, `.github/docs/README_CN.md`, and `docs/{,zh/}guide/{getting-started,faq}.md` in the same change — raising 23 → 24 in #1385 (v81) left all of them stale at "Android 6.0 (API 23)". Host-side exec of app-data binaries is SELinux W^X-blocked, so downloaded toolchains (esbuild, via `NativeNodeEngine`) must launch through `HostProcessLauncher` (`core/linux`) — it picks ProcessBuilder where exec is allowed or the memfd static exec bridge (`StaticExecProcess`/`RuntimeExecPolicy`) on W^X hosts, and returns a clear error when neither is available. A raw `Runtime.exec`/`ProcessBuilder` on a downloaded binary fails on the host (#795). The exec bridge is host-only — generated APKs exec nothing, and the bridge classes are excluded from the shell sync.
 - Avoid new third-party dependencies unless strongly justified (`app/build.gradle.kts` / `shell/build.gradle.kts`). Prefer platform APIs and existing modules.
 - Notification push channels: Web Notification polyfill, polling, WebSocket, FCM (developer-owned Firebase config). Do not add OEM vendor push SDKs by default.
 - Foreground services and notification helpers must use `SafeNotificationChannels` (or equivalent fail-soft create). Channel creation failures must not crash FGS startup.
@@ -270,7 +279,7 @@ Checklist when touching a feature that an Agent tool wraps:
 2. **`parametersSchema` ↔ `execute()` alignment.** The JSON schema advertised to the LLM must match what `execute()` actually reads from `args`. Adding a parameter to the service call without exposing it in the schema means the LLM can never pass it.
 3. **`description` accuracy.** The LLM decides *when* and *how* to call a tool solely from `description` + `parametersSchema`. If the feature's behavior changed, update the description text — a misleading description causes silent misuse.
 4. **`isReadOnly()` correctness.** `true` → runs without user confirmation; `false` → triggers `PermissionPrompter` dialog. If a tool gains write side-effects, flip it to `false`.
-5. **Registration.** New tools must be added to `ToolRegistryFactory.baseTools()` (grouped by domain comment). Forgotten registration = tool invisible to the LLM.
+5. **Registration.** New tools must be added to `ToolRegistryFactory.baseTools()` (grouped by domain). Forgotten registration = tool invisible to the LLM.
 6. **Removed features.** If a feature is deleted, remove or disable its tool. A tool that calls a dead class crashes at runtime inside the agent loop.
 7. **Host-only.** Agent tools live under `core/agent/` and are never shell-synced. Do not add them to `syncShellRuntimeSources`.
 

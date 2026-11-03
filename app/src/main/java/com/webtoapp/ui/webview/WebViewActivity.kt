@@ -60,11 +60,15 @@ import com.webtoapp.core.bgm.BgmPlayer
 import com.webtoapp.core.bgm.BgmTransport
 import com.webtoapp.core.bgm.bgmControlEnabled
 import com.webtoapp.ui.shell.BgmFloatingPlayer
+import com.webtoapp.ui.shell.BrowserChromeBar
+import com.webtoapp.ui.shell.BrowserChromeHost
+import com.webtoapp.ui.shell.LocalBrowserChromeHost
 import com.webtoapp.core.webview.HtmlRuntimeLoadInspector
 import com.webtoapp.core.port.PortConflictException
 import com.webtoapp.core.port.PortManager
 import com.webtoapp.core.webview.LocalHttpServer
 import com.webtoapp.core.webview.LongPressHandler
+import com.webtoapp.core.webview.LongPressHapticGate
 import com.webtoapp.core.webview.VideoPosterCompat
 import com.webtoapp.core.webview.WebScrollTracker
 import com.webtoapp.core.webview.WebViewCallbacks
@@ -79,15 +83,18 @@ import com.webtoapp.data.model.SplashType
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.data.model.hasAnyToolbarItem
+import com.webtoapp.data.model.isBrowserToolbarVisible
 import com.webtoapp.data.model.resolveToolbarButtons
 import android.content.pm.ActivityInfo
 import com.webtoapp.ui.animation.HostPreviewMotion
 import com.webtoapp.ui.theme.WebToAppTheme
 import com.webtoapp.util.DownloadHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import com.webtoapp.ui.shared.PageEdgeChrome
@@ -117,6 +124,44 @@ private fun isOwnInjectionMarker(message: String): Boolean =
 
 /** Bounded console buffer: page console spam must not grow state without limit. */
 private const val CONSOLE_LOG_CAP = 500
+
+/** Longest side handed to the recents card. Larger bitmaps are scaled first. */
+private const val RECENTS_ICON_MAX_PX = 144
+
+/**
+ * Label and optional icon for a separate-task recents card. A null icon still
+ * sets the label.
+ *
+ * Takes ownership of [icon]: an oversized bitmap is replaced by a scaled copy
+ * and the source is recycled. The bitmap handed to the platform is not
+ * recycled, because the system keeps it until it persists the task icon.
+ */
+@Suppress("DEPRECATION")
+internal fun recentsTaskDescription(
+    label: String,
+    icon: Bitmap?
+): ActivityManager.TaskDescription {
+    val scaled = icon?.let(::scaleRecentsIcon)
+    // Builder.setIcon only accepts a drawable resource id, and a WebApp icon is
+    // a user file. The deprecated constructor is the public way to attach a
+    // bitmap; the platform still persists it as the task icon on API 33+.
+    return if (scaled != null) {
+        ActivityManager.TaskDescription(label, scaled)
+    } else {
+        ActivityManager.TaskDescription(label)
+    }
+}
+
+private fun scaleRecentsIcon(source: Bitmap): Bitmap {
+    val longest = maxOf(source.width, source.height)
+    if (longest <= RECENTS_ICON_MAX_PX || longest <= 0) return source
+    val scale = RECENTS_ICON_MAX_PX.toFloat() / longest
+    val width = (source.width * scale).toInt().coerceAtLeast(1)
+    val height = (source.height * scale).toInt().coerceAtLeast(1)
+    val scaled = Bitmap.createScaledBitmap(source, width, height, true)
+    if (scaled !== source) source.recycle()
+    return scaled
+}
 
 open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptureConsentHost {
 
@@ -283,7 +328,6 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         webView = { webView },
         surface = { browserSurface }
     )
-
 
     private val capturePermission = com.webtoapp.core.webview.CapturePermissionBridge()
     private var pendingEnginePermissionCallback: ((Boolean) -> Unit)? = null
@@ -1056,7 +1100,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
             val label = previewApp?.name?.takeIf { it.isNotBlank() }
                 ?: directUrl?.let { runCatching { Uri.parse(it).host }.getOrNull()?.takeIf { it.isNotBlank() } }
                 ?: if (appId > 0) "WebApp #$appId" else null
-            if (label != null) applySeparateTaskDescription(label)
+            if (label != null) applySeparateTaskDescription(label, previewApp?.iconPath)
         }
         sessionKey = resumeStore.sessionKey(
             appId = appId,
@@ -1134,7 +1178,7 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
                 },
                 onSavedAppLoaded = { app ->
                     resolvedSavedApp = app
-                    if (app.name.isNotBlank()) applySeparateTaskDescription(app.name)
+                    if (app.name.isNotBlank()) applySeparateTaskDescription(app.name, app.iconPath)
                     // App-id launches resolve these from the saved config; the onCreate pass
                     // only covers intent-carried preview apps.
                     if (previewApp == null) {
@@ -1446,20 +1490,59 @@ open class WebViewActivity : AppCompatActivity(), com.webtoapp.core.webview.Scre
         return true
     }
 
-    private fun applySeparateTaskDescription(label: String) {
+    /**
+     * Names the recents card for a separate task and, when the app has its own
+     * icon, attaches it. The label is set synchronously so a slow icon decode
+     * never delays the card; the icon follows on the main thread.
+     */
+    private fun applySeparateTaskDescription(label: String, iconPath: String? = null) {
         if (this !is WebViewDocumentActivity) return
-        try {
-            // Builder exists only from API 33. Gating on P (28) resolves a missing
-            // class on Android 12, and NoClassDefFoundError is not an Exception.
-            val description = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                ActivityManager.TaskDescription.Builder().setLabel(label).build()
-            } else {
-                @Suppress("DEPRECATION")
-                ActivityManager.TaskDescription(label)
+        setTaskDescriptionSafely(recentsTaskDescription(label, null))
+
+        val path = iconPath?.takeIf { it.isNotBlank() } ?: return
+        lifecycleScope.launch {
+            val icon = withContext(Dispatchers.IO) { decodeRecentsIcon(path) }
+            if (icon != null && !isFinishing && !isDestroyed) {
+                setTaskDescriptionSafely(recentsTaskDescription(label, icon))
             }
+        }
+    }
+
+    private fun setTaskDescriptionSafely(description: ActivityManager.TaskDescription) {
+        try {
             setTaskDescription(description)
         } catch (e: Throwable) {
             AppLogger.w("WebViewActivity", "setTaskDescription failed: ${e.message}")
+        }
+    }
+
+    /** Decodes a stored app icon with the same bounded decoder the export uses. */
+    private fun decodeRecentsIcon(iconPath: String): Bitmap? {
+        return try {
+            when {
+                iconPath.startsWith("/") ->
+                    com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapFile(
+                        iconPath,
+                        RECENTS_ICON_MAX_PX
+                    )
+                iconPath.startsWith("file://") -> {
+                    val file = File(Uri.parse(iconPath).path ?: return null)
+                    if (!file.exists()) null
+                    else com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapFile(
+                        file.absolutePath,
+                        RECENTS_ICON_MAX_PX
+                    )
+                }
+                else -> contentResolver.openInputStream(Uri.parse(iconPath))?.use { stream ->
+                    com.webtoapp.util.BoundedBitmaps.decodeBoundedBitmapStream(
+                        stream,
+                        RECENTS_ICON_MAX_PX
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            AppLogger.w("WebViewActivity", "recents icon decode failed: ${e.message}")
+            null
         }
     }
 
@@ -3408,21 +3491,42 @@ fun WebViewScreen(
                 )
             }
 
+            override fun onExternalDownloadResponse(
+                url: String,
+                userAgent: String,
+                contentDisposition: String,
+                mimeType: String,
+                contentLength: Long,
+                body: java.io.InputStream
+            ) {
+                val effectiveConfig = (webApp ?: previewApp)?.webViewConfig
+                    ?: com.webtoapp.data.model.WebViewConfig()
+                val filename = DownloadHelper.parseFileName(url, contentDisposition, mimeType)
+                com.webtoapp.core.webview.DownloadBridge(
+                    context,
+                    scope,
+                    effectiveConfig.downloadLocationMode,
+                    effectiveConfig.customDownloadDirUri,
+                    effectiveConfig.mediaAlbumName
+                ).saveExternalDownload(body, filename, mimeType)
+            }
+
             override fun onLongPress(webView: WebView, x: Float, y: Float): Boolean {
 
                 val hitResult = webView.hitTestResult
                 val hitType = hitResult.type
                 val isLink = hitType == WebView.HitTestResult.SRC_ANCHOR_TYPE ||
                              hitType == WebView.HitTestResult.ANCHOR_TYPE
+                val hapticOnActionOnly = webApp?.webViewConfig?.longPressHapticOnActionOnly == true
 
                 val menuEnabled = webApp?.webViewConfig?.longPressMenuEnabled ?: true
                 if (!menuEnabled) {
-                    return isLink
+                    return LongPressHapticGate.finish(webView, hapticOnActionOnly, isLink)
                 }
 
                 if (hitType == WebView.HitTestResult.EDIT_TEXT_TYPE ||
                     hitType == WebView.HitTestResult.UNKNOWN_TYPE) {
-                    return false
+                    return LongPressHapticGate.finish(webView, hapticOnActionOnly, false)
                 }
 
                 longPressHandler.getLongPressDetails(webView, x, y) { result ->
@@ -3431,6 +3535,7 @@ fun WebViewScreen(
                         is LongPressHandler.LongPressResult.Video,
                         is LongPressHandler.LongPressResult.Link,
                         is LongPressHandler.LongPressResult.ImageLink -> {
+                            LongPressHapticGate.onMenuShown(webView, hapticOnActionOnly)
                             longPressResult = result
                             longPressTouchX = x
                             longPressTouchY = y
@@ -3443,13 +3548,14 @@ fun WebViewScreen(
                     }
                 }
 
-                return when (hitType) {
+                val handled = when (hitType) {
                     WebView.HitTestResult.IMAGE_TYPE,
                     WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE,
                     WebView.HitTestResult.SRC_ANCHOR_TYPE,
                     WebView.HitTestResult.ANCHOR_TYPE -> true
                     else -> false
                 }
+                return LongPressHapticGate.finish(webView, hapticOnActionOnly, handled)
             }
 
             override fun onConsoleMessage(level: Int, message: String, sourceId: String, lineNumber: Int) {
@@ -3704,8 +3810,6 @@ fun WebViewScreen(
 
     val toolbarEnabled = !isTestMode && webApp?.webViewConfig?.browserToolbarEnabled == true
 
-    val showToolbarInPreview = !hideToolbar || webApp?.webViewConfig?.showToolbarInFullscreen == true
-
     val toolbarCfg = webApp?.webViewConfig
     // Find-in-page runs on both kernels now (WebView findAllAsync; GeckoView SessionFinder
     // through BrowserSurface.findInPage), so no engine gate remains here or in the shell.
@@ -3720,7 +3824,8 @@ fun WebViewScreen(
             toolbarShowFind = it.toolbarShowFind
         )
     } == true
-    val shouldShowTopBar = showToolbarInPreview && toolbarEnabled && hasAnyToolbarItem
+    val shouldShowTopBar = isBrowserToolbarVisible(toolbarEnabled, hasAnyToolbarItem)
+    val chromeHost = remember { BrowserChromeHost() }
 
     // Every button requires both the master switch and its own flag
     // (mirrors the shell/export layout).
@@ -3750,118 +3855,54 @@ fun WebViewScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+    CompositionLocalProvider(LocalBrowserChromeHost provides if (shouldShowTopBar) chromeHost else null) {
     Scaffold(
 
         // #1075: exclude the IME-covered region — WindowHelper's manual IME
         // padding already lifts the layout, and the nav-bar inset must not
         // double-stack above the keyboard (same contract as ShellScaffoldLayout).
-        contentWindowInsets = if (hideToolbar && !showToolbarInPreview) WindowInsets(0) else if (hideToolbar && showToolbarInPreview) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
-        modifier = if (hideToolbar && !showToolbarInPreview) Modifier.fillMaxSize() else if (hideToolbar) Modifier.fillMaxSize() else Modifier,
+        // Fullscreen owns the system bars, so they are not added under the toolbar.
+        contentWindowInsets = if (hideToolbar) WindowInsets(0) else ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime),
+        modifier = if (hideToolbar) Modifier.fillMaxSize() else Modifier,
         topBar = {
             if (shouldShowTopBar) {
-                TopAppBar(
-                    title = {
-                        Column {
-                            if (isTestMode || browserToolbarVisibility?.showTitle == true) {
-                                Text(
-                                    text = if (isTestMode) Strings.moduleTestMode else pageTitle.ifEmpty { webApp?.name ?: "WebApp" },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (isTestMode && !testModuleIds.isNullOrEmpty()) {
-                                Text(
-                                    text = Strings.testingModules.format(testModuleIds.size),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    maxLines = 1
-                                )
-                            } else if (currentUrl.isNotEmpty() && (isTestMode || browserToolbarVisibility?.showUrl == true)) {
-                                Text(
-                                    text = currentUrl,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                val testSubtitle = if (isTestMode && !testModuleIds.isNullOrEmpty()) {
+                    Strings.testingModules.format(testModuleIds.size)
+                } else {
+                    ""
+                }
+                BrowserChromeBar(
+                    title = if (isTestMode) Strings.moduleTestMode else pageTitle.ifEmpty { webApp?.name ?: "WebApp" },
+                    showTitle = isTestMode || browserToolbarVisibility?.showTitle == true,
+                    url = if (testSubtitle.isNotEmpty()) testSubtitle else currentUrl,
+                    showUrl = testSubtitle.isNotEmpty() || (isTestMode || browserToolbarVisibility?.showUrl == true),
+                    showBack = isTestMode || browserToolbarVisibility?.showBack == true,
+                    showForward = isTestMode || browserToolbarVisibility?.showForward == true,
+                    showRefresh = isTestMode || browserToolbarVisibility?.showRefresh == true,
+                    canGoBack = canGoBack,
+                    canGoForward = canGoForward,
+                    onBack = {
+                        (context as? AppCompatActivity)?.let { activity ->
+                            // Surface-first: on the GeckoView kernel webViewRef is
+                            // null and the engine's own history drives back.
+                            if (browserSurfaceRef != null) {
+                                ShellWebViewNavigation.goBackOrFinish(activity, browserSurfaceRef)
+                            } else {
+                                ShellWebViewNavigation.goBackOrFinish(activity, webViewRef)
                             }
                         }
                     },
-                    actions = {
-                        if (isTestMode || browserToolbarVisibility?.showBack == true) {
-                            com.webtoapp.ui.design.WtaIconButton(
-                                onClick = {
-                                    (context as? AppCompatActivity)?.let { activity ->
-                                        // Surface-first: on the GeckoView kernel webViewRef is
-                                        // null and the engine's own history drives back.
-                                        if (browserSurfaceRef != null) {
-                                            ShellWebViewNavigation.goBackOrFinish(activity, browserSurfaceRef)
-                                        } else {
-                                            ShellWebViewNavigation.goBackOrFinish(activity, webViewRef)
-                                        }
-                                    }
-                                },
-                                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                enabled = canGoBack
-                            )
-                        }
-                        if (isTestMode || browserToolbarVisibility?.showForward == true) {
-                            com.webtoapp.ui.design.WtaIconButton(
-                                onClick = { browserSurfaceRef?.goForward() ?: webViewRef?.goForward() },
-                                icon = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = "Forward",
-                                enabled = canGoForward
-                            )
-                        }
-                        if (isTestMode || browserToolbarVisibility?.showRefresh == true) {
-                            com.webtoapp.ui.design.WtaIconButton(
-                                onClick = { reloadBrowser() },
-                                icon = Icons.Default.Refresh,
-                                contentDescription = "Refresh"
-                            )
-                        }
-
-                        if (isTestMode || browserToolbarVisibility?.showConsoleButton == true) {
-                            val errorCount = consoleMessages.count { it.level == ConsoleLevel.ERROR }
-                            BadgedBox(
-                                badge = {
-                                    if (errorCount > 0) {
-                                        Badge { Text("$errorCount") }
-                                    }
-                                }
-                            ) {
-                                com.webtoapp.ui.design.WtaIconButton(
-                                    onClick = { showConsole = !showConsole },
-                                    icon = if (showConsole) Icons.Filled.Terminal else Icons.Outlined.Terminal,
-                                    contentDescription = Strings.console
-                                )
-                            }
-                        }
-                        // Find-in-page button: opens the native bottom find bar (both
-                        // kernels — WebView findAllAsync and GeckoView SessionFinder).
-                        if (isTestMode || browserToolbarVisibility?.showFind == true) {
-                            com.webtoapp.ui.design.WtaIconButton(
-                                onClick = { showFindBar = !showFindBar },
-                                icon = if (showFindBar) Icons.Filled.Search else Icons.Outlined.Search,
-                                contentDescription = Strings.nativeBridgeCapsFindInPage
-                            )
-                        }
-                        // Plugin slot — per-plugin toolbar icons plus the sheet
-                        // entry for menu/handle-style plugins.
-                        if (previewPluginsEnabled) {
-                            com.webtoapp.ui.plugin.PluginToolbarEntries(
-                                onOpenSheet = { com.webtoapp.core.plugin.PluginHostState.openPluginSheet() }
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface,
-                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
-                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    onForward = { browserSurfaceRef?.goForward() ?: webViewRef?.goForward() },
+                    onRefresh = { reloadBrowser() },
+                    showConsoleButton = isTestMode || browserToolbarVisibility?.showConsoleButton == true,
+                    consoleExpanded = showConsole,
+                    onToggleConsole = { showConsole = !showConsole },
+                    consoleErrorCount = consoleMessages.count { it.level == ConsoleLevel.ERROR },
+                    showFindButton = isTestMode || browserToolbarVisibility?.showFind == true,
+                    findExpanded = showFindBar,
+                    onToggleFind = { showFindBar = !showFindBar },
+                    showPluginButton = previewPluginsEnabled,
+                    leadingAction = chromeHost.leadingAction
                 )
             }
         }
@@ -3917,7 +3958,7 @@ fun WebViewScreen(
         val bands = Modifier.pageEdgeBands(topBand, bottomBand, bottomBandPx)
 
         val contentModifier = when {
-            hideToolbar && showToolbarInPreview -> {
+            hideToolbar && shouldShowTopBar -> {
 
                 Modifier.fillMaxSize().padding(padding)
             }
@@ -4261,7 +4302,8 @@ fun WebViewScreen(
                                 // Empty attached ids still resolve: the switch on uses the
                                 // enabled set from Manage Plugins. Test ids stay explicit.
                                 val previewWebView = surface.webView
-                                if (pluginsEnabled && previewWebView != null) {
+                                val previewGecko = surface.engine as? com.webtoapp.core.engine.GeckoViewEngine
+                                if (pluginsEnabled && (previewWebView != null || previewGecko != null)) {
                                     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                                         val store = com.webtoapp.core.plugin.PluginStore.getInstance(ctx)
                                         val ids = if (explicitTestIds) {
@@ -4273,7 +4315,11 @@ fun WebViewScreen(
                                         if (ids.isEmpty()) return@launch
                                         val payloads = store.resolveForInjection(ids)
                                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            webViewManager.updatePluginPayloads(previewWebView, payloads)
+                                            if (previewWebView != null) {
+                                                webViewManager.updatePluginPayloads(previewWebView, payloads)
+                                            } else {
+                                                previewGecko?.setPluginPayloads(payloads, enabled = true)
+                                            }
                                         }
                                     }
                                 }
@@ -4334,7 +4380,6 @@ fun WebViewScreen(
 
                                             (context as? WebViewActivity)?.nativeBridge = nb
                                             nb.installDirectoryHelper(this)
-
                                         } else if (effectiveWebApp.webViewConfig.enablePrivateNetworkBridge || effectiveWebApp.webViewConfig.enableCorsBypass) {
                                             val privateNetworkBridge = com.webtoapp.core.webview.PrivateNetworkNativeBridgeAdapter(
                                                 context = context,
@@ -4618,7 +4663,7 @@ fun WebViewScreen(
             }
 
             if (webApp?.webViewConfig?.showFloatingBackButton == true &&
-                ((hideToolbar && !showToolbarInPreview) || !toolbarEnabled) &&
+                !shouldShowTopBar &&
                 canGoBack
             ) {
                 var fabAlpha by remember { mutableFloatStateOf(0.9f) }
@@ -4730,6 +4775,7 @@ fun WebViewScreen(
 
         }
     }
+    }
 
     // On the classic pre-API-30 resize path nothing draws behind the status bar and the bar
     // itself is chrome-owned, so a Compose overlay would only paint a floating band over the
@@ -4767,7 +4813,8 @@ fun WebViewScreen(
             playing = bgmPlaying,
             onToggle = { if (bgmPlayer.isPlaying()) bgmPlayer.pause() else bgmPlayer.play() },
             onPrevious = { bgmPlayer.playPrevious() },
-            onNext = { bgmPlayer.playNext() }
+            onNext = { bgmPlayer.playNext() },
+            onClose = { if (bgmPlayer.isPlaying()) bgmPlayer.pause() }
         )
     }
 

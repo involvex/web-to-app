@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/badge/License-Unlicense-blue?style=for-the-badge" alt="License: Unlicense">
   </a>
   <a href="https://github.com/shiaho777/web-to-app/releases">
-    <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 6.0+">
+    <img src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 7.0+">
   </a>
   <a href="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml">
     <img src="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml/badge.svg" alt="Android CI">
@@ -35,8 +35,8 @@
 </p>
 
 <p align="center">
-  <a href="https://trendshift.io/repositories/22597?utm_source=trendshift-badge&utm_medium=badge&utm_campaign=badge-trendshift-22597" target="_blank" rel="noopener noreferrer">
-    <img src="https://trendshift.io/api/badge/trendshift/repositories/22597/weekly?language=Kotlin" alt="shiaho777%2Fweb-to-app | Trendshift" width="250" height="55">
+  <a href="https://trendshift.io/repositories/22597?utm_source=repository-badge&utm_medium=badge&utm_campaign=badge-repository-22597" target="_blank" rel="noopener noreferrer">
+    <img src="https://trendshift.io/api/badge/repositories/22597" alt="shiaho777%2Fweb-to-app | Trendshift" width="250" height="55">
   </a>
 </p>
 
@@ -139,7 +139,7 @@ Node.js, PHP, Python, Go, WordPress, image, and video stay in the app. Turn them
 
 From a fresh install to your first signed APK in about a minute:
 
-1. **Install the builder** — get the APK from [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) onto a device running Android 6.0 (API 23) or newer.
+1. **Install the builder** — get the APK from [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) onto a device running Android 7.0 (API 24) or newer.
 2. **Create an app** — on **My Apps**, tap **Create**. The default grid is Web, Multi-Site, HTML, Offline Pack, Frontend, and Gallery. PHP, WordPress, Node.js, Python, Go, and Media appear after **About → Advanced features** is on.
 3. **Fill in the basics** — app name, target URL (or your project files), and an optional icon, then **Save**. Every other editor card is optional configuration.
 4. **Preview** — tap the app's card to run it in the same runtime code the export will use.
@@ -344,7 +344,7 @@ The official documentation site is published at **[shiaho777.github.io/web-to-ap
 - The repository has **three Gradle modules**: `app` (the full builder and host), `shell` (the runtime host embedded into generated APKs), and `clone-host` (host code for app cloning — compiled to a `classes.jar`, converted to DEX via d8, and bundled as an asset for `AppCloner`).
 - Runtime code is authored in `app` and synchronized into `shell`, so shared WebView/runtime behavior has one source of truth (`core/shell`, `core/webview`, `core/engine`, `core/extension`, `ui/shell`, etc.).
 - The APK builder patches template APKs at the binary AXML/ARSC level, injects config/resources, prunes permissions, and signs with `apksig`. A separate encrypted build path (`EncryptedApkBuilder`) offers resource encryption, shelling, and integrity checks.
-- Generated APKs pin `targetSdk = 28` deliberately (via the shell template) — it is what lets them fork+exec native runtimes (Node.js, PHP, Python, Go, WordPress) from app storage, a capability URL-wrapper tools lack. The host app itself targets 36 (antivirus engines flag low-targetSdk builds as legacy malware); SELinux W^X at that level blocks host-side preview of the exec-based runtimes, which degrade with an explicit message — Node.js preview (JNI) and every exported app are unaffected. **This does not limit Play distribution.** For Play the AAB exporter separately rewrites `targetSdk` to the Play-required level (currently 36), so every app type publishes normally except the five server-runtime ones and any build with resource encryption enabled — only the server-runtime types are tied to APK distribution, because the required target level would break their fork+exec runtimes. WebView-only app types (Web/HTML/Frontend/Gallery/Media/MultiWeb) can also opt to raise the standalone APK's `targetSdk` (34/35/36) from the APK export section.
+- Generated APKs inherit the shell template's `targetSdk = 35` / `minSdk 23`. The five server-runtime types (Node.js, PHP, Python, Go, WordPress) are pinned back to `targetSdk = 28` at export — that pin is what lets them fork+exec native runtimes from app storage, a capability URL-wrapper tools lack. The host app itself targets 36 (antivirus engines flag low-targetSdk builds as legacy malware); SELinux W^X at that level blocks host-side preview of the exec-based runtimes, which degrade with an explicit message — Node.js preview (JNI) and every exported app are unaffected. **This does not limit Play distribution.** For Play the AAB exporter separately rewrites `targetSdk` to the Play-required level (currently 36), so every app type publishes normally except the five server-runtime ones and any build with resource encryption enabled — only the server-runtime types are tied to APK distribution, because the required target level would break their fork+exec runtimes. WebView-only app types (Web/HTML/Frontend/Gallery/Media/MultiWeb) can also pin the standalone APK's `targetSdk` (28/31/33/34/35/36) from the APK export section.
 - Server runtimes and the optional GeckoView native libraries (`.so` + `omni.ja`) are downloaded on first use rather than bundled into the base APK; the GeckoView API classes come from a gradle dependency, while the heavy native artifacts are fetched on demand.
 - The configuration center is `WebApp` (`data/model/WebApp.kt`) and its `*Config` classes — the single source of truth for all feature settings, carried through a full packaging passthrough chain into the generated APK.
 

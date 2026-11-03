@@ -64,10 +64,10 @@ python3 .github/scripts/ci/validate_modules.py
   approach you have in mind. This is much cheaper than rewriting after review.
 - **Avoid adding new dependencies.** The lists in `app/build.gradle.kts` and
   `shell/build.gradle.kts` are intentionally restrained — the project signs and
-  packages APKs in-process, and the shell template pins `targetSdk = 28` on
-  purpose because generated apps rely on fork+exec native runtimes. New
-  dependencies need a strong justification, and host-only dependencies must
-  never leak into the shell template.
+  packages APKs in-process, and the shell template serves generated apps that
+  fork+exec native runtimes — those types are pinned to `targetSdk = 28`, below
+  the W^X boundary. New dependencies need a strong justification, and host-only
+  dependencies must never leak into the shell template.
 
 ### Local setup
 
@@ -151,9 +151,7 @@ shell composable. Three gates enforce this; run them, don't argue with them:
 WebToApp leans on the Kotlin and Jetpack Compose patterns already in the
 codebase. A few rules worth calling out:
 
-- **Comments explain *why*, not *what*.** Non-obvious decisions, cross-file
-  contracts, and issue references (`#781`) get a short comment; clear names
-  and small functions carry the rest. Don't narrate readable code.
+- **No comments in code.** Do not add line, block, KDoc, Javadoc, XML, or other explanatory comments to source files. Clear names and small functions carry the intent; put the reasoning in the commit message, PR description, or docs. This applies to every source language. Machine-readable directives a tool requires (a userscript metadata block, a shebang, a compiler pragma) are not explanatory comments and stay. Existing comments are legacy debt: remove them when you touch the file; do not add new ones.
 - **Build new UI on the Wta design system.** Everything renders through
   `com.webtoapp.ui.design`. The older `Premium*` / `Enhanced*` / `Settings*`
   components are retained as permanent alias layers over the Wta internals —
@@ -308,9 +306,9 @@ python3 .github/scripts/ci/validate_modules.py
   类似讨论
 - 较大的改动请先开 issue 说明要解决的问题和方案
 - **谨慎引入新依赖**。`app/build.gradle.kts` 与 `shell/build.gradle.kts` 的依
-  赖列表刻意保持精简——本项目全程在设备内签名打包 APK，shell 模板也特意把
-  `targetSdk` 锁在 28，因为生成应用依赖 `fork`、`exec` 原生运行时。新依赖需
-  要充分理由，且宿主专用依赖绝不能漏进 shell 模板。
+  赖列表刻意保持精简——本项目全程在设备内签名打包 APK，shell 模板服务于需要
+  `fork`、`exec` 原生运行时的生成应用(这些类型被钉在 `targetSdk` 28，低于 W^X
+  边界)。新依赖需要充分理由，且宿主专用依赖绝不能漏进 shell 模板。
 
 **本地环境**
 
@@ -384,9 +382,7 @@ cd web-to-app
 
 **代码风格**
 
-- **注释解释 *为什么*，不复述 *干了什么*。** 反直觉的决策、跨文件约定、
-  issue 引用（`#781`）值得一句短注释；命名清晰的小函数不需要解说。不要给
-  易读的代码写旁白。
+- **代码里不写注释。** 不要给源码添加行注释、块注释、KDoc、Javadoc、XML 注释或其他解释性注释。用清晰的命名和小函数表达意图；原因写在 commit message、PR 描述或文档里。这条规则适用于所有源码语言。工具必需的机器可读指令（油猴脚本元数据块、shebang、编译器 pragma）不算解释性注释，保留。已有注释属于历史债务：修改到该文件时顺手删除，不要新增。
 - **新 UI 一律构建在 Wta 设计系统之上**——所有界面通过 `com.webtoapp.ui.design`
   渲染。旧的 `Premium*` / `Enhanced*` / `Settings*` 组件作为 Wta 内部实现的
   永久别名层保留——不要再新增，也无需强行替换。构建期有一个审计脚本

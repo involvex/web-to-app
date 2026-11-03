@@ -24,7 +24,7 @@
     <img src="https://img.shields.io/badge/License-Unlicense-blue?style=for-the-badge" alt="License: Unlicense">
   </a>
   <a href="https://github.com/shiaho777/web-to-app/releases">
-    <img src="https://img.shields.io/badge/Android-6.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 6.0+">
+    <img src="https://img.shields.io/badge/Android-7.0%2B-3DDC84?style=for-the-badge&logo=android&logoColor=white" alt="Android 7.0+">
   </a>
   <a href="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml">
     <img src="https://github.com/shiaho777/web-to-app/actions/workflows/android-ci.yml/badge.svg" alt="Android CI">
@@ -139,7 +139,7 @@ Node.js、PHP、Python、Go、WordPress、图片和视频的代码仍在应用�
 
 从全新安装到第一个签名 APK,大约一分钟:
 
-1. **安装打包器** —— 从 [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) 下载 APK,装到 Android 6.0(API 23)或更新的设备上。
+1. **安装打包器** —— 从 [GitHub Releases](https://github.com/shiaho777/web-to-app/releases) 下载 APK,装到 Android 7.0(API 24)或更新的设备上。
 2. **创建应用** —— 在「我的应用」点 **创建**。默认网格是网页、多站点、HTML、离线包、前端和画廊。PHP、WordPress、Node.js、Python、Go 和媒体要打开 **关于 → 高级功能** 后才出现。
 3. **填基本信息** —— 应用名、目标 URL(或项目文件)和可选图标,然后 **Save**。编辑器里其余卡片都是可选配置。
 4. **预览** —— 点应用卡片,运行在与导出产物相同的运行时代码里。
@@ -344,7 +344,7 @@ App 会同时拉取 `registry.json` 和 `submissions.json`,只展示两边都存
 - 仓库有**三个 Gradle 模块**:`app`(完整构建器和宿主)、`shell`(嵌入生成 APK 的运行时宿主)、`clone-host`(应用克隆的宿主代码 —— 编译提取 `classes.jar`,经 d8 转 DEX,作为 asset 供 `AppCloner` 使用)。
 - 运行时代码以 `app` 为唯一事实来源,再同步到 `shell`,所以共享 WebView/运行时行为只维护一份(`core/shell`、`core/webview`、`core/engine`、`core/extension`、`ui/shell` 等)。
 - APK 构建器在二进制 AXML/ARSC 层修补模板 APK,注入配置与资源,裁剪权限,并用 `apksig` 签名。另有独立的加密构建路径(`EncryptedApkBuilder`)提供资源加密、加壳和完整性校验。
-- 生成 APK(经 shell 模板)特意把 `targetSdk` 钉在 28 —— 这是让它们能从 app 存储 `fork`、`exec` 原生运行时(Node.js、PHP、Python、Go、WordPress)的关键,网址转 APK 类工具做不到这点。宿主应用自身以 36 为目标(杀毒引擎会把低 targetSdk 构建误判为旧木马);该级别的 SELinux W^X 会拦截宿主侧基于 exec 的运行时预览,它们会以明确提示优雅降级 —— Node.js 预览(JNI)和所有导出的应用均不受影响。**这不影响上架 Google Play**:导出的 AAB 会把 `targetSdk` 改写到 Play 要求的级别(当前 36),因此除五类服务端运行时应用和开启资源加密的构建外,所有应用类型都能正常上架;只有服务端运行时类型被限定为 APK 分发,因为 Play 要求的目标级别会破坏它们的 fork+exec 运行时。纯 WebView 应用类型(Web/HTML/Frontend/Gallery/Media/MultiWeb)还可在 APK 导出面板选择提高独立 APK 的 `targetSdk`(34/35/36)。
+- 生成的 APK 继承 shell 模板的 `targetSdk = 35` / `minSdk 23`。五类服务端运行时(Node.js、PHP、Python、Go、WordPress)在导出时回钉到 `targetSdk` 28 —— 这个钉住的值才是让它们能从 app 存储 `fork`、`exec` 原生运行时的关键,网址转 APK 类工具做不到这点。宿主应用自身以 36 为目标(杀毒引擎会把低 targetSdk 构建误判为旧木马);该级别的 SELinux W^X 会拦截宿主侧基于 exec 的运行时预览,它们会以明确提示优雅降级 —— Node.js 预览(JNI)和所有导出的应用均不受影响。**这不影响上架 Google Play**:导出的 AAB 会把 `targetSdk` 改写到 Play 要求的级别(当前 36),因此除五类服务端运行时应用和开启资源加密的构建外,所有应用类型都能正常上架;只有服务端运行时类型被限定为 APK 分发,因为 Play 要求的目标级别会破坏它们的 fork+exec 运行时。纯 WebView 应用类型(Web/HTML/Frontend/Gallery/Media/MultiWeb)还可在 APK 导出面板固定独立 APK 的 `targetSdk`(28/31/33/34/35/36)。
 - 服务端运行时和可选 GeckoView 原生库(`.so` + `omni.ja`)不会打进基础 APK,而是在首次使用时下载;GeckoView 的 API 类来自 gradle 依赖,而体积大的原生制品按需拉取。
 - 配置中心是 `WebApp`(`data/model/WebApp.kt`)及其各 `*Config` 类 —— 所有功能配置的单一事实来源,经一条完整的打包透传链带进生成的 APK。
 
