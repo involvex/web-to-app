@@ -368,7 +368,7 @@ class ProjectFileManager(private val context: Context) {
         private const val LINE_TRUNCATED_MARK = " …"
 
         private const val DELETED_MARKER_SUFFIX = ".__deleted__"
-        private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+        private val TIME_FMT = SimpleDateFormat("MM-dd HH:mm", Locale.ROOT)
         private val TEXT_EXTENSIONS = setOf(
             "html", "htm", "css", "js", "jsx", "mjs", "cjs", "ts", "tsx",
             "json", "md", "markdown", "txt", "xml", "svg", "yaml", "yml",

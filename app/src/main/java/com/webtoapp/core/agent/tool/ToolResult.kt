@@ -1,5 +1,7 @@
 package com.webtoapp.core.agent.tool
 
+import java.util.Locale
+
 data class ToolResult(
     val text: String,
     val isError: Boolean = false,
@@ -52,7 +54,7 @@ data class BuiltApkInfo(
     fun formatSize(): String = when {
         sizeBytes < 1024 -> "${sizeBytes}B"
         sizeBytes < 1024 * 1024 -> "${sizeBytes / 1024}KB"
-        else -> String.format("%.1fMB", sizeBytes / (1024.0 * 1024.0))
+        else -> String.format(Locale.ROOT, "%.1fMB", sizeBytes / (1024.0 * 1024.0))
     }
 }
 

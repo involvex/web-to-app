@@ -10,6 +10,7 @@ import com.webtoapp.core.agent.tool.ToolResult
 import com.webtoapp.core.agent.tool.builtin.jsonSchema
 import com.webtoapp.util.BoundedBitmaps
 import java.io.ByteArrayOutputStream
+import java.util.Locale
 
 class ViewImageTool : Tool {
     override val name = "ViewImage"
@@ -91,7 +92,7 @@ class ViewImageTool : Tool {
         bytes < 1024 -> "${bytes}B"
         bytes < 1024 * 1024 -> "${bytes / 1024}KB"
         bytes < 1024L * 1024 * 1024 -> "${bytes / (1024 * 1024)}MB"
-        else -> "%.1fGB".format(bytes / (1024.0 * 1024 * 1024))
+        else -> "%.1fGB".format(Locale.ROOT, bytes / (1024.0 * 1024 * 1024))
     }
 
     companion object {
