@@ -80,6 +80,11 @@ object EngineViewFactory {
             val engine = EngineManager.getInstance(context).createEngine(EngineType.GECKOVIEW, adBlocker)
             val geckoEngine = engine as GeckoViewEngine
             geckoEngine.appOriginUrl = appOriginUrl
+            geckoEngine.setPluginPayloads(
+                payloads = pluginPayloads,
+                enabled = pluginsEnabled,
+                allowEmpty = pluginPayloads.isEmpty()
+            )
             val view = geckoEngine.createView(
                 context = context,
                 config = config,
@@ -202,6 +207,15 @@ fun WebViewCallbacks.toBrowserEngineCallback(): BrowserEngineCallback {
             mimeType: String,
             contentLength: Long
         ) = source.onDownloadStart(url, userAgent, contentDisposition, mimeType, contentLength)
+
+        override fun onExternalDownloadResponse(
+            url: String,
+            userAgent: String,
+            contentDisposition: String,
+            mimeType: String,
+            contentLength: Long,
+            body: java.io.InputStream
+        ) = source.onExternalDownloadResponse(url, userAgent, contentDisposition, mimeType, contentLength, body)
 
         override fun onShowFileChooser(
             filePathCallback: android.webkit.ValueCallback<Array<android.net.Uri>>?,

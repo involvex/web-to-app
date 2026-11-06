@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.webtoapp.core.agent.tool.Tool
 import com.webtoapp.core.agent.tool.ToolContext
 import com.webtoapp.core.agent.tool.ToolResult
+import java.util.Locale
 
 class ReadFileTool : Tool {
     override val name = "Read"
@@ -82,7 +83,7 @@ class ReadFileTool : Tool {
         bytes < 1024 -> "${bytes}B"
         bytes < 1024 * 1024 -> "${bytes / 1024}KB"
         bytes < 1024L * 1024 * 1024 -> "${bytes / (1024 * 1024)}MB"
-        else -> "%.1fGB".format(bytes / (1024.0 * 1024 * 1024))
+        else -> "%.1fGB".format(Locale.ROOT, bytes / (1024.0 * 1024 * 1024))
     }
 
     companion object {

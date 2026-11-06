@@ -100,8 +100,10 @@ class GoDirectBuilderTest {
         )
         val cfg = GoDirectBuilder.renderImportCfg(p, archives)
         assertThat(cfg).contains("importmap golang.org/x/net/idna=vendor/golang.org/x/net/idna")
-        assertThat(cfg).contains("packagefile vendor/golang.org/x/net/idna=/w/idna/_pkg_.a")
-        assertThat(cfg).contains("packagefile errors=/w/errors/_pkg_.a")
+        assertThat(cfg).contains(
+            "packagefile vendor/golang.org/x/net/idna=" + File("/w/idna/_pkg_.a").absolutePath
+        )
+        assertThat(cfg).contains("packagefile errors=" + File("/w/errors/_pkg_.a").absolutePath)
         assertThat(cfg).doesNotContain("unsafe")
     }
 

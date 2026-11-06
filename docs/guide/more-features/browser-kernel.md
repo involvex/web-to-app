@@ -25,6 +25,7 @@ GeckoView is a complete second engine independent of the system WebView, not a W
 - UA modes and custom User-Agent, desktop mode
 - JavaScript toggle, autoplay policy, viewport mode (fit screen / desktop), clear browsing data on launch, download toggle
 - HTTP downloads, fullscreen video, file upload (incl. camera capture), automatic crash recovery
+- blob / data: downloads save like HTTP downloads — GeckoView hands the file body straight to the app, so they land in the configured destination with their filename and type. The interception script and its size threshold stay system-WebView features
 - Camera / microphone and geolocation permission policies (deny all / remember per host)
 - mTLS client certificates, HTTP Basic / proxy auth dialogs
 - JS dialogs (alert / confirm / prompt)
@@ -37,11 +38,10 @@ GeckoView is a complete second engine independent of the system WebView, not a W
 ### Not available yet (choose the system WebView kernel if you need these)
 
 - **[Ad blocking](/guide/app-actions/edit-common-config/ad-blocking)** — neither network-rule filtering nor cosmetic hiding takes effect
-- **[Userscripts](/extensions/userscript) (GM_\* APIs) and [Chrome MV3 extensions](/extensions/chrome-mv3)** (incl. declarativeNetRequest / webRequest rules). The plugin list says this kernel can't run plugins, instead of saying none are enabled
+- **[Chrome MV3 extensions](/extensions/chrome-mv3)** (incl. declarativeNetRequest / webRequest rules) and userscripts that call GM APIs other than `GM_addStyle`. Page plugins still run: styles, toggles, saved config, and their panel. The plugin list says extensions need System WebView when none of those page plugins are active
 - **The full [NativeBridge](/extensions/native-bridge) JS API** — clipboard, notifications, vibration, printing, sharing, screen wake, orientation, Google sign-in, etc.; on GeckoView only the CORS-bypass / private-network `httpRequest` entry point is available
 - **JS-injection features** — browser fingerprint disguise, [device disguise](/guide/app-actions/edit-common-config/device-disguise), kernel disguise & flavors, [page translation](/guide/app-actions/edit-common-config/translate), audio unlock, clipboard / notification / orientation polyfills, Cloudflare compatibility helpers, custom injected scripts, popup blocking, scroll-position memory, image repair, hide-link-preview
 - **PWA offline (service-worker injection), static asset packs, encrypted asset loading** — therefore **HTML / [front-end offline-package](/guide/app-types/frontend) apps with resource encryption enabled must use the system WebView kernel**
-- blob / data: download interception
 - The [long-press menu](/guide/app-actions/edit-common-config/long-press-menu) (save image/video, copy link, etc.)
 - Status-bar auto color sampling (follow page-top color; solid-color / theme modes are unaffected)
 - Follow-system dark mode

@@ -61,7 +61,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun LongPressMenuCard(
     style: LongPressMenuStyle,
-    onStyleChange: (LongPressMenuStyle) -> Unit
+    hapticOnActionOnly: Boolean,
+    onStyleChange: (LongPressMenuStyle) -> Unit,
+    onHapticOnActionOnlyChange: (Boolean) -> Unit
 ) {
     val enabled = style != LongPressMenuStyle.DISABLED
 
@@ -94,6 +96,14 @@ fun LongPressMenuCard(
                         else LongPressMenuStyle.DISABLED
                     )
                 }
+            )
+
+            WtaSectionDivider()
+            WtaToggleRow(
+                title = Strings.longPressHapticOnActionOnly,
+                subtitle = Strings.longPressHapticOnActionOnlyDesc.ifDescriptionsShown(),
+                checked = hapticOnActionOnly,
+                onCheckedChange = onHapticOnActionOnlyChange
             )
 
             AnimatedVisibility(
@@ -2297,12 +2307,10 @@ fun FullscreenModeCard(
     enabled: Boolean,
     showStatusBar: Boolean = false,
     showNavigationBar: Boolean = false,
-    hideBrowserToolbarInFullscreen: Boolean = true,
     webViewConfig: WebViewConfig = WebViewConfig(),
     onEnabledChange: (Boolean) -> Unit,
     onShowStatusBarChange: (Boolean) -> Unit = {},
     onShowNavigationBarChange: (Boolean) -> Unit = {},
-    onHideBrowserToolbarInFullscreenChange: (Boolean) -> Unit = {},
     onWebViewConfigChange: (WebViewConfig) -> Unit = {}
 ) {
     var statusBarConfigExpanded by remember { mutableStateOf(false) }

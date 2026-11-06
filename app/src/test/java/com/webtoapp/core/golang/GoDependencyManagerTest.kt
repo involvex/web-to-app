@@ -162,8 +162,10 @@ class GoDependencyManagerTest {
 
         assertThat(env["HOME"]).isEqualTo(context.filesDir.absolutePath)
         assertThat(env["TMPDIR"]).isEqualTo(context.cacheDir.absolutePath)
-        assertThat(env["LD_LIBRARY_PATH"]).isEqualTo("/toolchain/lib:/system/lib64")
-        assertThat(env["PATH"]).isEqualTo("/custom/bin:/usr/bin")
+        assertThat(env["LD_LIBRARY_PATH"])
+            .isEqualTo("/toolchain/lib" + File.pathSeparator + "/system/lib64")
+        assertThat(env["PATH"])
+            .isEqualTo("/custom/bin" + File.pathSeparator + "/usr/bin")
     }
 
     @Test

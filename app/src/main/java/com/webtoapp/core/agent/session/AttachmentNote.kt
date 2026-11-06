@@ -1,6 +1,7 @@
 package com.webtoapp.core.agent.session
 
 import java.io.File
+import java.util.Locale
 
 /**
  * Builds the `<user-attachments>` block appended to a user message before it
@@ -51,6 +52,6 @@ object AttachmentNote {
         bytes < 1024 -> "${bytes}B"
         bytes < 1024 * 1024 -> "${bytes / 1024}KB"
         bytes < 1024L * 1024 * 1024 -> "${bytes / (1024 * 1024)}MB"
-        else -> "%.1fGB".format(bytes / (1024.0 * 1024 * 1024))
+        else -> "%.1fGB".format(Locale.ROOT, bytes / (1024.0 * 1024 * 1024))
     }
 }

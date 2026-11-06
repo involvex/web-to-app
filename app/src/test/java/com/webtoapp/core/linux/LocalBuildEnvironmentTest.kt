@@ -25,9 +25,12 @@ class LocalBuildEnvironmentTest {
 
     @Test
     fun `cli paths point to unpacked package locations`() {
-        assertThat(LocalBuildEnvironment.getNpmCliPath(context).path).endsWith("npm/package/bin/npm-cli.js")
-        assertThat(LocalBuildEnvironment.getPnpmCliPath(context).path).endsWith("pnpm/package/bin/pnpm.cjs")
-        assertThat(LocalBuildEnvironment.getYarnCliPath(context).path).endsWith("yarn/package/bin/yarn.js")
+        assertThat(LocalBuildEnvironment.getNpmCliPath(context).path)
+            .endsWith("npm${File.separator}package${File.separator}bin${File.separator}npm-cli.js")
+        assertThat(LocalBuildEnvironment.getPnpmCliPath(context).path)
+            .endsWith("pnpm${File.separator}package${File.separator}bin${File.separator}pnpm.cjs")
+        assertThat(LocalBuildEnvironment.getYarnCliPath(context).path)
+            .endsWith("yarn${File.separator}package${File.separator}bin${File.separator}yarn.js")
     }
 
     @Test

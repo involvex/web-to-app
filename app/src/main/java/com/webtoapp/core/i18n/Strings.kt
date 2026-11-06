@@ -3037,6 +3037,8 @@ object Strings {
     val longPressMenuOpenInBrowser: String get() = StringsD.longPressMenuOpenInBrowser
     val longPressMenuImagePreview: String get() = StringsD.longPressMenuImagePreview
     val longPressMenuSettings: String get() = StringsD.longPressMenuSettings
+    val longPressHapticOnActionOnly: String get() = StringsD.longPressHapticOnActionOnly
+    val longPressHapticOnActionOnlyDesc: String get() = StringsD.longPressHapticOnActionOnlyDesc
     val longPressMenuStyleSimple: String get() = StringsD.longPressMenuStyleSimple
     val longPressMenuStyleSimpleDesc: String get() = StringsD.longPressMenuStyleSimpleDesc
     val longPressMenuStyleFull: String get() = StringsD.longPressMenuStyleFull
@@ -4355,6 +4357,7 @@ object Strings {
     val downloadCdnDesc: String get() = StringsE.downloadCdnDesc
     val downloadCdnResources: String get() = StringsE.downloadCdnResources
     val editLrc: String get() = StringsE.editLrc
+    val geckoPagePluginNote: String get() = StringsE.geckoPagePluginNote
     val engineGeckoviewDesc: String get() = StringsE.engineGeckoviewDesc
     val engineSystemWebviewDesc: String get() = StringsE.engineSystemWebviewDesc
     val envInstallFailed: String get() = StringsE.envInstallFailed
@@ -5063,6 +5066,7 @@ object Strings {
     val appModifierRecommended: String get() = StringsE.appModifierRecommended
     val appModifierCloneNeedsOriginalIcon: String get() = StringsE.appModifierCloneNeedsOriginalIcon
     val appModifierCloneNoEnhancements: String get() = StringsE.appModifierCloneNoEnhancements
+    val appModifierPackageInUse: String get() = StringsE.appModifierPackageInUse
     val appModifierShortcutHint: String get() = StringsE.appModifierShortcutHint
     val appModifierWorking: String get() = StringsE.appModifierWorking
     fun appModifierResultCount(count: Int): String = StringsE.appModifierResultCount(count)

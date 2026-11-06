@@ -6031,6 +6031,18 @@ object StringsE {
         AppLanguage.JAPANESE -> "LRC を編集"
         AppLanguage.KOREAN -> "LRC 편집"
     }
+    val geckoPagePluginNote: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "页面插件（样式、开关、面板）会运行。Chrome 扩展和依赖 GM 接口的用户脚本仍需要系统 WebView"
+        AppLanguage.ENGLISH -> "Page plugins (styles, toggles, and panels) run. Chrome extensions and userscripts that need GM APIs still need System WebView"
+        AppLanguage.ARABIC -> "إضافات الصفحة (الأنماط والمفاتيح واللوحات) تعمل. إضافات Chrome وسكربتات GM ما زالت تحتاج WebView النظام"
+        AppLanguage.PORTUGUESE -> "Plugins de página (estilos, interruptores e painéis) funcionam. Extensões Chrome e userscripts que precisam das APIs GM ainda exigem o WebView do sistema"
+        AppLanguage.SPANISH -> "Los plugins de página (estilos, interruptores y paneles) sí se ejecutan. Las extensiones de Chrome y los userscripts que necesitan las API GM siguen requiriendo el WebView del sistema"
+        AppLanguage.FRENCH -> "Les plugins de page (styles, interrupteurs et panneaux) s'exécutent. Les extensions Chrome et les userscripts qui ont besoin des API GM exigent encore le WebView système"
+        AppLanguage.GERMAN -> "Seiten-Plugins (Stile, Schalter, Panels) laufen. Chrome-Erweiterungen und Userscripts mit GM-APIs brauchen weiter die System-WebView"
+        AppLanguage.RUSSIAN -> "Плагины страницы (стили, переключатели и панели) работают. Расширениям Chrome и скриптам с GM API по-прежнему нужен системный WebView"
+        AppLanguage.JAPANESE -> "ページ用プラグイン（スタイル、切り替え、パネル）は動きます。Chrome 拡張と GM API が必要なユーザースクリプトには、引き続きシステムの WebView が必要です"
+        AppLanguage.KOREAN -> "페이지 플러그인(스타일, 스위치, 패널)은 실행됩니다. Chrome 확장 프로그램과 GM API가 필요한 사용자 스크립트는 여전히 시스템 WebView가 필요합니다"
+    }
     val engineGeckoviewDesc: String get() = when (Strings.lang) {
         AppLanguage.CHINESE -> "engine geckoview"
         AppLanguage.ENGLISH -> "Engine geckoview"
@@ -13607,6 +13619,19 @@ object StringsE {
         AppLanguage.RUSSIAN -> "Клон не поддерживает splash, активацию и объявление. Используйте ярлык или отключите их"
         AppLanguage.JAPANESE -> "クローンはスプラッシュ/認証/お知らせに未対応。ショートカットを使うかこれらを無効にしてください"
         AppLanguage.KOREAN -> "클론 설치는 스플래시, 활성화, 공지를 지원하지 않습니다. 바로가기를 쓰거나 해당 기능을 끄세요"
+    }
+
+    val appModifierPackageInUse: String get() = when (Strings.lang) {
+        AppLanguage.CHINESE -> "该包名已被安装，请换一个包名，或先卸载占用该包名的应用"
+        AppLanguage.ENGLISH -> "This package is already installed. Choose another package or uninstall that app first"
+        AppLanguage.ARABIC -> "هذه الحزمة مثبتة بالفعل. اختر حزمة أخرى أو أزل التطبيق الذي يستخدمها أولاً"
+        AppLanguage.PORTUGUESE -> "Este pacote já está instalado. Escolha outro pacote ou desinstale esse app primeiro"
+        AppLanguage.SPANISH -> "Este paquete ya está instalado. Elige otro paquete o desinstala primero"
+        AppLanguage.FRENCH -> "Ce package est déjà installé. Choisissez un autre package ou désinstallez d'abord cette app"
+        AppLanguage.GERMAN -> "Dieses Paket ist bereits installiert. Wählen Sie ein anderes Paket oder deinstallieren Sie die App zuerst"
+        AppLanguage.RUSSIAN -> "Этот пакет уже установлен. Выберите другой пакет или сначала удалите это приложение"
+        AppLanguage.JAPANESE -> "このパッケージは既にインストールされています。別のパッケージを選ぶか、先にそのアプリをアンインストールしてください"
+        AppLanguage.KOREAN -> "이 패키지는 이미 설치되어 있습니다. 다른 패키지를 선택하거나 해당 앱을 먼저 제거하세요"
     }
 
     val appModifierShortcutHint: String get() = when (Strings.lang) {
