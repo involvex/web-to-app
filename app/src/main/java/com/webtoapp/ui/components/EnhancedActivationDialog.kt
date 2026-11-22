@@ -28,6 +28,12 @@ import com.webtoapp.core.activation.ActivationResult
 import com.webtoapp.core.activation.ActivationCodeType
 import com.webtoapp.core.activation.ActivationStatus
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaFadeIn
+import com.webtoapp.ui.design.WtaFadeOut
+import com.webtoapp.ui.design.WtaLoadingIndicator
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.util.threadLocalCompat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -47,11 +53,9 @@ fun EnhancedActivationDialog(
     var isLoading by remember { mutableStateOf(false) }
     var activationResult by remember { mutableStateOf<ActivationResult?>(null) }
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        title = null,
-        text = {
+        content = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -76,8 +80,8 @@ fun EnhancedActivationDialog(
                 AnimatedVisibility(
                     visible = activationResult !is ActivationResult.Success &&
                         activationResult !is ActivationResult.AlreadyActivated,
-                    enter = fadeIn() + expandVertically(),
-                    exit = fadeOut() + shrinkVertically()
+                    enter = WtaExpandIn,
+                    exit = WtaShrinkOut
                 ) {
                     PremiumTextField(
                         value = code,
@@ -113,8 +117,8 @@ fun EnhancedActivationDialog(
             AnimatedVisibility(
                 visible = activationResult !is ActivationResult.Success &&
                     activationResult !is ActivationResult.AlreadyActivated,
-                enter = fadeIn(),
-                exit = fadeOut()
+                enter = WtaFadeIn,
+                exit = WtaFadeOut
             ) {
                 PremiumButton(
                     onClick = {
@@ -130,10 +134,9 @@ fun EnhancedActivationDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (isLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(18.dp),
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            strokeWidth = 2.dp
+                        WtaLoadingIndicator(
+                            size = 18.dp,
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
@@ -230,10 +233,9 @@ private fun ActivationDialogHeader(
             contentAlignment = Alignment.Center
         ) {
             if (isLoading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(40.dp),
-                    color = iconBgColor,
-                    strokeWidth = 3.dp
+                WtaLoadingIndicator(
+                    size = 40.dp,
+                    color = iconBgColor
                 )
             } else {
                 Icon(
@@ -389,6 +391,7 @@ private fun ActivationResultCard(result: ActivationResult) {
     }
 }
 
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 private fun EnhancedActivationStatusCard(status: ActivationStatus) {
     val isValid = status.isValid
@@ -487,7 +490,8 @@ private fun EnhancedActivationStatusCard(status: ActivationStatus) {
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp)),
                                 color = if (progress > 0.8f) semantic.warning else primaryColor,
-                                trackColor = primaryColor.copy(alpha = 0.1f)
+                                trackColor = primaryColor.copy(alpha = 0.1f),
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                         }
                     }
@@ -517,7 +521,8 @@ private fun EnhancedActivationStatusCard(status: ActivationStatus) {
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
                     color = if (progress > 0.8f) semantic.warning else primaryColor,
-                    trackColor = primaryColor.copy(alpha = 0.1f)
+                    trackColor = primaryColor.copy(alpha = 0.1f),
+                    gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                 )
             }
 

@@ -104,9 +104,13 @@ class ApkBuildCache(private val context: Context) {
         mediaContentPath: String?,
         splashMediaPath: String?,
         bgmPlaylistPaths: List<String>,
+        bgmCoverPaths: List<String?> = emptyList(),
+        bgmLrcDataList: List<com.webtoapp.data.model.LrcData?> = emptyList(),
+        announcementIconPath: String? = null,
         htmlFiles: List<com.webtoapp.data.model.HtmlFile>,
         galleryItems: List<com.webtoapp.data.model.GalleryItem>,
         errorPageMediaPath: String?,
+        extensionDirs: List<File?> = emptyList(),
         nativeLibsFingerprint: String? = null,
         hostVersionCode: Int = 0,
         forceFullRebuild: Boolean,
@@ -137,9 +141,13 @@ class ApkBuildCache(private val context: Context) {
             mediaContentPath = mediaContentPath,
             splashMediaPath = splashMediaPath,
             bgmPlaylistPaths = bgmPlaylistPaths,
+            bgmCoverPaths = bgmCoverPaths,
+            bgmLrcDataList = bgmLrcDataList,
+            announcementIconPath = announcementIconPath,
             htmlFiles = htmlFiles,
             galleryItems = galleryItems,
             errorPageMediaPath = errorPageMediaPath,
+            extensionDirs = extensionDirs,
             statusBarImage = config.statusBarBackgroundImage,
             statusBarImageDark = config.statusBarBackgroundImageDark,
             floatingIcon = config.floatingWindowMinimizedIconPath,
@@ -294,7 +302,6 @@ class ApkBuildCache(private val context: Context) {
         if (entryName == "${ApkTemplate.CONFIG_PATH}.enc") return true
         if (entryName == "assets/encryption_meta.json") return true
         if (entryName == "assets/wta_adblock_compiled.txt") return true
-        if (entryName == "assets/wta_perf_optimize.js") return true
         if (entryName == "assets/statusbar_background.png") return true
         if (entryName == "assets/statusbar_background_dark.png") return true
         if (entryName == "assets/announcement_icon.png") return true
@@ -321,6 +328,7 @@ class ApkBuildCache(private val context: Context) {
         if (entryName.startsWith("assets/wta_custom_ca/")) return true
         if (entryName.startsWith("assets/multiweb_sites/")) return true
         if (entryName.startsWith("assets/multi_web/")) return true
+        if (entryName.startsWith("assets/extensions/")) return true
         return false
     }
 
@@ -417,8 +425,8 @@ class ApkBuildCache(private val context: Context) {
         // overlay ships a stale manifest.
         parts += "manifest=${manifestFingerprint ?: "n/a"}"
         // Export-level performance options change output bytes (resource stripping,
-        // asset re-optimization, wta_perf_optimize.js injection) without appearing in
-        // ApkConfig — key them explicitly or REUSE_UNSIGNED serves the old setting.
+        // asset re-optimization) without appearing in ApkConfig — key them explicitly
+        // or REUSE_UNSIGNED serves the old setting.
         parts += "perf=${perfFingerprint ?: "off"}"
         // The unsigned APK is not signer-agnostic: encrypted builds embed the signing cert
         // hash in the encryption metadata. Switching between global and per-app signing
@@ -433,9 +441,13 @@ class ApkBuildCache(private val context: Context) {
         mediaContentPath: String?,
         splashMediaPath: String?,
         bgmPlaylistPaths: List<String>,
+        bgmCoverPaths: List<String?> = emptyList(),
+        bgmLrcDataList: List<com.webtoapp.data.model.LrcData?> = emptyList(),
+        announcementIconPath: String? = null,
         htmlFiles: List<com.webtoapp.data.model.HtmlFile>,
         galleryItems: List<com.webtoapp.data.model.GalleryItem>,
         errorPageMediaPath: String?,
+        extensionDirs: List<File?> = emptyList(),
         statusBarImage: String?,
         statusBarImageDark: String?,
         floatingIcon: String?,
@@ -447,6 +459,9 @@ class ApkBuildCache(private val context: Context) {
         projectDirs.filterNotNull().forEach { dir ->
             parts += "dir=${dir.absolutePath}|${treeFingerprint(dir)}"
         }
+        extensionDirs.filterNotNull().forEach { dir ->
+            parts += "extensions=${dir.absolutePath}|${treeFingerprint(dir)}"
+        }
         parts += "media=${fileFingerprint(mediaContentPath)}"
         parts += "splash=${fileFingerprint(splashMediaPath)}"
         parts += "errorPage=${fileFingerprint(errorPageMediaPath)}"
@@ -456,6 +471,13 @@ class ApkBuildCache(private val context: Context) {
         bgmPlaylistPaths.forEachIndexed { index, path ->
             parts += "bgm[$index]=${fileFingerprint(path)}"
         }
+        bgmCoverPaths.forEachIndexed { index, path ->
+            parts += "bgmCover[$index]=${fileFingerprint(path)}"
+        }
+        bgmLrcDataList.forEachIndexed { index, lrc ->
+            parts += "bgmLrc[$index]=${lrcFingerprint(lrc)}"
+        }
+        parts += "announcementIcon=${fileFingerprint(announcementIconPath)}"
         htmlFiles.forEachIndexed { index, file ->
             parts += "html[$index]=${file.name}|${fileFingerprint(file.path)}"
         }
@@ -476,6 +498,11 @@ class ApkBuildCache(private val context: Context) {
         val file = File(path)
         if (!file.isFile) return "missing"
         return "sha256=${fileSha256(file)}"
+    }
+
+    private fun lrcFingerprint(lrc: com.webtoapp.data.model.LrcData?): String {
+        if (lrc == null || lrc.lines.isEmpty()) return "none"
+        return "sha256=${sha256(lrc.toString())}"
     }
 
     internal fun treeFingerprint(dir: File): String {

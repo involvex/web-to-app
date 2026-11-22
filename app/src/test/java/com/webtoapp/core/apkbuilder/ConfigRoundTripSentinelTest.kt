@@ -9,7 +9,6 @@ import com.webtoapp.core.privacy.IsolationConfig
 import com.webtoapp.core.bgm.bgmControlEnabled
 import com.webtoapp.core.shell.MultiWebShellConfig
 import com.webtoapp.core.shell.ShellConfig
-import com.webtoapp.data.model.AdConfig
 import com.webtoapp.data.model.Announcement
 import com.webtoapp.data.model.AnnouncementTemplateType
 import com.webtoapp.data.model.AppType
@@ -19,6 +18,7 @@ import com.webtoapp.data.model.AutoStartConfig
 import com.webtoapp.data.model.BgmConfig
 import com.webtoapp.data.model.BgmItem
 import com.webtoapp.data.model.BgmPlayMode
+import com.webtoapp.data.model.DisplayCutoutMode
 import com.webtoapp.data.model.ActivationDialogConfig
 import com.webtoapp.data.model.LrcTheme
 import com.webtoapp.data.model.RemoteActivationConfig
@@ -124,33 +124,6 @@ class ConfigRoundTripSentinelTest {
         assertThat(shell.adBlockEnabled).isTrue()
         assertThat(shell.adBlockRules).containsExactly("||ads.sentinel.example^", "||track.sentinel.example^").inOrder()
         assertThat(shell.adBlockSubscriptions).containsExactly("https://list.sentinel.example/block.txt")
-    }
-
-    @Test
-    fun `ads block round-trip through nullable flatten`() {
-        val app = baseApp().copy(
-            adsEnabled = true,
-            adConfig = AdConfig(
-                appId = "ca-app-pub-SEN~APP",
-                bannerEnabled = true,
-                bannerId = "SEN-BANNER",
-                interstitialEnabled = true,
-                interstitialId = "SEN-INTER",
-                splashEnabled = true,
-                splashId = "SEN-SPLASH",
-                testMode = true
-            )
-        )
-        val shell = roundTrip(app)
-        assertThat(shell.adsEnabled).isTrue()
-        assertThat(shell.adAppId).isEqualTo("ca-app-pub-SEN~APP")
-        assertThat(shell.adTestMode).isTrue()
-        assertThat(shell.adBannerEnabled).isTrue()
-        assertThat(shell.adBannerId).isEqualTo("SEN-BANNER")
-        assertThat(shell.adInterstitialEnabled).isTrue()
-        assertThat(shell.adInterstitialId).isEqualTo("SEN-INTER")
-        assertThat(shell.adSplashEnabled).isTrue()
-        assertThat(shell.adSplashId).isEqualTo("SEN-SPLASH")
     }
 
     @Test
@@ -290,6 +263,97 @@ class ConfigRoundTripSentinelTest {
     }
 
     @Test
+    fun `gallery items export in the selected sort order and carry sort metadata`() {
+        val app = baseApp(appType = AppType.GALLERY).copy(
+            galleryConfig = com.webtoapp.data.model.GalleryConfig(
+                sortOrder = com.webtoapp.data.model.GallerySortOrder.NAME_DESC,
+                items = listOf(
+                    com.webtoapp.data.model.GalleryItem(
+                        id = "a", path = "/a.png", type = com.webtoapp.data.model.GalleryItemType.IMAGE,
+                        name = "alpha", sortIndex = 0, createdAt = 300L
+                    ),
+                    com.webtoapp.data.model.GalleryItem(
+                        id = "b", path = "/b.png", type = com.webtoapp.data.model.GalleryItemType.IMAGE,
+                        name = "beta", sortIndex = 1, createdAt = 100L
+                    ),
+                    com.webtoapp.data.model.GalleryItem(
+                        id = "c", path = "/c.png", type = com.webtoapp.data.model.GalleryItemType.VIDEO,
+                        name = "gamma", sortIndex = 2, createdAt = 200L
+                    )
+                )
+            )
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.galleryConfig.sortOrder).isEqualTo("NAME_DESC")
+        assertThat(shell.galleryConfig.items.map { it.id }).containsExactly("c", "b", "a").inOrder()
+        assertThat(shell.galleryConfig.items.map { it.assetPath })
+            .containsExactly("gallery/item_0.mp4", "gallery/item_1.png", "gallery/item_2.png").inOrder()
+        assertThat(shell.galleryConfig.items[0].sortIndex).isEqualTo(2)
+        assertThat(shell.galleryConfig.items[0].createdAt).isEqualTo(200L)
+    }
+
+    @Test
+    fun `gallery custom sort follows sortIndex not list order`() {
+        val app = baseApp(appType = AppType.GALLERY).copy(
+            galleryConfig = com.webtoapp.data.model.GalleryConfig(
+                items = listOf(
+                    com.webtoapp.data.model.GalleryItem(
+                        id = "late", path = "/late.png", type = com.webtoapp.data.model.GalleryItemType.IMAGE,
+                        name = "late", sortIndex = 5
+                    ),
+                    com.webtoapp.data.model.GalleryItem(
+                        id = "early", path = "/early.png", type = com.webtoapp.data.model.GalleryItemType.IMAGE,
+                        name = "early", sortIndex = 1
+                    )
+                )
+            )
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.galleryConfig.items.map { it.id }).containsExactly("early", "late").inOrder()
+    }
+
+    @Test
+    fun `lrc theme style fields round-trip`() {
+        val app = baseApp().copy(
+            bgmEnabled = true,
+            bgmConfig = BgmConfig(
+                lrcTheme = LrcTheme(
+                    id = "sen-style",
+                    name = "SEN-STYLE",
+                    fontFamily = "serif",
+                    strokeColor = "#112233",
+                    strokeWidth = 2.5f,
+                    shadowEnabled = false,
+                    showTranslation = false
+                )
+            )
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.bgmLrcTheme?.fontFamily).isEqualTo("serif")
+        assertThat(shell.bgmLrcTheme?.strokeColor).isEqualTo("#112233")
+        assertThat(shell.bgmLrcTheme?.strokeWidth).isEqualTo(2.5f)
+        assertThat(shell.bgmLrcTheme?.shadowEnabled).isFalse()
+        assertThat(shell.bgmLrcTheme?.showTranslation).isFalse()
+    }
+
+    @Test
+    fun `bgm playlist exports in user sort order`() {
+        val app = baseApp().copy(
+            bgmEnabled = true,
+            bgmConfig = BgmConfig(
+                playlist = listOf(
+                    BgmItem(name = "second", path = "/second.mp3", sortOrder = 2),
+                    BgmItem(name = "first", path = "/first.mp3", sortOrder = 1)
+                )
+            )
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.bgmPlaylist.map { it.name }).containsExactly("first", "second").inOrder()
+        assertThat(shell.bgmPlaylist.map { it.assetPath })
+            .containsExactly("bgm/bgm_0.mp3", "bgm/bgm_1.mp3").inOrder()
+    }
+
+    @Test
     fun `translate fields round-trip through nullable flatten and enum-to-string`() {
         val app = baseApp().copy(
             translateEnabled = true,
@@ -329,6 +393,7 @@ class ConfigRoundTripSentinelTest {
                 fullscreenEnabled = false,
                 hideToolbar = true,
                 landscapeMode = true,
+                displayCutoutMode = DisplayCutoutMode.NEVER,
                 userAgentMode = UserAgentMode.CHROME_MOBILE
             )
         )
@@ -343,6 +408,7 @@ class ConfigRoundTripSentinelTest {
         assertThat(shell.webViewConfig.fullscreenEnabled).isFalse()
         assertThat(shell.webViewConfig.hideToolbar).isTrue()
         assertThat(shell.webViewConfig.landscapeMode).isTrue()
+        assertThat(shell.webViewConfig.displayCutoutMode).isEqualTo("NEVER")
         assertThat(shell.webViewConfig.userAgentMode).isEqualTo("CHROME_MOBILE")
     }
 
@@ -458,6 +524,18 @@ class ConfigRoundTripSentinelTest {
     }
 
     @Test
+    fun `multi-web independent sessions round-trips and a missing key stays shared`() {
+        val app = baseApp(AppType.MULTI_WEB).copy(
+            multiWebConfig = MultiWebConfig(independentSessions = true)
+        )
+        val shell = roundTrip(app)
+        assertThat(shell.multiWebConfig.independentSessions).isTrue()
+
+        val legacy = GsonProvider.gson.fromJson("""{"displayMode":"TABS"}""", MultiWebShellConfig::class.java)
+        assertThat(legacy.independentSessions).isFalse()
+    }
+
+    @Test
     fun `runtimePermissions are derived from backgroundRun and notification`() {
         val app = baseApp().copy(
             apkExportConfig = ApkExportConfig(
@@ -493,15 +571,73 @@ class ConfigRoundTripSentinelTest {
     }
 
     @Test
-    fun `injectScripts receives build-time kernel and perf sentinels`() {
-        val app = baseApp().copy(
-            webViewConfig = WebViewConfig(enableKernelDisguise = true)
-        )
-        val shell = roundTrip(app)
-        val names = shell.webViewConfig.injectScripts.map { it.name }
+    fun `injectScripts bakes kernel only above BASIC and perf only when optimization is on`() {
+        val plain = roundTrip(baseApp())
+        val plainNames = plain.webViewConfig.injectScripts.map { it.name }
+        assertThat(plainNames).doesNotContain("__kernel__")
+        assertThat(plainNames).doesNotContain("__perf_start__")
+        assertThat(plainNames).doesNotContain("__perf_end__")
+
+        val basic = roundTrip(baseApp().copy(
+            webViewConfig = WebViewConfig(
+                enableKernelDisguise = true,
+                kernelDisguiseLevel = com.webtoapp.data.model.KernelDisguiseLevel.BASIC
+            )
+        ))
+        assertThat(basic.webViewConfig.injectScripts.map { it.name }).doesNotContain("__kernel__")
+
+        val enabled = roundTrip(baseApp().copy(
+            webViewConfig = WebViewConfig(
+                enableKernelDisguise = true,
+                performanceOptimization = true
+            )
+        ))
+        val names = enabled.webViewConfig.injectScripts.map { it.name }
         assertThat(names).contains("__kernel__")
         assertThat(names).contains("__perf_start__")
         assertThat(names).contains("__perf_end__")
+    }
+
+    @Test
+    fun `export inject script gating mirrors preview switches`() {
+        val off = buildExportInjectScripts(WebViewConfig(), null)
+        assertThat(off.map { it.name }).isEmpty()
+
+        val basicKernel = buildExportInjectScripts(
+            WebViewConfig(
+                enableKernelDisguise = true,
+                kernelDisguiseLevel = com.webtoapp.data.model.KernelDisguiseLevel.BASIC
+            ),
+            null
+        )
+        assertThat(basicKernel.map { it.name }).doesNotContain("__kernel__")
+
+        val perfOnly = buildExportInjectScripts(WebViewConfig(performanceOptimization = true), null)
+        assertThat(perfOnly.map { it.name }).containsExactly("__perf_start__", "__perf_end__").inOrder()
+
+        val userScript = com.webtoapp.data.model.UserScript(name = "mine", code = "1", enabled = true)
+        val withUser = buildExportInjectScripts(WebViewConfig(injectScripts = listOf(userScript)), null)
+        assertThat(withUser.map { it.name }).containsExactly("mine")
+    }
+
+    @Test
+    fun `ech effective derives the gecko engine for export like preview`() {
+        val app = baseApp().copy(
+            webViewConfig = WebViewConfig(
+                dnsConfig = com.webtoapp.data.model.DnsConfig(
+                    provider = "cloudflare",
+                    echEnabled = true
+                )
+            )
+        )
+        assertThat(app.webViewConfig.dnsConfig.echEffective).isTrue()
+        val shell = roundTrip(app)
+        assertThat(shell.engineType).isEqualTo("GECKOVIEW")
+
+        val explicit = app.copy(
+            apkExportConfig = ApkExportConfig(engineType = "SYSTEM_WEBVIEW")
+        )
+        assertThat(roundTrip(explicit).engineType).isEqualTo("SYSTEM_WEBVIEW")
     }
 
     @Test

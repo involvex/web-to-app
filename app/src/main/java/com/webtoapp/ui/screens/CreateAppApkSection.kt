@@ -442,92 +442,6 @@ private fun PerformanceOptimizationSection(
                         )
                 }
 
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = Strings.perfBuildOptimize,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(
-                            horizontal = WtaSpacing.RowHorizontal,
-                            vertical = WtaSpacing.ContentGap
-                        )
-                    )
-                        WtaToggleRow(
-                            title = Strings.perfParallelProcessing,
-                            subtitle = Strings.perfParallelProcessingHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.parallelProcessing,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(parallelProcessing = it)))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.perfEnableCache,
-                            subtitle = Strings.perfEnableCacheHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.enableCache,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(enableCache = it)))
-                            }
-                        )
-                }
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = Strings.perfLoadOptimize,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(
-                            horizontal = WtaSpacing.RowHorizontal,
-                            vertical = WtaSpacing.ContentGap
-                        )
-                    )
-                        WtaToggleRow(
-                            title = Strings.perfPreloadHints,
-                            subtitle = Strings.perfPreloadHintsHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.injectPreloadHints,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectPreloadHints = it)))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.perfLazyLoading,
-                            subtitle = Strings.perfLazyLoadingHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.injectLazyLoading,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectLazyLoading = it)))
-                            }
-                        )
-                        WtaSectionDivider()
-                        WtaToggleRow(
-                            title = Strings.perfOptimizeScripts,
-                            subtitle = Strings.perfOptimizeScriptsHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.optimizeScripts,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(optimizeScripts = it)))
-                            }
-                        )
-                }
-
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(
-                        text = Strings.perfRuntimeOptimize,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(
-                            horizontal = WtaSpacing.RowHorizontal,
-                            vertical = WtaSpacing.ContentGap
-                        )
-                    )
-                    WtaToggleRow(
-                            title = Strings.perfRuntimeScript,
-                            subtitle = Strings.perfRuntimeScriptHint.ifDescriptionsShown(),
-                            checked = config.performanceConfig.injectPerformanceScript,
-                            onCheckedChange = {
-                                onConfigChange(config.copy(performanceConfig = config.performanceConfig.copy(injectPerformanceScript = it)))
-                            }
-                        )
-                }
             }
         }
     }
@@ -686,10 +600,10 @@ private fun NetworkTrustConfigPanel(
     }
 
     if (showSavePresetDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = { showSavePresetDialog = false },
-            title = { Text(Strings.saveNetworkPresetTitle) },
-            text = {
+            title = Strings.saveNetworkPresetTitle,
+            content = {
                 OutlinedTextField(
                     value = presetName,
                     onValueChange = { presetName = it },
@@ -869,7 +783,7 @@ fun CustomSigningSection() {
     }
 
     if (showImportPasswordDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {
                 showImportPasswordDialog = false
                 pendingKeystoreUri = null
@@ -877,9 +791,9 @@ fun CustomSigningSection() {
                 keyPasswordInput = ""
                 importError = null
             },
-            icon = { Icon(Icons.Outlined.Key, null) },
-            title = { Text(Strings.importKeystore) },
-            text = {
+            icon = Icons.Outlined.Key,
+            title = Strings.importKeystore,
+            content = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1008,15 +922,15 @@ fun CustomSigningSection() {
     }
 
     if (showExportPasswordDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {
                 showExportPasswordDialog = false
                 pendingKeystoreUri = null
                 passwordInput = ""
             },
-            icon = { Icon(Icons.Outlined.FileDownload, null) },
-            title = { Text(Strings.exportKeystore) },
-            text = {
+            icon = Icons.Outlined.FileDownload,
+            title = Strings.exportKeystore,
+            content = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     Text(
                         text = Strings.exportPasswordHint,
@@ -1095,11 +1009,12 @@ fun CustomSigningSection() {
     }
 
     if (showRemoveConfirmDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = { showRemoveConfirmDialog = false },
-            icon = { Icon(Icons.Outlined.Warning, null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text(Strings.removeCustomKeystore) },
-            text = { Text(Strings.keystoreRemoveConfirm) },
+            icon = Icons.Outlined.Warning,
+            iconTint = MaterialTheme.colorScheme.error,
+            title = Strings.removeCustomKeystore,
+            text = Strings.keystoreRemoveConfirm,
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1309,11 +1224,11 @@ private fun CreateKeystoreDialog(
     var passwordVisible by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.AddModerator, null) },
-        title = { Text(Strings.createKeystore) },
-        text = {
+        icon = Icons.Outlined.AddModerator,
+        title = Strings.createKeystore,
+        content = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1465,11 +1380,11 @@ private fun FingerprintDialog(
     onCopied: () -> Unit
 ) {
     val context = LocalContext.current
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Outlined.Fingerprint, null) },
-        title = { Text(Strings.viewFingerprints) },
-        text = {
+        icon = Icons.Outlined.Fingerprint,
+        title = Strings.viewFingerprints,
+        content = {
             if (fingerprints == null) {
                 Text(Strings.signingTypeAutoGenerated)
             } else {

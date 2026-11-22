@@ -1,10 +1,6 @@
 package com.webtoapp.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -45,11 +41,11 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -90,7 +86,10 @@ import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaColors
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.theme.AppColors
 import com.webtoapp.ui.theme.LocalShowDescriptions
 import com.webtoapp.ui.theme.ifDescriptionsShown
@@ -478,10 +477,7 @@ fun RuntimeDepsScreen(onBack: () -> Unit) {
                 enabled = !isDownloading && !isRefreshing
             ) {
                 if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp
-                    )
+                    WtaLoadingIndicator(size = 18.dp)
                 } else {
                     Icon(Icons.Outlined.Refresh, contentDescription = Strings.refresh)
                 }
@@ -739,10 +735,7 @@ private fun StatusOverviewCard(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isDownloading && !isPaused) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(26.dp),
-                            strokeWidth = 2.5.dp
-                        )
+                        WtaLoadingIndicator(size = 26.dp)
                     } else {
                         Icon(
                             imageVector = when {
@@ -791,7 +784,8 @@ private fun StatusOverviewCard(
                         .height(6.dp)
                         .clip(RoundedCornerShape(999.dp)),
                     color = statusColor,
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                 )
                 if (!allReady) {
                     WtaButton(
@@ -806,8 +800,8 @@ private fun StatusOverviewCard(
 
             AnimatedVisibility(
                 visible = isDownloading,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -826,7 +820,8 @@ private fun StatusOverviewCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(999.dp)),
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                     Row(
                         modifier = Modifier.fillMaxWidth(),

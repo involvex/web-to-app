@@ -28,9 +28,6 @@ class ThemeManager(private val context: Context) {
 
     val currentDarkMode: DarkModeSettings
         get() = cachedDarkMode ?: run {
-            // Main-safe: never block UI thread on DataStore. Flow value is kept
-            // fresh by Eagerly-started stateIn; export path (IO thread) still gets
-            // the exact value via the blocking read below.
             if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
                 darkModeFlow.value.also { cachedDarkMode = it }
             } else {
@@ -58,13 +55,12 @@ class ThemeManager(private val context: Context) {
         private val KEY_DARK_MODE = stringPreferencesKey("dark_mode")
         private val KEY_ACCENT = stringPreferencesKey("accent_color")
         private val KEY_ENABLE_ANIMATIONS = booleanPreferencesKey("enable_animations")
-        private val KEY_ENABLE_PARTICLES = booleanPreferencesKey("enable_particles")
         private val KEY_ENABLE_HAPTICS = booleanPreferencesKey("enable_haptics")
-        private val KEY_ENABLE_SOUND = booleanPreferencesKey("enable_sound")
         private val KEY_ANIMATION_SPEED = stringPreferencesKey("animation_speed")
         private val KEY_FONT_SIZE = stringPreferencesKey("font_size")
         private val KEY_CORNER_STYLE = stringPreferencesKey("corner_style")
         private val KEY_SHOW_DESCRIPTIONS = booleanPreferencesKey("show_descriptions")
+        private val KEY_HOME_VIEW_MODE = stringPreferencesKey("home_view_mode")
 
         @Volatile
         private var instance: ThemeManager? = null
@@ -128,6 +124,11 @@ class ThemeManager(private val context: Context) {
         }
     }
 
+    enum class HomeViewMode {
+        LIST,
+        GRID
+    }
+
     val themeTypeFlow: StateFlow<AppThemeType> = kotlinx.coroutines.flow.MutableStateFlow(AppThemeType.KIMI_NO_NAWA)
 
     val darkModeFlow: StateFlow<DarkModeSettings> = context.themeDataStore.data.map { prefs ->
@@ -144,28 +145,20 @@ class ThemeManager(private val context: Context) {
     )
 
     val accentFlow: StateFlow<AppAccent> = context.themeDataStore.data.map { prefs ->
-        val accentName = prefs[KEY_ACCENT] ?: AppAccent.DEFAULT.name
+        val accentName = prefs[KEY_ACCENT] ?: AppAccent.DYNAMIC.name
         try {
             AppAccent.valueOf(accentName)
         } catch (e: Exception) {
-            AppAccent.DEFAULT
+            AppAccent.DYNAMIC
         }
     }.stateIn(
         scope = scope,
         started = SharingStarted.Eagerly,
-        initialValue = AppAccent.DEFAULT
+        initialValue = AppAccent.DYNAMIC
     )
 
     val enableAnimationsFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
         prefs[KEY_ENABLE_ANIMATIONS] ?: true
-    }.stateIn(
-        scope = scope,
-        started = SharingStarted.Eagerly,
-        initialValue = true
-    )
-
-    val enableParticlesFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
-        prefs[KEY_ENABLE_PARTICLES] ?: true
     }.stateIn(
         scope = scope,
         started = SharingStarted.Eagerly,
@@ -180,14 +173,6 @@ class ThemeManager(private val context: Context) {
         initialValue = true
     )
 
-    val enableSoundFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
-        prefs[KEY_ENABLE_SOUND] ?: true
-    }.stateIn(
-        scope = scope,
-        started = SharingStarted.Eagerly,
-        initialValue = true
-    )
-
     val showDescriptionsFlow: StateFlow<Boolean> = context.themeDataStore.data.map { prefs ->
         prefs[KEY_SHOW_DESCRIPTIONS] ?: true
     }.stateIn(
@@ -196,11 +181,19 @@ class ThemeManager(private val context: Context) {
         initialValue = true
     )
 
-    /**
-     * Flips true once the first DataStore read lands. Compose gates first
-     * content on this so a frame painted with default values never gets
-     * re-laid-out when the user's real theme settings arrive.
-     */
+    val homeViewModeFlow: StateFlow<HomeViewMode> = context.themeDataStore.data.map { prefs ->
+        val name = prefs[KEY_HOME_VIEW_MODE] ?: HomeViewMode.LIST.name
+        try {
+            HomeViewMode.valueOf(name)
+        } catch (e: Exception) {
+            HomeViewMode.LIST
+        }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = HomeViewMode.LIST
+    )
+
     val settingsLoadedFlow: StateFlow<Boolean> = context.themeDataStore.data
         .map { true }
         .stateIn(
@@ -221,10 +214,6 @@ class ThemeManager(private val context: Context) {
         started = SharingStarted.Eagerly,
         initialValue = AnimationSpeed.NORMAL
     )
-
-    suspend fun setThemeType(type: AppThemeType) {
-
-    }
 
     suspend fun setDarkMode(mode: DarkModeSettings) {
         context.themeDataStore.edit { prefs ->
@@ -283,27 +272,21 @@ class ThemeManager(private val context: Context) {
         }
     }
 
-    suspend fun setEnableParticles(enabled: Boolean) {
-        context.themeDataStore.edit { prefs ->
-            prefs[KEY_ENABLE_PARTICLES] = enabled
-        }
-    }
-
     suspend fun setEnableHaptics(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[KEY_ENABLE_HAPTICS] = enabled
         }
     }
 
-    suspend fun setEnableSound(enabled: Boolean) {
-        context.themeDataStore.edit { prefs ->
-            prefs[KEY_ENABLE_SOUND] = enabled
-        }
-    }
-
     suspend fun setShowDescriptions(enabled: Boolean) {
         context.themeDataStore.edit { prefs ->
             prefs[KEY_SHOW_DESCRIPTIONS] = enabled
+        }
+    }
+
+    suspend fun setHomeViewMode(mode: HomeViewMode) {
+        context.themeDataStore.edit { prefs ->
+            prefs[KEY_HOME_VIEW_MODE] = mode.name
         }
     }
 

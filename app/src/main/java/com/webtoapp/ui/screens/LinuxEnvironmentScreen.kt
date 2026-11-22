@@ -2,10 +2,6 @@ package com.webtoapp.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,11 +38,11 @@ import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -88,8 +84,11 @@ import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaColors
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaLoadingState
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.theme.LocalShowDescriptions
 import com.webtoapp.ui.theme.ifDescriptionsShown
 import kotlinx.coroutines.Job
@@ -183,7 +182,7 @@ fun LinuxEnvironmentScreen(onBack: () -> Unit) {
                 enabled = !isCoreBusy && !isRefreshing
             ) {
                 if (isRefreshing) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    WtaLoadingIndicator(size = 18.dp)
                 } else {
                     Icon(Icons.Outlined.Refresh, contentDescription = Strings.refresh)
                 }
@@ -498,8 +497,8 @@ private fun ReadinessHero(
 
             AnimatedVisibility(
                 visible = busy,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     LinearProgressIndicator(
@@ -507,7 +506,8 @@ private fun ReadinessHero(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(999.dp)),
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                     if (progress.currentStep.isNotBlank()) {
                         Text(
@@ -550,39 +550,17 @@ private fun ReadinessRing(
     busy: Boolean,
     coreReady: Boolean
 ) {
-    val track = MaterialTheme.colorScheme.surfaceContainerHighest
     Box(
         modifier = Modifier.size(84.dp),
         contentAlignment = Alignment.Center
     ) {
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val stroke = 8.dp.toPx()
-            val inset = stroke / 2f
-            drawArc(
-                color = track,
-                startAngle = -90f,
-                sweepAngle = 360f,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = Size(size.width - stroke, size.height - stroke),
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
-            drawArc(
-                color = color,
-                startAngle = -90f,
-                sweepAngle = 360f * progress.coerceIn(0f, 1f),
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = Size(size.width - stroke, size.height - stroke),
-                style = Stroke(width = stroke, cap = StrokeCap.Round)
-            )
-        }
+        WtaLoadingIndicator(
+            size = 84.dp,
+            color = color,
+            progress = { progress.coerceIn(0f, 1f) }
+        )
         when {
-            busy -> CircularProgressIndicator(
-                modifier = Modifier.size(28.dp),
-                strokeWidth = 2.5.dp,
-                color = color
-            )
+            busy -> WtaLoadingIndicator(size = 28.dp, color = color)
             coreReady -> Icon(
                 Icons.Filled.CheckCircle,
                 contentDescription = null,
@@ -1000,8 +978,8 @@ private fun OptionalRuntimeBlock(
 
         AnimatedVisibility(
             visible = installing,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
+            enter = WtaExpandIn,
+            exit = WtaShrinkOut
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (progress == null || progress.indeterminate) {
@@ -1009,7 +987,8 @@ private fun OptionalRuntimeBlock(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(5.dp)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(999.dp)),
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                 } else {
                     LinearProgressIndicator(
@@ -1017,7 +996,8 @@ private fun OptionalRuntimeBlock(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(5.dp)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(999.dp)),
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                 }
                 Text(

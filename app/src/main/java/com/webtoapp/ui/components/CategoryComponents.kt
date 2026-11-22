@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.AppCategory
 import com.webtoapp.data.model.WebApp
+import com.webtoapp.ui.theme.ifDescriptionsShown
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -33,7 +34,8 @@ fun CategoryTabRow(
     onDeleteCategory: (AppCategory) -> Unit,
     onMoveCategory: (AppCategory, Int) -> Unit,
     onManageCategories: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    trailingContent: (@Composable () -> Unit)? = null
 ) {
     var showCategoryMenu by remember { mutableStateOf<AppCategory?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<AppCategory?>(null) }
@@ -144,6 +146,12 @@ fun CategoryTabRow(
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+            }
+        }
+
+        if (trailingContent != null) {
+            item {
+                trailingContent()
             }
         }
 
@@ -319,21 +327,27 @@ fun MoveToCategoryDialog(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            com.webtoapp.ui.design.WtaSettingCard {
-                CategoryOptionRow(
-                    icon = Icons.Outlined.FolderOpen,
-                    name = Strings.uncategorized,
-                    selected = currentCategoryId == null,
-                    onClick = { onMoveToCategory(null) }
-                )
-                categories.forEach { category ->
-                    com.webtoapp.ui.design.WtaSectionDivider()
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                com.webtoapp.ui.design.WtaSettingCard {
                     CategoryOptionRow(
-                        icon = com.webtoapp.util.SvgIconMapper.getIcon(category.icon),
-                        name = category.name,
-                        selected = currentCategoryId == category.id,
-                        onClick = { onMoveToCategory(category.id) }
+                        icon = Icons.Outlined.FolderOpen,
+                        name = Strings.uncategorized,
+                        selected = currentCategoryId == null,
+                        onClick = { onMoveToCategory(null) }
                     )
+                    categories.forEach { category ->
+                        com.webtoapp.ui.design.WtaSectionDivider()
+                        CategoryOptionRow(
+                            icon = com.webtoapp.util.SvgIconMapper.getIcon(category.icon),
+                            name = category.name,
+                            selected = currentCategoryId == category.id,
+                            onClick = { onMoveToCategory(category.id) }
+                        )
+                    }
                 }
             }
         },
@@ -378,24 +392,28 @@ fun CategoryManageDialog(
     onDeleteCategory: (AppCategory) -> Unit
 ) {
     var pendingDelete by remember { mutableStateOf<AppCategory?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val categoryFilterStore = remember { com.webtoapp.core.category.CategoryFilterStore(context) }
+    var rememberCategory by remember { mutableStateOf(categoryFilterStore.rememberEnabled) }
 
     com.webtoapp.ui.design.WtaAlertDialog(
         onDismissRequest = onDismiss,
         icon = Icons.Outlined.Tune,
         title = Strings.manageCategories,
         content = {
-            if (categories.isEmpty()) {
-                Text(
-                    Strings.categoriesEmptyHint,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 360.dp)
-                        .verticalScroll(rememberScrollState())
-                ) {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 360.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(com.webtoapp.ui.design.WtaSpacing.SectionGap)
+            ) {
+                if (categories.isEmpty()) {
+                    Text(
+                        Strings.categoriesEmptyHint,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else {
                     com.webtoapp.ui.design.WtaSettingCard {
                         categories.forEachIndexed { index, category ->
                             if (index > 0) com.webtoapp.ui.design.WtaSectionDivider()
@@ -457,6 +475,17 @@ fun CategoryManageDialog(
                             }
                         }
                     }
+                }
+                com.webtoapp.ui.design.WtaSettingCard {
+                    com.webtoapp.ui.design.WtaToggleRow(
+                        title = Strings.rememberCategoryFilter,
+                        subtitle = Strings.rememberCategoryFilterDesc.ifDescriptionsShown(),
+                        checked = rememberCategory,
+                        onCheckedChange = {
+                            rememberCategory = it
+                            categoryFilterStore.rememberEnabled = it
+                        }
+                    )
                 }
             }
         },

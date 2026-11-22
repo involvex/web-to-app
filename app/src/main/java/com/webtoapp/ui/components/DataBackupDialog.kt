@@ -20,9 +20,9 @@ import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Upload
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +42,7 @@ import com.webtoapp.ui.design.WtaButtonSize
 import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaMotion
 import com.webtoapp.ui.design.WtaStatusBanner
 import com.webtoapp.ui.design.WtaStatusTone
@@ -89,6 +90,7 @@ private fun ColumnScope.DataBackupControls() {
     var errorThrowable by remember { mutableStateOf<Throwable?>(null) }
     var errorScope by remember { mutableStateOf("") }
     var showRestartDialog by remember { mutableStateOf(false) }
+    var showLegacyMissingFilesDialog by remember { mutableStateOf(false) }
     val isBusy = isExporting || isImporting
 
     val exportLauncher = rememberLauncherForActivityResult(
@@ -141,7 +143,12 @@ private fun ColumnScope.DataBackupControls() {
                 result.onSuccess { importResult ->
                     Toast.makeText(
                         context,
-                        if (importResult.duplicateCount > 0) {
+                        if (importResult.legacySourceBundle) {
+                            Strings.backupImportLegacySuccess.format(
+                                importResult.importedCount,
+                                importResult.totalCount
+                            )
+                        } else if (importResult.duplicateCount > 0) {
                             Strings.backupImportSuccessDupes.format(
                                 importResult.importedCount,
                                 importResult.totalCount,
@@ -155,6 +162,9 @@ private fun ColumnScope.DataBackupControls() {
                         },
                         Toast.LENGTH_LONG
                     ).show()
+                    if (importResult.missingProjectFiles) {
+                        showLegacyMissingFilesDialog = true
+                    }
                     // Restored DataStore/SharedPreferences files only take effect
                     // after restart (in-memory caches would otherwise clobber them).
                     // Ask first — silently killing the process reads as a crash.
@@ -206,6 +216,23 @@ private fun ColumnScope.DataBackupControls() {
         )
     }
 
+    if (showLegacyMissingFilesDialog) {
+        com.webtoapp.ui.design.WtaAlertDialog(
+            onDismissRequest = { showLegacyMissingFilesDialog = false },
+            icon = Icons.Outlined.Inventory2,
+            title = Strings.dataBackupTitle,
+            text = Strings.backupImportLegacyMissingFiles,
+            confirmButton = {
+                WtaButton(
+                    onClick = { showLegacyMissingFilesDialog = false },
+                    text = Strings.close,
+                    variant = WtaButtonVariant.Primary,
+                    size = WtaButtonSize.Medium
+                )
+            }
+        )
+    }
+
     AnimatedVisibility(
         visible = isBusy,
         enter = fadeIn(WtaMotion.enterTween()),
@@ -215,7 +242,8 @@ private fun ColumnScope.DataBackupControls() {
             LinearProgressIndicator(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(3.dp)
+                    .height(3.dp),
+                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
             )
             if (progressMessage.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
@@ -228,6 +256,13 @@ private fun ColumnScope.DataBackupControls() {
             Spacer(Modifier.height(14.dp))
         }
     }
+
+    Spacer(Modifier.height(12.dp))
+    WtaStatusBanner(
+        message = Strings.dataBackupUninstallWarning,
+        tone = WtaStatusTone.Warning
+    )
+    Spacer(Modifier.height(12.dp))
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -288,9 +323,8 @@ private fun ExportButton(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
+                WtaLoadingIndicator(
+                    size = 16.dp,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.width(10.dp))
@@ -335,9 +369,8 @@ private fun ImportButton(
                 horizontalArrangement = Arrangement.Center,
                 verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
             ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(16.dp),
-                    strokeWidth = 2.dp,
+                WtaLoadingIndicator(
+                    size = 16.dp,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
                 Spacer(Modifier.width(10.dp))

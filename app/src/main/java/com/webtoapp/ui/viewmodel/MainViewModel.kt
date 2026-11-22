@@ -235,6 +235,21 @@ class MainViewModel(
         _pwaAnalysisState.value = PwaAnalysisState.Idle
     }
 
+    fun createSampleApp() {
+        viewModelScope.launch {
+            try {
+                val app = WebApp(
+                    name = Strings.sampleAppName,
+                    url = "https://shiaho777.github.io/web-to-app/"
+                )
+                withContext(Dispatchers.IO) { repository.createWebApp(app) }
+                _uiState.value = UiState.Success(Strings.sampleAppCreated)
+            } catch (e: Exception) {
+                _uiState.value = UiState.Error(e.message ?: Strings.saveFailed)
+            }
+        }
+    }
+
     fun editApp(webApp: WebApp) {
         _currentApp.value = webApp
         _uiState.value = UiState.Idle
@@ -505,9 +520,8 @@ class MainViewModel(
 
                 if (_currentApp.value != null) {
                     repository.updateWebApp(webApp)
-                    // DB now references the new files — safe to remove the replaced ones.
-                    deleteReplacedIconIfUnused(previousIconPath, state.savedIconPath ?: state.iconUri?.toString())
-                    deleteReplacedSplashIfUnused(previousSplashPath, state.splashConfig?.mediaPath)
+                    deleteReplacedIconIfUnused(previousIconPath, webApp.iconPath)
+                    deleteReplacedSplashIfUnused(previousSplashPath, webApp.splashConfig?.mediaPath)
                 } else {
                     val newId = repository.createWebApp(webApp)
 

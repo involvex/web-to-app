@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -148,31 +150,12 @@ fun StatusBarImageCropper(
 
     var isCropping by remember { mutableStateOf(false) }
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = { if (!isCropping) onDismiss() },
-        title = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.CropFree,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Text(Strings.cropStatusBarBg)
-            }
-        },
-        text = {
+        icon = Icons.Default.CropFree,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = Strings.cropStatusBarBg,
+        content = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -216,7 +199,7 @@ fun StatusBarImageCropper(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                CircularProgressIndicator()
+                                WtaLoadingIndicator()
                                 Text(
                                     text = Strings.loadingImage,
                                     style = MaterialTheme.typography.bodySmall,
@@ -336,7 +319,7 @@ fun StatusBarImageCropper(
                 }
 
                 if (isCropping) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                 }
             }
         },

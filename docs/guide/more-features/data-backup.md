@@ -16,3 +16,17 @@ Moving projects between devices, or taking a snapshot before a major update.
 
 - Importing adds new apps rather than merging — export a backup before updating the app.
 - The backup is a plain `.zip` you can store anywhere.
+
+## Source export archives
+
+**Export source** on a single app produces an Android Studio project, and that zip is also a valid WebToApp backup for that one app. It carries `apps.json` (the full project configuration), `resources/` (icons and media), and `local/files/` (HTML, frontend, and Node.js / PHP / Python / Go / WordPress project sources). After reinstalling WebToApp, pick that zip from **Import Data** to restore the app.
+
+A source bundle holds one app only. It does not include global settings, extension modules, ad-block rules, or signing keystores — use **Export Data** for a full snapshot.
+
+## Older source exports
+
+Source bundles exported before 2.8.8 have no `apps.json`, but Import Data can still restore them: the project is rebuilt from the runtime configuration (`app_config.json`), the local web content (`assets/www/`) and the media files the archive carries. URLs, feature settings, multi-site lists, HTML/frontend projects, icons, splash and BGM come back. Two limits are inherent to what old exports packaged: Node.js / PHP / Python / Go / WordPress project files and image/video app media were never included, so for those app types only the configuration is restored; and a few editor-only values (per-site feature overrides, parsed lyrics) fall back to defaults.
+
+## Before uninstalling
+
+WebToApp disables Android's system backup (`allowBackup="false"`), so uninstalling the builder permanently deletes every project, its source files, and its configuration. Export a backup before uninstalling, moving to a new device, or letting a device security scanner act on the app. An "uninstall" triggered by a virus scanner is not reversible.

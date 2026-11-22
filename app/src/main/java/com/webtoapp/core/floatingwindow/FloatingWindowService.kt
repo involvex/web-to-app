@@ -51,22 +51,16 @@ class FloatingWindowService : Service() {
         fun getInstance(): FloatingWindowService? = instance
 
         fun canDrawOverlays(context: android.content.Context): Boolean {
-            return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                Settings.canDrawOverlays(context)
-            } else {
-                true
-            }
+            return Settings.canDrawOverlays(context)
         }
 
         fun requestOverlayPermission(context: android.content.Context) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                val intent = Intent(
-                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-                    android.net.Uri.parse("package:${context.packageName}")
-                )
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            }
+            val intent = Intent(
+                Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                android.net.Uri.parse("package:${context.packageName}")
+            )
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
         }
     }
 
@@ -148,10 +142,12 @@ class FloatingWindowService : Service() {
                 val customDownloadDirUri = shellConfig?.webViewConfig?.customDownloadDirUri ?: ""
                 val mediaAlbumName = shellConfig?.webViewConfig?.mediaAlbumName ?: ""
                 val downloadBridgeFactory: (WebView) -> Unit = { webView ->
-                    val downloadBridge = DownloadBridge(
-                        this, serviceScope, downloadLocationMode, customDownloadDirUri, mediaAlbumName
-                    )
-                    webView.addJavascriptInterface(downloadBridge, DownloadBridge.JS_INTERFACE_NAME)
+                    if (shellConfig?.webViewConfig?.downloadEnabled != false) {
+                        val downloadBridge = DownloadBridge(
+                            this, serviceScope, downloadLocationMode, customDownloadDirUri, mediaAlbumName
+                        )
+                        webView.addJavascriptInterface(downloadBridge, DownloadBridge.JS_INTERFACE_NAME)
+                    }
                 }
 
                 val webViewConfigurator = shellConfig?.let { sc ->
@@ -286,8 +282,10 @@ class FloatingWindowService : Service() {
                     translateBridgeFactory?.invoke(webView)
                     downloadBridgeFactory(webView)
 
-                    if (shellConfig.webViewConfig.enableNativeBridge) {
-                        val capabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                    if (shellConfig.webViewConfig.enableNativeBridge || shellConfig.webViewConfig.enableNotificationPolyfill) {
+                        val capabilities = if (!shellConfig.webViewConfig.enableNativeBridge) {
+                            com.webtoapp.data.model.notificationPolyfillOnlyCapabilities()
+                        } else com.webtoapp.data.model.NativeBridgeCapabilities(
                             clipboard = shellConfig.webViewConfig.nativeBridgeClipboard,
                             vibration = shellConfig.webViewConfig.nativeBridgeVibration,
                             geolocation = shellConfig.webViewConfig.nativeBridgeGeolocation,

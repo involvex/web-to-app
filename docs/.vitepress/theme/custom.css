@@ -1,69 +1,223 @@
-/**
- * WebToApp brand theme.
- * Accent is a confident blue that reads well in both light and dark mode.
- * deliberately flat: no hero glow, no gradient text — plain color only.
- * Buttons stay black in both themes: dark background, light text.
- */
 :root {
-  --vp-c-brand-1: #2563eb;
-  --vp-c-brand-2: #3b82f6;
-  --vp-c-brand-3: #60a5fa;
-  --vp-c-brand-soft: rgba(59, 130, 246, 0.14);
+  --vp-c-brand-1: #1f6feb;
+  --vp-c-brand-2: #1f6feb;
+  --vp-c-brand-3: #1f6feb;
 
-  --vp-home-hero-name-color: var(--vp-c-brand-1);
+  --wta-hairline: rgba(17, 17, 17, 0.11);
+  --wta-hairline-strong: rgba(17, 17, 17, 0.26);
+  --wta-surface-hover: #f3f3f3;
+  --wta-ink: #101010;
+  --wta-ink-inverse: #ffffff;
+
+  --vp-home-hero-name-color: var(--vp-c-text-2);
+  --vp-home-hero-name-background: none;
   --vp-home-hero-image-background-image: none;
   --vp-home-hero-image-filter: none;
 }
 
 .dark {
-  --vp-c-brand-1: #60a5fa;
-  --vp-c-brand-2: #3b82f6;
-  --vp-c-brand-3: #2563eb;
-  --vp-c-brand-soft: rgba(96, 165, 250, 0.16);
+  --vp-c-brand-1: #6ea8fe;
+  --vp-c-brand-2: #6ea8fe;
+  --vp-c-brand-3: #6ea8fe;
 
-  --vp-home-hero-name-color: var(--vp-c-brand-1);
+  --wta-hairline: rgba(255, 255, 255, 0.11);
+  --wta-hairline-strong: rgba(255, 255, 255, 0.28);
+  --wta-surface-hover: rgba(255, 255, 255, 0.055);
+  --wta-ink: #f5f5f5;
+  --wta-ink-inverse: #0b0b0b;
+
+  --vp-home-hero-name-color: var(--vp-c-text-2);
+  --vp-home-hero-name-background: none;
   --vp-home-hero-image-background-image: none;
   --vp-home-hero-image-filter: none;
 }
 
-/* Buttons: black in light and dark mode instead of the blue accent. */
-:root,
-.dark {
-  --vp-button-brand-bg: #171717;
-  --vp-button-brand-hover-bg: #262626;
-  --vp-button-brand-active-bg: #262626;
-  --vp-button-brand-text: #ffffff;
-  --vp-button-brand-hover-text: #ffffff;
-  --vp-button-brand-active-text: #ffffff;
-
-  --vp-button-alt-bg: #2b2b2b;
-  --vp-button-alt-hover-bg: #383838;
-  --vp-button-alt-active-bg: #383838;
-  --vp-button-alt-text: #ffffff;
-  --vp-button-alt-hover-text: #ffffff;
-  --vp-button-alt-active-text: #ffffff;
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/*
- * Homepage content below the features grid. The markdown lives inside
- * VPHomeContent's 1280px container; .wta-home narrows to 1152px so the
- * custom sections line up with the features grid above.
- */
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  letter-spacing: -0.022em;
+}
+
+.VPHero {
+  padding-top: 96px;
+  padding-bottom: 72px;
+}
+
+#app .VPHero .name {
+  margin-bottom: 18px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--vp-c-text-3);
+}
+
+#app .VPHero .name .clip {
+  -webkit-text-fill-color: currentColor;
+  background: none;
+  color: inherit;
+}
+
+#app .VPHero .text {
+  max-width: 15ch;
+  margin: 0;
+  font-size: clamp(40px, 5.2vw, 62px);
+  font-weight: 700;
+  line-height: 1.06;
+  letter-spacing: -0.035em;
+  color: var(--vp-c-text-1);
+}
+
+#app .VPHero .tagline {
+  max-width: 48ch;
+  margin-top: 36px;
+  padding: 0;
+  font-size: 16.5px;
+  line-height: 1.62;
+  color: var(--vp-c-text-2);
+}
+
+#app .VPHero .image-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.VPHero .image-bg {
+  display: none;
+}
+
+.VPHero .image-container .VPImage {
+  width: 168px;
+  height: 168px;
+  margin: 0;
+  border: 1px solid var(--wta-hairline);
+  border-radius: 24%;
+}
+
+#app .VPHero .actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 36px;
+  padding-top: 0;
+}
+
+#app .VPButton {
+  border-radius: 8px;
+  font-weight: 500;
+  letter-spacing: -0.006em;
+  transition: background-color 0.18s, border-color 0.18s, color 0.18s, opacity 0.18s;
+}
+
+#app .VPButton.brand {
+  border: 1px solid transparent;
+  background-color: var(--wta-ink);
+  background-image: none;
+  color: var(--wta-ink-inverse);
+  box-shadow: none;
+}
+
+#app .VPButton.brand:hover {
+  background-color: var(--wta-ink);
+  background-image: none;
+  color: var(--wta-ink-inverse);
+  opacity: 0.88;
+}
+
+#app .VPButton.alt {
+  border: 1px solid var(--wta-hairline-strong);
+  background-color: transparent;
+  color: var(--vp-c-text-1);
+}
+
+#app .VPButton.alt:hover {
+  border-color: var(--vp-c-text-1);
+  background-color: transparent;
+  color: var(--vp-c-text-1);
+}
+
+.VPFeatures {
+  padding-top: 32px;
+}
+
+.VPFeature {
+  border: 1px solid var(--wta-hairline);
+  border-radius: 12px;
+  background-color: transparent;
+  background-image: none;
+  transition: border-color 0.18s, background-color 0.18s;
+}
+
+.VPFeature.link:hover {
+  border-color: var(--wta-hairline-strong);
+  background-color: var(--wta-surface-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.VPFeature .box {
+  padding: 22px 22px 20px;
+}
+
+.VPFeature .icon {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border: 1px solid var(--wta-hairline);
+  border-radius: 8px;
+  background-color: transparent;
+  background-image: none;
+  font-size: 0;
+}
+
+.VPFeature .icon svg {
+  width: 17px;
+  height: 17px;
+  color: var(--vp-c-text-2);
+}
+
+.VPFeature .title {
+  margin-bottom: 8px;
+  padding-top: 0;
+  border-top: none;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  line-height: 1.35;
+}
+
+.VPFeature .details {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
+}
+
 .wta-home {
   max-width: 1152px;
   margin: 0 auto;
-  padding: 8px 0 48px;
+  padding: 8px 0 56px;
 }
 
 .wta-home h2 {
-  margin-top: 56px;
-  margin-bottom: 20px;
+  margin-top: 72px;
+  margin-bottom: 24px;
   padding-top: 0;
   border-top: none;
-  font-size: 28px;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--vp-c-text-1);
 }
 
-/* Three-step getting started: numbered cards in a responsive row. */
 .wta-steps {
   counter-reset: wta-step;
 }
@@ -71,10 +225,14 @@
 .wta-steps ol {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 1px;
   margin: 0;
   padding: 0;
   list-style: none;
+  border: 1px solid var(--wta-hairline);
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--wta-hairline);
 }
 
 @media (max-width: 959px) {
@@ -86,41 +244,33 @@
 .wta-steps li {
   counter-increment: wta-step;
   position: relative;
-  padding: 20px 20px 16px 62px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background-color: var(--vp-c-bg-soft);
+  padding: 24px 22px 20px;
+  background-color: var(--vp-c-bg);
 }
 
 .wta-steps li::before {
-  content: counter(wta-step);
-  position: absolute;
-  left: 18px;
-  top: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background-color: #171717;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.dark .wta-steps li::before {
-  background-color: #2e2e2e;
+  content: "0" counter(wta-step);
+  display: block;
+  margin-bottom: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--vp-c-text-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .wta-steps li p {
   margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
 }
 
 .wta-steps li p:last-child {
   margin-bottom: 0;
-  color: var(--vp-c-text-2);
+  font-weight: 400;
   font-size: 14px;
+  line-height: 1.6;
+  color: var(--vp-c-text-2);
 }
 
 .wta-steps li a {
@@ -128,11 +278,14 @@
   text-decoration: none;
 }
 
-/* Tile grids: app types and toolbox, mirroring the features card language. */
 .wta-types {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  gap: 1px;
+  border: 1px solid var(--wta-hairline);
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--wta-hairline);
 }
 
 @media (max-width: 959px) {
@@ -148,41 +301,44 @@
 }
 
 .wta-types > div {
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background-color: var(--vp-c-bg-soft);
-  padding: 16px 20px;
-  transition: border-color 0.25s, background-color 0.25s;
+  padding: 20px 22px;
+  background-color: var(--vp-c-bg);
+  transition: background-color 0.18s;
 }
 
 .wta-types > div:hover {
-  border-color: var(--vp-c-text-1);
+  background-color: var(--wta-surface-hover);
 }
 
 .wta-types p {
   margin: 0;
-  padding: 4px 0;
-  line-height: 1.7;
+  padding: 0;
   font-size: 14px;
+  line-height: 1.6;
   color: var(--vp-c-text-2);
 }
 
 .wta-types p > a {
   color: var(--vp-c-text-1);
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
-  transition: color 0.25s;
+  transition: color 0.18s;
 }
 
 .wta-types p > a:hover {
-  color: var(--vp-c-brand-1);
+  color: var(--vp-c-text-1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-/* Stat strip: number + label pairs in a flat row. */
 .wta-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
+  gap: 1px;
+  border: 1px solid var(--wta-hairline);
+  border-radius: 12px;
+  overflow: hidden;
+  background-color: var(--wta-hairline);
 }
 
 @media (max-width: 767px) {
@@ -194,155 +350,122 @@
 .wta-stat {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 24px 12px;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 12px;
-  background-color: var(--vp-c-bg-soft);
+  padding: 24px 22px;
+  background-color: var(--vp-c-bg);
 }
 
 .wta-stat b {
-  font-size: 32px;
+  font-size: 34px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
   color: var(--vp-c-text-1);
 }
 
 .wta-stat span {
-  margin-top: 4px;
+  margin-top: 8px;
   font-size: 13px;
-  color: var(--vp-c-text-2);
+  color: var(--vp-c-text-3);
 }
 
-/* Closing call-to-action. */
 .wta-cta {
-  margin-top: 56px;
-  padding: 32px 24px;
+  margin-top: 64px;
+  padding: 40px 24px;
   text-align: center;
-  border: 1px solid var(--vp-c-divider);
+  border: 1px solid var(--wta-hairline);
   border-radius: 12px;
-  background-color: var(--vp-c-bg-soft);
+  background-color: transparent;
+  background-image: none;
 }
 
 .wta-cta p {
-  margin: 0 0 16px;
-  font-size: 18px;
+  margin: 0 0 20px;
+  font-size: 22px;
   font-weight: 600;
+  letter-spacing: -0.022em;
   color: var(--vp-c-text-1);
 }
 
 .wta-cta a {
   display: inline-block;
-  padding: 6px 20px;
-  border-radius: 20px;
-  background-color: #171717;
-  color: #ffffff !important;
+  padding: 9px 20px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background-color: var(--wta-ink);
+  background-image: none;
+  color: var(--wta-ink-inverse) !important;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 500;
   text-decoration: none;
-  transition: background-color 0.25s;
+  box-shadow: none;
+  transition: opacity 0.18s;
 }
 
 .wta-cta a:hover {
-  background-color: #262626;
+  opacity: 0.88;
 }
 
-.dark .wta-cta a {
-  background-color: #2e2e2e;
-}
-
-.dark .wta-cta a:hover {
-  background-color: #3a3a3a;
-}
-
-/* Feature cards: calmer hover that matches the flat look. */
-.VPFeature.link:hover {
-  border-color: var(--vp-c-text-1);
-}
-
-/*
- * Hero download button, rendered through the home-hero-actions-after slot.
- * Shares the black-pill grammar of the brand buttons above.
- */
 .wta-release {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 8px 12px;
-  margin-top: 20px;
-}
-
-/*
- * On homepages the LatestRelease slot follows the hero actions container in
- * the same inline formatting context. Because the shrink-to-fit .main column
- * is narrower than buttons + pill together, the pill usually wraps to its
- * own row right below the actions (it stays inline when they do fit);
- * margin-top minus .actions' -6px bottom margin leaves a small gutter there.
- * The pill must be inline-flex, not inline: an inline box's line box is
- * sized by font metrics, so the 40px button bleeds above it into the actions
- * row — that was the overlap bug. Baseline alignment keeps the pill's text
- * on the buttons' text baseline when they share a row. Row alignment
- * (centered below 960px, left above) follows .container's text-align,
- * matching how VitePress aligns the actions row itself.
- */
-.VPHero .actions {
-  display: inline-flex;
+  gap: 4px 14px;
+  margin-top: 18px;
 }
 
 .VPHero .wta-release {
   display: inline-flex;
-  vertical-align: baseline;
-  margin-top: 12px;
+  justify-content: flex-start;
+  margin-top: 14px;
 }
 
 .wta-release-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 20px;
-  line-height: 38px;
-  border: 1px solid transparent;
-  border-radius: 20px;
-  background-color: #171717;
-  color: #ffffff;
-  font-size: 14px;
-  font-weight: 600;
+  gap: 7px;
+  padding: 0;
+  line-height: 22px;
+  border: none;
+  border-radius: 0;
+  background-color: transparent;
+  color: var(--vp-c-text-2);
+  font-size: 13.5px;
+  font-weight: 500;
   white-space: nowrap;
   text-decoration: none;
-  transition: background-color 0.25s;
+  transition: color 0.18s;
 }
 
 .wta-release-btn:hover {
-  background-color: #262626;
+  color: var(--vp-c-text-1);
 }
 
-.dark .wta-release-btn {
-  background-color: #2e2e2e;
-}
-
-.dark .wta-release-btn:hover {
-  background-color: #3a3a3a;
+.wta-release-btn span {
+  text-decoration: underline;
+  text-decoration-color: var(--wta-hairline-strong);
+  text-underline-offset: 4px;
 }
 
 .wta-release-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   flex-shrink: 0;
 }
 
 .wta-release-meta {
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--vp-c-text-3);
 }
 
-/* Install-download block for guide pages. */
 .wta-install {
   margin: 16px 0;
-  padding: 20px 24px;
-  border: 1px solid var(--vp-c-divider);
+  padding: 20px 22px;
+  border: 1px solid var(--wta-hairline);
   border-radius: 12px;
-  background-color: var(--vp-c-bg-soft);
+  background-color: transparent;
+  background-image: none;
 }
 
 .wta-install p {
@@ -361,4 +484,52 @@
 .wta-install .wta-release {
   justify-content: flex-start;
   margin-top: 4px;
+}
+
+@media (max-width: 959px) {
+  .VPHero {
+    padding-top: 64px;
+    padding-bottom: 48px;
+  }
+
+  .VPHero .text {
+    max-width: none;
+  }
+
+  .VPHero .tagline {
+    max-width: none;
+  }
+
+  .VPHero .actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .VPHero .wta-release {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 639px) {
+  .VPHero .image-container .VPImage {
+    width: 120px;
+    height: 120px;
+  }
+
+  .VPHero .actions {
+    flex-direction: column;
+    align-items: stretch;
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  #app .VPHero .actions .VPButton {
+    width: 100%;
+    text-align: center;
+  }
+
+  .wta-release-meta {
+    display: none;
+  }
 }

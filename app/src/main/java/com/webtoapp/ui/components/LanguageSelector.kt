@@ -11,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Language
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,8 +26,26 @@ import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.AppLanguage
 import com.webtoapp.core.i18n.LanguageManager
 import com.webtoapp.core.i18n.Strings
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaFadeIn
+import com.webtoapp.ui.design.WtaFadeOut
+import com.webtoapp.ui.design.WtaRadius
+import com.webtoapp.ui.design.WtaIconPlate
 import com.webtoapp.util.isRunningOnTv
 import kotlinx.coroutines.launch
+
+private fun AppLanguage.monogram(): String = when (this) {
+    AppLanguage.CHINESE -> "中"
+    AppLanguage.ENGLISH -> "En"
+    AppLanguage.ARABIC -> "ع"
+    AppLanguage.PORTUGUESE -> "Pt"
+    AppLanguage.SPANISH -> "Es"
+    AppLanguage.FRENCH -> "Fr"
+    AppLanguage.GERMAN -> "De"
+    AppLanguage.RUSSIAN -> "Ру"
+    AppLanguage.JAPANESE -> "あ"
+    AppLanguage.KOREAN -> "한"
+}
 
 @Composable
 private fun LanguageDisplayNameWithBadge(
@@ -62,7 +81,8 @@ private fun LanguageDisplayNameWithBadge(
 
 @Composable
 fun LanguageSelectorButton(
-    onLanguageChanged: () -> Unit = {}
+    onLanguageChanged: () -> Unit = {},
+    buttonSize: androidx.compose.ui.unit.Dp = 44.dp
 ) {
     val context = LocalContext.current
     val languageManager = remember { LanguageManager.getInstance(context) }
@@ -73,7 +93,7 @@ fun LanguageSelectorButton(
 
     IconButton(
         onClick = { showDialog = true },
-        modifier = Modifier.size(44.dp)
+        modifier = Modifier.size(buttonSize)
     ) {
         Icon(
             imageVector = Icons.Outlined.Language,
@@ -107,15 +127,11 @@ fun LanguageSelectionDialog(
     val scrollState = rememberScrollState()
     val maxListHeight = (LocalConfiguration.current.screenHeightDp * 0.55f).dp
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = Strings.languageSettings,
-                style = MaterialTheme.typography.titleLarge
-            )
-        },
-        text = {
+        icon = Icons.Rounded.Translate,
+        title = Strings.languageSettings,
+        content = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,10 +139,11 @@ fun LanguageSelectionDialog(
                     .verticalScroll(scrollState),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                AppLanguage.entries.forEach { language ->
+                AppLanguage.entries.forEachIndexed { index, language ->
                     LanguageOption(
                         language = language,
                         isSelected = language == currentLanguage,
+                        shapeIndex = index,
                         onClick = { onLanguageSelected(language) }
                     )
                 }
@@ -140,68 +157,111 @@ fun LanguageSelectionDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun LanguageOption(
     language: AppLanguage,
     isSelected: Boolean,
+    shapeIndex: Int,
     onClick: () -> Unit
 ) {
+    val colors = MaterialTheme.colorScheme
+    val badgeContainer: androidx.compose.ui.graphics.Color
+    val badgeOn: androidx.compose.ui.graphics.Color
+    when (shapeIndex % 3) {
+        0 -> {
+            badgeContainer = colors.primaryContainer
+            badgeOn = colors.onPrimaryContainer
+        }
+        1 -> {
+            badgeContainer = colors.secondaryContainer
+            badgeOn = colors.onSecondaryContainer
+        }
+        else -> {
+            badgeContainer = colors.tertiaryContainer
+            badgeOn = colors.onTertiaryContainer
+        }
+    }
     Card(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(WtaRadius.Card),
         colors = CardDefaults.cardColors(
             containerColor = if (isSelected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+                colors.primaryContainer
             } else {
-                MaterialTheme.colorScheme.surface
+                colors.surfaceContainerLow
             }
-        ),
-        border = androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = if (isSelected) MaterialTheme.colorScheme.primary
-            else MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            WtaIconPlate(
+                containerColor = badgeContainer,
+                modifier = Modifier.size(38.dp)
+            ) {
+                Text(
+                    text = language.monogram(),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = badgeOn
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = language.nativeName,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
+                    style = if (isSelected) {
+                        MaterialTheme.typography.titleMediumEmphasized
                     } else {
-                        MaterialTheme.colorScheme.onSurface
+                        MaterialTheme.typography.titleMedium
+                    },
+                    color = if (isSelected) {
+                        colors.onPrimaryContainer
+                    } else {
+                        colors.onSurface
                     }
                 )
                 LanguageDisplayNameWithBadge(language = language, isSelected = isSelected)
             }
-
-            androidx.compose.animation.AnimatedVisibility(
-                visible = isSelected,
-                enter = androidx.compose.animation.fadeIn() +
-                    androidx.compose.animation.scaleIn(initialScale = 0.6f),
-                exit = androidx.compose.animation.fadeOut()
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier.size(28.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = isSelected,
+                    enter = WtaFadeIn +
+                        androidx.compose.animation.scaleIn(initialScale = 0.5f),
+                    exit = WtaFadeOut +
+                        androidx.compose.animation.scaleOut(targetScale = 0.5f)
                 ) {
-                    Icon(
-                        Icons.Default.Check,
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onPrimary
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(colors.primary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = colors.onPrimary
+                        )
+                    }
+                }
+                if (!isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(22.dp)
+                            .clip(CircleShape)
+                            .background(colors.surfaceContainerHighest)
                     )
                 }
             }
@@ -424,9 +484,9 @@ private fun FirstLaunchLanguageOption(
 
             androidx.compose.animation.AnimatedVisibility(
                 visible = isSelected,
-                enter = androidx.compose.animation.fadeIn() +
+                enter = WtaFadeIn +
                     androidx.compose.animation.scaleIn(initialScale = 0.6f),
-                exit = androidx.compose.animation.fadeOut()
+                exit = WtaFadeOut
             ) {
                 Box(
                     modifier = Modifier
@@ -527,7 +587,12 @@ fun LanguageSettingsCard(
                             },
                             leadingIcon = {
                                 if (language == currentLanguage) {
-                                    RadioButton(selected = true, onClick = null)
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
                                 }
                             }
                         )

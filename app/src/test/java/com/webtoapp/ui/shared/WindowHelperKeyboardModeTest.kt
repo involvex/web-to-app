@@ -4,6 +4,9 @@ import android.app.Activity
 import android.graphics.Color
 import android.view.View
 import android.view.WindowManager
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.common.truth.Truth.assertThat
 import com.webtoapp.data.model.KeyboardAdjustMode
 import org.junit.Test
@@ -222,5 +225,50 @@ class WindowHelperKeyboardModeApi30Test {
         )
 
         assertThat(WindowHelper.isClassicSystemBarsWindow(activity)).isFalse()
+    }
+
+    @Test
+    fun `resize mode gives the keyboard height back to the content view`() {
+        val activity = Robolectric.setupActivity(Activity::class.java)
+        WindowHelper.applyImmersiveFullscreen(
+            activity,
+            enabled = false,
+            keyboardAdjustMode = KeyboardAdjustMode.RESIZE
+        )
+        val contentView = activity.findViewById<View>(android.R.id.content)
+        val shown = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 320))
+            .build()
+
+        ViewCompat.dispatchApplyWindowInsets(contentView, shown)
+        assertThat(contentView.paddingBottom).isEqualTo(320)
+
+        ViewCompat.dispatchApplyWindowInsets(contentView, WindowInsetsCompat.Builder().build())
+        assertThat(contentView.paddingBottom).isEqualTo(0)
+    }
+
+    @Test
+    fun `overlay mode leaves the IME inset for compose panels`() {
+        val activity = Robolectric.setupActivity(Activity::class.java)
+        WindowHelper.applyImmersiveFullscreen(
+            activity,
+            enabled = false,
+            keyboardAdjustMode = KeyboardAdjustMode.NOTHING
+        )
+        val contentView = activity.findViewById<View>(android.R.id.content)
+        val shown = WindowInsetsCompat.Builder()
+            .setInsets(WindowInsetsCompat.Type.ime(), Insets.of(0, 0, 0, 320))
+            .build()
+
+        val result = ViewCompat.dispatchApplyWindowInsets(contentView, shown)
+        assertThat(contentView.paddingBottom).isEqualTo(0)
+        assertThat(result.getInsets(WindowInsetsCompat.Type.ime()).bottom).isEqualTo(320)
+    }
+
+    @Test
+    fun `host input panels own the IME padding when the window does not resize`() {
+        assertThat(needsPanelImePadding(KeyboardAdjustMode.NOTHING)).isTrue()
+        assertThat(needsPanelImePadding(null)).isTrue()
+        assertThat(needsPanelImePadding(KeyboardAdjustMode.RESIZE)).isFalse()
     }
 }

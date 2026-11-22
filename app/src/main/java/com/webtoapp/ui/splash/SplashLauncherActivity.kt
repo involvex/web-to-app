@@ -35,6 +35,7 @@ import com.webtoapp.data.model.SplashConfig
 import com.webtoapp.data.model.SplashOrientation
 import com.webtoapp.data.model.SplashType
 import com.webtoapp.ui.components.announcement.toUiTemplate
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.theme.WebToAppTheme
 import com.webtoapp.util.normalizeExternalIntentUrl
 import kotlinx.coroutines.delay
@@ -154,7 +155,11 @@ fun SplashLauncherScreen(
                         deliverUrl = remoteConfig.deliverUrl,
                         encryptUrl = remoteConfig.encryptUrl,
                         aesKeyBase64 = remoteConfig.aesKeyBase64,
-                        deviceBound = remoteConfig.deviceBound
+                        deviceBound = remoteConfig.deviceBound,
+                        trustMode = remoteConfig.trustMode,
+                        pinnedCertificate = remoteConfig.pinnedCertificate,
+                        pinnedCertHost = remoteConfig.pinnedCertHost,
+                        packageName = payload.targetPackage
                     ),
                     reverifyEveryLaunch = activationRequireEveryTime
                 )
@@ -287,7 +292,7 @@ fun SplashLauncherScreen(
         if (!showActivationDialog && !showAnnouncementDialog && !showSplash &&
             remainingDaysNotice == null && isActivated
         ) {
-            CircularProgressIndicator(color = Color.White)
+            WtaLoadingIndicator(color = Color.White)
         }
     }
 
@@ -307,7 +312,11 @@ fun SplashLauncherScreen(
                             deliverUrl = remoteConfig.deliverUrl,
                             encryptUrl = remoteConfig.encryptUrl,
                             aesKeyBase64 = remoteConfig.aesKeyBase64,
-                            deviceBound = remoteConfig.deviceBound
+                            deviceBound = remoteConfig.deviceBound,
+                            trustMode = remoteConfig.trustMode,
+                            pinnedCertificate = remoteConfig.pinnedCertificate,
+                            pinnedCertHost = remoteConfig.pinnedCertHost,
+                            packageName = payload.targetPackage
                         )
                     )
                 } else {

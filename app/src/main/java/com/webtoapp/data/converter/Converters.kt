@@ -14,7 +14,6 @@ import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonToken
 import com.google.gson.stream.JsonWriter
 import com.webtoapp.data.model.ActivationDialogConfig
-import com.webtoapp.data.model.AdConfig
 import com.webtoapp.data.model.Announcement
 import com.webtoapp.data.model.ApkExportConfig
 import com.webtoapp.data.model.AppType
@@ -192,12 +191,6 @@ class Converters {
     }
 
     @TypeConverter
-    fun fromAdConfig(value: AdConfig?): String = toJson(value)
-
-    @TypeConverter
-    fun toAdConfig(value: String): AdConfig? = fromJson(value)
-
-    @TypeConverter
     fun fromAnnouncement(value: Announcement?): String = toJson(value)
 
     @TypeConverter
@@ -303,7 +296,10 @@ class Converters {
     fun fromRemoteActivationConfig(value: com.webtoapp.data.model.RemoteActivationConfig?): String = toJson(value)
 
     @TypeConverter
-    fun toRemoteActivationConfig(value: String): com.webtoapp.data.model.RemoteActivationConfig? = fromJson(value)
+    fun toRemoteActivationConfig(value: String): com.webtoapp.data.model.RemoteActivationConfig? {
+        if (value.isBlank() || value.trim() == "null") return null
+        return fromJsonOrDefault(value, com.webtoapp.data.model.RemoteActivationConfig())
+    }
 
     @TypeConverter
     fun fromAutoStartConfig(value: AutoStartConfig?): String = toJson(value)

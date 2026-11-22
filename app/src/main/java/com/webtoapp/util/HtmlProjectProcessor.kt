@@ -30,6 +30,8 @@ object HtmlProjectProcessor {
     // Left-over comment markers from a previous inline pass.
     private val inlinedMarkerCommentRegex = Regex("""<!-- (CSS|JS) inlined -->\s*""", RegexOption.IGNORE_CASE)
     private val charsetRegex = Regex("""charset=["']?([^"'\s>]+)""", RegexOption.IGNORE_CASE)
+    private val metaCharsetTagRegex = Regex("""<meta\s+charset\s*=\s*(["']?)[^"'\s>]+\1""", RegexOption.IGNORE_CASE)
+    private val httpEquivCharsetRegex = Regex("""(<meta[^>]*content\s*=\s*["'][^"']*?)charset=[^"'\s;>]+(["'])""", RegexOption.IGNORE_CASE)
     private val referenceSchemeRegex = Regex("""^[a-z][a-z0-9+.-]*:""", RegexOption.IGNORE_CASE)
     private val dynamicReferenceMarkers = listOf("${'$'}{", "{{", "}}", "<%", "%>", "||", "&&")
 
@@ -41,6 +43,11 @@ object HtmlProjectProcessor {
     private val closeHtmlRegex = Regex("</html>", RegexOption.IGNORE_CASE)
 
     private val openHeadRegex = Regex("<head>", RegexOption.IGNORE_CASE)
+
+    private val legacyInjectedViewportRegex = Regex(
+        """<meta\s+name\s*=\s*["']viewport["']\s+content\s*=\s*["']width=device-width,\s*initial-scale=1\.0,\s*maximum-scale=1\.0,\s*user-scalable=no["']\s*/?>""",
+        RegexOption.IGNORE_CASE
+    )
 
     data class ProjectAnalysis(
         val htmlFiles: List<FileInfo>,
@@ -255,10 +262,27 @@ object HtmlProjectProcessor {
             result = inlineJs(result, jsContent)
         }
 
+        result = legacyInjectedViewportRegex.replace(result, """<meta name="viewport" content="width=device-width, initial-scale=1.0">""")
+
         if (!result.contains("viewport", ignoreCase = true)) {
             result = addViewportMeta(result)
         }
 
+        result = rewriteCharsetDeclaration(result)
+
+        return result
+    }
+
+    fun rewriteCharsetDeclaration(html: String): String {
+        var result = metaCharsetTagRegex.replace(html) { match ->
+            val quote = match.groupValues[1]
+            "<meta charset=${quote}utf-8${quote}"
+        }
+        result = httpEquivCharsetRegex.replace(result) { match ->
+            val prefix = match.groupValues[1]
+            val quote = match.groupValues[2]
+            "${prefix}charset=utf-8${quote}"
+        }
         return result
     }
 
@@ -390,7 +414,7 @@ $trimmed
     }
 
     private fun addViewportMeta(html: String): String {
-        val viewportMeta = """<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">"""
+        val viewportMeta = """<meta name="viewport" content="width=device-width, initial-scale=1.0">"""
 
         return when {
             html.contains("<head>", ignoreCase = true) -> {
@@ -518,7 +542,8 @@ $trimmed
 
     fun readFileWithEncoding(file: File, encoding: String?): String {
         return try {
-            val charset = when (encoding?.uppercase()) {
+            val resolved = encoding ?: detectEncoding(file)
+            val charset = when (resolved?.uppercase()) {
                 "UTF-8", "UTF8" -> Charsets.UTF_8
                 "GBK", "GB2312", "GB18030" -> Charset.forName("GBK")
                 "UTF-16", "UTF-16BE" -> Charsets.UTF_16BE

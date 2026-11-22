@@ -26,6 +26,7 @@ import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.theme.ShellTheme
 import com.webtoapp.core.webview.BackgroundMediaRuntime
 import com.webtoapp.core.webview.TranslateBridge
+import com.webtoapp.data.model.DisplayCutoutMode
 import com.webtoapp.data.model.KeyboardAdjustMode
 import com.webtoapp.data.model.withNotificationPolyfill
 import com.webtoapp.core.floatingwindow.FloatingWindowService
@@ -86,6 +87,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
     private var topTabBarColor: String? = null
     private var pageBottomAutoColor: String? = null
     private var keyboardAdjustMode: KeyboardAdjustMode = KeyboardAdjustMode.RESIZE
+    private var displayCutoutMode: DisplayCutoutMode = DisplayCutoutMode.SHORT_EDGES
 
     private var pendingFloatingWindowLaunch = false
     private var notificationPolyfillEnabled = false
@@ -111,11 +113,6 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
     private var webViewStateBundle: Bundle? = null
     private var shellConfig: com.webtoapp.core.shell.ShellConfig? = null
-
-    // Optional admob feature stack (issue #1115) — null unless the build
-    // config enables ads AND the stack DEX was grafted into this APK.
-    private var adManager: com.webtoapp.core.ads.AdManager? = null
-    private var bannerContainer: android.widget.FrameLayout? = null
 
     /**
      * External-pointer normalizer (#1031): feeds the touch stream so a quirky
@@ -227,6 +224,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
             statusBarDarkIcons = resolvedStatusIcons(systemDark),
             statusBarBgType = if (systemDark) statusBarBackgroundTypeDark else statusBarBackgroundType,
             keyboardAdjustMode = keyboardAdjustMode,
+            displayCutoutMode = displayCutoutMode,
             tag = "ShellActivity"
         )
         // showNavigationBarInFullscreen only applies while fullscreen is on.
@@ -573,13 +571,12 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
 
         com.webtoapp.core.shell.ShellLogger.i("ShellActivity", "配置加载成功: ${config.appName}")
         shellConfig = config
-        // Before AdMob or anything else that can spin up a WebView. Once the
-        // provider is live, the on-disk profile can no longer be deleted.
+        // Before anything that can spin up a WebView. Once the provider is
+        // live, the on-disk profile can no longer be deleted.
         clearBrowsingDataOnLaunch = config.webViewConfig.clearBrowsingDataOnLaunch
         if (clearBrowsingDataOnLaunch) {
             resetFreshBrowsingSession()
         }
-        initAdStack(config)
         notificationPolyfillEnabled = config.webViewConfig.enableNotificationPolyfill
         backgroundMedia.enabled = config.webViewConfig.backgroundMediaPlayback
         com.webtoapp.core.engine.GeckoViewEngine.applyEnterpriseRootsEnabled(
@@ -647,6 +644,12 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         } catch (e: Exception) {
             com.webtoapp.core.shell.ShellLogger.w("ShellActivity", "键盘调整模式解析失败: ${config.webViewConfig.keyboardAdjustMode}, 使用默认值 RESIZE")
             KeyboardAdjustMode.RESIZE
+        }
+
+        displayCutoutMode = try {
+            DisplayCutoutMode.valueOf(config.webViewConfig.displayCutoutMode)
+        } catch (e: Exception) {
+            DisplayCutoutMode.SHORT_EDGES
         }
 
         shareReceiveMimeTypes = buildList {
@@ -895,8 +898,10 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
                             backgroundMedia.bind(mediaBridge)
                         }
 
-                        if (config.webViewConfig.enableNativeBridge) {
-                            val capabilities = com.webtoapp.data.model.NativeBridgeCapabilities(
+                        if (config.webViewConfig.enableNativeBridge || config.webViewConfig.enableNotificationPolyfill) {
+                            val capabilities = if (!config.webViewConfig.enableNativeBridge) {
+                                com.webtoapp.data.model.notificationPolyfillOnlyCapabilities()
+                            } else com.webtoapp.data.model.NativeBridgeCapabilities(
                                 clipboard = config.webViewConfig.nativeBridgeClipboard,
                                 vibration = config.webViewConfig.nativeBridgeVibration,
                                 geolocation = config.webViewConfig.nativeBridgeGeolocation,
@@ -1117,16 +1122,10 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
             backgroundMedia.onFocusLost(!isFinishing && !isChangingConfigurations)
         }
         if (hasFocus) {
-            if (customView != null || immersiveFullscreenEnabled) {
+            if (customView != null) {
                 applyImmersiveFullscreen(true, isDarkTheme = isSystemInDarkMode())
             } else {
-                val systemDark = isSystemInDarkMode()
-                val effectiveColorMode = if (systemDark) statusBarColorModeDark else statusBarColorMode
-                val effectiveCustomColor = if (systemDark) statusBarCustomColorDark else statusBarCustomColor
-                val effectiveDarkIcons = if (systemDark) statusBarDarkIconsDark else statusBarDarkIcons
-                val effectiveAlpha = if (systemDark) statusBarBackgroundAlphaDark else statusBarBackgroundAlpha
-                applyStatusBarColor(effectiveColorMode, effectiveCustomColor, effectiveDarkIcons, systemDark, effectiveAlpha)
-                applyPageEdgeNavigation(systemDark)
+                refreshStatusBarAppearance()
             }
         }
     }
@@ -1459,54 +1458,7 @@ class ShellActivity : AppCompatActivity(), com.webtoapp.core.webview.ScreenCaptu
         geckoMediaAdapter = null
         shellNativeBridge?.runCatching { release() }
         shellNativeBridge = null
-        adManager?.destroy()
-        adManager = null
         super.onDestroy()
-    }
-
-    /**
-     * Ad feature stack (issue #1115): initialized only when the exported config
-     * enables ads. When the stack DEX was not grafted into this APK, [AdManager]
-     * resolves no implementation and every call no-ops. The banner docks to the
-     * bottom via a decor-level container; the splash app-open ad runs inside its
-     * own activity, so neither touches the Compose tree.
-     */
-    private fun initAdStack(config: com.webtoapp.core.shell.ShellConfig) {
-        if (!config.adsEnabled) return
-        val manager = com.webtoapp.core.ads.AdManager(this).apply {
-            initialize(
-                com.webtoapp.data.model.AdConfig(
-                    appId = config.adAppId,
-                    bannerEnabled = config.adBannerEnabled,
-                    bannerId = config.adBannerId,
-                    interstitialEnabled = config.adInterstitialEnabled,
-                    interstitialId = config.adInterstitialId,
-                    splashEnabled = config.adSplashEnabled,
-                    splashId = config.adSplashId,
-                    testMode = config.adTestMode
-                )
-            )
-        }
-        adManager = manager
-
-        if (config.adBannerEnabled) {
-            val container = android.widget.FrameLayout(this)
-            bannerContainer = container
-            addContentView(
-                container,
-                android.widget.FrameLayout.LayoutParams(
-                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
-                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-                    android.view.Gravity.BOTTOM
-                )
-            )
-            manager.showBannerAd(container)
-        }
-
-        if (config.adSplashEnabled) {
-            val content = findViewById<ViewGroup>(android.R.id.content)
-            manager.showSplashAd(this, content, onFinished = {}, onSkipped = {})
-        }
     }
 
     private fun showPasswordDialog() {

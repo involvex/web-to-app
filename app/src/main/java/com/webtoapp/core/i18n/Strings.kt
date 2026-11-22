@@ -47,11 +47,8 @@ object Strings {
             return _currentLanguage.value
         }
 
-    val appTitle: String get() = StringsA.appTitle
     val translationInProgressBadge: String get() = StringsA.translationInProgressBadge
-    val typewriterText1: String get() = StringsA.typewriterText1
-    val typewriterText2: String get() = StringsA.typewriterText2
-    val typewriterText3: String get() = StringsA.typewriterText3
+
     val myApps: String get() = StringsA.myApps
     val createApp: String get() = StringsA.createApp
     val search: String get() = StringsA.search
@@ -62,12 +59,6 @@ object Strings {
     val menuAppModifier: String get() = StringsA.menuAppModifier
     val menuExtensionModules: String get() = StringsE.pluginsManageTitle
     val menuAbout: String get() = StringsA.menuAbout
-    val tabMore: String get() = StringsA.tabMore
-    val moreSectionAiTools: String get() = StringsA.moreSectionAiTools
-    val moreSectionDevTools: String get() = StringsA.moreSectionDevTools
-    val moreSectionBrowser: String get() = StringsA.moreSectionBrowser
-    val moreSectionAppearance: String get() = StringsA.moreSectionAppearance
-    val moreSectionGeneral: String get() = StringsA.moreSectionGeneral
     val rememberCategoryFilter: String get() = StringsA.rememberCategoryFilter
     val rememberCategoryFilterDesc: String get() = StringsA.rememberCategoryFilterDesc
     val menuStats: String get() = StringsA.menuStats
@@ -75,8 +66,7 @@ object Strings {
     val statsTotalLaunches: String get() = StringsA.statsTotalLaunches
     val statsTotalUsage: String get() = StringsA.statsTotalUsage
     val statsActiveApps: String get() = StringsA.statsActiveApps
-    val statsMostUsed: String get() = StringsA.statsMostUsed
-    val statsMostTime: String get() = StringsA.statsMostTime
+
     val statsLaunches: String get() = StringsA.statsLaunches
     val statsNoData: String get() = StringsA.statsNoData
     val statsSubtitle: String get() = StringsA.statsSubtitle
@@ -86,7 +76,7 @@ object Strings {
     val statsSortRecent: String get() = StringsA.statsSortRecent
     val statsRankings: String get() = StringsA.statsRankings
     val statsAvgSession: String get() = StringsA.statsAvgSession
-    val statsLastSession: String get() = StringsA.statsLastSession
+
     val statsClearAll: String get() = StringsA.statsClearAll
     val statsClearConfirm: String get() = StringsA.statsClearConfirm
     val statsCleared: String get() = StringsA.statsCleared
@@ -109,7 +99,7 @@ object Strings {
     val healthUnknown: String get() = StringsA.healthUnknown
     val healthCheckNow: String get() = StringsA.healthCheckNow
     val healthResponseTime: String get() = StringsA.healthResponseTime
-    val healthUptime24h: String get() = StringsA.healthUptime24h
+
     val menuLinuxEnvironment: String get() = StringsA.menuLinuxEnvironment
     val createMediaApp: String get() = StringsA.createMediaApp
     val createHtmlApp: String get() = StringsA.createHtmlApp
@@ -137,11 +127,19 @@ object Strings {
     val multiWebCardColumnsHint: String get() = StringsA.multiWebCardColumnsHint
     val multiWebDrawerColumns: String get() = StringsA.multiWebDrawerColumns
     val multiWebDrawerColumnsHint: String get() = StringsA.multiWebDrawerColumnsHint
+    val multiWebDrawerEntry: String get() = StringsA.multiWebDrawerEntry
+    val multiWebDrawerEntryFab: String get() = StringsA.multiWebDrawerEntryFab
+    val multiWebDrawerEntryBar: String get() = StringsA.multiWebDrawerEntryBar
+    val multiWebFabAnchor: String get() = StringsA.multiWebFabAnchor
+    val multiWebFabTopEnd: String get() = StringsA.multiWebFabTopEnd
+    val multiWebFabBottomStart: String get() = StringsA.multiWebFabBottomStart
     val multiWebCardHeight: String get() = StringsA.multiWebCardHeight
     val multiWebCardHeightHint: String get() = StringsA.multiWebCardHeightHint
     val multiWebDragToReorder: String get() = StringsA.multiWebDragToReorder
     val multiWebSitesInheritConfig: String get() = StringsA.multiWebSitesInheritConfig
     val multiWebSitesInheritConfigHint: String get() = StringsA.multiWebSitesInheritConfigHint
+    val multiWebIndependentSessions: String get() = StringsA.multiWebIndependentSessions
+    val multiWebIndependentSessionsHint: String get() = StringsA.multiWebIndependentSessionsHint
     val multiWebStartTab: String get() = StringsA.multiWebStartTab
     val multiWebStartTabHint: String get() = StringsA.multiWebStartTabHint
     val multiWebStartLast: String get() = StringsA.multiWebStartLast
@@ -241,7 +239,7 @@ object Strings {
     val previewValueDefault: String get() = StringsA.previewValueDefault
     val previewValueUnknown: String get() = StringsA.previewValueUnknown
     val wpDownloadDeps: String get() = StringsA.wpDownloadDeps
-    val wpDownloadDesc: String get() = StringsA.wpDownloadDesc
+
     val wpMirrorCN: String get() = StringsA.wpMirrorCN
     val wpMirrorGlobal: String get() = StringsA.wpMirrorGlobal
     val wpDownloading: String get() = StringsA.wpDownloading
@@ -251,9 +249,9 @@ object Strings {
     val wpAdminUser: String get() = StringsA.wpAdminUser
     val wpStartingServer: String get() = StringsA.wpStartingServer
     val wpServerError: String get() = StringsA.wpServerError
-    val wpClearCache: String get() = StringsA.wpClearCache
+
     val wpMirrorSource: String get() = StringsA.wpMirrorSource
-    val wpAutoDetect: String get() = StringsA.wpAutoDetect
+
     val wpCheckingDeps: String get() = StringsA.wpCheckingDeps
     val wpCreatingProject: String get() = StringsA.wpCreatingProject
     val wpDownloadFailed: String get() = StringsA.wpDownloadFailed
@@ -269,7 +267,7 @@ object Strings {
     val wpOrCreateNew: String get() = StringsA.wpOrCreateNew
     val wpCreateNewSite: String get() = StringsA.wpCreateNewSite
     val wpCreateNewSiteDesc: String get() = StringsA.wpCreateNewSiteDesc
-    val wpSettings: String get() = StringsA.wpSettings
+
     val wpCacheSize: String get() = StringsA.wpCacheSize
     val wpProjectReady: String get() = StringsA.wpProjectReady
     val njsCreateTitle: String get() = StringsA.njsCreateTitle
@@ -300,10 +298,11 @@ object Strings {
     val njsProjectReady: String get() = StringsA.njsProjectReady
     val btnCreate: String get() = StringsA.btnCreate
     val btnPreview: String get() = StringsA.btnPreview
-    val btnExport: String get() = StringsA.btnExport
+
     val exportAppSource: String get() = StringsA.exportAppSource
     val exportAppSourceFailed: String get() = StringsA.exportAppSourceFailed
     fun sourceBundleReadme(name: String): String = StringsA.sourceBundleReadme(name)
+    val sourceBundleRestoreNote: String get() = StringsA.sourceBundleRestoreNote
     val btnSave: String get() = StringsA.btnSave
     val btnCancel: String get() = StringsA.btnCancel
     val btnImport: String get() = StringsA.btnImport
@@ -329,8 +328,7 @@ object Strings {
     val labelAppInfo: String get() = StringsA.labelAppInfo
     val msgNoApps: String get() = StringsA.msgNoApps
     val msgLanguageChanged: String get() = StringsA.msgLanguageChanged
-    val msgImportSuccess: String get() = StringsA.msgImportSuccess
-    fun moduleImportSuccess(name: String): String = StringsA.moduleImportSuccess(name)
+
     fun moduleImportFailed(message: String): String = StringsA.moduleImportFailed(message)
     val languageSettings: String get() = StringsA.languageSettings
     val sslError: String get() = StringsA.sslError
@@ -389,7 +387,7 @@ object Strings {
     val depSectionRuntimes: String get() = StringsA.depSectionRuntimes
     val depSectionRuntimePlugins: String get() = StringsA.depSectionRuntimePlugins
     val depSectionProjects: String get() = StringsA.depSectionProjects
-    val depSectionDownload: String get() = StringsA.depSectionDownload
+
     val depSectionStorage: String get() = StringsA.depSectionStorage
     val depStatusReady: String get() = StringsA.depStatusReady
     val depStatusNotInstalled: String get() = StringsA.depStatusNotInstalled
@@ -426,20 +424,20 @@ object Strings {
     val depInstall: String get() = StringsA.depInstall
     val depDlPause: String get() = StringsA.depDlPause
     val depDlResume: String get() = StringsA.depDlResume
-    val depDlEta: String get() = StringsA.depDlEta
+
     val depDlPaused: String get() = StringsA.depDlPaused
     val depDlCancel: String get() = StringsA.depDlCancel
     val deleteConfirmTitle: String get() = StringsA.deleteConfirmTitle
     val deleteConfirmMessage: String get() = StringsA.deleteConfirmMessage
     val buildDialogTitle: String get() = StringsA.buildDialogTitle
-    val buildEnvironment: String get() = StringsA.buildEnvironment
+
     val envReady: String get() = StringsA.envReady
     val envNotInstalled: String get() = StringsA.envNotInstalled
     val envDownloading: String get() = StringsA.envDownloading
     val envInstalling: String get() = StringsA.envInstalling
     val canBuildFrontend: String get() = StringsA.canBuildFrontend
     val builtInPackagerReady: String get() = StringsA.builtInPackagerReady
-    val installAdvancedBuildTool: String get() = StringsA.installAdvancedBuildTool
+
     val nodeInstalledNpmMissing: String get() = StringsA.nodeInstalledNpmMissing
     val nodeInstalledNpmMissingHint: String get() = StringsA.nodeInstalledNpmMissingHint
     val preparingBuildEnv: String get() = StringsA.preparingBuildEnv
@@ -516,9 +514,7 @@ object Strings {
     val enableJsHint: String get() = StringsA.enableJsHint
     val enableLocalStorage: String get() = StringsA.enableLocalStorage
     val enableLocalStorageHint: String get() = StringsA.enableLocalStorageHint
-    val localServerToggle: String get() = StringsA.localServerToggle
-    val localServerFileDesc: String get() = StringsA.localServerFileDesc
-    val localServerOnDesc: String get() = StringsA.localServerOnDesc
+
     val htmlLoadModeTitle: String get() = StringsA.htmlLoadModeTitle
     val htmlLoadModeAuto: String get() = StringsA.htmlLoadModeAuto
     val htmlLoadModeFile: String get() = StringsA.htmlLoadModeFile
@@ -535,7 +531,6 @@ object Strings {
     val portDefaultLabel: String get() = StringsA.portDefaultLabel
     val portRangeHint: String get() = StringsA.portRangeHint
     val orientationModeLabel: String get() = StringsA.orientationModeLabel
-    val orientationModeHint: String get() = StringsA.orientationModeHint
     val orientationLandscape: String get() = StringsA.orientationLandscape
     val orientationAuto: String get() = StringsA.orientationAuto
     val orientationAutoHint: String get() = StringsA.orientationAutoHint
@@ -563,7 +558,7 @@ object Strings {
     val screenAwakeAlwaysDesc: String get() = StringsA.screenAwakeAlwaysDesc
     val screenAwakeTimed: String get() = StringsA.screenAwakeTimed
     val screenAwakeTimedDesc: String get() = StringsA.screenAwakeTimedDesc
-    fun screenAwakeTimedStatusDesc(minutes: Int): String = StringsA.screenAwakeTimedStatusDesc(minutes)
+
     val screenAwakeTimeoutLabel: String get() = StringsA.screenAwakeTimeoutLabel
     fun screenAwakeTimeoutValue(minutes: Int): String = StringsA.screenAwakeTimeoutValue(minutes)
     val screenBrightnessLabel: String get() = StringsA.screenBrightnessLabel
@@ -621,13 +616,13 @@ object Strings {
     val activationCodeVerify: String get() = StringsA.activationCodeVerify
     val activationModeLabel: String get() = StringsA.activationModeLabel
     val activationModeLocal: String get() = StringsA.activationModeLocal
-    val activationModeLocalDesc: String get() = StringsA.activationModeLocalDesc
+
     val activationModeRemote: String get() = StringsA.activationModeRemote
-    val activationModeRemoteDesc: String get() = StringsA.activationModeRemoteDesc
+
     val remoteGuideCopyFull: String get() = StringsA.remoteGuideCopyFull
     val remoteGuideSaveDoc: String get() = StringsA.remoteGuideSaveDoc
     val remoteGuideSaved: String get() = StringsA.remoteGuideSaved
-    val activationCodeHint: String get() = StringsA.activationCodeHint
+
     val inputActivationCode: String get() = StringsA.inputActivationCode
     val popupAnnouncement: String get() = StringsA.popupAnnouncement
     val announcementTitle: String get() = StringsA.announcementTitle
@@ -670,35 +665,12 @@ object Strings {
     val runtimePhp: String get() = StringsA.runtimePhp
     val runtimePython: String get() = StringsA.runtimePython
     val runtimeGoBinary: String get() = StringsA.runtimeGoBinary
-    val fabIconFromGallery: String get() = StringsA.fabIconFromGallery
-    val fabIconSelected: String get() = StringsA.fabIconSelected
-    val fabIconPreviewTitle: String get() = StringsA.fabIconPreviewTitle
-    val fabIconPreviewDesc: String get() = StringsA.fabIconPreviewDesc
-    val fabIconCustom: String get() = StringsA.fabIconCustom
-    val fabIconChangeImage: String get() = StringsA.fabIconChangeImage
-    val reselect: String get() = StringsA.reselect
-    val extensionModule: String get() = StringsA.extensionModule
-    val searchModules: String get() = StringsA.searchModules
+
     val all: String get() = StringsA.all
     val builtIn: String get() = StringsA.builtIn
-    val noModulesFound: String get() = StringsA.noModulesFound
-    val noModulesYet: String get() = StringsA.noModulesYet
-    val createFirstModule: String get() = StringsA.createFirstModule
-    val totalModulesLabel: String get() = StringsA.totalModulesLabel
-    val builtInLabel: String get() = StringsA.builtInLabel
-    val customLabel: String get() = StringsA.customLabel
-    val tryDifferentSearch: String get() = StringsA.tryDifferentSearch
-    val createModuleHint: String get() = StringsA.createModuleHint
-    val clearSearch: String get() = StringsA.clearSearch
+
     val importFromFile: String get() = StringsA.importFromFile
-    val selectWtamodFile: String get() = StringsA.selectWtamodFile
-    val importFromQrImage: String get() = StringsA.importFromQrImage
-    val selectQrImageHint: String get() = StringsA.selectQrImageHint
-    val qrCodeNotFound: String get() = StringsA.qrCodeNotFound
-    val imageLoadFailed: String get() = StringsA.imageLoadFailed
-    val requiresSensitivePermissions: String get() = StringsA.requiresSensitivePermissions
-    val manualCreate: String get() = StringsA.manualCreate
-    val createModule: String get() = StringsA.createModule
+
     val followSystem: String get() = StringsA.followSystem
     val alwaysLight: String get() = StringsA.alwaysLight
     val alwaysDark: String get() = StringsA.alwaysDark
@@ -717,7 +689,7 @@ object Strings {
     val updateNewVersionLabel: String get() = StringsA.updateNewVersionLabel
     val updateCurrentVersionLabel: String get() = StringsA.updateCurrentVersionLabel
     val updateDownloadButton: String get() = StringsA.updateDownloadButton
-    val updateDownloadStarted: String get() = StringsA.updateDownloadStarted
+
     val updateInstallReady: String get() = StringsA.updateInstallReady
     val updateDownloading: String get() = StringsA.updateDownloading
     val updateVerifying: String get() = StringsA.updateVerifying
@@ -728,7 +700,7 @@ object Strings {
     val updatePerSec: String get() = StringsA.updatePerSec
     val updateReleaseNotesLabel: String get() = StringsA.updateReleaseNotesLabel
     val updateSizeLabel: String get() = StringsA.updateSizeLabel
-    val updateVerificationFailed: String get() = StringsA.updateVerificationFailed
+
     val versionHistoryTitle: String get() = StringsA.versionHistoryTitle
     val versionHistoryButtonHint: String get() = StringsA.versionHistoryButtonHint
     val versionHistoryLoading: String get() = StringsA.versionHistoryLoading
@@ -750,7 +722,6 @@ object Strings {
     val enabled: String get() = StringsA.enabled
     val enable: String get() = StringsA.enable
     val disable: String get() = StringsA.disable
-    val emptyStateHint: String get() = StringsA.emptyStateHint
     val appIconModifier: String get() = StringsA.appIconModifier
     val searchApps: String get() = StringsA.searchApps
     val userApps: String get() = StringsA.userApps
@@ -799,7 +770,7 @@ object Strings {
     val vipUserOnly: String get() = StringsA.vipUserOnly
     val requireEveryLaunch: String get() = StringsA.requireEveryLaunch
     val customDialogText: String get() = StringsA.customDialogText
-    val customDialogTextHint: String get() = StringsA.customDialogTextHint
+
     val dialogTitle: String get() = StringsA.dialogTitle
     val dialogTitleHint: String get() = StringsA.dialogTitleHint
     val dialogSubtitle: String get() = StringsA.dialogSubtitle
@@ -901,8 +872,7 @@ object Strings {
     val activationTypeTimeLimitedDesc: String get() = StringsA.activationTypeTimeLimitedDesc
     val activationTypeUsageLimited: String get() = StringsA.activationTypeUsageLimited
     val activationTypeUsageLimitedDesc: String get() = StringsA.activationTypeUsageLimitedDesc
-    val activationTypeDeviceBound: String get() = StringsA.activationTypeDeviceBound
-    val activationTypeDeviceBoundDesc: String get() = StringsA.activationTypeDeviceBoundDesc
+
     val activationTypeCombined: String get() = StringsA.activationTypeCombined
     val activationTypeCombinedDesc: String get() = StringsA.activationTypeCombinedDesc
     val activated: String get() = StringsA.activated
@@ -913,21 +883,48 @@ object Strings {
     val expireTime: String get() = StringsA.expireTime
     val remainingUsage: String get() = StringsA.remainingUsage
     val deviceBound: String get() = StringsA.deviceBound
-    val deviceBoundRemoteTip: String get() = StringsA.deviceBoundRemoteTip
+
     val invalidActivationCode: String get() = StringsA.invalidActivationCode
-    val remoteActivationTitle: String get() = StringsA.remoteActivationTitle
-    val activationSectionRemoteEnabled: (String) -> String get() = StringsA.activationSectionRemoteEnabled
-    val activationSectionRemoteDisabled: String get() = StringsA.activationSectionRemoteDisabled
+
     val activationSectionCodes: String get() = StringsA.activationSectionCodes
     val activationSectionCodesCount: (Int) -> String get() = StringsA.activationSectionCodesCount
     val activationSectionCodesEmpty: String get() = StringsA.activationSectionCodesEmpty
-    val remoteActivationHint: String get() = StringsA.remoteActivationHint
+
     val remoteActivationUrlLabel: String get() = StringsA.remoteActivationUrlLabel
     val remoteActivationPublicKeyLabel: String get() = StringsA.remoteActivationPublicKeyLabel
     val remoteActivationGuideButton: String get() = StringsA.remoteActivationGuideButton
-    val remoteActivationProtocolSummary: String get() = StringsA.remoteActivationProtocolSummary
+
     val remoteActivationUrlSupporting: String get() = StringsA.remoteActivationUrlSupporting
     val remoteActivationPublicKeySupporting: String get() = StringsA.remoteActivationPublicKeySupporting
+    val remoteActivationTrustTitle: String get() = StringsA.remoteActivationTrustTitle
+    val remoteActivationTrustSystem: String get() = StringsA.remoteActivationTrustSystem
+    val remoteActivationTrustPinned: String get() = StringsA.remoteActivationTrustPinned
+    val remoteActivationTrustSystemHint: String get() = StringsA.remoteActivationTrustSystemHint
+    val remoteActivationTrustPinnedHint: String get() = StringsA.remoteActivationTrustPinnedHint
+    val remoteActivationPinnedCertLabel: String get() = StringsA.remoteActivationPinnedCertLabel
+    val remoteActivationPinnedCertPlaceholder: String get() = StringsA.remoteActivationPinnedCertPlaceholder
+    val remoteActivationPinnedCertInvalid: String get() = StringsA.remoteActivationPinnedCertInvalid
+    val remoteActivationPinnedCertHostMismatch: String get() = StringsA.remoteActivationPinnedCertHostMismatch
+    val remoteActivationFetchCert: String get() = StringsA.remoteActivationFetchCert
+    val remoteActivationFetchCertConfirmTitle: String get() = StringsA.remoteActivationFetchCertConfirmTitle
+    val remoteActivationFetchCertConfirmBody: String get() = StringsA.remoteActivationFetchCertConfirmBody
+    val remoteActivationCertSha256: String get() = StringsA.remoteActivationCertSha256
+    val remoteActivationCertSubject: String get() = StringsA.remoteActivationCertSubject
+    val remoteActivationCertIssuer: String get() = StringsA.remoteActivationCertIssuer
+    val remoteActivationCertValidity: String get() = StringsA.remoteActivationCertValidity
+    val remoteActivationCertSan: String get() = StringsA.remoteActivationCertSan
+    val remoteActivationPinInvalid: String get() = StringsA.remoteActivationPinInvalid
+    val remoteActivationPinMismatch: String get() = StringsA.remoteActivationPinMismatch
+    val remoteActivationPinHostMismatch: String get() = StringsA.remoteActivationPinHostMismatch
+    val remoteActivationTlsFailed: String get() = StringsA.remoteActivationTlsFailed
+    val remoteActivationGuideTrustTitle: String get() = StringsA.remoteActivationGuideTrustTitle
+    val remoteActivationGuideTrustBody: String get() = StringsA.remoteActivationGuideTrustBody
+
+    fun remoteActivationPinnedCertHost(host: String): String =
+        StringsA.remoteActivationPinnedCertHost(host)
+
+    fun remoteActivationFetchCertFailed(message: String): String =
+        StringsA.remoteActivationFetchCertFailed(message)
     val remoteActivationGuideTitle: String get() = StringsA.remoteActivationGuideTitle
     val remoteActivationGuideIntro: String get() = StringsA.remoteActivationGuideIntro
     val remoteActivationGuideRequestTitle: String get() = StringsA.remoteActivationGuideRequestTitle
@@ -965,7 +962,7 @@ object Strings {
     val remoteActivationSignatureFailed: String get() = StringsA.remoteActivationSignatureFailed
     val remoteActivationOfflineDenied: String get() = StringsA.remoteActivationOfflineDenied
     val remoteActivationOfflineNoCache: String get() = StringsA.remoteActivationOfflineNoCache
-    val activationCodeBoundToOtherDevice: String get() = StringsA.activationCodeBoundToOtherDevice
+
     val activationCodeExpired: String get() = StringsA.activationCodeExpired
     val activationCodeUsageExceeded: String get() = StringsA.activationCodeUsageExceeded
     val appAlreadyActivated: String get() = StringsA.appAlreadyActivated
@@ -974,8 +971,7 @@ object Strings {
     val appAlreadyActivatedHint: String get() = StringsA.appAlreadyActivatedHint
     val alreadyActivatedDetail: String get() = StringsA.alreadyActivatedDetail
     val invalidCodeSuggestion: String get() = StringsA.invalidCodeSuggestion
-    val deviceMismatchDetail: String get() = StringsA.deviceMismatchDetail
-    val deviceMismatchSuggestion: String get() = StringsA.deviceMismatchSuggestion
+
     val expiredDetail: String get() = StringsA.expiredDetail
     val expiredSuggestion: String get() = StringsA.expiredSuggestion
     val usageExceededDetail: String get() = StringsA.usageExceededDetail
@@ -1012,6 +1008,7 @@ object Strings {
     val saveFailed: String get() = StringsA.saveFailed
     val saveFailedWithReason: String get() = StringsA.saveFailedWithReason
     val savedTo: String get() = StringsA.savedTo
+    val downloadCustomDirFallback: String get() = StringsA.downloadCustomDirFallback
     val copiedToClipboard: String get() = StringsA.copiedToClipboard
     val downloadingVideo: String get() = StringsA.downloadingVideo
     val shareFailed: String get() = StringsA.shareFailed
@@ -1039,7 +1036,7 @@ object Strings {
     val blobDownloadProcessing: String get() = StringsA.blobDownloadProcessing
     val blobDownloadFailed: String get() = StringsA.blobDownloadFailed
     val cannotOpenBrowser: String get() = StringsA.cannotOpenBrowser
-    val presetSaved: String get() = StringsA.presetSaved
+
     val copied: String get() = StringsA.copied
     val deleted: String get() = StringsA.deleted
     val cannotOpenInBrowser: String get() = StringsA.cannotOpenInBrowser
@@ -1069,25 +1066,19 @@ object Strings {
     val sourceCode: String get() = StringsA.sourceCode
     val inputJavaScriptExpression: String get() = StringsA.inputJavaScriptExpression
     val preview: String get() = StringsA.preview
-    val exportFailed: String get() = StringsA.exportFailed
+
     val selected: String get() = StringsA.selected
     val export: String get() = StringsA.export
-    val exportModule: String get() = StringsA.exportModule
-    val exportToDownloads: String get() = StringsA.exportToDownloads
-    val exportToDownloadsHint: String get() = StringsA.exportToDownloadsHint
-    val exportToCustomPath: String get() = StringsA.exportToCustomPath
-    val exportToCustomPathHint: String get() = StringsA.exportToCustomPathHint
-    val exportSuccess: String get() = StringsA.exportSuccess
+
     val save: String get() = StringsA.save
     val delete: String get() = StringsA.delete
-    val pleaseEnterModuleName: String get() = StringsA.pleaseEnterModuleName
-    val pleaseEnterCodeContent: String get() = StringsA.pleaseEnterCodeContent
+
     val saveSuccess: String get() = StringsA.saveSuccess
     val storagePermissionRequired: String get() = StringsA.storagePermissionRequired
     val appConfigLoadFailed: String get() = StringsA.appConfigLoadFailed
     val pressAgainToExit: String get() = StringsA.pressAgainToExit
     val shortcutCreatedSuccess: String get() = StringsA.shortcutCreatedSuccess
-    val projectExportedTo: String get() = StringsA.projectExportedTo
+
     val preparing: String get() = StringsA.preparing
     val buildSummaryTitle: String get() = StringsA.buildSummaryTitle
     val apkAnalysisTitle: String get() = StringsB.apkAnalysisTitle
@@ -1098,15 +1089,12 @@ object Strings {
     val buildSummaryLocation: String get() = StringsB.buildSummaryLocation
     val buildSummaryOpenWith: String get() = StringsB.buildSummaryOpenWith
     val buildSummaryCopyPath: String get() = StringsB.buildSummaryCopyPath
-    val saveAsScheme: String get() = StringsB.saveAsScheme
+
     val clearAll: String get() = StringsB.clearAll
-    val selectModules: String get() = StringsB.selectModules
-    val selectExtensionModules: String get() = StringsB.selectExtensionModules
+
     val doneWithCount: String get() = StringsB.doneWithCount
     val searchModulesHint: String get() = StringsB.searchModulesHint
-    val testModule: String get() = StringsB.testModule
-    val addThisModule: String get() = StringsB.addThisModule
-    val moduleSchemes: String get() = StringsB.moduleSchemes
+
     val saveAsSchemeTitle: String get() = StringsB.saveAsSchemeTitle
     val schemeName: String get() = StringsB.schemeName
     val inputSchemeName: String get() = StringsB.inputSchemeName
@@ -1118,11 +1106,7 @@ object Strings {
     val refresh: String get() = StringsB.refresh
     val goBack: String get() = StringsB.goBack
     val goForward: String get() = StringsB.goForward
-    val moduleNameRequired: String get() = StringsB.moduleNameRequired
-    val inputModuleName: String get() = StringsB.inputModuleName
-    val editModule: String get() = StringsB.editModule
-    val useTemplate: String get() = StringsB.useTemplate
-    val basicInfo: String get() = StringsB.basicInfo
+
     val code: String get() = StringsB.code
     val advancedSettings: String get() = StringsB.advancedSettings
     val configTemplates: String get() = StringsB.configTemplates
@@ -1151,37 +1135,24 @@ object Strings {
     val sectionOfflineCache: String get() = StringsB.sectionOfflineCache
     val sectionNetworkAccess: String get() = StringsB.sectionNetworkAccess
     val selectCategory: String get() = StringsB.selectCategory
-    val runTime: String get() = StringsB.runTime
-    val requiredPermissions: String get() = StringsB.requiredPermissions
+
     val sensitive: String get() = StringsB.sensitive
     val confirm: String get() = StringsB.confirm
     val category: String get() = StringsB.category
-    val moduleInfo: String get() = StringsB.moduleInfo
-    val codeSnippets: String get() = StringsB.codeSnippets
-    val availableFunctions: String get() = StringsB.availableFunctions
-    val cssTips: String get() = StringsB.cssTips
-    val jsFunctionsHint: String get() = StringsB.jsFunctionsHint
-    val cssHint: String get() = StringsB.cssHint
-    val noSpecialPermissions: String get() = StringsB.noSpecialPermissions
+
     val urlMatchRules: String get() = StringsB.urlMatchRules
-    val matchAllWebsites: String get() = StringsB.matchAllWebsites
+
     val rulesCount: String get() = StringsB.rulesCount
-    val userConfigItems: String get() = StringsB.userConfigItems
-    val noConfigItems: String get() = StringsB.noConfigItems
-    val configItemsCount: String get() = StringsB.configItemsCount
-    val developerGuide: String get() = StringsB.developerGuide
-    val developerGuideContent: String get() = StringsB.developerGuideContent
+
     val regex: String get() = StringsB.regex
     val exclude: String get() = StringsB.exclude
     val include: String get() = StringsB.include
     val description: String get() = StringsB.description
-    val briefModuleDescription: String get() = StringsB.briefModuleDescription
+
     val tags: String get() = StringsB.tags
-    val tagsHint: String get() = StringsB.tagsHint
+
     val author: String get() = StringsB.author
-    val yourName: String get() = StringsB.yourName
-    val keyNameRequired: String get() = StringsB.keyNameRequired
-    val displayNameRequired: String get() = StringsB.displayNameRequired
+
     val provider: String get() = StringsB.provider
     val modelId: String get() = StringsB.modelId
     val aliasOptional: String get() = StringsB.aliasOptional
@@ -1199,23 +1170,20 @@ object Strings {
     val saepPolicyTitle: String get() = StringsB.saepPolicyTitle
     val saepPolicyHint: String get() = StringsB.saepPolicyHint
     val autoVersionBumpHint: String get() = StringsB.autoVersionBumpHint
-    val selectTheme: String get() = StringsB.selectTheme
+
     val translateTargetLanguage: String get() = StringsB.translateTargetLanguage
     val adBlockRuleHint: String get() = StringsB.adBlockRuleHint
     val customBlockRules: String get() = StringsB.customBlockRules
-    val adBlockNoRules: String get() = StringsB.adBlockNoRules
-    val adBlockSubscriptionsLabel: String get() = StringsB.adBlockSubscriptionsLabel
-    val adBlockSubscriptionsDesc: String get() = StringsB.adBlockSubscriptionsDesc
+
     val adBlockSelectSubscriptions: String get() = StringsB.adBlockSelectSubscriptions
     val adBlockSubscriptions: String get() = StringsB.adBlockSubscriptions
     val adBlockNoDownloadedSourcesShort: String get() = StringsB.adBlockNoDownloadedSourcesShort
     val adBlockNoSubscriptionSelected: String get() = StringsB.adBlockNoSubscriptionSelected
     val adBlockEnabledSourcesLabel: String get() = StringsB.adBlockEnabledSourcesLabel
     val adBlockAddMoreSources: String get() = StringsB.adBlockAddMoreSources
-    val adBlockManageSubscriptions: String get() = StringsB.adBlockManageSubscriptions
+
     val adBlockSubscriptionsCount: String get() = StringsB.adBlockSubscriptionsCount
-    val adBlockInactive: String get() = StringsB.adBlockInactive
-    val adBlockNoDownloadedSources: String get() = StringsB.adBlockNoDownloadedSources
+
     val done: String get() = StringsB.done
     val edit: String get() = StringsB.edit
     val loading: String get() = StringsB.loading
@@ -1223,22 +1191,18 @@ object Strings {
     val domStorageSetting: String get() = StringsB.domStorageSetting
     val domStorageSettingHint: String get() = StringsB.domStorageSettingHint
     val zoomSetting: String get() = StringsB.zoomSetting
-    val zoomSettingHint: String get() = StringsB.zoomSettingHint
     val swipeRefreshSetting: String get() = StringsB.swipeRefreshSetting
     val swipeRefreshZoneLabel: String get() = StringsB.swipeRefreshZoneLabel
     val swipeRefreshZoneTopEdge: String get() = StringsB.swipeRefreshZoneTopEdge
     val swipeRefreshZoneAnywhere: String get() = StringsB.swipeRefreshZoneAnywhere
-    val swipeRefreshSettingHint: String get() = StringsB.swipeRefreshSettingHint
     val overscrollEffectSetting: String get() = StringsB.overscrollEffectSetting
     val overscrollEffectSettingHint: String get() = StringsB.overscrollEffectSettingHint
     val autoRefreshSettingLabel: String get() = StringsB.autoRefreshSettingLabel
-    val autoRefreshSettingDesc: String get() = StringsB.autoRefreshSettingDesc
     val autoRefreshIntervalLabel: String get() = StringsB.autoRefreshIntervalLabel
     val autoRefreshIntervalValue: (Int) -> String get() = StringsB.autoRefreshIntervalValue
     val autoRefreshShowCountdownLabel: String get() = StringsB.autoRefreshShowCountdownLabel
     val autoRefreshShowCountdownDesc: String get() = StringsB.autoRefreshShowCountdownDesc
     val fullscreenVideoSetting: String get() = StringsB.fullscreenVideoSetting
-    val fullscreenVideoSettingHint: String get() = StringsB.fullscreenVideoSettingHint
     val externalLinksSetting: String get() = StringsB.externalLinksSetting
     val externalLinksSettingHint: String get() = StringsB.externalLinksSettingHint
     val crossOriginIsolationSetting: String get() = StringsB.crossOriginIsolationSetting
@@ -1282,7 +1246,7 @@ object Strings {
     val isoLevelBasicSummary: String get() = StringsB.isoLevelBasicSummary
     val isoLevelStandardSummary: String get() = StringsB.isoLevelStandardSummary
     val isoLevelMaximumSummary: String get() = StringsB.isoLevelMaximumSummary
-    val pbkdf2Iterations: String get() = StringsB.pbkdf2Iterations
+
     val frameworkLabel: String get() = StringsB.frameworkLabel
     val versionLabel: String get() = StringsB.versionLabel
     val packageManagerLabel: String get() = StringsB.packageManagerLabel
@@ -1290,18 +1254,9 @@ object Strings {
     val outputDirLabel: String get() = StringsB.outputDirLabel
     val dependencyCountValue: String get() = StringsB.dependencyCountValue
     val urlPattern: String get() = StringsB.urlPattern
-    val regexExpression: String get() = StringsB.regexExpression
-    val excludeRule: String get() = StringsB.excludeRule
-    val noConfigItemsHint: String get() = StringsB.noConfigItemsHint
-    val addConfigItem: String get() = StringsB.addConfigItem
-    val keyNamePlaceholder: String get() = StringsB.keyNamePlaceholder
-    val displayNamePlaceholder: String get() = StringsB.displayNamePlaceholder
-    val explanationLabel: String get() = StringsB.explanationLabel
-    val configExplanationPlaceholder: String get() = StringsB.configExplanationPlaceholder
+
     val typeLabel: String get() = StringsB.typeLabel
-    val defaultValueLabel: String get() = StringsB.defaultValueLabel
-    val requiredField: String get() = StringsB.requiredField
-    val selectTemplate: String get() = StringsB.selectTemplate
+
     val jsCodePlaceholder: String get() = StringsB.jsCodePlaceholder
     val cssCodePlaceholder: String get() = StringsB.cssCodePlaceholder
     val authorAvatar: String get() = StringsB.authorAvatar
@@ -1357,31 +1312,17 @@ object Strings {
     val noSearchResult: String get() = StringsB.noSearchResult
     val popupBlockerSetting: String get() = StringsB.popupBlockerSetting
     val popupBlockerSettingHint: String get() = StringsB.popupBlockerSettingHint
-    val fixI18nStringAdaptation: String get() = StringsB.fixI18nStringAdaptation
-    val supportAndroid6: String get() = StringsB.supportAndroid6
+
     val aiIcon: String get() = StringsB.aiIcon
     val icon: String get() = StringsB.icon
     val availableFor: String get() = StringsB.availableFor
-    val materialDesign3UI: String get() = StringsB.materialDesign3UI
+
     val savedToGallery: String get() = StringsB.savedToGallery
-    val hotTag: String get() = StringsB.hotTag
-    val insertCode: String get() = StringsB.insertCode
-    val browseAll: String get() = StringsB.browseAll
+
     val pleaseActivateApp: String get() = StringsB.pleaseActivateApp
     val enterActivationCode: String get() = StringsB.enterActivationCode
     val enterCodeToContinue: String get() = StringsB.enterCodeToContinue
-    val themeAurora: String get() = StringsB.themeAurora
-    val themeCyberpunk: String get() = StringsB.themeCyberpunk
-    val themeSakura: String get() = StringsB.themeSakura
-    val themeOcean: String get() = StringsB.themeOcean
-    val themeForest: String get() = StringsB.themeForest
-    val themeGalaxy: String get() = StringsB.themeGalaxy
-    val themeVolcano: String get() = StringsB.themeVolcano
-    val themeFrost: String get() = StringsB.themeFrost
-    val themeSunset: String get() = StringsB.themeSunset
-    val themeMinimal: String get() = StringsB.themeMinimal
-    val themeNeonTokyo: String get() = StringsB.themeNeonTokyo
-    val themeLavender: String get() = StringsB.themeLavender
+
     val themeKimiNoNawa: String get() = StringsB.themeKimiNoNawa
     val themeKimiNoNawaDesc: String get() = StringsB.themeKimiNoNawaDesc
     val uiConfig: String get() = StringsB.uiConfig
@@ -1390,11 +1331,10 @@ object Strings {
     val settingsDarkMode: String get() = StringsB.settingsDarkMode
     val settingsAnimation: String get() = StringsB.settingsAnimation
     val animEnableAll: String get() = StringsB.animEnableAll
-    val animParticles: String get() = StringsB.animParticles
     val animHaptics: String get() = StringsB.animHaptics
-    val animSound: String get() = StringsB.animSound
+
     val animSpeedTitle: String get() = StringsB.animSpeedTitle
-    val accentDefault: String get() = StringsB.accentDefault
+    val accentPeriwinkleMint: String get() = StringsB.accentPeriwinkleMint
     val accentDynamic: String get() = StringsB.accentDynamic
     val accentCharcoalPink: String get() = StringsB.accentCharcoalPink
     val accentRoyalPurple: String get() = StringsB.accentRoyalPurple
@@ -1416,74 +1356,59 @@ object Strings {
     val cornerSharp: String get() = StringsB.cornerSharp
     val cornerStandard: String get() = StringsB.cornerStandard
     val cornerRounded: String get() = StringsB.cornerRounded
-    val animSmooth: String get() = StringsB.animSmooth
-    val animBouncy: String get() = StringsB.animBouncy
-    val animSnappy: String get() = StringsB.animSnappy
-    val animElegant: String get() = StringsB.animElegant
-    val animPlayful: String get() = StringsB.animPlayful
-    val animDramatic: String get() = StringsB.animDramatic
-    val interRipple: String get() = StringsB.interRipple
-    val interGlow: String get() = StringsB.interGlow
-    val interScale: String get() = StringsB.interScale
-    val interShake: String get() = StringsB.interShake
-    val interMorph: String get() = StringsB.interMorph
-    val interParticle: String get() = StringsB.interParticle
     val catContentFilter: String get() = StringsB.catContentFilter
-    val catContentFilterDesc: String get() = StringsB.catContentFilterDesc
+
     val catContentEnhance: String get() = StringsB.catContentEnhance
-    val catContentEnhanceDesc: String get() = StringsB.catContentEnhanceDesc
+
     val catStyleModifier: String get() = StringsB.catStyleModifier
-    val catStyleModifierDesc: String get() = StringsB.catStyleModifierDesc
+
     val catTheme: String get() = StringsB.catTheme
-    val catThemeDesc: String get() = StringsB.catThemeDesc
+
     val catFunctionEnhance: String get() = StringsB.catFunctionEnhance
-    val catFunctionEnhanceDesc: String get() = StringsB.catFunctionEnhanceDesc
+
     val catAutomation: String get() = StringsB.catAutomation
-    val catAutomationDesc: String get() = StringsB.catAutomationDesc
+
     val catNavigation: String get() = StringsB.catNavigation
-    val catNavigationDesc: String get() = StringsB.catNavigationDesc
+
     val catDataExtract: String get() = StringsB.catDataExtract
-    val catDataExtractDesc: String get() = StringsB.catDataExtractDesc
+
     val catDataSave: String get() = StringsB.catDataSave
-    val catDataSaveDesc: String get() = StringsB.catDataSaveDesc
+
     val catInteraction: String get() = StringsB.catInteraction
-    val catInteractionDesc: String get() = StringsB.catInteractionDesc
+
     val catAccessibility: String get() = StringsB.catAccessibility
-    val catAccessibilityDesc: String get() = StringsB.catAccessibilityDesc
+
     val catMedia: String get() = StringsB.catMedia
-    val catMediaDesc: String get() = StringsB.catMediaDesc
+
     val catVideo: String get() = StringsB.catVideo
-    val catVideoDesc: String get() = StringsB.catVideoDesc
+
     val catImage: String get() = StringsB.catImage
-    val catImageDesc: String get() = StringsB.catImageDesc
+
     val catAudio: String get() = StringsB.catAudio
-    val catAudioDesc: String get() = StringsB.catAudioDesc
+
     val catSecurity: String get() = StringsB.catSecurity
-    val catSecurityDesc: String get() = StringsB.catSecurityDesc
+
     val catAntiTracking: String get() = StringsB.catAntiTracking
-    val catAntiTrackingDesc: String get() = StringsB.catAntiTrackingDesc
+
     val catSocial: String get() = StringsB.catSocial
-    val catSocialDesc: String get() = StringsB.catSocialDesc
+
     val catShopping: String get() = StringsB.catShopping
-    val catShoppingDesc: String get() = StringsB.catShoppingDesc
+
     val catReading: String get() = StringsB.catReading
-    val catReadingDesc: String get() = StringsB.catReadingDesc
+
     val catTranslate: String get() = StringsB.catTranslate
-    val catTranslateDesc: String get() = StringsB.catTranslateDesc
+
     val catDeveloper: String get() = StringsB.catDeveloper
-    val catDeveloperDesc: String get() = StringsB.catDeveloperDesc
+
     val catOther: String get() = StringsB.catOther
-    val catOtherDesc: String get() = StringsB.catOtherDesc
+
     val runTimeDocStart: String get() = StringsB.runTimeDocStart
     val runTimeDocStartDesc: String get() = StringsB.runTimeDocStartDesc
     val runTimeDocEnd: String get() = StringsB.runTimeDocEnd
     val runTimeDocEndDesc: String get() = StringsB.runTimeDocEndDesc
     val runTimeDocIdle: String get() = StringsB.runTimeDocIdle
     val runTimeDocIdleDesc: String get() = StringsB.runTimeDocIdleDesc
-    val runTimeContextMenu: String get() = StringsB.runTimeContextMenu
-    val runTimeContextMenuDesc: String get() = StringsB.runTimeContextMenuDesc
-    val runTimeBeforeUnload: String get() = StringsB.runTimeBeforeUnload
-    val runTimeBeforeUnloadDesc: String get() = StringsB.runTimeBeforeUnloadDesc
+
     val colorRed: String get() = StringsB.colorRed
     val colorPink: String get() = StringsB.colorPink
     val colorPurple: String get() = StringsB.colorPurple
@@ -1510,43 +1435,22 @@ object Strings {
     val colorTransparent: String get() = StringsB.colorTransparent
     val colorSelected: String get() = StringsB.colorSelected
     val selectedCount2: String get() = StringsB.selectedCount2
-    val selectedModulesCount: String get() = StringsB.selectedModulesCount
-    val extensionEmptyTitle: String get() = StringsB.extensionEmptyTitle
-    val extensionEmptyDesc: String get() = StringsB.extensionEmptyDesc
-    val extensionAddMoreModules: String get() = StringsB.extensionAddMoreModules
-    val extensionEnabledModulesLabel: String get() = StringsB.extensionEnabledModulesLabel
-    val extensionModuleNoneSelectedSubtitle: String get() = StringsB.extensionModuleNoneSelectedSubtitle
-    val removeModule: String get() = StringsB.removeModule
+
     val noMatchingModules: String get() = StringsB.noMatchingModules
-    val builtInModule: String get() = StringsB.builtInModule
-    val configurableItems: String get() = StringsB.configurableItems
+
     val mediaContent: String get() = StringsB.mediaContent
     val statusBarBackground: String get() = StringsB.statusBarBackground
     val appNeedsActivation: String get() = StringsB.appNeedsActivation
     val skip: String get() = StringsB.skip
-    val codeBlockLibraryTitle: String get() = StringsB.codeBlockLibraryTitle
-    val searchCodeBlocksPlaceholder: String get() = StringsB.searchCodeBlocksPlaceholder
-    val categoriesAndBlocks: String get() = StringsB.categoriesAndBlocks
-    val foundResults: String get() = StringsB.foundResults
-    val noMatchingCodeBlocks: String get() = StringsB.noMatchingCodeBlocks
+
     val insert: String get() = StringsB.insert
-    val quickInsertCodeSnippets: String get() = StringsB.quickInsertCodeSnippets
-    val codeBlocksCount: String get() = StringsB.codeBlocksCount
+
     val totalLinesCount: String get() = StringsB.totalLinesCount
-    val willTestModulesFormat: String get() = StringsB.willTestModulesFormat
-    val selectTestPageTitle: String get() = StringsB.selectTestPageTitle
-    val startTestBtn: String get() = StringsB.startTestBtn
-    val testPageHintText: String get() = StringsB.testPageHintText
-    val builtInSchemes: String get() = StringsB.builtInSchemes
-    val mySchemes: String get() = StringsB.mySchemes
+
     val applied: String get() = StringsB.applied
-    val schemeNameLabel: String get() = StringsB.schemeNameLabel
-    val enterSchemeNameHint: String get() = StringsB.enterSchemeNameHint
-    val descriptionOptionalLabel: String get() = StringsB.descriptionOptionalLabel
+
     val optionalLabel: String get() = StringsB.optionalLabel
-    val briefDescribeSchemeHint: String get() = StringsB.briefDescribeSchemeHint
-    val willSaveModules: String get() = StringsB.willSaveModules
-    val selectIconTitle: String get() = StringsB.selectIconTitle
+
     val previewLrcHint: String get() = StringsB.previewLrcHint
     val featureIconGeneration: String get() = StringsB.featureIconGeneration
     val featureModuleDevelopment: String get() = StringsB.featureModuleDevelopment
@@ -1653,7 +1557,7 @@ object Strings {
     val agentSessionMessagesShort: String get() = StringsB.agentSessionMessagesShort
     val agentToolDenied: String get() = StringsB.agentToolDenied
     val agentErrorPrefix: String get() = StringsB.agentErrorPrefix
-    val agentEmptyResponseHint: String get() = StringsB.agentEmptyResponseHint
+
     val agentSlashHeader: String get() = StringsB.agentSlashHeader
     val agentMentionHeader: String get() = StringsB.agentMentionHeader
     val agentMentionEmpty: String get() = StringsB.agentMentionEmpty
@@ -1680,7 +1584,7 @@ object Strings {
     val agentPreviewClose: String get() = StringsB.agentPreviewClose
     val agentToolArgsLabel: String get() = StringsB.agentToolArgsLabel
     val agentToolResultLabel: String get() = StringsB.agentToolResultLabel
-    val agentToolStreaming: String get() = StringsB.agentToolStreaming
+
     val agentCodeCopy: String get() = StringsB.agentCodeCopy
     val agentTodoListHeader: String get() = StringsB.agentTodoListHeader
     val agentNoOutput: String get() = StringsB.agentNoOutput
@@ -1698,7 +1602,7 @@ object Strings {
     val agentTurnDoneToolCount: String get() = StringsB.agentTurnDoneToolCount
     val agentPlanEntered: String get() = StringsB.agentPlanEntered
     val agentPlanAlreadyActive: String get() = StringsB.agentPlanAlreadyActive
-    val agentPlanSubmitted: String get() = StringsB.agentPlanSubmitted
+
     val agentPlanEmpty: String get() = StringsB.agentPlanEmpty
     val agentPlanAwaitingReview: String get() = StringsB.agentPlanAwaitingReview
     val agentPlanApprove: String get() = StringsB.agentPlanApprove
@@ -1754,459 +1658,12 @@ object Strings {
     val generalChatDesc: String get() = StringsB.generalChatDesc
     val dataBackupTitle: String get() = StringsB.dataBackupTitle
     val dataBackupDesc: String get() = StringsB.dataBackupDesc
+    val dataBackupUninstallWarning: String get() = StringsB.dataBackupUninstallWarning
     val dataBackupNote: String get() = StringsB.dataBackupNote
     val legalDisclaimer: String get() = StringsB.legalDisclaimer
-    val tplElementHider: String get() = StringsB.tplElementHider
-    val tplElementHiderDesc: String get() = StringsB.tplElementHiderDesc
-    val tplAdBlocker: String get() = StringsB.tplAdBlocker
-    val tplAdBlockerDesc: String get() = StringsB.tplAdBlockerDesc
-    val tplPopupBlocker: String get() = StringsB.tplPopupBlocker
-    val tplPopupBlockerDesc: String get() = StringsB.tplPopupBlockerDesc
-    val tplCookieBanner: String get() = StringsB.tplCookieBanner
-    val tplCookieBannerDesc: String get() = StringsB.tplCookieBannerDesc
-    val tplCssInjector: String get() = StringsB.tplCssInjector
-    val tplCssInjectorDesc: String get() = StringsB.tplCssInjectorDesc
-    val tplDarkMode: String get() = StringsB.tplDarkMode
-    val tplDarkModeDesc: String get() = StringsB.tplDarkModeDesc
-    val tplFontChanger: String get() = StringsB.tplFontChanger
-    val tplFontChangerDesc: String get() = StringsB.tplFontChangerDesc
-    val snippetNative: String get() = StringsB.snippetNative
-    val snippetNativeDesc: String get() = StringsB.snippetNativeDesc
-    val snippetShowToast: String get() = StringsB.snippetShowToast
-    val snippetShowToastDesc: String get() = StringsB.snippetShowToastDesc
-    val snippetVibrate: String get() = StringsB.snippetVibrate
-    val snippetVibrateDesc: String get() = StringsB.snippetVibrateDesc
-    val snippetCopyToClipboard: String get() = StringsB.snippetCopyToClipboard
-    val snippetCopyToClipboardDesc: String get() = StringsB.snippetCopyToClipboardDesc
-    val snippetSaveVideoToGallery: String get() = StringsB.snippetSaveVideoToGallery
-    val snippetSaveVideoToGalleryDesc: String get() = StringsB.snippetSaveVideoToGalleryDesc
-    val snippetOpenInBrowser: String get() = StringsB.snippetOpenInBrowser
-    val snippetOpenInBrowserDesc: String get() = StringsB.snippetOpenInBrowserDesc
-    val snippetDeviceInfo: String get() = StringsB.snippetDeviceInfo
-    val snippetDeviceInfoDesc: String get() = StringsB.snippetDeviceInfoDesc
-    val snippetNetworkStatus: String get() = StringsB.snippetNetworkStatus
-    val snippetNetworkStatusDesc: String get() = StringsB.snippetNetworkStatusDesc
-    val snippetSaveFile: String get() = StringsB.snippetSaveFile
-    val snippetSaveFileDesc: String get() = StringsB.snippetSaveFileDesc
-    val snippetImageDownloadBtn: String get() = StringsB.snippetImageDownloadBtn
-    val snippetImageDownloadBtnDesc: String get() = StringsB.snippetImageDownloadBtnDesc
-    val snippetDom: String get() = StringsB.snippetDom
-    val snippetDomDesc: String get() = StringsB.snippetDomDesc
-    val snippetStyle: String get() = StringsB.snippetStyle
-    val snippetStyleDesc: String get() = StringsB.snippetStyleDesc
-    val snippetEvent: String get() = StringsB.snippetEvent
-    val snippetEventDesc: String get() = StringsB.snippetEventDesc
-    val snippetStorage: String get() = StringsB.snippetStorage
-    val snippetStorageDesc: String get() = StringsB.snippetStorageDesc
-    val snippetNetwork: String get() = StringsB.snippetNetwork
-    val snippetNetworkDesc: String get() = StringsB.snippetNetworkDesc
-    val snippetUi: String get() = StringsB.snippetUi
-    val snippetUiDesc: String get() = StringsB.snippetUiDesc
-    val snippetWidget: String get() = StringsB.snippetWidget
-    val snippetWidgetDesc: String get() = StringsB.snippetWidgetDesc
-    val snippetNotification: String get() = StringsB.snippetNotification
-    val snippetNotificationDesc: String get() = StringsB.snippetNotificationDesc
-    val snippetScroll: String get() = StringsB.snippetScroll
-    val snippetScrollDesc: String get() = StringsB.snippetScrollDesc
-    val snippetQuerySingle: String get() = StringsB.snippetQuerySingle
-    val snippetQuerySingleDesc: String get() = StringsB.snippetQuerySingleDesc
-    val snippetQueryAll: String get() = StringsB.snippetQueryAll
-    val snippetQueryAllDesc: String get() = StringsB.snippetQueryAllDesc
-    val snippetHideElement: String get() = StringsB.snippetHideElement
-    val snippetHideElementDesc: String get() = StringsB.snippetHideElementDesc
-    val snippetRemoveElement: String get() = StringsB.snippetRemoveElement
-    val snippetRemoveElementDesc: String get() = StringsB.snippetRemoveElementDesc
-    val snippetCreateElement: String get() = StringsB.snippetCreateElement
-    val snippetCreateElementDesc: String get() = StringsB.snippetCreateElementDesc
-    val snippetModifyText: String get() = StringsB.snippetModifyText
-    val snippetModifyTextDesc: String get() = StringsB.snippetModifyTextDesc
-    val snippetModifyAttr: String get() = StringsB.snippetModifyAttr
-    val snippetModifyAttrDesc: String get() = StringsB.snippetModifyAttrDesc
-    val snippetInsertBefore: String get() = StringsB.snippetInsertBefore
-    val snippetInsertBeforeDesc: String get() = StringsB.snippetInsertBeforeDesc
-    val snippetInsertAfter: String get() = StringsB.snippetInsertAfter
-    val snippetInsertAfterDesc: String get() = StringsB.snippetInsertAfterDesc
-    val snippetCloneElement: String get() = StringsB.snippetCloneElement
-    val snippetCloneElementDesc: String get() = StringsB.snippetCloneElementDesc
-    val snippetWrapElement: String get() = StringsB.snippetWrapElement
-    val snippetWrapElementDesc: String get() = StringsB.snippetWrapElementDesc
-    val snippetReplaceElement: String get() = StringsB.snippetReplaceElement
-    val snippetReplaceElementDesc: String get() = StringsB.snippetReplaceElementDesc
-    val snippetData: String get() = StringsB.snippetData
-    val snippetDataDesc: String get() = StringsB.snippetDataDesc
-    val snippetSaveImageToGallery: String get() = StringsB.snippetSaveImageToGallery
-    val snippetSaveImageToGalleryDesc: String get() = StringsB.snippetSaveImageToGalleryDesc
-    val snippetShareContent: String get() = StringsB.snippetShareContent
-    val snippetShareContentDesc: String get() = StringsB.snippetShareContentDesc
-    val snippetInjectCss: String get() = StringsB.snippetInjectCss
-    val snippetInjectCssDesc: String get() = StringsB.snippetInjectCssDesc
-    val snippetModifyInline: String get() = StringsB.snippetModifyInline
-    val snippetModifyInlineDesc: String get() = StringsB.snippetModifyInlineDesc
-    val snippetAddClass: String get() = StringsB.snippetAddClass
-    val snippetAddClassDesc: String get() = StringsB.snippetAddClassDesc
-    val snippetDarkMode: String get() = StringsB.snippetDarkMode
-    val snippetDarkModeDesc: String get() = StringsB.snippetDarkModeDesc
-    val snippetSepiaMode: String get() = StringsB.snippetSepiaMode
-    val snippetSepiaModeDesc: String get() = StringsB.snippetSepiaModeDesc
-    val snippetGrayscale: String get() = StringsB.snippetGrayscale
-    val snippetGrayscaleDesc: String get() = StringsB.snippetGrayscaleDesc
-    val snippetCustomFont: String get() = StringsB.snippetCustomFont
-    val snippetCustomFontDesc: String get() = StringsB.snippetCustomFontDesc
-    val snippetFontSize: String get() = StringsB.snippetFontSize
-    val snippetFontSizeDesc: String get() = StringsB.snippetFontSizeDesc
-    val snippetHideScrollbar: String get() = StringsB.snippetHideScrollbar
-    val snippetHideScrollbarDesc: String get() = StringsB.snippetHideScrollbarDesc
-    val snippetHighlightLinks: String get() = StringsB.snippetHighlightLinks
-    val snippetHighlightLinksDesc: String get() = StringsB.snippetHighlightLinksDesc
-    val snippetMaxWidth: String get() = StringsB.snippetMaxWidth
-    val snippetMaxWidthDesc: String get() = StringsB.snippetMaxWidthDesc
-    val snippetLineHeight: String get() = StringsB.snippetLineHeight
-    val snippetLineHeightDesc: String get() = StringsB.snippetLineHeightDesc
-    val snippetClickEvent: String get() = StringsB.snippetClickEvent
-    val snippetClickEventDesc: String get() = StringsB.snippetClickEventDesc
-    val snippetKeyboardEvent: String get() = StringsB.snippetKeyboardEvent
-    val snippetKeyboardEventDesc: String get() = StringsB.snippetKeyboardEventDesc
-    val snippetScrollEvent: String get() = StringsB.snippetScrollEvent
-    val snippetScrollEventDesc: String get() = StringsB.snippetScrollEventDesc
-    val snippetMutationEvent: String get() = StringsB.snippetMutationEvent
-    val snippetMutationEventDesc: String get() = StringsB.snippetMutationEventDesc
-    val snippetResizeEvent: String get() = StringsB.snippetResizeEvent
-    val snippetResizeEventDesc: String get() = StringsB.snippetResizeEventDesc
-    val snippetCopyEvent: String get() = StringsB.snippetCopyEvent
-    val snippetCopyEventDesc: String get() = StringsB.snippetCopyEventDesc
-    val snippetContextMenu: String get() = StringsB.snippetContextMenu
-    val snippetContextMenuDesc: String get() = StringsB.snippetContextMenuDesc
-    val snippetVisibility: String get() = StringsB.snippetVisibility
-    val snippetVisibilityDesc: String get() = StringsB.snippetVisibilityDesc
-    val snippetBeforeUnload: String get() = StringsB.snippetBeforeUnload
-    val snippetBeforeUnloadDesc: String get() = StringsB.snippetBeforeUnloadDesc
-    val snippetTouchEvent: String get() = StringsB.snippetTouchEvent
-    val snippetTouchEventDesc: String get() = StringsB.snippetTouchEventDesc
-    val snippetLongPress: String get() = StringsB.snippetLongPress
-    val snippetLongPressDesc: String get() = StringsB.snippetLongPressDesc
-    val snippetLocalSet: String get() = StringsB.snippetLocalSet
-    val snippetLocalSetDesc: String get() = StringsB.snippetLocalSetDesc
-    val snippetLocalGet: String get() = StringsB.snippetLocalGet
-    val snippetLocalGetDesc: String get() = StringsB.snippetLocalGetDesc
-    val snippetSessionStorage: String get() = StringsB.snippetSessionStorage
-    val snippetSessionStorageDesc: String get() = StringsB.snippetSessionStorageDesc
-    val snippetSetCookie: String get() = StringsB.snippetSetCookie
-    val snippetSetCookieDesc: String get() = StringsB.snippetSetCookieDesc
-    val snippetGetCookie: String get() = StringsB.snippetGetCookie
-    val snippetGetCookieDesc: String get() = StringsB.snippetGetCookieDesc
-    val snippetDeleteCookie: String get() = StringsB.snippetDeleteCookie
-    val snippetDeleteCookieDesc: String get() = StringsB.snippetDeleteCookieDesc
-    val snippetIndexedDB: String get() = StringsB.snippetIndexedDB
-    val snippetIndexedDBDesc: String get() = StringsB.snippetIndexedDBDesc
-    val snippetGetRequest: String get() = StringsB.snippetGetRequest
-    val snippetGetRequestDesc: String get() = StringsB.snippetGetRequestDesc
-    val snippetPostRequest: String get() = StringsB.snippetPostRequest
-    val snippetPostRequestDesc: String get() = StringsB.snippetPostRequestDesc
-    val snippetTimeoutRequest: String get() = StringsB.snippetTimeoutRequest
-    val snippetTimeoutRequestDesc: String get() = StringsB.snippetTimeoutRequestDesc
-    val snippetRetryRequest: String get() = StringsB.snippetRetryRequest
-    val snippetRetryRequestDesc: String get() = StringsB.snippetRetryRequestDesc
-    val snippetDownloadFile: String get() = StringsB.snippetDownloadFile
-    val snippetDownloadFileDesc: String get() = StringsB.snippetDownloadFileDesc
-    val snippetJsonp: String get() = StringsB.snippetJsonp
-    val snippetJsonpDesc: String get() = StringsB.snippetJsonpDesc
-    val snippetExtractTable: String get() = StringsB.snippetExtractTable
-    val snippetExtractTableDesc: String get() = StringsB.snippetExtractTableDesc
-    val snippetExtractLinks: String get() = StringsB.snippetExtractLinks
-    val snippetExtractLinksDesc: String get() = StringsB.snippetExtractLinksDesc
-    val snippetExtractImages: String get() = StringsB.snippetExtractImages
-    val snippetExtractImagesDesc: String get() = StringsB.snippetExtractImagesDesc
-    val snippetExportJson: String get() = StringsB.snippetExportJson
-    val snippetExportJsonDesc: String get() = StringsB.snippetExportJsonDesc
-    val snippetExportCsv: String get() = StringsB.snippetExportCsv
-    val snippetExportCsvDesc: String get() = StringsB.snippetExportCsvDesc
-    val snippetParseUrl: String get() = StringsB.snippetParseUrl
-    val snippetParseUrlDesc: String get() = StringsB.snippetParseUrlDesc
-    val snippetBuildUrl: String get() = StringsB.snippetBuildUrl
-    val snippetBuildUrlDesc: String get() = StringsB.snippetBuildUrlDesc
-    val snippetFloatingButton: String get() = StringsB.snippetFloatingButton
-    val snippetFloatingButtonDesc: String get() = StringsB.snippetFloatingButtonDesc
-    val snippetToastUi: String get() = StringsB.snippetToastUi
-    val snippetToastUiDesc: String get() = StringsB.snippetToastUiDesc
-    val snippetModal: String get() = StringsB.snippetModal
-    val snippetModalDesc: String get() = StringsB.snippetModalDesc
-    val snippetProgressBar: String get() = StringsB.snippetProgressBar
-    val snippetProgressBarDesc: String get() = StringsB.snippetProgressBarDesc
-    val snippetLoading: String get() = StringsB.snippetLoading
-    val snippetLoadingDesc: String get() = StringsB.snippetLoadingDesc
-    val snippetSnackbar: String get() = StringsB.snippetSnackbar
-    val snippetSnackbarDesc: String get() = StringsB.snippetSnackbarDesc
-    val snippetToolbar: String get() = StringsB.snippetToolbar
-    val snippetToolbarDesc: String get() = StringsB.snippetToolbarDesc
-    val snippetSidebar: String get() = StringsB.snippetSidebar
-    val snippetSidebarDesc: String get() = StringsB.snippetSidebarDesc
-    val snippetDraggable: String get() = StringsB.snippetDraggable
-    val snippetDraggableDesc: String get() = StringsB.snippetDraggableDesc
-    val snippetMiniPlayer: String get() = StringsB.snippetMiniPlayer
-    val snippetMiniPlayerDesc: String get() = StringsB.snippetMiniPlayerDesc
-    val snippetBrowserNotif: String get() = StringsB.snippetBrowserNotif
-    val snippetBrowserNotifDesc: String get() = StringsB.snippetBrowserNotifDesc
-    val snippetBadge: String get() = StringsB.snippetBadge
-    val snippetBadgeDesc: String get() = StringsB.snippetBadgeDesc
-    val snippetBanner: String get() = StringsB.snippetBanner
-    val snippetBannerDesc: String get() = StringsB.snippetBannerDesc
-    val snippetScrollToTop: String get() = StringsB.snippetScrollToTop
-    val snippetScrollToTopDesc: String get() = StringsB.snippetScrollToTopDesc
-    val snippetScrollToBottom: String get() = StringsB.snippetScrollToBottom
-    val snippetScrollToBottomDesc: String get() = StringsB.snippetScrollToBottomDesc
-    val snippetScrollToElement: String get() = StringsB.snippetScrollToElement
-    val snippetScrollToElementDesc: String get() = StringsB.snippetScrollToElementDesc
-    val snippetAutoScroll: String get() = StringsB.snippetAutoScroll
-    val snippetAutoScrollDesc: String get() = StringsB.snippetAutoScrollDesc
-    val snippetBackToTopBtn: String get() = StringsB.snippetBackToTopBtn
-    val snippetBackToTopBtnDesc: String get() = StringsB.snippetBackToTopBtnDesc
-    val snippetInfiniteScroll: String get() = StringsB.snippetInfiniteScroll
-    val snippetInfiniteScrollDesc: String get() = StringsB.snippetInfiniteScrollDesc
-    val snippetScrollReveal: String get() = StringsB.snippetScrollReveal
-    val snippetScrollRevealDesc: String get() = StringsB.snippetScrollRevealDesc
-    val snippetScrollSpy: String get() = StringsB.snippetScrollSpy
-    val snippetScrollSpyDesc: String get() = StringsB.snippetScrollSpyDesc
-    val snippetForm: String get() = StringsB.snippetForm
-    val snippetFormDesc: String get() = StringsB.snippetFormDesc
-    val snippetAutoFill: String get() = StringsB.snippetAutoFill
-    val snippetAutoFillDesc: String get() = StringsB.snippetAutoFillDesc
-    val snippetGetFormData: String get() = StringsB.snippetGetFormData
-    val snippetGetFormDataDesc: String get() = StringsB.snippetGetFormDataDesc
-    val snippetFormValidate: String get() = StringsB.snippetFormValidate
-    val snippetFormValidateDesc: String get() = StringsB.snippetFormValidateDesc
-    val snippetFormIntercept: String get() = StringsB.snippetFormIntercept
-    val snippetFormInterceptDesc: String get() = StringsB.snippetFormInterceptDesc
-    val snippetFormClear: String get() = StringsB.snippetFormClear
-    val snippetFormClearDesc: String get() = StringsB.snippetFormClearDesc
-    val snippetPasswordToggle: String get() = StringsB.snippetPasswordToggle
-    val snippetPasswordToggleDesc: String get() = StringsB.snippetPasswordToggleDesc
-    val snippetMedia: String get() = StringsB.snippetMedia
-    val snippetMediaDesc: String get() = StringsB.snippetMediaDesc
-    val snippetVideoSpeed: String get() = StringsB.snippetVideoSpeed
-    val snippetVideoSpeedDesc: String get() = StringsB.snippetVideoSpeedDesc
-    val snippetPiP: String get() = StringsB.snippetPiP
-    val snippetPiPDesc: String get() = StringsB.snippetPiPDesc
-    val snippetVideoScreenshot: String get() = StringsB.snippetVideoScreenshot
-    val snippetVideoScreenshotDesc: String get() = StringsB.snippetVideoScreenshotDesc
-    val snippetImageZoom: String get() = StringsB.snippetImageZoom
-    val snippetImageZoomDesc: String get() = StringsB.snippetImageZoomDesc
-    val snippetDownloadImages: String get() = StringsB.snippetDownloadImages
-    val snippetDownloadImagesDesc: String get() = StringsB.snippetDownloadImagesDesc
-    val snippetAudioControl: String get() = StringsB.snippetAudioControl
-    val snippetAudioControlDesc: String get() = StringsB.snippetAudioControlDesc
-    val snippetLazyLoad: String get() = StringsB.snippetLazyLoad
-    val snippetLazyLoadDesc: String get() = StringsB.snippetLazyLoadDesc
-    val snippetFullscreen: String get() = StringsB.snippetFullscreen
-    val snippetFullscreenDesc: String get() = StringsB.snippetFullscreenDesc
-    val snippetEnhance: String get() = StringsB.snippetEnhance
-    val snippetEnhanceDesc: String get() = StringsB.snippetEnhanceDesc
-    val snippetReadingMode: String get() = StringsB.snippetReadingMode
-    val snippetReadingModeDesc: String get() = StringsB.snippetReadingModeDesc
-    val snippetCopyUnlock: String get() = StringsB.snippetCopyUnlock
-    val snippetCopyUnlockDesc: String get() = StringsB.snippetCopyUnlockDesc
-    val snippetPrintFriendly: String get() = StringsB.snippetPrintFriendly
-    val snippetPrintFriendlyDesc: String get() = StringsB.snippetPrintFriendlyDesc
-    val snippetTextToSpeech: String get() = StringsB.snippetTextToSpeech
-    val snippetTextToSpeechDesc: String get() = StringsB.snippetTextToSpeechDesc
-    val snippetWordCount: String get() = StringsB.snippetWordCount
-    val snippetWordCountDesc: String get() = StringsB.snippetWordCountDesc
-    val snippetHighlightSearch: String get() = StringsB.snippetHighlightSearch
-    val snippetHighlightSearchDesc: String get() = StringsB.snippetHighlightSearchDesc
-    val snippetHideAds: String get() = StringsB.snippetHideAds
-    val snippetHideAdsDesc: String get() = StringsB.snippetHideAdsDesc
-    val snippetFilter: String get() = StringsB.snippetFilter
-    val snippetFilterDesc: String get() = StringsB.snippetFilterDesc
-    val snippetKeywordFilter: String get() = StringsB.snippetKeywordFilter
-    val snippetKeywordFilterDesc: String get() = StringsB.snippetKeywordFilterDesc
-    val snippetRemoveEmpty: String get() = StringsB.snippetRemoveEmpty
-    val snippetRemoveEmptyDesc: String get() = StringsB.snippetRemoveEmptyDesc
-    val snippetFilterComments: String get() = StringsB.snippetFilterComments
-    val snippetFilterCommentsDesc: String get() = StringsB.snippetFilterCommentsDesc
-    val snippetFilterSmallImages: String get() = StringsB.snippetFilterSmallImages
-    val snippetFilterSmallImagesDesc: String get() = StringsB.snippetFilterSmallImagesDesc
-    val snippetAdBlock: String get() = StringsB.snippetAdBlock
-    val snippetAdBlockDesc: String get() = StringsB.snippetAdBlockDesc
-    val snippetBlockPopup: String get() = StringsB.snippetBlockPopup
-    val snippetBlockPopupDesc: String get() = StringsB.snippetBlockPopupDesc
-    val snippetRemoveOverlay: String get() = StringsB.snippetRemoveOverlay
-    val snippetRemoveOverlayDesc: String get() = StringsB.snippetRemoveOverlayDesc
-    val snippetCssAdBlock: String get() = StringsB.snippetCssAdBlock
-    val snippetCssAdBlockDesc: String get() = StringsB.snippetCssAdBlockDesc
-    val snippetAntiAdblock: String get() = StringsB.snippetAntiAdblock
-    val snippetAntiAdblockDesc: String get() = StringsB.snippetAntiAdblockDesc
-    val snippetUtility: String get() = StringsB.snippetUtility
-    val snippetUtilityDesc: String get() = StringsB.snippetUtilityDesc
-    val snippetDebounce: String get() = StringsB.snippetDebounce
-    val snippetDebounceDesc: String get() = StringsB.snippetDebounceDesc
-    val snippetThrottle: String get() = StringsB.snippetThrottle
-    val snippetThrottleDesc: String get() = StringsB.snippetThrottleDesc
-    val snippetWaitElement: String get() = StringsB.snippetWaitElement
-    val snippetWaitElementDesc: String get() = StringsB.snippetWaitElementDesc
-    val snippetCopyText: String get() = StringsB.snippetCopyText
-    val snippetCopyTextDesc: String get() = StringsB.snippetCopyTextDesc
-    val snippetFormatDate: String get() = StringsB.snippetFormatDate
-    val snippetFormatDateDesc: String get() = StringsB.snippetFormatDateDesc
-    val snippetRandomString: String get() = StringsB.snippetRandomString
-    val snippetRandomStringDesc: String get() = StringsB.snippetRandomStringDesc
-    val snippetSleep: String get() = StringsB.snippetSleep
-    val snippetSleepDesc: String get() = StringsB.snippetSleepDesc
-    val snippetRetry: String get() = StringsB.snippetRetry
-    val snippetRetryDesc: String get() = StringsB.snippetRetryDesc
-    val snippetText: String get() = StringsB.snippetText
-    val snippetTextDesc: String get() = StringsB.snippetTextDesc
-    val snippetExtractArticle: String get() = StringsB.snippetExtractArticle
-    val snippetExtractArticleDesc: String get() = StringsB.snippetExtractArticleDesc
-    val snippetReplaceText: String get() = StringsB.snippetReplaceText
-    val snippetReplaceTextDesc: String get() = StringsB.snippetReplaceTextDesc
-    val snippetTranslateSelection: String get() = StringsB.snippetTranslateSelection
-    val snippetTranslateSelectionDesc: String get() = StringsB.snippetTranslateSelectionDesc
-    val snippetHtmlToMarkdown: String get() = StringsB.snippetHtmlToMarkdown
-    val snippetHtmlToMarkdownDesc: String get() = StringsB.snippetHtmlToMarkdownDesc
-    val snippetIntercept: String get() = StringsB.snippetIntercept
-    val snippetInterceptDesc: String get() = StringsB.snippetInterceptDesc
-    val snippetInterceptFetch: String get() = StringsB.snippetInterceptFetch
-    val snippetInterceptFetchDesc: String get() = StringsB.snippetInterceptFetchDesc
-    val snippetInterceptXhr: String get() = StringsB.snippetInterceptXhr
-    val snippetInterceptXhrDesc: String get() = StringsB.snippetInterceptXhrDesc
-    val snippetInterceptWebSocket: String get() = StringsB.snippetInterceptWebSocket
-    val snippetInterceptWebSocketDesc: String get() = StringsC.snippetInterceptWebSocketDesc
-    val snippetBlockRequests: String get() = StringsC.snippetBlockRequests
-    val snippetBlockRequestsDesc: String get() = StringsC.snippetBlockRequestsDesc
-    val snippetAutomation: String get() = StringsC.snippetAutomation
-    val snippetAutomationDesc: String get() = StringsC.snippetAutomationDesc
-    val snippetAutoClick: String get() = StringsC.snippetAutoClick
-    val snippetAutoClickDesc: String get() = StringsC.snippetAutoClickDesc
-    val snippetAutoClickInterval: String get() = StringsC.snippetAutoClickInterval
-    val snippetAutoClickIntervalDesc: String get() = StringsC.snippetAutoClickIntervalDesc
-    val snippetAutoFillSubmit: String get() = StringsC.snippetAutoFillSubmit
-    val snippetAutoFillSubmitDesc: String get() = StringsC.snippetAutoFillSubmitDesc
-    val snippetAutoRefresh: String get() = StringsC.snippetAutoRefresh
-    val snippetAutoRefreshDesc: String get() = StringsC.snippetAutoRefreshDesc
-    val snippetAutoScrollLoad: String get() = StringsC.snippetAutoScrollLoad
-    val snippetAutoScrollLoadDesc: String get() = StringsC.snippetAutoScrollLoadDesc
-    val snippetAutoLoginCheck: String get() = StringsC.snippetAutoLoginCheck
-    val snippetAutoLoginCheckDesc: String get() = StringsC.snippetAutoLoginCheckDesc
-    val snippetDebug: String get() = StringsC.snippetDebug
-    val snippetDebugDesc: String get() = StringsC.snippetDebugDesc
-    val snippetConsolePanel: String get() = StringsC.snippetConsolePanel
-    val snippetConsolePanelDesc: String get() = StringsC.snippetConsolePanelDesc
-    val snippetElementInfo: String get() = StringsC.snippetElementInfo
-    val snippetElementInfoDesc: String get() = StringsC.snippetElementInfoDesc
-    val snippetPerformance: String get() = StringsC.snippetPerformance
-    val snippetPerformanceDesc: String get() = StringsC.snippetPerformanceDesc
-    val snippetNetworkLog: String get() = StringsC.snippetNetworkLog
-    val snippetNetworkLogDesc: String get() = StringsC.snippetNetworkLogDesc
-    val templateColorTheme: String get() = StringsC.templateColorTheme
-    val templateColorThemeDesc: String get() = StringsC.templateColorThemeDesc
-    val templateBgColor: String get() = StringsC.templateBgColor
-    val templateTextColor: String get() = StringsC.templateTextColor
-    val templateLinkColor: String get() = StringsC.templateLinkColor
-    val templateLayoutFixer: String get() = StringsC.templateLayoutFixer
-    val templateLayoutFixerDesc: String get() = StringsC.templateLayoutFixerDesc
-    val templateMaxWidth: String get() = StringsC.templateMaxWidth
-    val templateCenterContent: String get() = StringsC.templateCenterContent
-    val templateAutoClicker: String get() = StringsC.templateAutoClicker
-    val templateAutoClickerDesc: String get() = StringsC.templateAutoClickerDesc
-    val templateClickTarget: String get() = StringsC.templateClickTarget
-    val templateDelay: String get() = StringsC.templateDelay
-    val templateRepeatClick: String get() = StringsC.templateRepeatClick
-    val templateFormFiller: String get() = StringsC.templateFormFiller
-    val templateFormFillerDesc: String get() = StringsC.templateFormFillerDesc
-    val templateFieldSelector: String get() = StringsC.templateFieldSelector
-    val templateFieldValue: String get() = StringsC.templateFieldValue
-    val templatePageModifier: String get() = StringsC.templatePageModifier
-    val templatePageModifierDesc: String get() = StringsC.templatePageModifierDesc
-    val templateTargetSelector: String get() = StringsC.templateTargetSelector
-    val templateNewText: String get() = StringsC.templateNewText
-    val templateNewStyle: String get() = StringsC.templateNewStyle
-    val templateCustomButton: String get() = StringsC.templateCustomButton
-    val templateCustomButtonDesc: String get() = StringsC.templateCustomButtonDesc
-    val templateButtonText: String get() = StringsC.templateButtonText
-    val templateClickAction: String get() = StringsC.templateClickAction
-    val templatePosition: String get() = StringsC.templatePosition
-    val templateKeyboardShortcuts: String get() = StringsC.templateKeyboardShortcuts
-    val templateKeyboardShortcutsDesc: String get() = StringsC.templateKeyboardShortcutsDesc
-    val templateShortcutsConfig: String get() = StringsC.templateShortcutsConfig
-    val templateShortcutsConfigDesc: String get() = StringsC.templateShortcutsConfigDesc
-    val templateExtractAttrDesc: String get() = StringsC.templateExtractAttrDesc
-    val templateFilterKeywordDesc: String get() = StringsC.templateFilterKeywordDesc
-    val errModuleNotFound: String get() = StringsC.errModuleNotFound
-    val errNoModulesToExport: String get() = StringsC.errNoModulesToExport
-    val errInvalidModuleFile: String get() = StringsC.errInvalidModuleFile
-    val errInvalidShareCode: String get() = StringsC.errInvalidShareCode
-    val errInvalidModulePackage: String get() = StringsC.errInvalidModulePackage
-    val errCannotOpenOutputStream: String get() = StringsC.errCannotOpenOutputStream
-    val shareModuleTitle: String get() = StringsC.shareModuleTitle
-    val shareModuleName: String get() = StringsC.shareModuleName
-    val shareModuleDesc: String get() = StringsC.shareModuleDesc
-    val shareModuleCategory: String get() = StringsC.shareModuleCategory
-    val shareModuleVersion: String get() = StringsC.shareModuleVersion
-    val shareModuleCode: String get() = StringsC.shareModuleCode
-    val shareModuleHowTo: String get() = StringsC.shareModuleHowTo
-    val shareModuleSubject: String get() = StringsC.shareModuleSubject
-    val moduleCopySuffix: String get() = StringsC.moduleCopySuffix
-    val validateNameEmpty: String get() = StringsC.validateNameEmpty
-    val validateCodeEmpty: String get() = StringsC.validateCodeEmpty
-    val validateConfigRequired: String get() = StringsC.validateConfigRequired
-    val presetBlockElements: String get() = StringsC.presetBlockElements
-    val presetInjectStyle: String get() = StringsC.presetInjectStyle
-    val presetAutoClick: String get() = StringsC.presetAutoClick
-    val presetFloatingButton: String get() = StringsC.presetFloatingButton
-    val tagBlock: String get() = StringsC.tagBlock
-    val tagHideElement: String get() = StringsC.tagHideElement
-    val tagStyleCss: String get() = StringsC.tagStyleCss
+
     val tagAuto: String get() = StringsC.tagAuto
-    val tagClickAction: String get() = StringsC.tagClickAction
-    val tagButton: String get() = StringsC.tagButton
-    val tagFloatingWidget: String get() = StringsC.tagFloatingWidget
-    val secBase64Desc: String get() = StringsC.secBase64Desc
-    val secBase64Rec: String get() = StringsC.secBase64Rec
-    val versionV4Ui: String get() = StringsC.versionV4Ui
-    val runModeInteractive: String get() = StringsC.runModeInteractive
-    val runModeAuto: String get() = StringsC.runModeAuto
-    val runModeInteractiveDesc: String get() = StringsC.runModeInteractiveDesc
-    val runModeAutoDesc: String get() = StringsC.runModeAutoDesc
-    val runModeLabel: String get() = StringsC.runModeLabel
-    val tagSelectedText: String get() = StringsC.tagSelectedText
-    val templateAutoRefresh: String get() = StringsC.templateAutoRefresh
-    val templateAutoRefreshDesc: String get() = StringsC.templateAutoRefreshDesc
-    val templateRefreshInterval: String get() = StringsC.templateRefreshInterval
-    val templateShowCountdown: String get() = StringsC.templateShowCountdown
-    val templateScrollToTop: String get() = StringsC.templateScrollToTop
-    val templateScrollToTopDesc: String get() = StringsC.templateScrollToTopDesc
-    val templateShowAfterScroll: String get() = StringsC.templateShowAfterScroll
-    val templateDataExtractor: String get() = StringsC.templateDataExtractor
-    val templateDataExtractorDesc: String get() = StringsC.templateDataExtractorDesc
-    val templateDataSelector: String get() = StringsC.templateDataSelector
-    val templateExtractAttribute: String get() = StringsC.templateExtractAttribute
-    val templateLinkCollector: String get() = StringsC.templateLinkCollector
-    val templateLinkCollectorDesc: String get() = StringsC.templateLinkCollectorDesc
-    val templateFilterKeyword: String get() = StringsC.templateFilterKeyword
-    val templateImageGrabber: String get() = StringsC.templateImageGrabber
-    val templateImageGrabberDesc: String get() = StringsC.templateImageGrabberDesc
-    val templateMinSize: String get() = StringsC.templateMinSize
-    val templateVideoEnhancer: String get() = StringsC.templateVideoEnhancer
-    val templateVideoEnhancerDesc: String get() = StringsC.templateVideoEnhancerDesc
-    val templateDefaultSpeed: String get() = StringsC.templateDefaultSpeed
-    val templateShowControlPanel: String get() = StringsC.templateShowControlPanel
-    val templateImageZoomer: String get() = StringsC.templateImageZoomer
-    val templateImageZoomerDesc: String get() = StringsC.templateImageZoomerDesc
-    val templateAudioController: String get() = StringsC.templateAudioController
-    val templateAudioControllerDesc: String get() = StringsC.templateAudioControllerDesc
-    val templateDefaultVolume: String get() = StringsC.templateDefaultVolume
-    val templateNotificationBlocker: String get() = StringsC.templateNotificationBlocker
-    val templateNotificationBlockerDesc: String get() = StringsC.templateNotificationBlockerDesc
-    val templateTrackingBlocker: String get() = StringsC.templateTrackingBlocker
-    val templateTrackingBlockerDesc: String get() = StringsC.templateTrackingBlockerDesc
-    val templateFingerprintProtector: String get() = StringsC.templateFingerprintProtector
-    val templateFingerprintProtectorDesc: String get() = StringsC.templateFingerprintProtectorDesc
-    val templateConsoleLogger: String get() = StringsC.templateConsoleLogger
-    val templateConsoleLoggerDesc: String get() = StringsC.templateConsoleLoggerDesc
-    val templateMaxLogs: String get() = StringsC.templateMaxLogs
-    val templateNetworkMonitor: String get() = StringsC.templateNetworkMonitor
-    val templateNetworkMonitorDesc: String get() = StringsC.templateNetworkMonitorDesc
-    val templateDomInspector: String get() = StringsC.templateDomInspector
-    val templateDomInspectorDesc: String get() = StringsC.templateDomInspectorDesc
+
     val builtinMediaDownloader: String get() = StringsC.builtinMediaDownloader
     val builtinMediaDownloaderDesc: String get() = StringsC.builtinMediaDownloaderDesc
     val builtinVideoEnhancer: String get() = StringsC.builtinVideoEnhancer
@@ -2232,132 +1689,7 @@ object Strings {
 
     fun builtinPluginName(id: String, fallback: String): String = StringsC.builtinPluginName(id, fallback)
     fun builtinPluginDescription(id: String, fallback: String): String = StringsC.builtinPluginDescription(id, fallback)
-    val triggerAuto: String get() = StringsC.triggerAuto
-    val triggerAutoDesc: String get() = StringsC.triggerAutoDesc
-    val triggerManual: String get() = StringsC.triggerManual
-    val triggerManualDesc: String get() = StringsC.triggerManualDesc
-    val triggerInterval: String get() = StringsC.triggerInterval
-    val triggerIntervalDesc: String get() = StringsC.triggerIntervalDesc
-    val triggerMutation: String get() = StringsC.triggerMutation
-    val triggerMutationDesc: String get() = StringsC.triggerMutationDesc
-    val triggerScroll: String get() = StringsC.triggerScroll
-    val triggerScrollDesc: String get() = StringsC.triggerScrollDesc
-    val triggerClick: String get() = StringsC.triggerClick
-    val triggerClickDesc: String get() = StringsC.triggerClickDesc
-    val triggerHover: String get() = StringsC.triggerHover
-    val triggerHoverDesc: String get() = StringsC.triggerHoverDesc
-    val triggerFocus: String get() = StringsC.triggerFocus
-    val triggerFocusDesc: String get() = StringsC.triggerFocusDesc
-    val triggerInput: String get() = StringsC.triggerInput
-    val triggerInputDesc: String get() = StringsC.triggerInputDesc
-    val triggerVisibility: String get() = StringsC.triggerVisibility
-    val triggerVisibilityDesc: String get() = StringsC.triggerVisibilityDesc
-    val permDomAccess: String get() = StringsC.permDomAccess
-    val permDomAccessDesc: String get() = StringsC.permDomAccessDesc
-    val permDomObserve: String get() = StringsC.permDomObserve
-    val permDomObserveDesc: String get() = StringsC.permDomObserveDesc
-    val permCssInject: String get() = StringsC.permCssInject
-    val permCssInjectDesc: String get() = StringsC.permCssInjectDesc
-    val permStorage: String get() = StringsC.permStorage
-    val permStorageDesc: String get() = StringsC.permStorageDesc
-    val permCookie: String get() = StringsC.permCookie
-    val permCookieDesc: String get() = StringsC.permCookieDesc
-    val permIndexedDb: String get() = StringsC.permIndexedDb
-    val permIndexedDbDesc: String get() = StringsC.permIndexedDbDesc
-    val permCache: String get() = StringsC.permCache
-    val permCacheDesc: String get() = StringsC.permCacheDesc
-    val permNetwork: String get() = StringsC.permNetwork
-    val permNetworkDesc: String get() = StringsC.permNetworkDesc
-    val permWebsocket: String get() = StringsC.permWebsocket
-    val permWebsocketDesc: String get() = StringsC.permWebsocketDesc
-    val permFetchIntercept: String get() = StringsC.permFetchIntercept
-    val permFetchInterceptDesc: String get() = StringsC.permFetchInterceptDesc
-    val permClipboard: String get() = StringsC.permClipboard
-    val permClipboardDesc: String get() = StringsC.permClipboardDesc
-    val permNotification: String get() = StringsC.permNotification
-    val permNotificationDesc: String get() = StringsC.permNotificationDesc
-    val permAlert: String get() = StringsC.permAlert
-    val permAlertDesc: String get() = StringsC.permAlertDesc
-    val permKeyboard: String get() = StringsC.permKeyboard
-    val permKeyboardDesc: String get() = StringsC.permKeyboardDesc
-    val permMouse: String get() = StringsC.permMouse
-    val permMouseDesc: String get() = StringsC.permMouseDesc
-    val permTouch: String get() = StringsC.permTouch
-    val permTouchDesc: String get() = StringsC.permTouchDesc
-    val permLocation: String get() = StringsC.permLocation
-    val permLocationDesc: String get() = StringsC.permLocationDesc
-    val permCamera: String get() = StringsC.permCamera
-    val permCameraDesc: String get() = StringsC.permCameraDesc
-    val permMicrophone: String get() = StringsC.permMicrophone
-    val permMicrophoneDesc: String get() = StringsC.permMicrophoneDesc
-    val permDeviceInfo: String get() = StringsC.permDeviceInfo
-    val permDeviceInfoDesc: String get() = StringsC.permDeviceInfoDesc
-    val permMedia: String get() = StringsC.permMedia
-    val permMediaDesc: String get() = StringsC.permMediaDesc
-    val permFullscreen: String get() = StringsC.permFullscreen
-    val permFullscreenDesc: String get() = StringsC.permFullscreenDesc
-    val permPip: String get() = StringsC.permPip
-    val permPipDesc: String get() = StringsC.permPipDesc
-    val permScreenCapture: String get() = StringsC.permScreenCapture
-    val permScreenCaptureDesc: String get() = StringsC.permScreenCaptureDesc
-    val permDownload: String get() = StringsC.permDownload
-    val permDownloadDesc: String get() = StringsC.permDownloadDesc
-    val permFileAccess: String get() = StringsC.permFileAccess
-    val permFileAccessDesc: String get() = StringsC.permFileAccessDesc
-    val permEval: String get() = StringsC.permEval
-    val permEvalDesc: String get() = StringsC.permEvalDesc
-    val permIframe: String get() = StringsC.permIframe
-    val permIframeDesc: String get() = StringsC.permIframeDesc
-    val permWindowOpen: String get() = StringsC.permWindowOpen
-    val permWindowOpenDesc: String get() = StringsC.permWindowOpenDesc
-    val permHistory: String get() = StringsC.permHistory
-    val permHistoryDesc: String get() = StringsC.permHistoryDesc
-    val permNavigation: String get() = StringsC.permNavigation
-    val permNavigationDesc: String get() = StringsC.permNavigationDesc
-    val configTypeText: String get() = StringsC.configTypeText
-    val configTypeTextDesc: String get() = StringsC.configTypeTextDesc
-    val configTypeTextarea: String get() = StringsC.configTypeTextarea
-    val configTypeTextareaDesc: String get() = StringsC.configTypeTextareaDesc
-    val configTypeNumber: String get() = StringsC.configTypeNumber
-    val configTypeNumberDesc: String get() = StringsC.configTypeNumberDesc
-    val configTypeBoolean: String get() = StringsC.configTypeBoolean
-    val configTypeBooleanDesc: String get() = StringsC.configTypeBooleanDesc
-    val configTypeSelect: String get() = StringsC.configTypeSelect
-    val configTypeSelectDesc: String get() = StringsC.configTypeSelectDesc
-    val configTypeMultiSelect: String get() = StringsC.configTypeMultiSelect
-    val configTypeMultiSelectDesc: String get() = StringsC.configTypeMultiSelectDesc
-    val configTypeRadio: String get() = StringsC.configTypeRadio
-    val configTypeRadioDesc: String get() = StringsC.configTypeRadioDesc
-    val configTypeCheckbox: String get() = StringsC.configTypeCheckbox
-    val configTypeCheckboxDesc: String get() = StringsC.configTypeCheckboxDesc
-    val configTypeColor: String get() = StringsC.configTypeColor
-    val configTypeColorDesc: String get() = StringsC.configTypeColorDesc
-    val configTypeUrl: String get() = StringsC.configTypeUrl
-    val configTypeUrlDesc: String get() = StringsC.configTypeUrlDesc
-    val configTypeEmail: String get() = StringsC.configTypeEmail
-    val configTypeEmailDesc: String get() = StringsC.configTypeEmailDesc
-    val configTypePassword: String get() = StringsC.configTypePassword
-    val configTypePasswordDesc: String get() = StringsC.configTypePasswordDesc
-    val configTypeRegex: String get() = StringsC.configTypeRegex
-    val configTypeRegexDesc: String get() = StringsC.configTypeRegexDesc
-    val configTypeCssSelector: String get() = StringsC.configTypeCssSelector
-    val configTypeCssSelectorDesc: String get() = StringsC.configTypeCssSelectorDesc
-    val configTypeJavascript: String get() = StringsC.configTypeJavascript
-    val configTypeJavascriptDesc: String get() = StringsC.configTypeJavascriptDesc
-    val configTypeJson: String get() = StringsC.configTypeJson
-    val configTypeJsonDesc: String get() = StringsC.configTypeJsonDesc
-    val configTypeRange: String get() = StringsC.configTypeRange
-    val configTypeRangeDesc: String get() = StringsC.configTypeRangeDesc
-    val configTypeDate: String get() = StringsC.configTypeDate
-    val configTypeDateDesc: String get() = StringsC.configTypeDateDesc
-    val configTypeTime: String get() = StringsC.configTypeTime
-    val configTypeTimeDesc: String get() = StringsC.configTypeTimeDesc
-    val configTypeDatetime: String get() = StringsC.configTypeDatetime
-    val configTypeDatetimeDesc: String get() = StringsC.configTypeDatetimeDesc
-    val configTypeFile: String get() = StringsC.configTypeFile
-    val configTypeFileDesc: String get() = StringsC.configTypeFileDesc
-    val configTypeImage: String get() = StringsC.configTypeImage
-    val configTypeImageDesc: String get() = StringsC.configTypeImageDesc
+
     val lrcThemeDefault: String get() = StringsC.lrcThemeDefault
     val lrcThemeKaraoke: String get() = StringsC.lrcThemeKaraoke
     val lrcThemeNeon: String get() = StringsC.lrcThemeNeon
@@ -2366,44 +1698,7 @@ object Strings {
     val lrcThemeDark: String get() = StringsC.lrcThemeDark
     val lrcThemeRomantic: String get() = StringsC.lrcThemeRomantic
     val lrcThemeEnergetic: String get() = StringsC.lrcThemeEnergetic
-    val testPageBasicHtml: String get() = StringsC.testPageBasicHtml
-    val testPageBasicHtmlDesc: String get() = StringsC.testPageBasicHtmlDesc
-    val testPageForm: String get() = StringsC.testPageForm
-    val testPageFormDesc: String get() = StringsC.testPageFormDesc
-    val testPageMedia: String get() = StringsC.testPageMedia
-    val testPageMediaDesc: String get() = StringsC.testPageMediaDesc
-    val testPageAdSimulator: String get() = StringsC.testPageAdSimulator
-    val testPageAdSimulatorDesc: String get() = StringsC.testPageAdSimulatorDesc
-    val testPagePopup: String get() = StringsC.testPagePopup
-    val testPagePopupDesc: String get() = StringsC.testPagePopupDesc
-    val testPageScroll: String get() = StringsC.testPageScroll
-    val testPageScrollDesc: String get() = StringsC.testPageScrollDesc
-    val testPageStyle: String get() = StringsC.testPageStyle
-    val testPageStyleDesc: String get() = StringsC.testPageStyleDesc
-    val testPageApi: String get() = StringsC.testPageApi
-    val testPageApiDesc: String get() = StringsC.testPageApiDesc
-    val presetReading: String get() = StringsC.presetReading
-    val presetAdblock: String get() = StringsC.presetAdblock
-    val presetMedia: String get() = StringsC.presetMedia
-    val presetUtility: String get() = StringsC.presetUtility
-    val presetNight: String get() = StringsC.presetNight
-    val categoryGroupContent: String get() = StringsC.categoryGroupContent
-    val categoryGroupAppearance: String get() = StringsC.categoryGroupAppearance
-    val categoryGroupFunction: String get() = StringsC.categoryGroupFunction
-    val categoryGroupData: String get() = StringsC.categoryGroupData
-    val categoryGroupMedia: String get() = StringsC.categoryGroupMedia
-    val categoryGroupSecurity: String get() = StringsC.categoryGroupSecurity
-    val categoryGroupLife: String get() = StringsC.categoryGroupLife
-    val categoryGroupDeveloper: String get() = StringsC.categoryGroupDeveloper
-    val categoryGroupOther: String get() = StringsC.categoryGroupOther
-    val permGroupBasic: String get() = StringsC.permGroupBasic
-    val permGroupStorage: String get() = StringsC.permGroupStorage
-    val permGroupNetwork: String get() = StringsC.permGroupNetwork
-    val permGroupInteraction: String get() = StringsC.permGroupInteraction
-    val permGroupDevice: String get() = StringsC.permGroupDevice
-    val permGroupMediaPerm: String get() = StringsC.permGroupMediaPerm
-    val permGroupFile: String get() = StringsC.permGroupFile
-    val permGroupAdvanced: String get() = StringsC.permGroupAdvanced
+
     val featureAgent: String get() = StringsC.featureAgent
     val featureAgentDesc: String get() = StringsC.featureAgentDesc
     val featureAgentImage: String get() = StringsC.featureAgentImage
@@ -2427,18 +1722,7 @@ object Strings {
     val multimodalModelDesc: String get() = StringsC.multimodalModelDesc
     val capabilityImageGen: String get() = StringsC.capabilityImageGen
     val capabilityImageGenDesc: String get() = StringsC.capabilityImageGenDesc
-    val configCssSelector: String get() = StringsC.configCssSelector
-    val configCssSelectorDesc: String get() = StringsC.configCssSelectorDesc
-    val configCssSelectorPlaceholder: String get() = StringsC.configCssSelectorPlaceholder
-    val configHideMethod: String get() = StringsC.configHideMethod
-    val configBlockPopups: String get() = StringsC.configBlockPopups
-    val configBlockOverlays: String get() = StringsC.configBlockOverlays
-    val configAutoCloseDelay: String get() = StringsC.configAutoCloseDelay
-    val configCssCode: String get() = StringsC.configCssCode
-    val configBrightness: String get() = StringsC.configBrightness
-    val configContrast: String get() = StringsC.configContrast
-    val configFont: String get() = StringsC.configFont
-    val configFontSize: String get() = StringsC.configFontSize
+
     val allowSkip: String get() = StringsC.allowSkip
     val allowSkipHint: String get() = StringsC.allowSkipHint
     val splashShowCountdownLabel: String get() = StringsC.splashShowCountdownLabel
@@ -2448,6 +1732,13 @@ object Strings {
     val translateEngine: String get() = StringsC.translateEngine
     val autoTranslateOnLoad: String get() = StringsC.autoTranslateOnLoad
     val autoTranslateOnLoadHint: String get() = StringsC.autoTranslateOnLoadHint
+    val displayCutoutModeLabel: String get() = StringsC.displayCutoutModeLabel
+    val displayCutoutModeShortEdges: String get() = StringsC.displayCutoutModeShortEdges
+    val displayCutoutModeDefault: String get() = StringsC.displayCutoutModeDefault
+    val displayCutoutModeNever: String get() = StringsC.displayCutoutModeNever
+    val displayCutoutModeShortEdgesDesc: String get() = StringsC.displayCutoutModeShortEdgesDesc
+    val displayCutoutModeDefaultDesc: String get() = StringsC.displayCutoutModeDefaultDesc
+    val displayCutoutModeNeverDesc: String get() = StringsC.displayCutoutModeNeverDesc
     val showStatusBar: String get() = StringsC.showStatusBar
     val showStatusBarHint: String get() = StringsC.showStatusBarHint
     val showNavigationBar: String get() = StringsC.showNavigationBar
@@ -2479,8 +1770,7 @@ object Strings {
     val clickToSelectImageOrVideo: String get() = StringsC.clickToSelectImageOrVideo
     val displayDuration: String get() = StringsC.displayDuration
     val displayDurationSeconds: String get() = StringsC.displayDurationSeconds
-    val exportAppTheme: String get() = StringsC.exportAppTheme
-    val exportAppThemeHint: String get() = StringsC.exportAppThemeHint
+
     val autoTranslateHint: String get() = StringsC.autoTranslateHint
     val videoCrop: String get() = StringsC.videoCrop
     val splashPreview: String get() = StringsC.splashPreview
@@ -2558,11 +1848,12 @@ object Strings {
     val preflightMediaFileIssue: String get() = StringsC.preflightMediaFileIssue
     val preflightInputIssue: String get() = StringsC.preflightInputIssue
     val bootAutoStart: String get() = StringsC.bootAutoStart
-    val bootAutoStartHint: String get() = StringsC.bootAutoStartHint
+
     val scheduledAutoStart: String get() = StringsC.scheduledAutoStart
-    val scheduledAutoStartHint: String get() = StringsC.scheduledAutoStartHint
+
+    val scheduledRepeat: String get() = StringsC.scheduledRepeat
     val launchDate: String get() = StringsC.launchDate
-    val autoStartNote: String get() = StringsC.autoStartNote
+
     val today: String get() = StringsC.today
     val tomorrow: String get() = StringsC.tomorrow
     val nextLaunchTime: String get() = StringsC.nextLaunchTime
@@ -2570,12 +1861,11 @@ object Strings {
     val batteryOptimizationHint: String get() = StringsC.batteryOptimizationHint
     val bootDelay: String get() = StringsC.bootDelay
     val oemAutoStartHint: String get() = StringsC.oemAutoStartHint
-    val autoStartPermissionReady: String get() = StringsC.autoStartPermissionReady
+
     val selectAnnouncementStyle: String get() = StringsC.selectAnnouncementStyle
     val announcementStyleClean: String get() = StringsC.announcementStyleClean
     val announcementStyleCleanDesc: String get() = StringsC.announcementStyleCleanDesc
-    val announcementStyleAccent: String get() = StringsC.announcementStyleAccent
-    val announcementStyleAccentDesc: String get() = StringsC.announcementStyleAccentDesc
+
     val announcementStyleDark: String get() = StringsC.announcementStyleDark
     val announcementStyleDarkDesc: String get() = StringsC.announcementStyleDarkDesc
     val announcementShowIcon: String get() = StringsC.announcementShowIcon
@@ -2646,34 +1936,7 @@ object Strings {
     val bgmLibraryTitle: String get() = StringsC.bgmLibraryTitle
     val bgmTrackCount: String get() = StringsC.bgmTrackCount
     val moreOptions: String get() = StringsC.moreOptions
-    val extensionModuleTitle: String get() = StringsC.extensionModuleTitle
-    val noModuleSelected: String get() = StringsC.noModuleSelected
-    val modulesSelected: String get() = StringsC.modulesSelected
-    val addModule: String get() = StringsC.addModule
-    val extensionModuleHint: String get() = StringsC.extensionModuleHint
-    val searchModulesPlaceholder: String get() = StringsC.searchModulesPlaceholder
-    val filterAll: String get() = StringsC.filterAll
-    val filterContent: String get() = StringsC.filterContent
-    val filterStyle: String get() = StringsC.filterStyle
-    val filterFunction: String get() = StringsC.filterFunction
-    val clearSelection: String get() = StringsC.clearSelection
-    val quickEnable: String get() = StringsC.quickEnable
-    val shareModule: String get() = StringsC.shareModule
-    val sharePoster: String get() = StringsC.sharePoster
-    val savePoster: String get() = StringsC.savePoster
-    val sharePosterBtn: String get() = StringsC.sharePosterBtn
-    val scanQrToImport: String get() = StringsC.scanQrToImport
-    val scanToImportModule: String get() = StringsC.scanToImportModule
-    val moduleTooLargeTitle: String get() = StringsC.moduleTooLargeTitle
-    val moduleTooLargeDesc: String get() = StringsC.moduleTooLargeDesc
-    val shareModuleFile: String get() = StringsC.shareModuleFile
-    val shareFileHint: String get() = StringsC.shareFileHint
-    val posterSavedToGallery: String get() = StringsC.posterSavedToGallery
-    val shareModuleText: String get() = StringsC.shareModuleText
-    val shareModuleFileSubject: String get() = StringsC.shareModuleFileSubject
-    val shareModuleFileText: String get() = StringsC.shareModuleFileText
-    val extensionModuleSubtitle: String get() = StringsC.extensionModuleSubtitle
-    val onlyEffectiveOnMatchingSites: String get() = StringsC.onlyEffectiveOnMatchingSites
+
     val sampleProjects: String get() = StringsC.sampleProjects
     val quickExperienceFrontend: String get() = StringsC.quickExperienceFrontend
     val quickExperience: String get() = StringsC.quickExperience
@@ -2763,7 +2026,6 @@ object Strings {
     val mobileVersion: String get() = StringsC.mobileVersion
     val desktopVersion: String get() = StringsC.desktopVersion
     val desktopModeLabel: String get() = StringsC.desktopModeLabel
-    val desktopModeHint: String get() = StringsC.desktopModeHint
     val currentUserAgent: String get() = StringsC.currentUserAgent
     val bypassWebViewDetection: String get() = StringsC.bypassWebViewDetection
     val fileLabel: String get() = StringsC.fileLabel
@@ -3057,49 +2319,31 @@ object Strings {
     val webViewPackage: String get() = StringsD.webViewPackage
     val changeWebViewProvider: String get() = StringsD.changeWebViewProvider
     val changeWebViewProviderDesc: String get() = StringsD.changeWebViewProviderDesc
-    val installedBrowsers: String get() = StringsD.installedBrowsers
-    val installedBrowsersDesc: String get() = StringsD.installedBrowsersDesc
+
     val webViewProvidersTitle: String get() = StringsD.webViewProvidersTitle
     val webViewProvidersDesc: String get() = StringsD.webViewProvidersDesc
     val noOtherWebViewProviders: String get() = StringsD.noOtherWebViewProviders
     val singleWebViewProviderNote: String get() = StringsD.singleWebViewProviderNote
-    val noBrowserInstalled: String get() = StringsD.noBrowserInstalled
-    val recommendedBrowsers: String get() = StringsD.recommendedBrowsers
-    val recommendedBrowsersDesc: String get() = StringsD.recommendedBrowsersDesc
-    val browserChromeDesc: String get() = StringsD.browserChromeDesc
-    val browserEdgeDesc: String get() = StringsD.browserEdgeDesc
-    val browserFirefoxDesc: String get() = StringsD.browserFirefoxDesc
-    val browserBraveDesc: String get() = StringsD.browserBraveDesc
-    val browserViaDesc: String get() = StringsD.browserViaDesc
-    val browserX5: String get() = StringsD.browserX5
-    val browserX5Desc: String get() = StringsD.browserX5Desc
+
     val webViewNote: String get() = StringsD.webViewNote
     val howToEnableDeveloperOptions: String get() = StringsD.howToEnableDeveloperOptions
     val developerOptionsSteps: String get() = StringsD.developerOptionsSteps
     val currentlyUsing: String get() = StringsD.currentlyUsing
-    val canBeWebViewProvider: String get() = StringsD.canBeWebViewProvider
+
     val openInBrowser: String get() = StringsD.openInBrowser
-    val scriptAuthor: String get() = StringsD.scriptAuthor
+
     val loadFailed: String get() = StringsD.loadFailed
-    val noMatchingScripts: String get() = StringsD.noMatchingScripts
+
     val matchRules: String get() = StringsD.matchRules
     val extensionModulesTab: String get() = StringsD.extensionModulesTab
-    val moduleDeleteConfirm: String get() = StringsD.moduleDeleteConfirm
-    val userScriptsTab: String get() = StringsD.userScriptsTab
-    val noUserScripts: String get() = StringsD.noUserScripts
-    val noUserScriptsHint: String get() = StringsD.noUserScriptsHint
+
     val viewSourceCode: String get() = StringsD.viewSourceCode
-    val cannotReadFile: String get() = StringsD.cannotReadFile
-    val addEntryFromMarketDesc: String get() = StringsD.addEntryFromMarketDesc
-    val addEntryAiDevelopDesc: String get() = StringsD.addEntryAiDevelopDesc
-    val addEntryManualDesc: String get() = StringsD.addEntryManualDesc
-    val addEntrySectionInstall: String get() = StringsD.addEntrySectionInstall
-    val addEntrySectionImport: String get() = StringsD.addEntrySectionImport
+
     val moduleMarketSearchHint: String get() = StringsD.moduleMarketSearchHint
-    val moduleMarketAll: String get() = StringsD.moduleMarketAll
+
     val moduleMarketInstall: String get() = StringsD.moduleMarketInstall
     val moduleMarketUpdate: String get() = StringsD.moduleMarketUpdate
-    val moduleMarketDlManifest: String get() = StringsD.moduleMarketDlManifest
+
     val moduleMarketDlCode: String get() = StringsD.moduleMarketDlCode
     val moduleMarketDlStyle: String get() = StringsD.moduleMarketDlStyle
     val moduleMarketInstalling: String get() = StringsD.moduleMarketInstalling
@@ -3109,29 +2353,9 @@ object Strings {
     val moduleMarketContribute: String get() = StringsD.moduleMarketContribute
     val moduleMarketLoading: String get() = StringsD.moduleMarketLoading
     val moduleMarketNoResults: String get() = StringsD.moduleMarketNoResults
-    val moduleMarketSubmittedBy: String get() = StringsD.moduleMarketSubmittedBy
-    val moduleMarketWithContributors: String get() = StringsD.moduleMarketWithContributors
-    val moduleMarketContributorsTitle: String get() = StringsD.moduleMarketContributorsTitle
-    val moduleMarketContributorsOverview: String get() = StringsD.moduleMarketContributorsOverview
-    val moduleMarketTopContributor: String get() = StringsD.moduleMarketTopContributor
-    val moduleMarketModulesContributed: String get() = StringsD.moduleMarketModulesContributed
-    val moduleMarketViewProfile: String get() = StringsD.moduleMarketViewProfile
-    val moduleMarketDetails: String get() = StringsD.moduleMarketDetails
-    val moduleMarketCategory: String get() = StringsD.moduleMarketCategory
-    val moduleMarketTags: String get() = StringsD.moduleMarketTags
-    val moduleMarketPermissions: String get() = StringsD.moduleMarketPermissions
+
     val moduleMarketUrlMatches: String get() = StringsD.moduleMarketUrlMatches
-    val moduleMarketRunAt: String get() = StringsD.moduleMarketRunAt
-    val moduleMarketMergedAt: String get() = StringsD.moduleMarketMergedAt
-    val moduleMarketViewPullRequest: String get() = StringsD.moduleMarketViewPullRequest
-    val moduleMarketDirectPush: String get() = StringsD.moduleMarketDirectPush
-    val moduleMarketPrNumber: String get() = StringsD.moduleMarketPrNumber
-    val moduleMarketTimeJustNow: String get() = StringsD.moduleMarketTimeJustNow
-    val moduleMarketTimeMinutesAgo: String get() = StringsD.moduleMarketTimeMinutesAgo
-    val moduleMarketTimeHoursAgo: String get() = StringsD.moduleMarketTimeHoursAgo
-    val moduleMarketTimeDaysAgo: String get() = StringsD.moduleMarketTimeDaysAgo
-    val moduleMarketTimeMonthsAgo: String get() = StringsD.moduleMarketTimeMonthsAgo
-    val moduleMarketTimeYearsAgo: String get() = StringsD.moduleMarketTimeYearsAgo
+
     val moduleMarketGuideOpenRepo: String get() = StringsD.moduleMarketGuideOpenRepo
     val moduleMarketGuideEmptyCta: String get() = StringsD.moduleMarketGuideEmptyCta
     val imageFile: String get() = StringsD.imageFile
@@ -3153,6 +2377,18 @@ object Strings {
     val advancedFeatures: String get() = StringsD.advancedFeatures
     val advancedFeaturesDesc: String get() = StringsD.advancedFeaturesDesc
     val advancedFeaturesOff: String get() = StringsD.advancedFeaturesOff
+    val typeDescWeb: String get() = StringsE.typeDescWeb
+    val typeDescMultiWeb: String get() = StringsE.typeDescMultiWeb
+    val typeDescHtml: String get() = StringsE.typeDescHtml
+    val typeDescOfflinePack: String get() = StringsE.typeDescOfflinePack
+    val typeDescFrontend: String get() = StringsE.typeDescFrontend
+    val typeDescGallery: String get() = StringsE.typeDescGallery
+    val typeDescPhp: String get() = StringsE.typeDescPhp
+    val typeDescWordPress: String get() = StringsE.typeDescWordPress
+    val typeDescNodeJs: String get() = StringsE.typeDescNodeJs
+    val typeDescPython: String get() = StringsE.typeDescPython
+    val typeDescGo: String get() = StringsE.typeDescGo
+    val typeDescMedia: String get() = StringsE.typeDescMedia
     val hostsRulesCount: String get() = StringsD.hostsRulesCount
     val importFromUrl: String get() = StringsD.importFromUrl
     val popularHostsSources: String get() = StringsD.popularHostsSources
@@ -3166,13 +2402,13 @@ object Strings {
     val hostsCleared: String get() = StringsD.hostsCleared
     val hostsBlockingDescription: String get() = StringsD.hostsBlockingDescription
     val downloadAndImport: String get() = StringsD.downloadAndImport
-    val hostsSourceDownloaded: String get() = StringsD.hostsSourceDownloaded
+
     val deleteHostsSource: String get() = StringsD.deleteHostsSource
     val deleteHostsSourceConfirm: String get() = StringsD.deleteHostsSourceConfirm
     val hostsSourceDeleted: String get() = StringsD.hostsSourceDeleted
     val downloading: String get() = StringsD.downloading
     val downloadCanceled: String get() = StringsD.downloadCanceled
-    val hostsSourcesSummary: String get() = StringsD.hostsSourcesSummary
+
     val hostsSearchHint: String get() = StringsD.hostsSearchHint
     val hostsFilterDownloaded: String get() = StringsD.hostsFilterDownloaded
     val hostsFilterNotDownloaded: String get() = StringsD.hostsFilterNotDownloaded
@@ -3185,23 +2421,17 @@ object Strings {
     val hostsSourcesEnabledSummary: String get() = StringsD.hostsSourcesEnabledSummary
     val galleryApp: String get() = StringsD.galleryApp
     val galleryCreateTitle: String get() = StringsD.galleryCreateTitle
-    val galleryTabMedia: String get() = StringsD.galleryTabMedia
-    val galleryTabPlayback: String get() = StringsD.galleryTabPlayback
-    val galleryTabDisplay: String get() = StringsD.galleryTabDisplay
-    val galleryCategories: String get() = StringsD.galleryCategories
+
     val galleryMediaList: String get() = StringsD.galleryMediaList
     val galleryItemCount: String get() = StringsD.galleryItemCount
     val galleryAddMedia: String get() = StringsD.galleryAddMedia
     val galleryClickToAdd: String get() = StringsD.galleryClickToAdd
     val gallerySupportTypes: String get() = StringsD.gallerySupportTypes
-    val galleryImages: String get() = StringsD.galleryImages
-    val galleryVideos: String get() = StringsD.galleryVideos
+
     val galleryEmpty: String get() = StringsD.galleryEmpty
-    val galleryTotalSize: String get() = StringsD.galleryTotalSize
+
     val galleryPlayMode: String get() = StringsD.galleryPlayMode
-    val galleryModeSequential: String get() = StringsD.galleryModeSequential
-    val galleryModeShuffle: String get() = StringsD.galleryModeShuffle
-    val galleryModeSingleLoop: String get() = StringsD.galleryModeSingleLoop
+
     val galleryImageSettings: String get() = StringsD.galleryImageSettings
     val galleryImageInterval: String get() = StringsD.galleryImageInterval
     val galleryVideoSettings: String get() = StringsD.galleryVideoSettings
@@ -3213,39 +2443,18 @@ object Strings {
     val galleryAutoPlayHint: String get() = StringsD.galleryAutoPlayHint
     val galleryLoopHint: String get() = StringsD.galleryLoopHint
     val galleryShuffleOnLoop: String get() = StringsD.galleryShuffleOnLoop
-    val galleryShuffleOnLoopHint: String get() = StringsD.galleryShuffleOnLoopHint
+
     val galleryRememberPosition: String get() = StringsD.galleryRememberPosition
-    val galleryRememberPositionHint: String get() = StringsD.galleryRememberPositionHint
-    val galleryViewMode: String get() = StringsD.galleryViewMode
-    val galleryViewGrid: String get() = StringsD.galleryViewGrid
-    val galleryViewList: String get() = StringsD.galleryViewList
-    val galleryViewTimeline: String get() = StringsD.galleryViewTimeline
+
     val galleryGridColumns: String get() = StringsD.galleryGridColumns
     val gallerySortOrder: String get() = StringsD.gallerySortOrder
-    val gallerySortCustom: String get() = StringsD.gallerySortCustom
-    val gallerySortNameAsc: String get() = StringsD.gallerySortNameAsc
-    val gallerySortNameDesc: String get() = StringsD.gallerySortNameDesc
-    val gallerySortDateAsc: String get() = StringsD.gallerySortDateAsc
-    val gallerySortDateDesc: String get() = StringsD.gallerySortDateDesc
-    val gallerySortType: String get() = StringsD.gallerySortType
-    val galleryPlayerSettings: String get() = StringsD.galleryPlayerSettings
+
     val galleryShowThumbnailBar: String get() = StringsD.galleryShowThumbnailBar
-    val galleryShowThumbnailBarHint: String get() = StringsD.galleryShowThumbnailBarHint
+
     val galleryShowMediaInfo: String get() = StringsD.galleryShowMediaInfo
-    val galleryShowMediaInfoHint: String get() = StringsD.galleryShowMediaInfoHint
+
     val galleryBackgroundColor: String get() = StringsD.galleryBackgroundColor
-    val galleryAddCategory: String get() = StringsD.galleryAddCategory
-    val galleryEditCategory: String get() = StringsD.galleryEditCategory
-    val galleryCategoryName: String get() = StringsD.galleryCategoryName
-    val galleryCategoryIcon: String get() = StringsD.galleryCategoryIcon
-    val galleryCategoryColor: String get() = StringsD.galleryCategoryColor
-    val galleryMediaDetail: String get() = StringsD.galleryMediaDetail
-    val galleryCategory: String get() = StringsD.galleryCategory
-    val galleryNoCategory: String get() = StringsD.galleryNoCategory
-    val galleryType: String get() = StringsD.galleryType
-    val galleryDuration: String get() = StringsD.galleryDuration
-    val gallerySize: String get() = StringsD.gallerySize
-    val galleryDimensions: String get() = StringsD.galleryDimensions
+
     val name: String get() = StringsD.name
     val galleryPlayerPrevious: String get() = StringsD.galleryPlayerPrevious
     val galleryPlayerNext: String get() = StringsD.galleryPlayerNext
@@ -3253,203 +2462,11 @@ object Strings {
     val galleryPlayerPlay: String get() = StringsD.galleryPlayerPlay
     val galleryPlayerSeekForward: String get() = StringsD.galleryPlayerSeekForward
     val galleryPlayerSeekBack: String get() = StringsD.galleryPlayerSeekBack
-    val tagVideo: String get() = StringsD.tagVideo
-    val tagDownload: String get() = StringsD.tagDownload
-    val tagImage: String get() = StringsD.tagImage
-    val tagSpeed: String get() = StringsD.tagSpeed
-    val tagPiP: String get() = StringsD.tagPiP
-    val tagDebug: String get() = StringsD.tagDebug
-    val tagAnalyze: String get() = StringsD.tagAnalyze
-    val tagDevelop: String get() = StringsD.tagDevelop
-    val tagDark: String get() = StringsD.tagDark
-    val tagEyeCare: String get() = StringsD.tagEyeCare
+
     val tagTheme: String get() = StringsD.tagTheme
-    val tagPrivacy: String get() = StringsD.tagPrivacy
+
     val tagSecurity: String get() = StringsD.tagSecurity
-    val tagAntiTrack: String get() = StringsD.tagAntiTrack
-    val tagAd: String get() = StringsD.tagAd
-    val tagElement: String get() = StringsD.tagElement
-    val tagCopy: String get() = StringsD.tagCopy
-    val tagTranslate: String get() = StringsD.tagTranslate
-    val tagScreenshot: String get() = StringsD.tagScreenshot
-    val tagToast: String get() = StringsD.tagToast
-    val tagMessage: String get() = StringsD.tagMessage
-    val tagVibrate: String get() = StringsD.tagVibrate
-    val tagFeedback: String get() = StringsD.tagFeedback
-    val tagHaptic: String get() = StringsD.tagHaptic
-    val tagClipboard: String get() = StringsD.tagClipboard
-    val tagShare: String get() = StringsD.tagShare
-    val tagSocial: String get() = StringsD.tagSocial
-    val tagSave: String get() = StringsD.tagSave
-    val tagGallery: String get() = StringsD.tagGallery
-    val tagBrowser: String get() = StringsD.tagBrowser
-    val tagLink: String get() = StringsD.tagLink
-    val tagExternal: String get() = StringsD.tagExternal
-    val tagDevice: String get() = StringsD.tagDevice
-    val tagInfo: String get() = StringsD.tagInfo
-    val tagScreen: String get() = StringsD.tagScreen
-    val tagNetwork: String get() = StringsD.tagNetwork
-    val tagWiFi: String get() = StringsD.tagWiFi
-    val tagData: String get() = StringsD.tagData
-    val tagFile: String get() = StringsD.tagFile
-    val tagExport: String get() = StringsD.tagExport
-    val tagFloating: String get() = StringsD.tagFloating
-    val tagQuery: String get() = StringsD.tagQuery
-    val tagSelector: String get() = StringsD.tagSelector
-    val tagIterate: String get() = StringsD.tagIterate
-    val tagHide: String get() = StringsD.tagHide
-    val tagStyle: String get() = StringsD.tagStyle
-    val tagDelete: String get() = StringsD.tagDelete
-    val tagRemove: String get() = StringsD.tagRemove
-    val tagCreate: String get() = StringsD.tagCreate
-    val tagAdd: String get() = StringsD.tagAdd
-    val tagText: String get() = StringsD.tagText
-    val tagModify: String get() = StringsD.tagModify
-    val tagAttribute: String get() = StringsD.tagAttribute
-    val tagInsert: String get() = StringsD.tagInsert
-    val tagPosition: String get() = StringsD.tagPosition
-    val tagClone: String get() = StringsD.tagClone
-    val tagWrap: String get() = StringsD.tagWrap
-    val tagStructure: String get() = StringsD.tagStructure
-    val tagReplace: String get() = StringsD.tagReplace
-    val tagCSS: String get() = StringsD.tagCSS
-    val tagInject: String get() = StringsD.tagInject
-    val tagInline: String get() = StringsD.tagInline
-    val tagClassName: String get() = StringsD.tagClassName
-    val tagWarm: String get() = StringsD.tagWarm
-    val tagGrayscale: String get() = StringsD.tagGrayscale
-    val tagFilter: String get() = StringsD.tagFilter
-    val tagFont: String get() = StringsD.tagFont
-    val tagSize: String get() = StringsD.tagSize
-    val tagScrollbar: String get() = StringsD.tagScrollbar
-    val tagHighlight: String get() = StringsD.tagHighlight
-    val tagWidth: String get() = StringsD.tagWidth
-    val tagReading: String get() = StringsD.tagReading
-    val tagLineHeight: String get() = StringsD.tagLineHeight
-    val tagClick: String get() = StringsD.tagClick
-    val tagEvent: String get() = StringsD.tagEvent
-    val tagKeyboard: String get() = StringsD.tagKeyboard
-    val tagShortcut: String get() = StringsD.tagShortcut
-    val tagScroll: String get() = StringsD.tagScroll
-    val tagListen: String get() = StringsD.tagListen
-    val tagDomChange: String get() = StringsD.tagDomChange
-    val tagDynamic: String get() = StringsD.tagDynamic
-    val tagWindow: String get() = StringsD.tagWindow
-    val tagRightClick: String get() = StringsD.tagRightClick
-    val tagMenu: String get() = StringsD.tagMenu
-    val tagVisibility: String get() = StringsD.tagVisibility
-    val tagBackground: String get() = StringsD.tagBackground
-    val tagClose: String get() = StringsD.tagClose
-    val tagTouch: String get() = StringsD.tagTouch
-    val tagGesture: String get() = StringsD.tagGesture
-    val tagLongPress: String get() = StringsD.tagLongPress
-    val tagStorage: String get() = StringsD.tagStorage
-    val tagRead: String get() = StringsD.tagRead
-    val tagSession: String get() = StringsD.tagSession
-    val tagTemporary: String get() = StringsD.tagTemporary
-    val tagCookie: String get() = StringsD.tagCookie
-    val tagSetting: String get() = StringsD.tagSetting
-    val tagIndexedDB: String get() = StringsD.tagIndexedDB
-    val tagBigData: String get() = StringsD.tagBigData
-    val tagGET: String get() = StringsD.tagGET
-    val tagRequest: String get() = StringsD.tagRequest
-    val tagPOST: String get() = StringsD.tagPOST
-    val tagSubmit: String get() = StringsD.tagSubmit
-    val tagTimeout: String get() = StringsD.tagTimeout
-    val tagRetry: String get() = StringsD.tagRetry
-    val tagJSONP: String get() = StringsD.tagJSONP
-    val tagCrossDomain: String get() = StringsD.tagCrossDomain
-    val tagTable: String get() = StringsD.tagTable
-    val tagExtract: String get() = StringsD.tagExtract
-    val tagJSON: String get() = StringsD.tagJSON
-    val tagCSV: String get() = StringsD.tagCSV
-    val tagURL: String get() = StringsD.tagURL
-    val tagParse: String get() = StringsD.tagParse
-    val tagBuild: String get() = StringsD.tagBuild
-    val tagPopup: String get() = StringsD.tagPopup
-    val tagDialog: String get() = StringsD.tagDialog
-    val tagProgress: String get() = StringsD.tagProgress
-    val tagLoading: String get() = StringsD.tagLoading
-    val tagAnimation: String get() = StringsD.tagAnimation
-    val tagNotification: String get() = StringsD.tagNotification
-    val tagSnackbar: String get() = StringsD.tagSnackbar
-    val tagToolbar: String get() = StringsD.tagToolbar
-    val tagSidebar: String get() = StringsD.tagSidebar
-    val tagPanel: String get() = StringsD.tagPanel
-    val tagDrag: String get() = StringsD.tagDrag
-    val tagInteraction: String get() = StringsD.tagInteraction
-    val tagPlayer: String get() = StringsD.tagPlayer
-    val tagMusic: String get() = StringsD.tagMusic
-    val tagBadge: String get() = StringsD.tagBadge
-    val tagNumber: String get() = StringsD.tagNumber
-    val tagBanner: String get() = StringsD.tagBanner
-    val tagReminder: String get() = StringsD.tagReminder
-    val tagTop: String get() = StringsD.tagTop
-    val tagBottom: String get() = StringsD.tagBottom
-    val tagBackToTop: String get() = StringsD.tagBackToTop
-    val tagNavigation: String get() = StringsD.tagNavigation
-    val tagForm: String get() = StringsD.tagForm
-    val tagFill: String get() = StringsD.tagFill
-    val tagGet: String get() = StringsD.tagGet
-    val tagValidate: String get() = StringsD.tagValidate
-    val tagIntercept: String get() = StringsD.tagIntercept
-    val tagClear: String get() = StringsD.tagClear
-    val tagPassword: String get() = StringsD.tagPassword
-    val tagToggle: String get() = StringsD.tagToggle
-    val tagZoom: String get() = StringsD.tagZoom
-    val tagAudio: String get() = StringsD.tagAudio
-    val tagControl: String get() = StringsD.tagControl
-    val tagLazyLoad: String get() = StringsD.tagLazyLoad
-    val tagFullscreen: String get() = StringsD.tagFullscreen
-    val tagSimplify: String get() = StringsD.tagSimplify
-    val tagUnlock: String get() = StringsD.tagUnlock
-    val tagPrint: String get() = StringsD.tagPrint
-    val tagOptimize: String get() = StringsD.tagOptimize
-    val tagVoice: String get() = StringsD.tagVoice
-    val tagReadAloud: String get() = StringsD.tagReadAloud
-    val tagStats: String get() = StringsD.tagStats
-    val tagWordCount: String get() = StringsD.tagWordCount
-    val tagSearch: String get() = StringsD.tagSearch
-    val tagKeyword: String get() = StringsD.tagKeyword
-    val tagEmptyElement: String get() = StringsD.tagEmptyElement
-    val tagClean: String get() = StringsD.tagClean
-    val tagComment: String get() = StringsD.tagComment
-    val tagPrevent: String get() = StringsD.tagPrevent
-    val tagMask: String get() = StringsD.tagMask
-    val tagAntiDetect: String get() = StringsD.tagAntiDetect
-    val tagDebounce: String get() = StringsD.tagDebounce
-    val tagPerformance: String get() = StringsD.tagPerformance
-    val tagThrottle: String get() = StringsD.tagThrottle
-    val tagWait: String get() = StringsD.tagWait
-    val tagAsync: String get() = StringsD.tagAsync
-    val tagDate: String get() = StringsD.tagDate
-    val tagFormat: String get() = StringsD.tagFormat
-    val tagRandom: String get() = StringsD.tagRandom
-    val tagString: String get() = StringsD.tagString
-    val tagDelay: String get() = StringsD.tagDelay
-    val tagErrorHandle: String get() = StringsD.tagErrorHandle
-    val tagArticle: String get() = StringsD.tagArticle
-    val tagMarkdown: String get() = StringsD.tagMarkdown
-    val tagConvert: String get() = StringsD.tagConvert
-    val tagFetch: String get() = StringsD.tagFetch
-    val tagXHR: String get() = StringsD.tagXHR
-    val tagWebSocket: String get() = StringsD.tagWebSocket
-    val tagTimer: String get() = StringsD.tagTimer
-    val tagRefresh: String get() = StringsD.tagRefresh
-    val tagLogin: String get() = StringsD.tagLogin
-    val tagDetect: String get() = StringsD.tagDetect
-    val tagConsole: String get() = StringsD.tagConsole
-    val tagLog: String get() = StringsD.tagLog
-    val tagInspect: String get() = StringsD.tagInspect
-    val tagMonitor: String get() = StringsD.tagMonitor
-    val quickPrompt1: String get() = StringsD.quickPrompt1
-    val quickPrompt2: String get() = StringsD.quickPrompt2
-    val quickPrompt3: String get() = StringsD.quickPrompt3
-    val quickPrompt4: String get() = StringsD.quickPrompt4
-    val quickPrompt5: String get() = StringsD.quickPrompt5
-    val quickPrompt6: String get() = StringsD.quickPrompt6
-    val quickPrompt7: String get() = StringsD.quickPrompt7
-    val quickPrompt8: String get() = StringsD.quickPrompt8
+
     val providerOpenAI: String get() = StringsD.providerOpenAI
     val providerOpenAIDesc: String get() = StringsD.providerOpenAIDesc
     val providerOpenAIPricing: String get() = StringsD.providerOpenAIPricing
@@ -3622,12 +2639,9 @@ object Strings {
     val pyRequirements: String get() = StringsD.pyRequirements
     val pyRequirementsFile: String get() = StringsD.pyRequirementsFile
     val pyServerBuiltin: String get() = StringsD.pyServerBuiltin
-    val pyServerBuiltinDesc: String get() = StringsD.pyServerBuiltinDesc
-    val pyServerGunicorn: String get() = StringsD.pyServerGunicorn
-    val pyServerGunicornDesc: String get() = StringsD.pyServerGunicornDesc
+
     val pyServerUvicorn: String get() = StringsD.pyServerUvicorn
-    val pyServerUvicornDesc: String get() = StringsD.pyServerUvicornDesc
-    val pyRecommended: String get() = StringsD.pyRecommended
+
     val pyWsgiModule: String get() = StringsD.pyWsgiModule
     val pyWsgiModuleHint: String get() = StringsD.pyWsgiModuleHint
     val pyVenvDetected: String get() = StringsD.pyVenvDetected
@@ -3854,7 +2868,7 @@ object Strings {
     val sampleTagResponsive: String get() = StringsD.sampleTagResponsive
     val sampleTagSqlite: String get() = StringsD.sampleTagSqlite
     val importUserScript: String get() = StringsD.importUserScript
-    val importUserScriptHint: String get() = StringsD.importUserScriptHint
+
     val importChromeExtension: String get() = StringsD.importChromeExtension
     val communityExtStoreTitle: String get() = StringsE.communityExtStoreTitle
     val browserExtTab: String get() = StringsE.browserExtTab
@@ -3863,7 +2877,7 @@ object Strings {
     val cwsSearching: String get() = StringsE.cwsSearching
     val cwsNoResults: String get() = StringsE.cwsNoResults
     val cwsSearchFailed: String get() = StringsE.cwsSearchFailed
-    val cwsSearchIntro: String get() = StringsE.cwsSearchIntro
+
     val cwsBrowseIntro: String get() = StringsE.cwsBrowseIntro
     val cwsFeaturedTitle: String get() = StringsE.cwsFeaturedTitle
     val cwsCategoryFeatured: String get() = StringsE.cwsCategoryFeatured
@@ -3873,20 +2887,14 @@ object Strings {
     val cwsCategoryProductivity: String get() = StringsE.cwsCategoryProductivity
     val cwsCategoryDeveloper: String get() = StringsE.cwsCategoryDeveloper
     val cwsCategoryStyling: String get() = StringsE.cwsCategoryStyling
-    val cwsSortLabel: String get() = StringsE.cwsSortLabel
-    val cwsSortDefault: String get() = StringsE.cwsSortDefault
-    val cwsSortRating: String get() = StringsE.cwsSortRating
-    val cwsSortReviews: String get() = StringsE.cwsSortReviews
-    val cwsSortDownloads: String get() = StringsE.cwsSortDownloads
+
     val greasyForkTab: String get() = StringsE.greasyForkTab
-    val noGreasyForkScripts: String get() = StringsE.noGreasyForkScripts
-    val greasyForkEmptyHint: String get() = StringsE.greasyForkEmptyHint
-    val browseGreasyFork: String get() = StringsE.browseGreasyFork
+
     val gfSearchHint: String get() = StringsE.gfSearchHint
     val gfSearching: String get() = StringsE.gfSearching
     val gfNoResults: String get() = StringsE.gfNoResults
     val gfSearchFailed: String get() = StringsE.gfSearchFailed
-    val gfSearchIntro: String get() = StringsE.gfSearchIntro
+
     val gfBrowseIntro: String get() = StringsE.gfBrowseIntro
     val gfHotTitle: String get() = StringsE.gfHotTitle
     val gfCategoryHot: String get() = StringsE.gfCategoryHot
@@ -3897,11 +2905,9 @@ object Strings {
     val gfSortRatings: String get() = StringsE.gfSortRatings
     val gfSortUpdated: String get() = StringsE.gfSortUpdated
     val gfInstallFailed: String get() = StringsE.gfInstallFailed
-    val gfEmptyTitle: String get() = StringsE.gfEmptyTitle
-    val gfFromUserScriptsTitle: String get() = StringsE.gfFromUserScriptsTitle
-    val gfFromUserScriptsDesc: String get() = StringsE.gfFromUserScriptsDesc
+
     val cwsDlModule: String get() = StringsE.cwsDlModule
-    val cwsDlIcon: String get() = StringsE.cwsDlIcon
+
     val cwsDlTags: String get() = StringsE.cwsDlTags
     val cwsAdBlockTip: String get() = StringsE.cwsAdBlockTip
     val cwsTagAdBlocking: String get() = StringsE.cwsTagAdBlocking
@@ -3922,24 +2928,18 @@ object Strings {
     val cwsTagStyling: String get() = StringsE.cwsTagStyling
     val cwsTagMail: String get() = StringsE.cwsTagMail
     val cwsTagShortcuts: String get() = StringsE.cwsTagShortcuts
-    val importChromeExtensionHint: String get() = StringsE.importChromeExtensionHint
-    val installUserScript: String get() = StringsE.installUserScript
+
     val installChromeExtension: String get() = StringsE.installChromeExtension
-    val importJsPackage: String get() = StringsE.importJsPackage
-    val importJsPackageHint: String get() = StringsE.importJsPackageHint
-    val installJsPackage: String get() = StringsE.installJsPackage
-    val filesDetected: String get() = StringsE.filesDetected
+
     val totalSize: String get() = StringsE.totalSize
     val extensionName: String get() = StringsE.extensionName
     val install: String get() = StringsE.install
     val launchInstalledApp: String get() = StringsE.launchInstalledApp
     val launchInstalledAppFailed: String get() = StringsE.launchInstalledAppFailed
-    val matchingSites: String get() = StringsE.matchingSites
-    val requiredApis: String get() = StringsE.requiredApis
+
     val contentScripts: String get() = StringsE.contentScripts
     val unsupportedApis: String get() = StringsE.unsupportedApis
-    val multiFileStorageHint: String get() = StringsE.multiFileStorageHint
-    val includedFiles: String get() = StringsE.includedFiles
+
     val optimizeCode: String get() = StringsE.optimizeCode
     val optimizeCodeHint: String get() = StringsE.optimizeCodeHint
     val optimizeJsSkippedNoEsbuild: String get() = StringsE.optimizeJsSkippedNoEsbuild
@@ -3964,21 +2964,7 @@ object Strings {
     val perfConvertWebPHint: String get() = StringsE.perfConvertWebPHint
     val perfRemoveUnused: String get() = StringsE.perfRemoveUnused
     val perfRemoveUnusedHint: String get() = StringsE.perfRemoveUnusedHint
-    val perfBuildOptimize: String get() = StringsE.perfBuildOptimize
-    val perfParallelProcessing: String get() = StringsE.perfParallelProcessing
-    val perfParallelProcessingHint: String get() = StringsE.perfParallelProcessingHint
-    val perfEnableCache: String get() = StringsE.perfEnableCache
-    val perfEnableCacheHint: String get() = StringsE.perfEnableCacheHint
-    val perfLoadOptimize: String get() = StringsE.perfLoadOptimize
-    val perfPreloadHints: String get() = StringsE.perfPreloadHints
-    val perfPreloadHintsHint: String get() = StringsE.perfPreloadHintsHint
-    val perfLazyLoading: String get() = StringsE.perfLazyLoading
-    val perfLazyLoadingHint: String get() = StringsE.perfLazyLoadingHint
-    val perfOptimizeScripts: String get() = StringsE.perfOptimizeScripts
-    val perfOptimizeScriptsHint: String get() = StringsE.perfOptimizeScriptsHint
-    val perfRuntimeOptimize: String get() = StringsE.perfRuntimeOptimize
-    val perfRuntimeScript: String get() = StringsE.perfRuntimeScript
-    val perfRuntimeScriptHint: String get() = StringsE.perfRuntimeScriptHint
+
     val threatResponse: String get() = StringsE.threatResponse
     val threatResponseLogOnly: String get() = StringsE.threatResponseLogOnly
     val threatResponseSilentExit: String get() = StringsE.threatResponseSilentExit
@@ -3987,37 +2973,11 @@ object Strings {
     val threatResponseFakeData: String get() = StringsE.threatResponseFakeData
     val editCode: String get() = StringsE.editCode
     val saveFile: String get() = StringsE.saveFile
-    val aiPromptHtml1: String get() = StringsE.aiPromptHtml1
-    val aiPromptHtml2: String get() = StringsE.aiPromptHtml2
-    val aiPromptFrontend1: String get() = StringsE.aiPromptFrontend1
-    val aiPromptFrontend2: String get() = StringsE.aiPromptFrontend2
-    val aiPromptNodejs1: String get() = StringsE.aiPromptNodejs1
-    val aiPromptNodejs2: String get() = StringsE.aiPromptNodejs2
-    val aiPromptWordpress1: String get() = StringsE.aiPromptWordpress1
-    val aiPromptWordpress2: String get() = StringsE.aiPromptWordpress2
-    val aiPromptPhp1: String get() = StringsE.aiPromptPhp1
-    val aiPromptPhp2: String get() = StringsE.aiPromptPhp2
-    val aiPromptPython1: String get() = StringsE.aiPromptPython1
-    val aiPromptPython2: String get() = StringsE.aiPromptPython2
-    val aiPromptGo1: String get() = StringsE.aiPromptGo1
-    val aiPromptGo2: String get() = StringsE.aiPromptGo2
-    val adSdkNotIntegrated: String get() = StringsE.adSdkNotIntegrated
-    val adsMonetization: String get() = StringsE.adsMonetization
-    val adsMonetizationHint: String get() = StringsE.adsMonetizationHint
-    val adMobAppId: String get() = StringsE.adMobAppId
-    val adMobAppIdHint: String get() = StringsE.adMobAppIdHint
-    val adMobAppIdInvalid: String get() = StringsE.adMobAppIdInvalid
-    val adTestMode: String get() = StringsE.adTestMode
-    val adTestModeHint: String get() = StringsE.adTestModeHint
-    val adBannerAd: String get() = StringsE.adBannerAd
-    val adInterstitialAd: String get() = StringsE.adInterstitialAd
-    val adSplashAd: String get() = StringsE.adSplashAd
-    val adUnitIdLabel: String get() = StringsE.adUnitIdLabel
-    val adUnitIdPlaceholder: String get() = StringsE.adUnitIdPlaceholder
-    val storagePermissionRequiredForExport: String get() = StringsE.storagePermissionRequiredForExport
+
     val shareImage: String get() = StringsE.shareImage
     val saveFailedCannotProcessHtml: String get() = StringsE.saveFailedCannotProcessHtml
     val phpStartFailed: String get() = StringsE.phpStartFailed
+    val wpInstallFailed: String get() = StringsE.wpInstallFailed
     val nodeRuntimeNotFound: String get() = StringsE.nodeRuntimeNotFound
     val nodeServerStartFailed: String get() = StringsE.nodeServerStartFailed
     val nodeStartFailed: String get() = StringsE.nodeStartFailed
@@ -4025,6 +2985,7 @@ object Strings {
     val startingNodeServer: String get() = StringsE.startingNodeServer
     val pythonRuntimeNotFound: String get() = StringsE.pythonRuntimeNotFound
     val pythonServerStartFailed: String get() = StringsE.pythonServerStartFailed
+    fun pythonProcessExited(exitCode: Int): String = StringsE.pythonProcessExited(exitCode)
     val pythonStartFailed: String get() = StringsE.pythonStartFailed
     val preparingPythonEnv: String get() = StringsE.preparingPythonEnv
     val startingPythonServer: String get() = StringsE.startingPythonServer
@@ -4046,16 +3007,9 @@ object Strings {
     val depDownloadExtracting: String get() = StringsE.depDownloadExtracting
     val grant: String get() = StringsE.grant
     val granted: String get() = StringsE.granted
-    val protectionBasic: String get() = StringsE.protectionBasic
-    val protectionBasicDesc: String get() = StringsE.protectionBasicDesc
-    val protectionStandard: String get() = StringsE.protectionStandard
-    val protectionStandardDesc: String get() = StringsE.protectionStandardDesc
-    val protectionMaximum: String get() = StringsE.protectionMaximum
-    val protectionMaximumDesc: String get() = StringsE.protectionMaximumDesc
-    val permissionsReady: String get() = StringsE.permissionsReady
-    val permissionsNeeded: String get() = StringsE.permissionsNeeded
+
     val start: String get() = StringsE.start
-    val skipDegradedProtection: String get() = StringsE.skipDegradedProtection
+
     val htmlFileTooLarge: String get() = StringsE.htmlFileTooLarge
     val resourceReferenceIssue: String get() = StringsE.resourceReferenceIssue
     val htmlFileNotFound: String get() = StringsE.htmlFileNotFound
@@ -4132,7 +3086,7 @@ object Strings {
     val cdMediaContent: String get() = StringsE.cdMediaContent
     val cdCover: String get() = StringsE.cdCover
     val cdClose: String get() = StringsE.cdClose
-    val cdRemove: String get() = StringsE.cdRemove
+
     val verifyingFile: String get() = StringsE.verifyingFile
     val pwaOfflineTitle: String get() = StringsE.pwaOfflineTitle
     val freshSessionModeTitle: String get() = StringsE.freshSessionModeTitle
@@ -4203,6 +3157,60 @@ object Strings {
     val legalDisclaimerContent4: String get() = StringsE.legalDisclaimerContent4
     val legalDisclaimerTitle5: String get() = StringsE.legalDisclaimerTitle5
     val legalDisclaimerContent5: String get() = StringsE.legalDisclaimerContent5
+    val thirdPartyLicenses: String get() = StringsE.thirdPartyLicenses
+    val thirdPartyLicensesDesc: String get() = StringsE.thirdPartyLicensesDesc
+    val licensesLoadFailed: String get() = StringsE.licensesLoadFailed
+    val projectLicenseSection: String get() = StringsE.projectLicenseSection
+    val bundledLibrariesSection: String get() = StringsE.bundledLibrariesSection
+    val runtimeLicensesSection: String get() = StringsE.runtimeLicensesSection
+    val licenseFullTextSection: String get() = StringsE.licenseFullTextSection
+    val viewLicenseText: String get() = StringsE.viewLicenseText
+    val runtimeLicenseNote: String get() = StringsE.runtimeLicenseNote
+    val privacyStatement: String get() = StringsE.privacyStatement
+    val privacyStatementDesc: String get() = StringsE.privacyStatementDesc
+    val privacyNoTrackingTitle: String get() = StringsE.privacyNoTrackingTitle
+    val privacyNoTrackingBody: String get() = StringsE.privacyNoTrackingBody
+    val privacyLocalDataTitle: String get() = StringsE.privacyLocalDataTitle
+    val privacyLocalDataBody: String get() = StringsE.privacyLocalDataBody
+    val privacyNetworkTitle: String get() = StringsE.privacyNetworkTitle
+    val privacyNetworkBody: String get() = StringsE.privacyNetworkBody
+    val openFullPrivacyPolicy: String get() = StringsE.openFullPrivacyPolicy
+    val fdroidUpdatesManaged: String get() = StringsE.fdroidUpdatesManaged
+    val feedbackTitle: String get() = StringsE.feedbackTitle
+    val feedbackDesc: String get() = StringsE.feedbackDesc
+    val contributeTitle: String get() = StringsE.contributeTitle
+    val contributeDesc: String get() = StringsE.contributeDesc
+    val contributorsTitle: String get() = StringsE.contributorsTitle
+    val contributorsDesc: String get() = StringsE.contributorsDesc
+    val autoCheckUpdates: String get() = StringsE.autoCheckUpdates
+    val autoCheckUpdatesDesc: String get() = StringsE.autoCheckUpdatesDesc
+    val updateSkipVersion: String get() = StringsE.updateSkipVersion
+    val updateViewDetails: String get() = StringsE.updateViewDetails
+    fun whatsNewTitle(version: String): String = StringsE.whatsNewTitle(version)
+    val whatsNewNoNotes: String get() = StringsE.whatsNewNoNotes
+    val installPermissionTitle: String get() = StringsE.installPermissionTitle
+    val installPermissionMessage: String get() = StringsE.installPermissionMessage
+    val startupPermissionTitle: String get() = StringsE.startupPermissionTitle
+    val startupPermissionNotificationsMessage: String get() = StringsE.startupPermissionNotificationsMessage
+    val startupPermissionStorageMessage: String get() = StringsE.startupPermissionStorageMessage
+    val startupPermissionContinue: String get() = StringsE.startupPermissionContinue
+    val permissionDeniedTitle: String get() = StringsE.permissionDeniedTitle
+    val permissionDeniedMessage: String get() = StringsE.permissionDeniedMessage
+    val emptyStateHint: String get() = StringsE.emptyStateHint
+    val emptyStateSampleApp: String get() = StringsE.emptyStateSampleApp
+    val sampleAppName: String get() = StringsE.sampleAppName
+    val sampleAppCreated: String get() = StringsE.sampleAppCreated
+    val onboardingSkip: String get() = StringsE.onboardingSkip
+    val onboardingNext: String get() = StringsE.onboardingNext
+    val onboardingStart: String get() = StringsE.onboardingStart
+    val onboardingPage1Title: String get() = StringsE.onboardingPage1Title
+    val onboardingPage1Body: String get() = StringsE.onboardingPage1Body
+    val onboardingPage2Title: String get() = StringsE.onboardingPage2Title
+    val onboardingPage2Body: String get() = StringsE.onboardingPage2Body
+    val onboardingPage3Title: String get() = StringsE.onboardingPage3Title
+    val onboardingPage3Body: String get() = StringsE.onboardingPage3Body
+    val featureTourTitle: String get() = StringsE.featureTourTitle
+    val featureTourDesc: String get() = StringsE.featureTourDesc
     val madeWithLove: String get() = StringsE.madeWithLove
     val shortcutPermissionTitle: String get() = StringsE.shortcutPermissionTitle
     val shortcutPermissionGoToSettings: String get() = StringsE.shortcutPermissionGoToSettings
@@ -4278,9 +3286,13 @@ object Strings {
     val codeEditorBinaryFile: String get() = StringsE.codeEditorBinaryFile
     val codeEditorFileTooLarge: String get() = StringsE.codeEditorFileTooLarge
     val codeEditorSoftWrap: String get() = StringsE.codeEditorSoftWrap
+    fun codeEditorLineCount(count: Int): String = StringsE.codeEditorLineCount(count)
+    fun codeEditorCharCount(count: Int): String = StringsE.codeEditorCharCount(count)
+    fun codeEditorPosition(line: Int, col: Int): String = StringsE.codeEditorPosition(line, col)
+    fun codeEditorSelectionCount(count: Int): String = StringsE.codeEditorSelectionCount(count)
     val orWriteDirectly: String get() = StringsE.orWriteDirectly
     val deviceDisguiseTitle: String get() = StringsE.deviceDisguiseTitle
-    val deviceDisguiseHint: String get() = StringsE.deviceDisguiseHint
+
     val deviceTypePhone: String get() = StringsE.deviceTypePhone
     val deviceTypeTablet: String get() = StringsE.deviceTypeTablet
     val deviceTypeDesktop: String get() = StringsE.deviceTypeDesktop
@@ -4288,14 +3300,13 @@ object Strings {
     val deviceTypeWatch: String get() = StringsE.deviceTypeWatch
     val deviceQuickSelect: String get() = StringsE.deviceQuickSelect
     val devicePopularPresets: String get() = StringsE.devicePopularPresets
-    val deviceCurrentDisguise: String get() = StringsE.deviceCurrentDisguise
+
     val deviceCustomUA: String get() = StringsE.deviceCustomUA
     val deviceCustomUAHint: String get() = StringsE.deviceCustomUAHint
-    val deviceGeneratedUA: String get() = StringsE.deviceGeneratedUA
+
     val deviceDesktopViewport: String get() = StringsE.deviceDesktopViewport
     val deviceDesktopViewportHint: String get() = StringsE.deviceDesktopViewportHint
-    val deviceDisguiseOff: String get() = StringsE.deviceDisguiseOff
-    val deviceDisguiseActive: String get() = StringsE.deviceDisguiseActive
+
     val deviceCustomDevice: String get() = StringsE.deviceCustomDevice
     val deviceCustomDeviceHint: String get() = StringsE.deviceCustomDeviceHint
     val deviceCustomName: String get() = StringsE.deviceCustomName
@@ -4308,9 +3319,7 @@ object Strings {
     val antiCaptureTitle: String get() = StringsE.antiCaptureTitle
     val hideStatusBarInVideoFullscreenTitle: String get() = StringsE.hideStatusBarInVideoFullscreenTitle
     val hideStatusBarInVideoFullscreenDesc: String get() = StringsE.hideStatusBarInVideoFullscreenDesc
-    val vpnBlockTitle: String get() = StringsE.vpnBlockTitle
-    val vpnBlockMessage: String get() = StringsE.vpnBlockMessage
-    val vpnBlockRetry: String get() = StringsE.vpnBlockRetry
+
     val antiCaptureDesc: String get() = StringsE.antiCaptureDesc
     val tlsFingerprintDescription: String get() = StringsE.tlsFingerprintDescription
     val tlsFingerprintTemplateLabel: String get() = StringsE.tlsFingerprintTemplateLabel
@@ -4383,26 +3392,7 @@ object Strings {
     val lrcSave: String get() = StringsE.lrcSave
     val lrcTimeAdjust: String get() = StringsE.lrcTimeAdjust
     val myOfflineApp: String get() = StringsE.myOfflineApp
-    val notifClickToReturn: String get() = StringsE.notifClickToReturn
-    val notifFocusModeChannelDesc: String get() = StringsE.notifFocusModeChannelDesc
-    val notifFocusModeChannelName: String get() = StringsE.notifFocusModeChannelName
-    val notifFocusModeRunning: String get() = StringsE.notifFocusModeRunning
-    val exportPermGroupBasic: String get() = StringsE.exportPermGroupBasic
-    val exportPermGroupStorage: String get() = StringsE.exportPermGroupStorage
-    val exportPermGroupNetwork: String get() = StringsE.exportPermGroupNetwork
-    val exportPermGroupSensors: String get() = StringsE.exportPermGroupSensors
-    val exportPermGroupContacts: String get() = StringsE.exportPermGroupContacts
-    val exportPermGroupPhone: String get() = StringsE.exportPermGroupPhone
-    val exportPermGroupSystem: String get() = StringsE.exportPermGroupSystem
-    val exportPermGroupAdvanced: String get() = StringsE.exportPermGroupAdvanced
-    val permissionCamera: String get() = StringsE.permissionCamera
-    val permissionCameraDesc: String get() = StringsE.permissionCameraDesc
-    val permissionLocation: String get() = StringsE.permissionLocation
-    val permissionLocationDesc: String get() = StringsE.permissionLocationDesc
-    val permissionMicrophone: String get() = StringsE.permissionMicrophone
-    val permissionMicrophoneDesc: String get() = StringsE.permissionMicrophoneDesc
-    val permissionNotifications: String get() = StringsE.permissionNotifications
-    val permissionNotificationsDesc: String get() = StringsE.permissionNotificationsDesc
+
     val permissionConfigTitle: String get() = StringsE.permissionConfigTitle
     val permissionConfigDesc: String get() = StringsE.permissionConfigDesc
     val permissionEnabledCount: String get() = StringsE.permissionEnabledCount
@@ -4410,91 +3400,24 @@ object Strings {
     val permissionAutoEnabledBy: String get() = StringsE.permissionAutoEnabledBy
     val permissionAutoEnabledSummary: String get() = StringsE.permissionAutoEnabledSummary
     val permissionConfigButton: String get() = StringsE.permissionConfigButton
-    val permissionReadExternalStorage: String get() = StringsE.permissionReadExternalStorage
-    val permissionReadExternalStorageDesc: String get() = StringsE.permissionReadExternalStorageDesc
-    val permissionWriteExternalStorage: String get() = StringsE.permissionWriteExternalStorage
-    val permissionWriteExternalStorageDesc: String get() = StringsE.permissionWriteExternalStorageDesc
-    val permissionReadMediaImages: String get() = StringsE.permissionReadMediaImages
-    val permissionReadMediaImagesDesc: String get() = StringsE.permissionReadMediaImagesDesc
-    val permissionReadMediaVideo: String get() = StringsE.permissionReadMediaVideo
-    val permissionReadMediaVideoDesc: String get() = StringsE.permissionReadMediaVideoDesc
-    val permissionReadMediaAudio: String get() = StringsE.permissionReadMediaAudio
-    val permissionReadMediaAudioDesc: String get() = StringsE.permissionReadMediaAudioDesc
-    val permissionBluetooth: String get() = StringsE.permissionBluetooth
-    val permissionBluetoothDesc: String get() = StringsE.permissionBluetoothDesc
-    val permissionNfc: String get() = StringsE.permissionNfc
-    val permissionNfcDesc: String get() = StringsE.permissionNfcDesc
-    val permissionWifiState: String get() = StringsE.permissionWifiState
-    val permissionWifiStateDesc: String get() = StringsE.permissionWifiStateDesc
-    val permissionNearbyWifiDevices: String get() = StringsE.permissionNearbyWifiDevices
-    val permissionNearbyWifiDevicesDesc: String get() = StringsE.permissionNearbyWifiDevicesDesc
-    val permissionBodySensors: String get() = StringsE.permissionBodySensors
-    val permissionBodySensorsDesc: String get() = StringsE.permissionBodySensorsDesc
-    val permissionActivityRecognition: String get() = StringsE.permissionActivityRecognition
-    val permissionActivityRecognitionDesc: String get() = StringsE.permissionActivityRecognitionDesc
-    val permissionReadPhoneState: String get() = StringsE.permissionReadPhoneState
-    val permissionReadPhoneStateDesc: String get() = StringsE.permissionReadPhoneStateDesc
-    val permissionCallPhone: String get() = StringsE.permissionCallPhone
-    val permissionCallPhoneDesc: String get() = StringsE.permissionCallPhoneDesc
-    val permissionReadContacts: String get() = StringsE.permissionReadContacts
-    val permissionReadContactsDesc: String get() = StringsE.permissionReadContactsDesc
-    val permissionWriteContacts: String get() = StringsE.permissionWriteContacts
-    val permissionWriteContactsDesc: String get() = StringsE.permissionWriteContactsDesc
-    val permissionReadCalendar: String get() = StringsE.permissionReadCalendar
-    val permissionReadCalendarDesc: String get() = StringsE.permissionReadCalendarDesc
-    val permissionWriteCalendar: String get() = StringsE.permissionWriteCalendar
-    val permissionWriteCalendarDesc: String get() = StringsE.permissionWriteCalendarDesc
-    val permissionReadSms: String get() = StringsE.permissionReadSms
-    val permissionReadSmsDesc: String get() = StringsE.permissionReadSmsDesc
-    val permissionSendSms: String get() = StringsE.permissionSendSms
-    val permissionSendSmsDesc: String get() = StringsE.permissionSendSmsDesc
-    val permissionReceiveSms: String get() = StringsE.permissionReceiveSms
-    val permissionReceiveSmsDesc: String get() = StringsE.permissionReceiveSmsDesc
-    val permissionReadCallLog: String get() = StringsE.permissionReadCallLog
-    val permissionReadCallLogDesc: String get() = StringsE.permissionReadCallLogDesc
-    val permissionWriteCallLog: String get() = StringsE.permissionWriteCallLog
-    val permissionWriteCallLogDesc: String get() = StringsE.permissionWriteCallLogDesc
-    val permissionProcessOutgoingCalls: String get() = StringsE.permissionProcessOutgoingCalls
-    val permissionProcessOutgoingCallsDesc: String get() = StringsE.permissionProcessOutgoingCallsDesc
-    val permissionForegroundService: String get() = StringsE.permissionForegroundService
-    val permissionForegroundServiceDesc: String get() = StringsE.permissionForegroundServiceDesc
-    val permissionWakeLock: String get() = StringsE.permissionWakeLock
-    val permissionWakeLockDesc: String get() = StringsE.permissionWakeLockDesc
-    val permissionRequestIgnoreBatteryOptimizations: String get() = StringsE.permissionRequestIgnoreBatteryOptimizations
-    val permissionRequestIgnoreBatteryOptimizationsDesc: String get() = StringsE.permissionRequestIgnoreBatteryOptimizationsDesc
-    val permissionBootCompleted: String get() = StringsE.permissionBootCompleted
-    val permissionBootCompletedDesc: String get() = StringsE.permissionBootCompletedDesc
-    val permissionVibration: String get() = StringsE.permissionVibration
-    val permissionVibrationDesc: String get() = StringsE.permissionVibrationDesc
-    val permissionInstallPackages: String get() = StringsE.permissionInstallPackages
-    val permissionInstallPackagesDesc: String get() = StringsE.permissionInstallPackagesDesc
-    val permissionRequestDeletePackages: String get() = StringsE.permissionRequestDeletePackages
-    val permissionRequestDeletePackagesDesc: String get() = StringsE.permissionRequestDeletePackagesDesc
-    val permissionSystemAlertWindow: String get() = StringsE.permissionSystemAlertWindow
-    val permissionSystemAlertWindowDesc: String get() = StringsE.permissionSystemAlertWindowDesc
+
     val permissionPresetNone: String get() = StringsE.permissionPresetNone
     val permissionPresetMinimal: String get() = StringsE.permissionPresetMinimal
     val permissionPresetStandard: String get() = StringsE.permissionPresetStandard
     val permissionPresetFull: String get() = StringsE.permissionPresetFull
-    val permissionDangerTag: String get() = StringsE.permissionDangerTag
-    val permissionDangerWarning: String get() = StringsE.permissionDangerWarning
+
     val permissionConflictTitle: String get() = StringsE.permissionConflictTitle
     val permissionConflictMediaVsLegacy: String get() = StringsE.permissionConflictMediaVsLegacy
     val permissionConflictSmsRisk: String get() = StringsE.permissionConflictSmsRisk
     val permissionConflictCallRisk: String get() = StringsE.permissionConflictCallRisk
     val permissionConflictQueryAllPackages: String get() = StringsE.permissionConflictQueryAllPackages
-    val permissionPlayRestrictedTag: String get() = StringsE.permissionPlayRestrictedTag
+
     val permissionPlayRestrictedWarning: String get() = StringsE.permissionPlayRestrictedWarning
-    val permissionQueryAllPackages: String get() = StringsE.permissionQueryAllPackages
-    val permissionQueryAllPackagesDesc: String get() = StringsE.permissionQueryAllPackagesDesc
-    val permissionBackgroundLocation: String get() = StringsE.permissionBackgroundLocation
-    val permissionBackgroundLocationDesc: String get() = StringsE.permissionBackgroundLocationDesc
+
     val projectSyncFailed: String get() = StringsE.projectSyncFailed
-    val r2CdnAccelerate: String get() = StringsE.r2CdnAccelerate
-    val r2CdnDesc: String get() = StringsE.r2CdnDesc
-    val r2StorageDesc: String get() = StringsE.r2StorageDesc
+
     val readBuildLogFailed: String get() = StringsE.readBuildLogFailed
-    val reinstallEsbuild: String get() = StringsE.reinstallEsbuild
+
     val scraperLongDesc: String get() = StringsE.scraperLongDesc
     val screenAwakeTimeoutValue: String get() = StringsE.screenAwakeTimeoutValue
     val setAsCurrent: String get() = StringsE.setAsCurrent
@@ -4506,7 +3429,7 @@ object Strings {
     val staticWebsite: String get() = StringsE.staticWebsite
     val tooManyAttemptsWithCountdown: String get() = StringsE.tooManyAttemptsWithCountdown
     val unnamed: String get() = StringsE.unnamed
-    val uploadingApkToR2: String get() = StringsE.uploadingApkToR2
+
     val verifying: String get() = StringsE.verifying
     val viewFullError: String get() = StringsE.viewFullError
     val websiteOfflinePack: String get() = StringsE.websiteOfflinePack
@@ -4572,6 +3495,12 @@ object Strings {
     val backupReadingData: String get() = StringsE.backupReadingData
     val backupCreatingFile: String get() = StringsE.backupCreatingFile
     val backupExportComplete: String get() = StringsE.backupExportComplete
+    val backupInvalidFormat: String get() = StringsE.backupInvalidFormat
+    val backupInvalidFormatSourceZip: String get() = StringsE.backupInvalidFormatSourceZip
+    val backupImportLegacySuccess: String get() = StringsE.backupImportLegacySuccess
+    val backupImportLegacyMissingFiles: String get() = StringsE.backupImportLegacyMissingFiles
+    val backupUnreadableFile: String get() = StringsE.backupUnreadableFile
+    val backupOutputFailed: String get() = StringsE.backupOutputFailed
     val backupReadingBackup: String get() = StringsE.backupReadingBackup
     val backupImportingData: String get() = StringsE.backupImportingData
     val backupImportComplete: String get() = StringsE.backupImportComplete
@@ -4594,9 +3523,7 @@ object Strings {
     val importPackageJsonNotFound: String get() = StringsE.importPackageJsonNotFound
     val importGoDirNotFound: String get() = StringsE.importGoDirNotFound
     val importPhpDirNotFound: String get() = StringsE.importPhpDirNotFound
-    val importDirNotFound: String get() = StringsE.importDirNotFound
-    val importZipExtractFailed: String get() = StringsE.importZipExtractFailed
-    val importZipNoPhpFound: String get() = StringsE.importZipNoPhpFound
+
     val importPythonDirNotFound: String get() = StringsE.importPythonDirNotFound
     val frontendProjectDirNotFound: String get() = StringsE.frontendProjectDirNotFound
     val frontendBuildOutputNotFound: String get() = StringsE.frontendBuildOutputNotFound
@@ -4615,6 +3542,9 @@ object Strings {
     val signInputValidationFailed: String get() = StringsE.signInputValidationFailed
     val signKeyInitFailed: String get() = StringsE.signKeyInitFailed
     val signApkFailed: String get() = StringsE.signApkFailed
+    val signKeyRegeneratedRetry: String get() = StringsE.signKeyRegeneratedRetry
+    val signKeyCredentialUnreadable: String get() = StringsE.signKeyCredentialUnreadable
+    val signKeyKeystoreUnreadable: String get() = StringsE.signKeyKeystoreUnreadable
     val zipTooManyEntries: String get() = StringsE.zipTooManyEntries
     val zipSizeExceeded: String get() = StringsE.zipSizeExceeded
     val zipFileSizeExceeded: String get() = StringsE.zipFileSizeExceeded
@@ -4769,8 +3699,7 @@ object Strings {
     val fullscreenVideoOrientationModeLabel: String get() = StringsE.fullscreenVideoOrientationModeLabel
     val fullscreenVideoOrientationModeAuto: String get() = StringsE.fullscreenVideoOrientationModeAuto
     val fullscreenVideoOrientationModeForce: String get() = StringsE.fullscreenVideoOrientationModeForce
-    val specialAdvancedSectionTitle: String get() = StringsE.specialAdvancedSectionTitle
-    val specialBasicSectionTitle: String get() = StringsE.specialBasicSectionTitle
+
     val specialBrowsingSectionTitle: String get() = StringsE.specialBrowsingSectionTitle
     val specialMediaSectionTitle: String get() = StringsE.specialMediaSectionTitle
     val specialSystemBridgeSectionTitle: String get() = StringsE.specialSystemBridgeSectionTitle
@@ -4787,14 +3716,7 @@ object Strings {
     val kernelDisguiseLevelBasic: String get() = StringsE.kernelDisguiseLevelBasic
     val kernelDisguiseLevelStandard: String get() = StringsE.kernelDisguiseLevelStandard
     val kernelDisguiseLevelDeep: String get() = StringsE.kernelDisguiseLevelDeep
-    val kernelFlavorTitle: String get() = StringsE.kernelFlavorTitle
-    val kernelFlavorDesc: String get() = StringsE.kernelFlavorDesc
-    val kernelFlavorLabel: String get() = StringsE.kernelFlavorLabel
-    val kernelFlavorChrome: String get() = StringsE.kernelFlavorChrome
-    val kernelFlavorEdge: String get() = StringsE.kernelFlavorEdge
-    val kernelFlavorSamsung: String get() = StringsE.kernelFlavorSamsung
-    val kernelFlavorFirefox: String get() = StringsE.kernelFlavorFirefox
-    val kernelFlavorSafari: String get() = StringsE.kernelFlavorSafari
+
     val cloudflareCompatModeLabel: String get() = StringsE.cloudflareCompatModeLabel
     val cloudflareCompatModeAuto: String get() = StringsE.cloudflareCompatModeAuto
     val cloudflareCompatModeAlways: String get() = StringsE.cloudflareCompatModeAlways
@@ -4868,7 +3790,7 @@ object Strings {
     val downloadLocationAskHint: String get() = StringsE.downloadLocationAskHint
     val downloadLocationCustomPick: String get() = StringsE.downloadLocationCustomPick
     val downloadLocationCustomEmpty: String get() = StringsE.downloadLocationCustomEmpty
-    val downloadLocationCustomHint: String get() = StringsE.downloadLocationCustomHint
+
     val primeActivationModeLabel: String get() = StringsE.primeActivationModeLabel
     val primeActivationModeTap: String get() = StringsE.primeActivationModeTap
     val primeActivationModeDpad: String get() = StringsE.primeActivationModeDpad
@@ -4934,8 +3856,7 @@ object Strings {
     val playStoreExportShare: String get() = StringsE.playStoreExportShare
     val playStoreReportClean: String get() = StringsE.playStoreReportClean
     val playStoreReportCleanDesc: String get() = StringsE.playStoreReportCleanDesc
-    val playStoreReportBlocked: String get() = StringsE.playStoreReportBlocked
-    val playStoreReportWarning: String get() = StringsE.playStoreReportWarning
+
     val playStoreSeverityBlocker: String get() = StringsE.playStoreSeverityBlocker
     val playStoreSeverityWarning: String get() = StringsE.playStoreSeverityWarning
     val playStoreSeverityInfo: String get() = StringsE.playStoreSeverityInfo
@@ -4972,7 +3893,7 @@ object Strings {
     val frontendSuggestDbWithNode: String get() = StringsE.frontendSuggestDbWithNode
     val frontendSuggestDbStaticOnly: String get() = StringsE.frontendSuggestDbStaticOnly
     val scrapeAnalyzing: String get() = StringsE.scrapeAnalyzing
-    val scrapeEntryDownloadFailed: String get() = StringsE.scrapeEntryDownloadFailed
+
     val scrapeDownloadingProgress: String get() = StringsE.scrapeDownloadingProgress
     val scrapeRewritingPaths: String get() = StringsE.scrapeRewritingPaths
     val scrapeComplete: String get() = StringsE.scrapeComplete
@@ -4995,6 +3916,11 @@ object Strings {
     val enableMediaSessionDesc: String get() = StringsE.enableMediaSessionDesc
     val backgroundMediaPlaybackTitle: String get() = StringsE.backgroundMediaPlaybackTitle
     val backgroundMediaPlaybackDesc: String get() = StringsE.backgroundMediaPlaybackDesc
+    val audioMixingTitle: String get() = StringsE.audioMixingTitle
+    val audioMixingDesc: String get() = StringsE.audioMixingDesc
+    val audioMixingEnableDesc: String get() = StringsE.audioMixingEnableDesc
+    val audioMixingDisableDesc: String get() = StringsE.audioMixingDisableDesc
+    val audioMixingEchRequired: String get() = StringsE.audioMixingEchRequired
     val previewBackendAppIntro: String get() = StringsE.previewBackendAppIntro
     val previewEntryNotFound: String get() = StringsE.previewEntryNotFound
     val previewFileNotFound: String get() = StringsE.previewFileNotFound
@@ -5046,9 +3972,7 @@ object Strings {
     val ruleAreaServerRuntime: String get() = StringsE.ruleAreaServerRuntime
     val ruleFixServerRuntime: String get() = StringsE.ruleFixServerRuntime
     val appModifierSubtitle: String get() = StringsE.appModifierSubtitle
-    val appModifierLibraryTitle: String get() = StringsE.appModifierLibraryTitle
-    val appModifierLibraryHint: String get() = StringsE.appModifierLibraryHint
-    val appModifierMetricTotal: String get() = StringsE.appModifierMetricTotal
+
     val appModifierLoading: String get() = StringsE.appModifierLoading
     val appModifierLoadFailed: String get() = StringsE.appModifierLoadFailed
     val appModifierSortName: String get() = StringsE.appModifierSortName
@@ -5059,13 +3983,14 @@ object Strings {
     val appModifierIdentitySection: String get() = StringsE.appModifierIdentitySection
     val appModifierPreviewTitle: String get() = StringsE.appModifierPreviewTitle
     val appModifierNewIdentity: String get() = StringsE.appModifierNewIdentity
-    val appModifierCustomIcon: String get() = StringsE.appModifierCustomIcon
+
     val appModifierOutputMode: String get() = StringsE.appModifierOutputMode
     val appModifierModeShortcutDesc: String get() = StringsE.appModifierModeShortcutDesc
     val appModifierModeCloneDesc: String get() = StringsE.appModifierModeCloneDesc
     val appModifierRecommended: String get() = StringsE.appModifierRecommended
     val appModifierCloneNeedsOriginalIcon: String get() = StringsE.appModifierCloneNeedsOriginalIcon
     val appModifierCloneNoEnhancements: String get() = StringsE.appModifierCloneNoEnhancements
+    val appModifierCloneEncryptedUnsupported: String get() = StringsE.appModifierCloneEncryptedUnsupported
     val appModifierPackageInUse: String get() = StringsE.appModifierPackageInUse
     val appModifierShortcutHint: String get() = StringsE.appModifierShortcutHint
     val appModifierWorking: String get() = StringsE.appModifierWorking
@@ -5077,7 +4002,7 @@ object Strings {
     val linuxEnvPmHint: String get() = StringsE.linuxEnvPmHint
     val linuxEnvOptionalRuntimes: String get() = StringsE.linuxEnvOptionalRuntimes
     val linuxEnvOptionalHint: String get() = StringsE.linuxEnvOptionalHint
-    val linuxEnvOptionalShort: String get() = StringsE.linuxEnvOptionalShort
+
     val linuxEnvMaintenance: String get() = StringsE.linuxEnvMaintenance
     val linuxEnvCapabilities: String get() = StringsE.linuxEnvCapabilities
     val linuxEnvInstallCore: String get() = StringsE.linuxEnvInstallCore
@@ -5107,14 +4032,12 @@ object Strings {
     fun linuxEnvCacheFreed(size: String): String = StringsE.linuxEnvCacheFreed(size)
     fun linuxEnvInstallingTool(name: String): String = StringsE.linuxEnvInstallingTool(name)
     val runtimeDepsSubtitle: String get() = StringsE.runtimeDepsSubtitle
-    val depSearchHint: String get() = StringsE.depSearchHint
-    val depFilterReady: String get() = StringsE.depFilterReady
-    val depFilterMissing: String get() = StringsE.depFilterMissing
+
     val depReinstall: String get() = StringsE.depReinstall
     val depClearRuntime: String get() = StringsE.depClearRuntime
     val depInstallSuccess: String get() = StringsE.depInstallSuccess
     val depInstallFailed: String get() = StringsE.depInstallFailed
-    val depNoMatch: String get() = StringsE.depNoMatch
+
     val depStorageEmpty: String get() = StringsE.depStorageEmpty
     fun depReadyOfTotal(ready: Int, total: Int): String = StringsE.depReadyOfTotal(ready, total)
     fun depConfirmClearCache(name: String): String = StringsE.depConfirmClearCache(name)
@@ -5140,9 +4063,11 @@ object Strings {
     val appListSortName: String get() = StringsE.appListSortName
     val appListSortCustom: String get() = StringsE.appListSortCustom
     val appListSortDragHint: String get() = StringsE.appListSortDragHint
+    val homeViewMode: String get() = StringsE.homeViewMode
+    val homeViewList: String get() = StringsE.homeViewList
+    val homeViewGrid: String get() = StringsE.homeViewGrid
     val shareApkReadyMode: String get() = StringsE.shareApkReadyMode
 
-    // Agent UI rework additions
     val agentToolViewFull: String get() = StringsE.agentToolViewFull
     val agentCopyThinkingHeader: String get() = StringsE.agentCopyThinkingHeader
     val agentSessionRename: String get() = StringsE.agentSessionRename
@@ -5154,7 +4079,6 @@ object Strings {
     val agentFileDeleteConfirmTitle: String get() = StringsE.agentFileDeleteConfirmTitle
     val agentFileDeleteConfirmMessage: String get() = StringsE.agentFileDeleteConfirmMessage
 
-    // ---- #945 surfaced-string fixes ----
     val aiIconFallbackName: String get() = StringsE.aiIconFallbackName
     val lrcEmptyLine: String get() = StringsE.lrcEmptyLine
     fun videoTrimSeconds(seconds: Int, tenths: Int): String = StringsE.videoTrimSeconds(seconds, tenths)
@@ -5165,7 +4089,6 @@ object Strings {
     val filePrefixFile: String get() = StringsE.filePrefixFile
     fun httpErrorCode(code: Int): String = StringsE.httpErrorCode(code)
     fun wpProjectDirMissing(path: String): String = StringsE.wpProjectDirMissing(path)
-    val interstitialAdNotConfigured: String get() = StringsE.interstitialAdNotConfigured
     val translateEngineAuto: String get() = StringsE.translateEngineAuto
     val blobImageUsePageDownload: String get() = StringsE.blobImageUsePageDownload
     val blobVideoUsePageDownload: String get() = StringsE.blobVideoUsePageDownload
@@ -5224,7 +4147,6 @@ object Strings {
     fun downloadFailed(label: String, detail: String): String = StringsE.downloadFailed(label, detail)
     val packageJsonMissing: String get() = StringsE.packageJsonMissing
 
-    // ── Inbound share sheet (issue #943) ────────────────────────────────────────
 
     val receiveShare: String get() = StringsE.receiveShare
     val outboundShareTitle: String get() = StringsE.outboundShareTitle
@@ -5260,13 +4182,10 @@ object Strings {
     val perAppSigningTitle: String get() = StringsE.perAppSigningTitle
     val perAppSigningHint: String get() = StringsE.perAppSigningHint
 
-    // Plugins (unified HCJ / userscript / Chrome surface)
     val pluginsTitle: String get() = StringsE.pluginsTitle
     val pluginsManageTitle: String get() = StringsE.pluginsManageTitle
     val searchPlugins: String get() = StringsE.searchPlugins
-    val pluginKindHcj: String get() = StringsE.pluginKindHcj
-    val pluginKindUserscript: String get() = StringsE.pluginKindUserscript
-    val pluginKindChrome: String get() = StringsE.pluginKindChrome
+
     val pluginSectionInstalled: String get() = StringsE.pluginSectionInstalled
     val pluginSectionBuiltIn: String get() = StringsE.pluginSectionBuiltIn
     val pluginsEmpty: String get() = StringsE.pluginsEmpty
@@ -5289,7 +4208,10 @@ object Strings {
     val pluginEditorEdit: String get() = StringsE.pluginEditorEdit
 
     val pluginFieldName: String get() = StringsE.pluginFieldName
-    val pluginFieldId: String get() = StringsE.pluginFieldId
+    val pluginNamePlaceholder: String get() = StringsE.pluginNamePlaceholder
+    val pluginDescriptionPlaceholder: String get() = StringsE.pluginDescriptionPlaceholder
+    val pluginMatchesHint: String get() = StringsE.pluginMatchesHint
+
     val pluginFieldVersion: String get() = StringsE.pluginFieldVersion
     val pluginFieldRunAt: String get() = StringsE.pluginFieldRunAt
     val runAtStart: String get() = StringsE.runAtStart
@@ -5302,16 +4224,30 @@ object Strings {
     val pluginPermBadge: String get() = StringsE.pluginPermBadge
     val pluginPermClipboard: String get() = StringsE.pluginPermClipboard
     val pluginPermDownload: String get() = StringsE.pluginPermDownload
+    val pluginPermShare: String get() = StringsE.pluginPermShare
+    val pluginPermOpenExternal: String get() = StringsE.pluginPermOpenExternal
+    val pluginPermClearData: String get() = StringsE.pluginPermClearData
+    val pluginPermExitApp: String get() = StringsE.pluginPermExitApp
     val pluginShowEntry: String get() = StringsE.pluginShowEntry
     val pluginNameRequired: String get() = StringsE.pluginNameRequired
     val pluginAttachEmpty: String get() = StringsE.pluginAttachEmpty
     val pluginAttachHint: String get() = StringsE.pluginAttachHint
-    val pluginGlobalEnable: String get() = StringsE.pluginGlobalEnable
+    val pluginHideBuiltIn: String get() = StringsE.pluginHideBuiltIn
+    val pluginHideBuiltInConfirmTitle: String get() = StringsE.pluginHideBuiltInConfirmTitle
+    val pluginExcludeMatches: String get() = StringsE.pluginExcludeMatches
+    val pluginExcludeMatchesHint: String get() = StringsE.pluginExcludeMatchesHint
+    val editorSectionBasic: String get() = StringsE.editorSectionBasic
+    val editorSectionBrowsing: String get() = StringsE.editorSectionBrowsing
+    val editorSectionContent: String get() = StringsE.editorSectionContent
+    val editorSectionExtensions: String get() = StringsE.editorSectionExtensions
+    val editorSectionExport: String get() = StringsE.editorSectionExport
+    val editorSearchPlaceholder: String get() = StringsE.editorSearchPlaceholder
+    val editorSearchNoResults: String get() = StringsE.editorSearchNoResults
+    val editorSearchNoResultsHint: String get() = StringsE.editorSearchNoResultsHint
     val pluginAdd: String get() = StringsE.pluginAdd
     val pluginSelectTitle: String get() = StringsE.pluginSelectTitle
     fun pluginSelectedCount(count: Int): String = StringsE.pluginSelectedCount(count)
 }
-
 
 @Composable
 fun InitializeLanguage() {
@@ -5328,4 +4264,5 @@ fun InitializeLanguage() {
 
         }
     }
+
 }

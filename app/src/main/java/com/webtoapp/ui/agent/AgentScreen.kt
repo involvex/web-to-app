@@ -5,8 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
@@ -100,6 +98,8 @@ import com.webtoapp.ui.agent.components.TodoChecklist
 import com.webtoapp.ui.design.WtaAlpha
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaFadeIn
+import com.webtoapp.ui.design.WtaFadeOut
 import com.webtoapp.ui.design.WtaIconButton
 import com.webtoapp.ui.design.WtaRadius
 import com.webtoapp.ui.design.WtaScreen
@@ -291,19 +291,11 @@ fun AgentScreen(
                         contentDescription = Strings.agentSaveAsApp
                     )
                 }
-                var menuOpen by remember { mutableStateOf(false) }
                 WtaIconButton(
-                    onClick = { menuOpen = true },
-                    icon = Icons.Outlined.MoreVert,
-                    contentDescription = Strings.more
+                    onClick = onOpenAiSettings,
+                    icon = Icons.Outlined.Settings,
+                    contentDescription = Strings.aiSettings
                 )
-                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                    DropdownMenuItem(
-                        text = { Text(Strings.aiSettings) },
-                        leadingIcon = { Icon(Icons.Outlined.Settings, contentDescription = null) },
-                        onClick = { menuOpen = false; onOpenAiSettings() }
-                    )
-                }
             }
         ) { _ ->
             Column(
@@ -687,8 +679,8 @@ private fun Conversation(
 
         AnimatedVisibility(
             visible = !atBottom,
-            enter = fadeIn() + scaleIn(),
-            exit = fadeOut() + scaleOut(),
+            enter = WtaFadeIn + scaleIn(),
+            exit = WtaFadeOut + scaleOut(),
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = WtaSpacing.Medium)

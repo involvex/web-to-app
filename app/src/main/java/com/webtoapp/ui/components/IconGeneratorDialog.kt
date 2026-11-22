@@ -32,6 +32,8 @@ import com.webtoapp.core.ai.AiConfigManager
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.data.model.AiFeature
 import com.webtoapp.data.model.SavedModel
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.util.IconLibraryStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -77,29 +79,12 @@ fun IconGeneratorDialog(
         }
     }
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = { if (!isGenerating) onDismiss() },
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.AutoAwesome,
-                        null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Text(Strings.aiGenerateIcon)
-            }
-        },
-        text = {
+        icon = Icons.Outlined.AutoAwesome,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = Strings.aiGenerateIcon,
+        content = {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -271,7 +256,7 @@ fun IconGeneratorDialog(
                         horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                        WtaLoadingIndicator(size = 20.dp)
                     }
                 }
             }
@@ -284,7 +269,7 @@ fun IconGeneratorDialog(
             } else if (generatedIcon != null) {
 
                 PremiumButton(enabled = false, onClick = {}) {
-                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    WtaLoadingIndicator(size = 16.dp)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(Strings.saving)
                 }

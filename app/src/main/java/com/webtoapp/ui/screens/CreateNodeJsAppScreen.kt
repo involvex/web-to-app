@@ -41,7 +41,10 @@ import com.webtoapp.ui.components.*
 import com.webtoapp.ui.components.TypedSampleProjectsCard
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
 import com.webtoapp.ui.screens.create.WtaCreateFlowSection
+import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaRadius
+import com.webtoapp.ui.design.WtaSegmentedRow
+import com.webtoapp.ui.design.WtaSelectableRow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -661,45 +664,37 @@ fun CreateNodeJsAppScreen(
                         )
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        listOf(
-                            Triple(NodeJsBuildMode.STATIC, Strings.njsModeStatic, Strings.njsModeStaticDesc),
-                            Triple(NodeJsBuildMode.API_BACKEND, Strings.njsModeBackend, Strings.njsModeBackendDesc),
-                            Triple(NodeJsBuildMode.FULLSTACK, Strings.njsModeFullstack, Strings.njsModeFullstackDesc)
-                        ).forEach { (mode, label, desc) ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 2.dp)
-                                    .clip(RoundedCornerShape(WtaRadius.Button))
-                                    .background(if (buildMode == mode) accentColor.copy(alpha = 0.08f) else Color.Transparent)
-                                    .clickable { buildMode = mode }
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    RadioButton(
-                                        selected = buildMode == mode,
-                                        onClick = { buildMode = mode },
-                                        colors = RadioButtonDefaults.colors(selectedColor = accentColor)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column {
-                                        Text(
-                                            text = label,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = if (buildMode == mode) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                        if (LocalShowDescriptions.current) {
-                                            Text(
-                                                text = desc,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
-                                        }
-                                    }
+                        WtaSegmentedRow(
+                            options = listOf(
+                                Strings.njsModeStatic,
+                                Strings.njsModeBackend,
+                                Strings.njsModeFullstack
+                            ),
+                            selectedIndex = when (buildMode) {
+                                NodeJsBuildMode.API_BACKEND -> 1
+                                NodeJsBuildMode.FULLSTACK -> 2
+                                else -> 0
+                            },
+                            onSelect = { index ->
+                                buildMode = when (index) {
+                                    1 -> NodeJsBuildMode.API_BACKEND
+                                    2 -> NodeJsBuildMode.FULLSTACK
+                                    else -> NodeJsBuildMode.STATIC
                                 }
                             }
+                        )
+                        val buildModeDesc = when (buildMode) {
+                            NodeJsBuildMode.API_BACKEND -> Strings.njsModeBackendDesc
+                            NodeJsBuildMode.FULLSTACK -> Strings.njsModeFullstackDesc
+                            else -> Strings.njsModeStaticDesc
+                        }
+                        buildModeDesc.ifDescriptionsShown()?.let { desc ->
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = desc,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
 
                         if (buildMode != NodeJsBuildMode.STATIC) {
@@ -960,10 +955,10 @@ fun CreateNodeJsAppScreen(
     }
 
     if (showDownloadDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {},
-            title = { Text(Strings.njsDownloadDeps) },
-            text = {
+            title = Strings.njsDownloadDeps,
+            content = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     when (val state = downloadState) {
                         is NodeDependencyManager.DownloadState.Downloading -> {
@@ -971,7 +966,8 @@ fun CreateNodeJsAppScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             LinearProgressIndicator(
                                 progress = { state.progress },
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier.fillMaxWidth(),
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(
@@ -982,12 +978,12 @@ fun CreateNodeJsAppScreen(
                         is NodeDependencyManager.DownloadState.Extracting -> {
                             Text(Strings.extracting.format(state.fileName))
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         is NodeDependencyManager.DownloadState.Verifying -> {
                             Text(Strings.verifying.format(state.fileName))
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         is NodeDependencyManager.DownloadState.Complete -> {
                             Text(Strings.njsDownloadComplete)
@@ -998,7 +994,7 @@ fun CreateNodeJsAppScreen(
                         else -> {
                             Text(Strings.njsDownloading)
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                     }
                 }
@@ -1231,68 +1227,31 @@ private fun NodeJsScriptsCard(
             Spacer(modifier = Modifier.height(12.dp))
 
             scripts.forEach { (name, command) ->
-                val isSelected = name == selectedScript
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                        .clip(RoundedCornerShape(WtaRadius.Button))
-                        .background(
-                            if (isSelected) accentColor.copy(alpha = 0.1f)
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                        )
-                        .clickable { onSelectScript(name) }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { onSelectScript(name) },
-                            modifier = Modifier.size(20.dp),
-                            colors = RadioButtonDefaults.colors(selectedColor = accentColor)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = name,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                    color = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.weight(1f, fill = false),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                WtaSelectableRow(
+                    title = name,
+                    selected = name == selectedScript,
+                    onClick = { onSelectScript(name) },
+                    subtitle = "$packageManager run $name → $command",
+                    accent = accentColor,
+                    leading = if (name == "start" || name == "dev") {
+                        {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(WtaRadius.Button))
+                                    .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
+                            ) {
+                                Icon(
+                                    Icons.Default.Star,
+                                    contentDescription = null,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp).size(14.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
-
-                                if (name == "start" || name == "dev") {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(WtaRadius.Button))
-                                            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.10f))
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Star,
-                                            contentDescription = null,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp).size(14.dp),
-                                            tint = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    }
-                                }
                             }
-                            Text(
-                                text = "$packageManager run $name → $command",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontFamily = FontFamily.Monospace,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
+                    } else {
+                        null
                     }
-                }
+                )
             }
         }
     }

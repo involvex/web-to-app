@@ -159,7 +159,7 @@ WebToApp 的开关非常多。下面按使用场景分组,并用可折叠区段�
 - **双引擎** —— 默认系统 WebView,可选 GeckoView(Firefox)运行时(首次使用时下载)。
 - **内核风味伪装** —— 对外表现为 Chrome、Edge、Samsung Internet、Firefox 或 Safari 风格,但真实引擎不变。
 - **桌面模式**、自定义 User-Agent,以及 document-start / end / idle 三种时机的 JS/CSS 注入。
-- **页面缩放** —— 按应用设置的百分比用文档根上的 CSS zoom 应用,文字、布局、图片和画布在系统 WebView 和 GeckoView 上一起缩放。页面写回自己的 viewport meta 时不会刷新。
+- **页面缩放** —— 为每个应用设置整页的初始缩放比例。系统 WebView 在加载网站前设置初始比例。GeckoView 通过页面视口应用缩放。
 - **弹窗处理** —— 当前窗口、外部浏览器、弹窗窗口或直接拦截。脚本打开的窗口保持为真正的子窗口,弹窗登录可以把结果交给 `window.opener`。
 - **代理** —— 静态 HTTP/HTTPS/SOCKS5、PAC、身份验证、绕过规则和本地 HTTP-to-SOCKS 桥。
 - **DNS-over-HTTPS** —— Cloudflare、Google、AdGuard、NextDNS、CleanBrowsing、Quad9、Mullvad,以及自定义 endpoint;支持 strict / automatic 模式。
@@ -189,7 +189,7 @@ WebToApp 的开关非常多。下面按使用场景分组,并用可折叠区段�
 <summary><b>📦 设备端服务器运行时(fork + exec)</b></summary>
 
 - **Node.js**(18.20.x)跑在独立 `:nodejs` OS 进程中,底层由原生 `node_launcher` 加载 `libnode.so`;支持自定义原生 `.node` 扩展。
-- **PHP 8.4** 取自 `pmmp/PHP-Binaries`,首次使用时下载,支持 Composer 2.10.x 和自定义原生扩展(`zend_extension`、`.so`)。
+- **PHP 8.4** 基于 `pmmp/PHP-Binaries` 构建(去除 `pmmpthread`,以支持内置 Web 服务器和原生文件上传),首次使用从[运行时仓库](https://github.com/shiaho777/web-to-app-runtimes/releases)下载，支持 Composer 2.10.x 和自定义原生扩展(`zend_extension`、`.so`)。
 - **Python 3.14** —— Flask、Django、FastAPI/uvicorn、Tornado、内置 HTTP server;pip 依赖解析到 `.pypackages`,支持自定义原生扩展;二进制名按版本生成,后续升级不必硬编码路径。
 - **Go 1.26** —— 官方 Linux arm64 工具链(`.tar.gz` 来自 `dl.google.com`,国内走 USTC 镜像),设备端 `go build` / `go mod` / `go run`、`vendor/` 离线构建、静态文件服务和原生 `go_exec_loader` 包装层;DNS 与 CA 信任走与 PHP 相同的本机 JVM 桥接。
 - **WordPress 7.x** 跑在本地 PHP 之上,用 `sqlite-database-integration` 接 SQLite,支持主题和插件导入。
@@ -248,7 +248,7 @@ WebToApp 的开关非常多。下面按使用场景分组,并用可折叠区段�
 <summary><b>🗂 文件管理与项目工具</b></summary>
 
 - **文件管理** —— 一个界面统一查看、分享、安装、打开和清空构建产物(APK 构建、AAB 导出、应用克隆、构建日志)和用户文件目录,并提供只读的构建日志查看器。
-- **导出源码** —— 可以在 Android Studio 里打开的 Gradle 工程:清单、WebView Activity、配置和本地文件。密钥库、`node_modules`、`.git` 和完整的 shell 运行时不会打进去。
+- **导出源码** —— 可以在 Android Studio 里打开的 Gradle 工程:清单、WebView Activity、配置和本地文件。这个 zip 同时也是单应用备份:重装后在「数据备份 → 导入数据」里选择它即可恢复该项目(含服务器运行时源码)。密钥库、`node_modules`、`.git` 和完整的 shell 运行时不会打进去。
 - **网站爬虫**用于生成离线包 —— HTML、CSS、JS、图片、字体、`url()`、`srcset`、`@import`、路径重写、同域限制、深度限制和体积限制;并行流式 worker 池,进度回调回到主线程。
 - **多网站应用** —— 底部标签、跟手滑动的顶部标签、卡片(1–4 列和高度滑杆)、信息流、抽屉(1–3 列)、站点顺序、启动时打开的标签,以及每站点独立图标/主题色/提取选择器/刷新间隔和共享 JS/CSS。
 - **图库应用** —— 媒体分类、网格/列表/时间线视图、随机/单循、排序、缩略图条、浮层、视频自动下一个和播放记忆。
@@ -392,7 +392,7 @@ cd web-to-app
 ./gradlew assembleStandardRelease   # 签名 release APK
 ./gradlew bundleGplayRelease        # 可上架 Play 的签名 AAB
 ./gradlew :app:assembleStandardRelease -Pfdroid=true
-# 未签名的 F-Droid APK（不含 Firebase、Google 登录、AdMob）
+# 未签名的 F-Droid APK（不含 Firebase 和 Google 登录）
 ```
 
 GitHub/Play 的签名 release 通过 `local.properties` 和 `app/build.gradle.kts` 配置。F-Droid 变体保持未签名。见 [F-Droid](https://shiaho777.github.io/web-to-app/zh/developer/fdroid)。
@@ -423,16 +423,6 @@ GitHub/Play 的签名 release 通过 `local.properties` 和 `app/build.gradle.kt
 [The Unlicense](../../LICENSE)。
 
 设备伪装等高级功能仅用于技术演示,必须在用户知情同意下使用。
-
-## 鸣谢
-
-[daoxe.com](https://daoxe.com) — 自用中转站。
-
-## 社区支持
-
-关联的 pump.fun 代币交易手续费会用来支持后续开发：
-
-[https://pump.fun/coin/H2mNeSJV75VuQpGA9C11FwWoT9DU7sMCYUNVaMyQpump](https://pump.fun/coin/H2mNeSJV75VuQpGA9C11FwWoT9DU7sMCYUNVaMyQpump)
 
 ---
 

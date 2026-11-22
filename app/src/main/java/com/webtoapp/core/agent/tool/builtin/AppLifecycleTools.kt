@@ -97,7 +97,7 @@ class ExportAppTool : Tool {
     override val description = """
         Export an app as a source zip or a config JSON.
         - format "template": writes an Android Studio project zip (Gradle files, WebView activity, manifest, app_config.json, and local content) and returns its path. It does not include the signing keystore or the WebToApp shell runtime.
-        - format "config": exports the app's configuration as a JSON string.
+        - format "config": writes the app's configuration as a JSON file to the export directory and returns its path (not inline JSON).
     """.trimIndent()
     override val parametersSchema: JsonElement = jsonSchema {
         integer("appId", "The app id.", required = true)
@@ -108,11 +108,12 @@ class ExportAppTool : Tool {
         args.get("appId")?.asString?.let { "Exporting app $it" }
     override suspend fun execute(args: JsonObject, ctx: ToolContext): ToolResult {
         val appId = args.get("appId")?.asLong ?: return ToolResult.error("ExportApp: missing appId.")
-        // Reject unknown values instead of silently falling through to "template" —
-        // a typo'd "config" would trigger a heavy source-zip export.
-        val format = args.get("format")?.asString
-            ?.takeIf { it == "template" || it == "config" }
-            ?: return ToolResult.error("ExportApp: unknown format '${args.get("format")}'. Use \"template\" or \"config\".")
+        val rawFormat = args.get("format")?.takeIf { !it.isJsonNull }?.asString
+        val format = when {
+            rawFormat == null -> "template"
+            rawFormat == "template" || rawFormat == "config" -> rawFormat
+            else -> return ToolResult.error("ExportApp: unknown format '$rawFormat'. Use \"template\" or \"config\".")
+        }
         val app = ctx.appRepository.getWebApp(appId) ?: return ToolResult.error("ExportApp: app $appId not found.")
         val exporter = AppExporter(ctx.androidContext)
         val result = if (format == "config") exporter.exportConfig(app) else exporter.exportAsTemplate(app)
@@ -239,8 +240,9 @@ class DuplicateAppTool : Tool {
 class ExportAabTool : Tool {
     override val name = "ExportAab"
     override val description = """
-        Export a Google Play-ready AAB for an app. Builds an APK first if needed, then
-        converts to a signed AAB with targetSdk rewritten for Play. Potentially slow.
+        Export a Google Play-ready AAB for an app. Always produces a fresh incremental APK
+        build first (cheap when nothing changed), then converts it to a signed AAB with
+        targetSdk rewritten for Play. Potentially slow.
     """.trimIndent()
     override val parametersSchema: JsonElement = jsonSchema {
         integer("appId", "The app id.", required = true)

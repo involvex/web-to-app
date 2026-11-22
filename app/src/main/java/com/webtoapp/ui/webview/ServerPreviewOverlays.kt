@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.wordpress.WordPressDependencyManager
+import com.webtoapp.ui.design.WtaLoadingIndicator
 
 @Composable
 fun WordPressLoadingOverlay(
@@ -34,7 +35,7 @@ fun WordPressLoadingOverlay(
         ) {
             when (state) {
                 is WordPressPreviewState.CheckingDeps -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.wpCheckingDeps)
                 }
                 is WordPressPreviewState.Downloading -> {
@@ -42,7 +43,8 @@ fun WordPressLoadingOverlay(
                         is WordPressDependencyManager.DownloadState.Downloading -> {
                             LinearProgressIndicator(
                                 progress = { dlState.progress },
-                                modifier = Modifier.fillMaxWidth(0.8f)
+                                modifier = Modifier.fillMaxWidth(0.8f),
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                             Text("${Strings.wpDownloading}: ${dlState.currentFile}")
                             Text(
@@ -52,15 +54,15 @@ fun WordPressLoadingOverlay(
                             )
                         }
                         is WordPressDependencyManager.DownloadState.Extracting -> {
-                            CircularProgressIndicator()
+                            WtaLoadingIndicator()
                             Text("${Strings.wpExtracting}: ${dlState.fileName}")
                         }
                         is WordPressDependencyManager.DownloadState.Verifying -> {
-                            CircularProgressIndicator()
+                            WtaLoadingIndicator()
                             Text("${dlState.fileName}...")
                         }
                         else -> {
-                            CircularProgressIndicator()
+                            WtaLoadingIndicator()
                             Text(Strings.wpDownloading)
                         }
                     }
@@ -68,11 +70,11 @@ fun WordPressLoadingOverlay(
                     MirrorSourceInfo()
                 }
                 is WordPressPreviewState.CreatingProject -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.wpCreatingProject)
                 }
                 is WordPressPreviewState.StartingServer -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.wpStartingServer)
                 }
                 is WordPressPreviewState.Error -> {
@@ -103,7 +105,7 @@ fun PhpAppLoadingOverlay(
         ) {
             when (state) {
                 is PhpAppPreviewState.CheckingDeps -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.phpAppCheckingDeps)
                 }
                 is PhpAppPreviewState.Downloading -> {
@@ -111,7 +113,8 @@ fun PhpAppLoadingOverlay(
                         is WordPressDependencyManager.DownloadState.Downloading -> {
                             LinearProgressIndicator(
                                 progress = { dlState.progress },
-                                modifier = Modifier.fillMaxWidth(0.8f)
+                                modifier = Modifier.fillMaxWidth(0.8f),
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                             Text("${Strings.phpAppDownloading}: ${dlState.currentFile}")
                             Text(
@@ -121,11 +124,11 @@ fun PhpAppLoadingOverlay(
                             )
                         }
                         is WordPressDependencyManager.DownloadState.Extracting -> {
-                            CircularProgressIndicator()
+                            WtaLoadingIndicator()
                             Text("${Strings.wpExtracting}: ${dlState.fileName}")
                         }
                         else -> {
-                            CircularProgressIndicator()
+                            WtaLoadingIndicator()
                             Text(Strings.phpAppDownloading)
                         }
                     }
@@ -133,7 +136,7 @@ fun PhpAppLoadingOverlay(
                     MirrorSourceInfo()
                 }
                 is PhpAppPreviewState.StartingServer -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.phpAppStartingServer)
                 }
                 is PhpAppPreviewState.Error -> {
@@ -163,7 +166,7 @@ fun PythonAppLoadingOverlay(
         ) {
             when (state) {
                 is PythonAppPreviewState.Starting -> {
-                    CircularProgressIndicator()
+                    WtaLoadingIndicator()
                     Text(Strings.pyStartingPreview)
                 }
                 is PythonAppPreviewState.Error -> {
@@ -196,7 +199,7 @@ fun SimpleAppLoadingOverlay(
             modifier = Modifier.padding(32.dp)
         ) {
             if (isStarting) {
-                CircularProgressIndicator()
+                WtaLoadingIndicator()
                 Text(startingText)
             } else if (errorMessage != null) {
                 ErrorWithRetry(errorMessage, onRetry, scope = errorScope, throwable = errorThrowable)

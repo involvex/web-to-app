@@ -33,6 +33,34 @@ class ChromeExtensionPolyfillTest {
     }
 
     @Test
+    fun `polyfill survives an opaque origin without localStorage`() {
+        val polyfill = ChromeExtensionPolyfill.generatePolyfill(
+            extensionId = "abcdefghijklmnop",
+            manifestJson = """{"name":"test"}""",
+            isBackground = true
+        )
+
+        assertThat(polyfill).containsMatch(
+            Regex("""try\s*\{\s*isFirstInstall = !localStorage\.getItem\(installedKey\);""").toPattern()
+        )
+        assertThat(polyfill).contains("__WTA_DELIVER_TO_BACKGROUND__")
+    }
+
+    @Test
+    fun `polyfill passes the extension token to privileged bridge calls`() {
+        val polyfill = ChromeExtensionPolyfill.generatePolyfill(
+            extensionId = "abcdefghijklmnop",
+            manifestJson = "{}",
+            isBackground = false,
+            token = "tok123"
+        )
+        assertThat(polyfill).contains("var EXT_TOKEN = 'tok123';")
+        assertThat(polyfill).contains("WtaExtBridge.storageGetForExt(EXT_ID, EXT_TOKEN, this._area, key)")
+        assertThat(polyfill).contains("WtaExtBridge.registerContentScripts(EXT_ID, EXT_TOKEN, JSON.stringify(scripts || []))")
+        assertThat(polyfill).contains("WtaExtBridge.executeScript(EXT_ID, EXT_TOKEN, JSON.stringify(payload))")
+    }
+
+    @Test
     fun `content polyfill reads cookies through the origin-checked channel`() {
         val content = ChromeExtensionPolyfill.generatePolyfill("ext", "{}", isBackground = false)
         assertThat(content).contains("wtaAuthCall('getCookies'")

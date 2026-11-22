@@ -56,7 +56,6 @@ import com.webtoapp.ui.screens.HostsAdBlockScreen
 import com.webtoapp.ui.screens.LinuxEnvironmentScreen
 import com.webtoapp.ui.screens.PluginEditorScreen
 import com.webtoapp.ui.screens.ModuleMarketScreen
-import com.webtoapp.ui.screens.MoreScreen
 import com.webtoapp.ui.screens.PortManagerScreen
 import com.webtoapp.ui.screens.PlayStoreScreen
 import com.webtoapp.ui.screens.RuntimeDepsScreen
@@ -67,7 +66,6 @@ import org.koin.androidx.compose.koinViewModel
 
 object Routes {
     const val HOME = "home"
-    const val MORE = "more"
 
     const val CREATE_APP = "create_app"
     const val CREATE_MEDIA_APP = "create_media_app"
@@ -138,14 +136,6 @@ object Routes {
     fun appModifierModify(packageName: String) = "app_modifier/modify/$packageName"
 }
 
-/**
- * Pop only while the current top entry is RESUMED. Once a pop starts, the
- * outgoing entry drops below RESUMED while still sitting on top of the stack —
- * a second rapid back tap or edge-swipe in that window would otherwise pop the
- * entry UNDERNEATH it, and one pop too many empties the back stack entirely,
- * leaving a permanently blank NavHost (dead white/black screen until the app
- * is restarted).
- */
 private fun NavController.popBackStackSafely(): Boolean {
     val entry = currentBackStackEntry ?: return false
     if (!entry.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) return false
@@ -161,6 +151,10 @@ fun AppNavigation() {
     val context = LocalContext.current
     val previewScope = rememberCoroutineScope()
 
+    com.webtoapp.ui.components.StartupUpdateCheck(
+        onOpenAbout = { navController.navigate(Routes.ABOUT) }
+    )
+
     Box(modifier = Modifier.fillMaxSize()) {
         NavHost(
             navController = navController,
@@ -175,20 +169,21 @@ fun AppNavigation() {
                 HomeScreen(
                     viewModel = viewModel,
                     onCreateApp = {
-                            viewModel.createNewApp()
-                            navController.navigate(Routes.CREATE_APP)
-                        },
-                        onCreateMediaApp = { navController.navigate(Routes.CREATE_MEDIA_APP) },
-                        onCreateGalleryApp = { navController.navigate(Routes.CREATE_GALLERY_APP) },
-                        onCreateHtmlApp = { navController.navigate(Routes.CREATE_HTML_APP) },
-                        onCreateFrontendApp = { navController.navigate(Routes.CREATE_FRONTEND_APP) },
-                        onCreateNodeJsApp = { navController.navigate(Routes.CREATE_NODEJS_APP) },
-                        onCreateWordPressApp = { navController.navigate(Routes.CREATE_WORDPRESS_APP) },
-                        onCreatePhpApp = { navController.navigate(Routes.CREATE_PHP_APP) },
-                        onCreatePythonApp = { navController.navigate(Routes.CREATE_PYTHON_APP) },
-                        onCreateGoApp = { navController.navigate(Routes.CREATE_GO_APP) },
-                        onCreateMultiWebApp = { navController.navigate(Routes.CREATE_MULTI_WEB_APP) },
-                        onCreateOfflinePack = { navController.navigate(Routes.CREATE_OFFLINE_PACK) },
+                        viewModel.createNewApp()
+                        navController.navigate(Routes.CREATE_APP)
+                    },
+                    onCreateSampleApp = { viewModel.createSampleApp() },
+                    onCreateMediaApp = { navController.navigate(Routes.CREATE_MEDIA_APP) },
+                    onCreateGalleryApp = { navController.navigate(Routes.CREATE_GALLERY_APP) },
+                    onCreateHtmlApp = { navController.navigate(Routes.CREATE_HTML_APP) },
+                    onCreateFrontendApp = { navController.navigate(Routes.CREATE_FRONTEND_APP) },
+                    onCreateNodeJsApp = { navController.navigate(Routes.CREATE_NODEJS_APP) },
+                    onCreateWordPressApp = { navController.navigate(Routes.CREATE_WORDPRESS_APP) },
+                    onCreatePhpApp = { navController.navigate(Routes.CREATE_PHP_APP) },
+                    onCreatePythonApp = { navController.navigate(Routes.CREATE_PYTHON_APP) },
+                    onCreateGoApp = { navController.navigate(Routes.CREATE_GO_APP) },
+                    onCreateMultiWebApp = { navController.navigate(Routes.CREATE_MULTI_WEB_APP) },
+                    onCreateOfflinePack = { navController.navigate(Routes.CREATE_OFFLINE_PACK) },
                         onEditApp = { webApp ->
                             viewModel.editApp(webApp)
                             navController.navigate(Routes.editApp(webApp.id))
@@ -216,9 +211,6 @@ fun AppNavigation() {
                             }
                         },
                         onPreviewApp = { summary ->
-                            // Open the activity directly. Routing through an empty
-                            // preview destination started a page slide, popped it,
-                            // then started the activity — three motions for one tap.
                             if (!AdvancedAppTypes.isUsable(context, summary.appType)) {
                                 Toast.makeText(context, Strings.advancedFeaturesOff, Toast.LENGTH_SHORT).show()
                             } else when (summary.appType) {
@@ -305,7 +297,8 @@ fun AppNavigation() {
                     viewModel = viewModel,
                     isEdit = false,
                     onBack = { navController.popBackStackSafely() },
-                    onSaved = { navController.popBackStackSafely() }
+                    onSaved = { navController.popBackStackSafely() },
+                    onOpenBrowserKernel = { navController.navigate(Routes.BROWSER_KERNEL) }
                 )
             }
 
@@ -572,7 +565,8 @@ fun AppNavigation() {
                     viewModel = viewModel,
                     isEdit = true,
                     onBack = { navController.popBackStackSafely() },
-                    onSaved = { navController.popBackStackSafely() }
+                    onSaved = { navController.popBackStackSafely() },
+                    onOpenBrowserKernel = { navController.navigate(Routes.BROWSER_KERNEL) }
                 )
             }
 
@@ -584,7 +578,8 @@ fun AppNavigation() {
                     viewModel = viewModel,
                     isEdit = true,
                     onBack = { navController.popBackStackSafely() },
-                    onSaved = { navController.popBackStackSafely() }
+                    onSaved = { navController.popBackStackSafely() },
+                    onOpenBrowserKernel = { navController.navigate(Routes.BROWSER_KERNEL) }
                 )
             }
 

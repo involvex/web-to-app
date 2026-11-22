@@ -51,6 +51,8 @@ import com.webtoapp.data.model.HtmlFile
 import com.webtoapp.data.model.HtmlFileType
 import com.webtoapp.data.model.HtmlLoadMode
 import com.webtoapp.ui.components.*
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaStatusBanner
 import com.webtoapp.ui.design.WtaStatusTone
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
@@ -70,9 +72,11 @@ import com.webtoapp.data.model.PortConflictMode
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import com.webtoapp.ui.theme.LocalShowDescriptions
+import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.ui.design.WtaSettingCard
 import com.webtoapp.ui.design.WtaToggleRow
 import com.webtoapp.ui.design.WtaSectionDivider
+import com.webtoapp.ui.design.WtaSegmentedRow
 import com.webtoapp.ui.design.WtaSpacing
 
 private data class HtmlEditorStateSnapshot(
@@ -393,11 +397,12 @@ fun CreateHtmlAppScreen(
     }
 
     if (showExitConfirmDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = { showExitConfirmDialog = false },
-            icon = { Icon(Icons.Outlined.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text(Strings.unsavedChangesTitle) },
-            text = { Text(Strings.unsavedChangesMessage) },
+            icon = Icons.Outlined.Warning,
+            iconTint = MaterialTheme.colorScheme.error,
+            title = Strings.unsavedChangesTitle,
+            text = Strings.unsavedChangesMessage,
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -614,10 +619,7 @@ fun CreateHtmlAppScreen(
                 enabled = canCreate && !isOptimizing
             ) {
                 if (isOptimizing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
+                    WtaLoadingIndicator(size = 16.dp)
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(Strings.optimizing)
                 } else {
@@ -970,30 +972,16 @@ fun CreateHtmlAppScreen(
                         )
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    listOf(
-                        HtmlLoadMode.AUTO to Strings.htmlLoadModeAuto,
-                        HtmlLoadMode.FILE to Strings.htmlLoadModeFile,
-                        HtmlLoadMode.LOCAL_HTTP to Strings.htmlLoadModeServer
-                    ).forEach { (mode, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(MaterialTheme.shapes.small)
-                                .clickable { loadMode = mode }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = loadMode == mode,
-                                onClick = { loadMode = mode }
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
+                    val loadModes = listOf(HtmlLoadMode.AUTO, HtmlLoadMode.FILE, HtmlLoadMode.LOCAL_HTTP)
+                    WtaSegmentedRow(
+                        options = listOf(
+                            Strings.htmlLoadModeAuto,
+                            Strings.htmlLoadModeFile,
+                            Strings.htmlLoadModeServer
+                        ),
+                        selectedIndex = loadModes.indexOf(loadMode).coerceAtLeast(0),
+                        onSelect = { index -> loadMode = loadModes[index] }
+                    )
 
                     androidx.compose.animation.AnimatedVisibility(
                         visible = isLocalServer,
@@ -1106,49 +1094,24 @@ fun CreateHtmlAppScreen(
                             )
                             Spacer(modifier = Modifier.height(4.dp))
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = Strings.portConflictAutoKill,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        text = Strings.portConflictAutoKillHint,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                            WtaSegmentedRow(
+                                options = listOf(Strings.portConflictAutoKill, Strings.portConflictAlert),
+                                selectedIndex = if (portConflictMode == PortConflictMode.AUTO_KILL) 0 else 1,
+                                onSelect = { index ->
+                                    portConflictMode = if (index == 0) PortConflictMode.AUTO_KILL else PortConflictMode.ALERT
                                 }
-                                RadioButton(
-                                    selected = portConflictMode == PortConflictMode.AUTO_KILL,
-                                    onClick = { portConflictMode = PortConflictMode.AUTO_KILL }
-                                )
+                            )
+                            val conflictHint = if (portConflictMode == PortConflictMode.AUTO_KILL) {
+                                Strings.portConflictAutoKillHint
+                            } else {
+                                Strings.portConflictAlertHint
                             }
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = Strings.portConflictAlert,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        text = Strings.portConflictAlertHint,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                RadioButton(
-                                    selected = portConflictMode == PortConflictMode.ALERT,
-                                    onClick = { portConflictMode = PortConflictMode.ALERT }
+                            conflictHint.ifDescriptionsShown()?.let { hint ->
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = hint,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1400,29 +1363,12 @@ private fun ProjectAnalysisDialog(
 ) {
     val actionableIssues = analysis.issues.filter { it.isActionableAnalysisIssue() }
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Analytics,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(Strings.projectAnalysisResult)
-            }
-        },
-        text = {
+        icon = Icons.Outlined.Analytics,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = Strings.projectAnalysisResult,
+        content = {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -1653,7 +1599,7 @@ private fun ZipImportSection(
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CircularProgressIndicator()
+                WtaLoadingIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = Strings.zipImporting,
@@ -1910,29 +1856,12 @@ private fun ZipEntryFileDialog(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.Home,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(Strings.zipSelectEntryTitle)
-            }
-        },
-        text = {
+        icon = Icons.Outlined.Home,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = Strings.zipSelectEntryTitle,
+        content = {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -1954,8 +1883,8 @@ private fun ZipEntryFileDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            if (isSelected) Icons.Filled.RadioButtonChecked
-                            else Icons.Filled.RadioButtonUnchecked,
+                            if (isSelected) Icons.Filled.CheckCircle
+                            else Icons.Outlined.Circle,
                             contentDescription = null,
                             tint = if (isSelected)
                                 MaterialTheme.colorScheme.primary
@@ -1990,31 +1919,12 @@ private fun ZipFileListDialog(
     analysis: ZipProjectImporter.ZipProjectAnalysis,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Outlined.FolderOpen,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    Strings.zipFileTreeTitle + " (${analysis.totalFileCount})"
-                )
-            }
-        },
-        text = {
+        icon = Icons.Outlined.FolderOpen,
+        iconTint = MaterialTheme.colorScheme.primary,
+        title = Strings.zipFileTreeTitle + " (${analysis.totalFileCount})",
+        content = {
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
@@ -2096,7 +2006,7 @@ private fun FolderImportSection(
                     .padding(32.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                CircularProgressIndicator()
+                WtaLoadingIndicator()
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = Strings.folderImporting,
@@ -2346,10 +2256,7 @@ private fun FolderImportSection(
     }
 }
 
-private val FOLDER_SKIP_PATTERNS = setOf(
-    "__MACOSX", ".DS_Store", "Thumbs.db", ".git", ".svn", ".hg",
-    "node_modules", ".idea", ".vscode"
-)
+private val FOLDER_SKIP_PATTERNS = com.webtoapp.util.ZipProjectImporter.WEB_CONTENT_EXCLUDED_DIRS
 
 private fun importFolderFromSaf(
     context: android.content.Context,

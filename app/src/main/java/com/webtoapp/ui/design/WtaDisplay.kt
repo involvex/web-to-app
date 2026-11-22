@@ -3,6 +3,7 @@ package com.webtoapp.ui.design
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,8 +18,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,7 +43,8 @@ fun WtaInfoChip(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
+    contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    emphasized: Boolean = false
 ) {
     Surface(
         modifier = modifier,
@@ -63,7 +66,11 @@ fun WtaInfoChip(
             }
             Text(
                 text = label,
-                style = MaterialTheme.typography.labelSmall,
+                style = if (emphasized) {
+                    MaterialTheme.typography.labelSmallEmphasized
+                } else {
+                    MaterialTheme.typography.labelSmall
+                },
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -98,6 +105,28 @@ fun WtaStatItem(
             textAlign = TextAlign.Center
         )
     }
+}
+
+@Composable
+fun WtaIconPlate(
+    modifier: Modifier = Modifier,
+    toneIndex: Int = 0,
+    containerColor: Color? = null,
+    content: @Composable BoxScope.() -> Unit
+) {
+    val colors = MaterialTheme.colorScheme
+    val container = containerColor ?: when (toneIndex % 3) {
+        0 -> colors.primaryContainer
+        1 -> colors.secondaryContainer
+        else -> colors.tertiaryContainer
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(WtaRadius.IconPlate))
+            .background(container),
+        contentAlignment = Alignment.Center,
+        content = content
+    )
 }
 
 @Composable
@@ -208,6 +237,28 @@ fun WtaIconTitle(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun WtaLoadingIndicator(
+    modifier: Modifier = Modifier,
+    size: Dp = 40.dp,
+    color: Color = MaterialTheme.colorScheme.primary,
+    progress: (() -> Float)? = null
+) {
+    if (progress != null) {
+        LoadingIndicator(
+            progress = progress,
+            modifier = modifier.size(size),
+            color = color
+        )
+    } else {
+        LoadingIndicator(
+            modifier = modifier.size(size),
+            color = color
+        )
+    }
+}
+
 @Composable
 fun WtaLoadingState(
     modifier: Modifier = Modifier,
@@ -219,11 +270,7 @@ fun WtaLoadingState(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(36.dp),
-                strokeWidth = 3.dp,
-                color = MaterialTheme.colorScheme.primary
-            )
+            WtaLoadingIndicator(size = 40.dp)
             if (!message.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -292,6 +339,7 @@ fun WtaFullEmptyState(
     modifier: Modifier = Modifier,
     message: String? = null,
     icon: ImageVector = Icons.Outlined.Inbox,
+    art: (@Composable () -> Unit)? = null,
     action: (@Composable () -> Unit)? = null,
     fillMaxSize: Boolean = true
 ) {
@@ -303,21 +351,30 @@ fun WtaFullEmptyState(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.padding(horizontal = 32.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(72.dp)
-                    .clip(CircleShape)
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(alpha = WtaAlpha.MutedContainer)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    icon,
-                    contentDescription = null,
-                    modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
+            if (art != null) {
+                Box(
+                    modifier = Modifier.size(128.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    art()
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = WtaAlpha.MutedContainer)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(36.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
             Spacer(modifier = Modifier.height(18.dp))
             Text(

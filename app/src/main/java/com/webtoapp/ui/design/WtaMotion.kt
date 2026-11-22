@@ -2,7 +2,6 @@ package com.webtoapp.ui.design
 
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
-import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.SpringSpec
 import androidx.compose.animation.core.TweenSpec
@@ -27,11 +26,6 @@ object WtaMotion {
 
     const val DurationDeliberate: Int = 400
 
-    /**
-     * Global motion tuning, written from WebToAppTheme's composition.
-     * Spec factories below read these at call time, so a settings change
-     * applies to every animation started afterwards.
-     */
     @Volatile
     var durationScale: Float = 1f
 
@@ -49,32 +43,32 @@ object WtaMotion {
 
     fun <T> pressSpring(): SpringSpec<T> =
         if (!motionEnabled) instantSpring() else spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = scaledStiffness(1200f)
+            dampingRatio = 0.6f,
+            stiffness = scaledStiffness(800f)
         )
 
     fun <T> settleSpring(): SpringSpec<T> =
         if (!motionEnabled) instantSpring() else spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = scaledStiffness(700f)
+            dampingRatio = 0.8f,
+            stiffness = scaledStiffness(380f)
         )
 
     fun <T> snapSpring(): SpringSpec<T> =
         if (!motionEnabled) instantSpring() else spring(
             dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = scaledStiffness(900f)
+            stiffness = scaledStiffness(3800f)
         )
 
     fun <T> bouncySpring(): SpringSpec<T> =
         if (!motionEnabled) instantSpring() else spring(
-            dampingRatio = 0.85f,
-            stiffness = scaledStiffness(500f)
+            dampingRatio = 0.6f,
+            stiffness = scaledStiffness(800f)
         )
 
     fun <T> gentleSpring(): SpringSpec<T> =
         if (!motionEnabled) instantSpring() else spring(
-            dampingRatio = Spring.DampingRatioNoBouncy,
-            stiffness = scaledStiffness(400f)
+            dampingRatio = 0.8f,
+            stiffness = scaledStiffness(200f)
         )
 
     fun <T> standardTween(
@@ -104,5 +98,3 @@ object WtaMotion {
         easing = ExitEasing
     )
 }
-
-fun <T> wtaDefaultAnimation(): FiniteAnimationSpec<T> = WtaMotion.standardTween()

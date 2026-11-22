@@ -3,10 +3,6 @@ package com.webtoapp.ui.screens
 import android.content.Context
 import android.content.Intent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -38,7 +34,6 @@ import androidx.compose.material.icons.outlined.GetApp
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -66,7 +61,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
-import com.webtoapp.core.apkbuilder.ApkBuilder
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.components.formatFileSize
 import com.webtoapp.ui.design.WtaAlertDialog
@@ -76,9 +70,12 @@ import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaExpandIn
 import com.webtoapp.ui.design.WtaFullEmptyState
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaLoadingState
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaTextField
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -147,7 +144,13 @@ fun FileManagerScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
-    val apkBuilder = remember { ApkBuilder(context.applicationContext) }
+    var showInstallPermissionDialog by remember { mutableStateOf(false) }
+
+    if (showInstallPermissionDialog) {
+        com.webtoapp.ui.components.InstallPermissionDialog(
+            onDismiss = { showInstallPermissionDialog = false }
+        )
+    }
 
     var snapshots by remember { mutableStateOf<List<SectionSnapshot>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -478,11 +481,15 @@ fun FileManagerScreen(onBack: () -> Unit) {
                                     shareFile(context, entry.file, snackbarHostState, scope)
                                 },
                                 onInstall = { entry ->
-                                    val started = apkBuilder.installApk(entry.file)
-                                    scope.launch {
-                                        snackbarHostState.showSnackbar(
-                                            if (started) Strings.fileManagerInstallStarted else Strings.fileManagerInstallFailed
-                                        )
+                                    if (!com.webtoapp.core.apkbuilder.ApkInstaller.canInstallFromThisApp(context)) {
+                                        showInstallPermissionDialog = true
+                                    } else {
+                                        val started = com.webtoapp.core.apkbuilder.ApkInstaller.install(context.applicationContext, entry.file)
+                                        scope.launch {
+                                            snackbarHostState.showSnackbar(
+                                                if (started) Strings.fileManagerInstallStarted else Strings.fileManagerInstallFailed
+                                            )
+                                        }
                                     }
                                 },
                                 onOpen = { entry ->
@@ -606,7 +613,7 @@ fun FileManagerScreen(onBack: () -> Unit) {
                     Spacer(Modifier.height(8.dp))
                     if (logLoading) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            WtaLoadingIndicator(size = 16.dp)
                             Spacer(Modifier.width(8.dp))
                             Text(Strings.fileManagerView, style = MaterialTheme.typography.bodySmall)
                         }
@@ -775,8 +782,8 @@ private fun SectionCard(
 
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
                     if (snapshot.isEmpty) {

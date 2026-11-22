@@ -8,7 +8,6 @@ data class ApkConfig(
     val activation: ActivationBlock = ActivationBlock(),
     val adBlock: AdBlockBlock = AdBlockBlock(),
     val announcement: AnnouncementBlock = AnnouncementBlock(),
-    val ads: AdsBlock = AdsBlock(),
     val webView: WebViewBlock = WebViewBlock(),
     val webViewBehavior: WebViewBehaviorBlock = WebViewBehaviorBlock(),
     val screenAwake: ScreenAwakeBlock = ScreenAwakeBlock(),
@@ -71,6 +70,9 @@ data class ApkConfig(
     val activationRemoteEncryptUrl: Boolean get() = activation.remoteEncryptUrl
     val activationRemoteAesKey: String get() = activation.remoteAesKey
     val activationRemoteDeviceBound: Boolean get() = activation.remoteDeviceBound
+    val activationRemoteTrustMode: String get() = activation.remoteTrustMode
+    val activationRemotePinnedCertificate: String get() = activation.remotePinnedCertificate
+    val activationRemotePinnedCertHost: String get() = activation.remotePinnedCertHost
 
     val adBlockEnabled: Boolean get() = adBlock.enabled
     val adBlockRules: List<String> get() = adBlock.rules
@@ -89,16 +91,6 @@ data class ApkConfig(
     val announcementTriggerOnLaunch: Boolean get() = announcement.triggerOnLaunch
     val announcementTriggerOnNoNetwork: Boolean get() = announcement.triggerOnNoNetwork
     val announcementTriggerIntervalMinutes: Int get() = announcement.triggerIntervalMinutes
-
-    val adsEnabled: Boolean get() = ads.enabled
-    val adAppId: String get() = ads.appId
-    val adTestMode: Boolean get() = ads.testMode
-    val adBannerEnabled: Boolean get() = ads.bannerEnabled
-    val adBannerId: String get() = ads.bannerId
-    val adInterstitialEnabled: Boolean get() = ads.interstitialEnabled
-    val adInterstitialId: String get() = ads.interstitialId
-    val adSplashEnabled: Boolean get() = ads.splashEnabled
-    val adSplashId: String get() = ads.splashId
 
     val javaScriptEnabled: Boolean get() = webView.javaScriptEnabled
     val domStorageEnabled: Boolean get() = webView.domStorageEnabled
@@ -136,7 +128,6 @@ data class ApkConfig(
     val longPressHapticOnActionOnly: Boolean get() = webView.longPressHapticOnActionOnly
 
     val popupBlockerEnabled: Boolean get() = webView.popupBlockerEnabled
-    val popupBlockerToggleEnabled: Boolean get() = webView.popupBlockerToggleEnabled
     val openExternalLinks: Boolean get() = webView.openExternalLinks
     val showFloatingBackButton: Boolean get() = webView.showFloatingBackButton
     val swipeRefreshEnabled: Boolean get() = webView.swipeRefreshEnabled
@@ -445,7 +436,10 @@ data class ActivationBlock(
     val remoteDeliverUrl: Boolean = false,
     val remoteEncryptUrl: Boolean = false,
     val remoteAesKey: String = "",
-    val remoteDeviceBound: Boolean = false
+    val remoteDeviceBound: Boolean = false,
+    val remoteTrustMode: String = "SYSTEM",
+    val remotePinnedCertificate: String = "",
+    val remotePinnedCertHost: String = ""
 )
 
 data class AdBlockBlock(
@@ -474,18 +468,6 @@ data class AnnouncementBlock(
     val hasCustomIcon: Boolean = false
 )
 
-data class AdsBlock(
-    val enabled: Boolean = false,
-    val appId: String = "",
-    val bannerEnabled: Boolean = false,
-    val bannerId: String = "",
-    val interstitialEnabled: Boolean = false,
-    val interstitialId: String = "",
-    val splashEnabled: Boolean = false,
-    val splashId: String = "",
-    val testMode: Boolean = false
-)
-
 data class WebViewBlock(
     val javaScriptEnabled: Boolean = true,
     val domStorageEnabled: Boolean = true,
@@ -512,6 +494,7 @@ data class WebViewBlock(
     val hideStatusBarInVideoFullscreen: Boolean = true,
     val showNavigationBarInFullscreen: Boolean = false,
     val showToolbarInFullscreen: Boolean = false,
+    val displayCutoutMode: String = "SHORT_EDGES",
     val fullscreenContentPaddingDp: Int = 0,
     val fullscreenContentPaddingTopDp: Int? = null,
     val fullscreenContentPaddingBottomDp: Int? = null,
@@ -525,7 +508,6 @@ data class WebViewBlock(
     val longPressHapticOnActionOnly: Boolean = false,
 
     val popupBlockerEnabled: Boolean = false,
-    val popupBlockerToggleEnabled: Boolean = false,
     val openExternalLinks: Boolean = false,
     val showFloatingBackButton: Boolean = false,
     val backButtonBehavior: String = "GO_BACK",
@@ -943,11 +925,14 @@ data class MultiWebBlock(
     val showSiteIcons: Boolean = true,
     val cardColumns: Int = 2,
     val drawerColumns: Int = 1,
+    val drawerEntry: String = "FLOATING",
+    val drawerFabAnchor: String = "TOP_END",
     val cardAspectRatio: Float = 1.2f,
     val sitesUseOwnConfig: Boolean = false,
     val projectId: String = "",
     val startTab: String = "LAST",
-    val startSiteId: String = ""
+    val startSiteId: String = "",
+    val independentSessions: Boolean = false
 )
 
 data class BackgroundRunConfig(
@@ -981,7 +966,9 @@ data class GalleryShellItemConfig(
     val type: String,
     val name: String,
     val duration: Long = 0,
-    val thumbnailPath: String? = null
+    val thumbnailPath: String? = null,
+    val sortIndex: Int = 0,
+    val createdAt: Long = 0
 )
 
 /**

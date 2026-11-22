@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaCard
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaScreen
 import com.webtoapp.ui.design.WtaSection
 import com.webtoapp.ui.design.WtaSpacing
@@ -513,7 +514,7 @@ private fun ApiKeyItem(
                 enabled = !isTesting
             ) {
                 if (isTesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                    WtaLoadingIndicator(size = 14.dp)
                     Spacer(modifier = Modifier.width(6.dp))
                 }
                 Text(Strings.test)
@@ -711,10 +712,7 @@ private fun SavedModelItem(
                     enabled = !isTesting
                 ) {
                     if (isTesting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 2.dp
-                        )
+                        WtaLoadingIndicator(size = 14.dp)
                         Spacer(modifier = Modifier.width(6.dp))
                     }
                     Text(Strings.test)
@@ -849,10 +847,10 @@ private fun AddApiKeyDialog(
     val apiClient = remember { AiApiClient(context) }
     val uriHandler = LocalUriHandler.current
 
-    AlertDialog(
+    WtaAlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initialConfig != null) Strings.editApiKey else Strings.addApiKey) },
-        text = {
+        title = if (initialConfig != null) Strings.editApiKey else Strings.addApiKey,
+        content = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -1008,8 +1006,6 @@ private fun AddApiKeyDialog(
                             expanded = formatExpanded,
                             onDismissRequest = { formatExpanded = false }
                         ) {
-                            // CUSTOM endpoints support the three wire formats; the Gemini
-                            // format is internal to the GOOGLE provider entry.
                             listOf(ApiFormat.OPENAI_COMPATIBLE, ApiFormat.ANTHROPIC, ApiFormat.OPENAI_RESPONSES)
                                 .forEach { format ->
                                     DropdownMenuItem(
@@ -1097,7 +1093,7 @@ private fun AddApiKeyDialog(
                     enabled = (parsedSecrets.isNotEmpty() || !selectedProvider.requiresApiKey) && !isTesting
                 ) {
                     if (isTesting) {
-                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        WtaLoadingIndicator(size = 16.dp)
                     } else {
                         Text(Strings.test)
                     }
@@ -1245,7 +1241,7 @@ private fun AddModelDialog(
                             .height(200.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator()
+                        WtaLoadingIndicator()
                     }
                 } else if (errorMessage != null) {
                     Box(

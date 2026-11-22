@@ -9,6 +9,7 @@ import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.PathSensitive
 import org.gradle.api.tasks.PathSensitivity
 import org.gradle.api.tasks.TaskAction
+import org.gradle.api.tasks.testing.Test
 
 plugins {
     id("com.android.application")
@@ -37,18 +38,12 @@ val hasReleaseSigningConfig = releaseSigningStoreFile?.isFile == true &&
     !localProperties.getProperty("signing.keyAlias").isNullOrBlank() &&
     !localProperties.getProperty("signing.keyPassword").isNullOrBlank()
 
-// -Pfdroid=true builds the host and the embedded shell template without Firebase,
-// Play Services, or AdMob, and leaves the release APK unsigned for F-Droid to sign.
-// One Gradle invocation is one mode: do not mix this flag with a normal release.
 val isFdroidBuild: Boolean = run {
     val raw = findProperty("fdroid")?.toString()?.trim()?.lowercase()
     raw != null && raw != "false" && raw != "0" && raw != "no"
 }
 
 if (isFdroidBuild) {
-    // Direct Firebase / sign-in / ads deps are already omitted. This also drops
-    // GeckoView's Play Services FIDO client (WebAuthn only). Those two GeckoView
-    // classes fail if WebAuthn runs; nothing else in the engine references them.
     configurations.configureEach {
         exclude(group = "com.google.android.gms")
         exclude(group = "com.google.firebase")
@@ -65,6 +60,7 @@ android {
                 storePassword = localProperties.getProperty("signing.storePassword")
                 keyAlias = localProperties.getProperty("signing.keyAlias")
                 keyPassword = localProperties.getProperty("signing.keyPassword")
+                enableV1Signing = true
             }
         }
     }
@@ -73,12 +69,12 @@ android {
 
     defaultConfig {
         applicationId = "com.webtoapp"
-        // Play automatic protection rejects a bundle below 24. Both flavors share this floor.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         minSdk = 24
 
         targetSdk = 36
-        versionCode = 83
-        versionName = "2.8.4"
+        versionCode = 88
+        versionName = "2.9.0"
         buildConfigField("boolean", "SHELL_RUNTIME_ONLY", "false")
         buildConfigField("boolean", "FDROID", isFdroidBuild.toString())
 
@@ -92,11 +88,6 @@ android {
 
         externalNativeBuild {
             cmake {
-                // libnode.so (nodejs-mobile) is linked against the shared C++
-                // runtime. The host must ship libc++_shared.so: on-device npm
-                // dlopens libnode from the download cache, and NODEJS_APP export
-                // copies this file out of nativeLibraryDir. The shell stays
-                // c++_static and strips the library from the template.
                 arguments += "-DANDROID_STL=c++_shared"
             }
         }
@@ -105,11 +96,8 @@ android {
     flavorDimensions += "distribution"
     productFlavors {
         create("standard") {
-            // Sideloaded variant (GitHub releases, keeps `com.webtoapp` for the existing
-            // update path). Same minSdk, targetSdk, and code as gplay.
         }
         create("gplay") {
-            // Google Play variant. `com.webtoapp` is registered on Play by another party.
             applicationId = "shiaho.webtoapp"
         }
     }
@@ -165,6 +153,7 @@ android {
 
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api"
     }
 
     buildFeatures {
@@ -192,13 +181,9 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
-            // Gecko omni.ja is downloaded on demand, never bundle it in host.
             excludes += "assets/omni.ja"
             excludes += "**/omni.ja"
-            // BouncyCastle post-quantum experimental blobs (~1.2M), unused.
             excludes += "**/org/bouncycastle/pqc/**"
-            // Django gettext sources (~5.9M raw): the Python runtime only reads
-            // compiled .mo files, .po never ships in a working install.
             excludes += "**/*.po"
         }
 
@@ -218,30 +203,21 @@ android {
             excludes += "**/libsoftokn3.so"
             excludes += "**/liblgpllibs.so"
             excludes += "**/libplugin-container.so"
-            // GeckoView breakpad helper — depends on libmozglue.so which is already
-            // excluded, so it can never load; dead weight carried by every APK.
             excludes += "**/libcrashhelper.so"
 
             excludes += "**/libcrypto_engine.so"
 
-            // Cronet natives are downloaded on demand / injected per-export, never bundled.
             excludes += "**/libcronet*.so"
         }
     }
     androidResources {
-        // Keep "" semantics (include dot-dirs like .pypackages) while dropping
-        // Django gettext sources (*.po, runtime reads .mo only) and Gecko's
-        // omni.ja (downloaded on demand). packaging.resources.excludes does
-        // NOT cover assets, hence aapt-level filtering (verified by APK audit).
-        ignoreAssetsPattern = if (isFdroidBuild) "*.po:*.ja:admob.zip" else "*.po:*.ja"
+        ignoreAssetsPattern = "*.po:*.ja"
 
         localeFilters += listOf("zh", "en", "ar")
     }
 
     sourceSets {
         getByName("main") {
-            // Google-typed sources stay out of src/main so shell-synced call sites
-            // compile against either the real client or the F-Droid no-op.
             if (isFdroidBuild) {
                 java.srcDir("src/fdroid/java")
             } else {
@@ -274,32 +250,6 @@ tasks.register<Copy>("syncShellTemplateApk") {
 tasks.matching { it.name == "preBuild" }.configureEach {
     if (!skipShellTemplateSync.get()) {
         dependsOn("syncShellTemplateApk")
-    }
-    if (!isFdroidBuild && !skipStackBundlesSync.get()) {
-        dependsOn("syncStackBundles")
-    }
-}
-
-// Optional feature stacks (issue #1115): bundle zips produced by
-// feature-stacks/* modules land in assets/stacks/ and are grafted into
-// generated APKs only for configs that enable them.
-val skipStackBundlesSync = providers.gradleProperty("skipStackBundlesSync").map(String::toBoolean).orElse(false)
-
-// Pre-configure the stack module during this script's configuration phase —
-// deferring it to task-graph resolution trips Gradle's class-loader-scope
-// locking under configuration-on-demand. F-Droid builds skip the module so
-// the proprietary ads SDK is neither compiled nor copied into assets.
-if (!isFdroidBuild) {
-    evaluationDependsOn(":feature-stacks:admob")
-
-    tasks.register<Copy>("syncStackBundles") {
-        description = "Copies built feature-stack bundles into app assets for optional APK grafting."
-        group = "build"
-        dependsOn(":feature-stacks:admob:bundleAdmobStack")
-        from(rootProject.layout.projectDirectory.dir("feature-stacks/admob/build/outputs/stack")) {
-            include("*.zip")
-        }
-        into(file("src/main/assets/stacks"))
     }
 }
 
@@ -438,15 +388,6 @@ abstract class SyncNativeExecutableJniLibsTask : DefaultTask() {
     }
 }
 
-/**
- * Builds the patched musl dynamic linker (libmusl-linker.so) into generated
- * jniLibs for arm64-v8a / x86_64. The linker carries the W^X exec bridge:
- * app_data library fds that SELinux refuses to exec-map are copied into an
- * executable memfd and mapped from there, restoring Python host previews on
- * targetSdk>=29 builds. Source provenance: upstream musl tarball +
- * scripts/patches/musl-1.2.5-wta-exec-bridge.patch +
- * scripts/musl-bridge/wta_mulxc3.c (NDK compiler-rt drops x86_80 routines).
- */
 abstract class BuildMuslBridgeTask : DefaultTask() {
     @get:Input
     abstract val muslVersion: org.gradle.api.provider.Property<String>
@@ -642,7 +583,6 @@ dependencies {
 
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.appcompat:appcompat:1.6.1")
-    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
@@ -700,23 +640,13 @@ dependencies {
 
     implementation("org.mozilla.geckoview:geckoview-arm64-v8a:142.0.20250827004350")
 
-    // Forced HTTP/3 (issue #721): Chromium's own network stack as the MITM bridge's
-    // upstream leg. Java classes ship in the APK; libcronet is NEVER bundled — the host
-    // downloads it on demand (filesDir/cronet_deps) and ApkBuilder injects it into
-    // exported APKs only when the app enables 强制 HTTP/3 (libnode/GeckoView precedent).
-    // Version must match CronetDependencyManager.CRONET_ARTIFACT_VERSION.
     implementation("org.chromium.net:cronet-embedded:143.7445.0")
 
-    implementation("com.google.zxing:core:3.5.2")
-
-    // Native Google sign-in through the Jetpack Credential Manager (NativeBridge).
-    // Omitted from -Pfdroid=true builds; GoogleSignInRuntime is a no-op there.
     if (!isFdroidBuild) {
         implementation("androidx.credentials:credentials:1.5.0")
         implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
         implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
     }
-    implementation("androidx.browser:browser:1.8.0")
 
     implementation("androidx.media:media:1.7.0")
 
@@ -730,12 +660,6 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
 }
 
-/**
- * Resolves a Python 3 interpreter command for the current platform. Windows usually exposes
- * Python as `python` (or the `py -3` launcher) rather than `python3`, so a hardcoded
- * `python3` fails there. Each candidate is verified to actually be Python 3 before use.
- * NOTE: intentionally duplicated in the root build.gradle.kts (this project has no buildSrc).
- */
 fun resolvePython3Command(): List<String> {
     val isWindows = System.getProperty("os.name").lowercase().contains("windows")
     val candidates: List<List<String>> = if (isWindows) {
@@ -751,7 +675,6 @@ fun resolvePython3Command(): List<String> {
                 return candidate
             }
         } catch (_: Exception) {
-            // Candidate unavailable; try the next one.
         }
     }
     return listOf("python3")
@@ -765,10 +688,6 @@ tasks.register("checkConfigFieldDrift") {
     val apkConfigFile = file("src/main/java/com/webtoapp/core/apkbuilder/ApkConfig.kt")
     val shellConfigFile = file("src/main/java/com/webtoapp/core/shell/ShellModeManager.kt")
     val allowlist = rootProject.file("scripts/config_field_drift_allowlist.json")
-    // Configuration-cache safe: capture values at configuration time; the doLast action
-    // must not reach through Project or the build-script object. Python resolution is
-    // inlined below — a script-scope function call would serialize a script reference,
-    // while probing at configuration time trips the external-process restriction.
     val rootDir = rootProject.projectDir
     inputs.files(script, payloadFile, apkConfigFile, shellConfigFile, allowlist)
     outputs.upToDateWhen { false }
@@ -799,4 +718,17 @@ tasks.register("checkConfigFieldDrift") {
             throw GradleException("checkConfigFieldDrift failed ($code)")
         }
     }
+}
+
+val releaseVersionInputs = listOf(
+    rootProject.file("app/build.gradle.kts"),
+    rootProject.file("shell/build.gradle.kts"),
+    rootProject.file("metadata/com.webtoapp.yml"),
+    rootProject.file(".github/CONTRIBUTING.md")
+)
+val releaseChangelogDir = rootProject.file("fastlane/metadata/android/en-US/changelogs")
+
+tasks.withType<Test>().configureEach {
+    inputs.files(releaseVersionInputs)
+    inputs.dir(releaseChangelogDir)
 }

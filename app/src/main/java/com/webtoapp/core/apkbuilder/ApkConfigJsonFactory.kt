@@ -45,6 +45,9 @@ internal object ApkConfigJsonFactory {
         "activationRemoteEncryptUrl" to activation.remoteEncryptUrl,
         "activationRemoteAesKey" to activation.remoteAesKey,
         "activationRemoteDeviceBound" to activation.remoteDeviceBound,
+        "activationRemoteTrustMode" to activation.remoteTrustMode,
+        "activationRemotePinnedCertificate" to activation.remotePinnedCertificate,
+        "activationRemotePinnedCertHost" to activation.remotePinnedCertHost,
         "adBlockEnabled" to adBlock.enabled,
         "adBlockRules" to adBlock.rules,
         "adBlockSubscriptions" to adBlock.subscriptions,
@@ -65,15 +68,6 @@ internal object ApkConfigJsonFactory {
         "announcementTriggerIntervalIncludeLaunch" to announcement.triggerIntervalIncludeLaunch,
         "announcementShowIcon" to announcement.showIcon,
         "announcementHasCustomIcon" to announcement.hasCustomIcon,
-        "adsEnabled" to ads.enabled,
-        "adAppId" to ads.appId,
-        "adTestMode" to ads.testMode,
-        "adBannerEnabled" to ads.bannerEnabled,
-        "adBannerId" to ads.bannerId,
-        "adInterstitialEnabled" to ads.interstitialEnabled,
-        "adInterstitialId" to ads.interstitialId,
-        "adSplashEnabled" to ads.splashEnabled,
-        "adSplashId" to ads.splashId,
         "splashEnabled" to splash.enabled,
         "splashType" to splash.type,
         "splashDuration" to splash.duration,
@@ -189,6 +183,7 @@ internal object ApkConfigJsonFactory {
         "hideStatusBarInVideoFullscreen" to webView.hideStatusBarInVideoFullscreen,
         "showNavigationBarInFullscreen" to webView.showNavigationBarInFullscreen,
         "showToolbarInFullscreen" to webView.showToolbarInFullscreen,
+        "displayCutoutMode" to webView.displayCutoutMode,
         "fullscreenContentPaddingDp" to webView.fullscreenContentPaddingDp,
         "fullscreenContentPaddingTopDp" to webView.fullscreenContentPaddingTopDp,
         "fullscreenContentPaddingBottomDp" to webView.fullscreenContentPaddingBottomDp,
@@ -225,7 +220,6 @@ internal object ApkConfigJsonFactory {
         "longPressHapticOnActionOnly" to webView.longPressHapticOnActionOnly,
 
         "popupBlockerEnabled" to webView.popupBlockerEnabled,
-        "popupBlockerToggleEnabled" to webView.popupBlockerToggleEnabled,
         "openExternalLinks" to webView.openExternalLinks,
         "initialScale" to webViewBehavior.initialScale,
         "pageZoomPercent" to webViewBehavior.pageZoomPercent,
@@ -579,11 +573,14 @@ internal object ApkConfigJsonFactory {
         "showSiteIcons" to multiWeb.showSiteIcons,
         "cardColumns" to multiWeb.cardColumns,
         "drawerColumns" to multiWeb.drawerColumns,
+        "drawerEntry" to multiWeb.drawerEntry,
+        "drawerFabAnchor" to multiWeb.drawerFabAnchor,
         "cardAspectRatio" to multiWeb.cardAspectRatio,
         "sitesUseOwnConfig" to multiWeb.sitesUseOwnConfig,
         "projectId" to multiWeb.projectId,
         "startTab" to multiWeb.startTab,
-        "startSiteId" to multiWeb.startSiteId
+        "startSiteId" to multiWeb.startSiteId,
+        "independentSessions" to multiWeb.independentSessions
     )
 
     private fun EmbeddedPlugin.toPayload(): Map<String, Any?> = linkedMapOf(
@@ -641,6 +638,19 @@ internal object ApkConfigValidator {
 
         require(error == null) {
             "Invalid APK shell config for ${config.meta.packageName}: $error"
+        }
+
+        if (config.activation.remoteEnabled &&
+            config.activation.remoteTrustMode.equals("PINNED", ignoreCase = true)
+        ) {
+            val pinError = com.webtoapp.core.activation.ActivationCertPin.validatePinnedConfig(
+                verifyUrl = config.activation.remoteVerifyUrl,
+                pinnedCertificate = config.activation.remotePinnedCertificate,
+                pinnedCertHost = config.activation.remotePinnedCertHost
+            )
+            require(pinError == null) {
+                "Invalid pinned activation certificate for ${config.meta.packageName}: $pinError"
+            }
         }
     }
 

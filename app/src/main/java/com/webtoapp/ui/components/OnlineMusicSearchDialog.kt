@@ -44,6 +44,11 @@ import coil.request.ImageRequest
 import com.webtoapp.core.bgm.ChannelStatus
 import com.webtoapp.core.bgm.MusicChannel
 import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaFadeIn
+import com.webtoapp.ui.design.WtaFadeOut
+import com.webtoapp.ui.design.WtaLoadingIndicator
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.core.bgm.OnlineMusicApi
 import com.webtoapp.core.bgm.OnlineMusicDownloader
 import com.webtoapp.core.bgm.OnlineMusicTrack
@@ -438,10 +443,7 @@ fun OnlineMusicSearchDialog(
                                 enabled = !testingChannels
                             ) {
                                 if (testingChannels) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp
-                                    )
+                                    WtaLoadingIndicator(size = 16.dp)
                                     Spacer(modifier = Modifier.width(4.dp))
                                 }
                                 Text(Strings.testAllChannels)
@@ -524,9 +526,8 @@ fun OnlineMusicSearchDialog(
                             modifier = Modifier.size(48.dp)
                         ) {
                             if (isSearching) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
+                                WtaLoadingIndicator(
+                                    size = 20.dp,
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
@@ -539,8 +540,8 @@ fun OnlineMusicSearchDialog(
 
                     AnimatedVisibility(
                         visible = showDownloadLog && downloadLogs.isNotEmpty(),
-                        enter = expandVertically() + fadeIn(),
-                        exit = shrinkVertically() + fadeOut()
+                        enter = WtaExpandIn,
+                        exit = WtaShrinkOut
                     ) {
                         DownloadLogPanel(
                             logs = downloadLogs,
@@ -559,7 +560,7 @@ fun OnlineMusicSearchDialog(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                CircularProgressIndicator()
+                                WtaLoadingIndicator()
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
                                     Strings.searchingText,
@@ -665,8 +666,8 @@ fun OnlineMusicSearchDialog(
 
                     AnimatedVisibility(
                         visible = previewingTrack != null && isPlayerPrepared,
-                        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                        enter = slideInVertically(initialOffsetY = { it }) + WtaFadeIn,
+                        exit = slideOutVertically(targetOffsetY = { it }) + WtaFadeOut
                     ) {
                         previewingTrack?.let { track ->
                             EnhancedMiniPlayer(
@@ -738,10 +739,7 @@ private fun ChannelChip(
         showSelectedCheck = false,
         leadingContent = if (isTesting) {
             {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(14.dp),
-                    strokeWidth = 1.5.dp
-                )
+                WtaLoadingIndicator(size = 14.dp)
             }
         } else {
             {
@@ -852,9 +850,8 @@ private fun OnlineMusicTrackItem(
                             contentAlignment = Alignment.Center
                         ) {
                             if (isLoadingPreview) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(20.dp),
-                                    strokeWidth = 2.dp,
+                                WtaLoadingIndicator(
+                                    size = 20.dp,
                                     color = Color.White
                                 )
                             } else {
@@ -920,10 +917,7 @@ private fun OnlineMusicTrackItem(
                     enabled = !isLoadingPreview
                 ) {
                     if (isLoadingPreview) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
+                        WtaLoadingIndicator(size = 20.dp)
                     } else {
                         Icon(
                             when {
@@ -956,11 +950,9 @@ private fun OnlineMusicTrackItem(
                         contentAlignment = Alignment.Center,
                         modifier = Modifier.size(36.dp)
                     ) {
-                        CircularProgressIndicator(
-                            progress = { downloadProgress },
-                            modifier = Modifier.size(28.dp),
-                            strokeWidth = 2.5.dp,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        WtaLoadingIndicator(
+                            size = 28.dp,
+                            progress = { downloadProgress }
                         )
                         Text(
                             "${(downloadProgress * 100).toInt()}",
@@ -987,7 +979,8 @@ private fun OnlineMusicTrackItem(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(3.dp),
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                 )
             }
         }
@@ -1212,7 +1205,8 @@ private fun DownloadLogPanel(
                         .fillMaxWidth()
                         .height(3.dp)
                         .padding(horizontal = 12.dp),
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                 )
                 Spacer(modifier = Modifier.height(4.dp))
             }

@@ -98,105 +98,109 @@ fun LongPressMenuCard(
                 }
             )
 
-            WtaSectionDivider()
-            WtaToggleRow(
-                title = Strings.longPressHapticOnActionOnly,
-                subtitle = Strings.longPressHapticOnActionOnlyDesc.ifDescriptionsShown(),
-                checked = hapticOnActionOnly,
-                onCheckedChange = onHapticOnActionOnlyChange
-            )
-
             AnimatedVisibility(
                 visible = enabled,
                 enter = CardExpandTransition,
                 exit = CardCollapseTransition
             ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+                Column {
                     WtaSectionDivider()
 
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = WtaSpacing.RowHorizontal),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        styleOptions.forEach { option ->
-                            val isSelected = option.style == style
-                            WtaChip(
-                                selected = isSelected,
-                                onClick = { onStyleChange(option.style) },
-                                label = option.name,
-                                leadingIcon = option.icon,
-                                showSelectedCheck = false
-                            )
-                        }
-                    }
-
-                    Crossfade(
-                        targetState = selectedOption,
-                        animationSpec = tween(
-                            durationMillis = 300,
-                            easing = FastOutSlowInEasing
+                    Column(
+                        modifier = Modifier.padding(
+                            horizontal = WtaSpacing.RowHorizontal,
+                            vertical = WtaSpacing.ContentGap
                         ),
-                        label = "styleDetailCrossfade"
-                    ) { currentOption ->
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (com.webtoapp.ui.theme.LocalIsDarkTheme.current)
-                                Color.White.copy(alpha = 0.06f)
-                            else
-                                currentOption.accentColor.copy(alpha = 0.04f),
-                            border = BorderStroke(
-                                1.dp,
-                                currentOption.accentColor.copy(alpha = 0.15f)
-                            )
+                        verticalArrangement = Arrangement.spacedBy(WtaSpacing.ContentGap)
+                    ) {
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Column(
-                                modifier = Modifier.padding(14.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .background(
-                                                color = currentOption.accentColor.copy(alpha = 0.12f),
-                                                shape = RoundedCornerShape(8.dp)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            currentOption.icon,
-                                            contentDescription = null,
-                                            tint = currentOption.accentColor,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
-                                        Text(
-                                            text = currentOption.name,
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = currentOption.accentColor
-                                        )
-                                    }
-                                }
+                            styleOptions.forEach { option ->
+                                val isSelected = option.style == style
+                                WtaChip(
+                                    selected = isSelected,
+                                    onClick = { onStyleChange(option.style) },
+                                    label = option.name,
+                                    leadingIcon = option.icon,
+                                    showSelectedCheck = false
+                                )
+                            }
+                        }
 
-                                if (currentOption.style != LongPressMenuStyle.DISABLED) {
-                                    LongPressMenuStylePreview(
-                                        style = currentOption.style,
-                                        accentColor = currentOption.accentColor
-                                    )
+                        Crossfade(
+                            targetState = selectedOption,
+                            animationSpec = tween(
+                                durationMillis = 300,
+                                easing = FastOutSlowInEasing
+                            ),
+                            label = "styleDetailCrossfade"
+                        ) { currentOption ->
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (com.webtoapp.ui.theme.LocalIsDarkTheme.current)
+                                    Color.White.copy(alpha = 0.06f)
+                                else
+                                    currentOption.accentColor.copy(alpha = 0.04f),
+                                border = BorderStroke(
+                                    1.dp,
+                                    currentOption.accentColor.copy(alpha = 0.15f)
+                                )
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(32.dp)
+                                                .background(
+                                                    color = currentOption.accentColor.copy(alpha = 0.12f),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                currentOption.icon,
+                                                contentDescription = null,
+                                                tint = currentOption.accentColor,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(weight = 1f, fill = true)) {
+                                            Text(
+                                                text = currentOption.name,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = currentOption.accentColor
+                                            )
+                                        }
+                                    }
+
+                                    if (currentOption.style != LongPressMenuStyle.DISABLED) {
+                                        LongPressMenuStylePreview(
+                                            style = currentOption.style,
+                                            accentColor = currentOption.accentColor
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
+
+                    WtaSectionDivider()
+                    WtaToggleRow(
+                        title = Strings.longPressHapticOnActionOnly,
+                        subtitle = Strings.longPressHapticOnActionOnlyDesc.ifDescriptionsShown(),
+                        checked = hapticOnActionOnly,
+                        onCheckedChange = onHapticOnActionOnlyChange
+                    )
                 }
             }
     }
@@ -451,14 +455,10 @@ fun AdBlockCard(
     val context = LocalContext.current
     val adBlocker = remember { com.webtoapp.WebToAppApplication.adBlock }
     var hostsEpoch by remember { mutableStateOf(0) }
-    // Preset sources plus the user's custom imports (file picks / custom URLs) so the
-    // per-app subscription selector can reference anything loaded in Hosts Blocking (#623).
     val allSources = remember(hostsEpoch) {
         com.webtoapp.core.adblock.AdBlocker.getPopularHostsSources() + adBlocker.getCustomHostsSources()
     }
     LaunchedEffect(Unit) {
-        // Lightweight metadata-only hydration — just enough to know which sources are downloaded.
-        // A full loadHostsRules() here loaded the entire filter DB on scroll and could OOM (#356).
         adBlocker.hydrateSourcesMetadata(context)
         hostsEpoch += 1
     }
@@ -964,8 +964,6 @@ fun BrowserAdvancedConfigCard(
                     ),
                     verticalArrangement = Arrangement.spacedBy(WtaSpacing.SectionGap)
                 ) {
-                    // Documented home of User-Agent mode. This block used to sit outside any
-                    // section, so the identity controls had no category fold of their own.
                     WtaSection(
                         title = Strings.sectionBrowserIdentity,
                         headerStyle = WtaSectionHeaderStyle.Quiet,
@@ -1005,14 +1003,10 @@ fun BrowserAdvancedConfigCard(
                             WtaSectionDivider()
                             WtaToggleRow(
                                 title = Strings.zoomSetting,
-                                subtitle = Strings.zoomSettingHint.ifDescriptionsShown(),
                                 checked = config.zoomEnabled,
                                 onCheckedChange = { onConfigChange(config.copy(zoomEnabled = it)) }
                             )
                             WtaSectionDivider()
-                            // Per-app page zoom (#654): transferred from the runtime hidden
-                            // toolbar into Advanced Settings — this is THE zoom for the app,
-                            // applied via initialScale (whole page) on every run. Same Chrome-style presets.
                             var pageZoomDialogOpen by remember { mutableStateOf(false) }
                             WtaChoiceRow(
                                 title = Strings.pageZoomSettingLabel,
@@ -1025,8 +1019,6 @@ fun BrowserAdvancedConfigCard(
                                     currentZoom = config.pageZoomPercent,
                                     onSelect = { percent ->
                                         onConfigChange(config.copy(
-                                            // 0 means "reset" in the presets dialog; the editor
-                                            // stores the concrete default (100) instead.
                                             pageZoomPercent = if (percent > 0) percent else 100
                                         ))
                                     },
@@ -1036,7 +1028,6 @@ fun BrowserAdvancedConfigCard(
                             WtaSectionDivider()
                             WtaToggleRow(
                                 title = Strings.fullscreenVideoSetting,
-                                subtitle = Strings.fullscreenVideoSettingHint.ifDescriptionsShown(),
                                 checked = config.fullscreenEnabled,
                                 onCheckedChange = { onConfigChange(config.copy(fullscreenEnabled = it)) }
                             )
@@ -1053,13 +1044,10 @@ fun BrowserAdvancedConfigCard(
                         Column(modifier = Modifier.fillMaxWidth()) {
                             WtaToggleRow(
                                 title = Strings.swipeRefreshSetting,
-                                subtitle = Strings.swipeRefreshSettingHint.ifDescriptionsShown(),
                                 checked = config.swipeRefreshEnabled,
                                 onCheckedChange = { onConfigChange(config.copy(swipeRefreshEnabled = it)) }
                             )
 
-                            // Same radio-group pattern as the PWA offline
-                            // strategy selector in sectionOfflinePerformance.
                             androidx.compose.animation.AnimatedVisibility(
                                 visible = config.swipeRefreshEnabled,
                                 enter = CardExpandTransition,
@@ -1077,37 +1065,24 @@ fun BrowserAdvancedConfigCard(
                                         color = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.padding(bottom = 4.dp)
                                     )
-                                    listOf(
-                                        com.webtoapp.data.model.SwipeRefreshZone.TOP_EDGE to Strings.swipeRefreshZoneTopEdge,
-                                        com.webtoapp.data.model.SwipeRefreshZone.ANYWHERE to Strings.swipeRefreshZoneAnywhere
-                                    ).forEach { (zone, label) ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(MaterialTheme.shapes.small)
-                                                .clickable {
-                                                    onConfigChange(
-                                                        config.copy(swipeRefreshZone = zone)
-                                                    )
-                                                }
-                                                .padding(vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = config.swipeRefreshZone == zone,
-                                                onClick = {
-                                                    onConfigChange(
-                                                        config.copy(swipeRefreshZone = zone)
-                                                    )
-                                                }
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = label,
-                                                style = MaterialTheme.typography.bodySmall
+                                    WtaSegmentedRow(
+                                        options = listOf(
+                                            Strings.swipeRefreshZoneTopEdge,
+                                            Strings.swipeRefreshZoneAnywhere
+                                        ),
+                                        selectedIndex = if (config.swipeRefreshZone == com.webtoapp.data.model.SwipeRefreshZone.TOP_EDGE) 0 else 1,
+                                        onSelect = { index ->
+                                            onConfigChange(
+                                                config.copy(
+                                                    swipeRefreshZone = if (index == 0) {
+                                                        com.webtoapp.data.model.SwipeRefreshZone.TOP_EDGE
+                                                    } else {
+                                                        com.webtoapp.data.model.SwipeRefreshZone.ANYWHERE
+                                                    }
+                                                )
                                             )
                                         }
-                                    }
+                                    )
                                 }
                             }
 
@@ -1221,7 +1196,6 @@ fun BrowserAdvancedConfigCard(
                             WtaSectionDivider()
                             WtaToggleRow(
                                 title = Strings.autoRefreshSettingLabel,
-                                subtitle = Strings.autoRefreshSettingDesc.ifDescriptionsShown(),
                                 checked = config.autoRefreshEnabled,
                                 onCheckedChange = { onConfigChange(config.copy(autoRefreshEnabled = it)) }
                             )
@@ -1348,24 +1322,11 @@ fun BrowserAdvancedConfigCard(
                                     )
 
                                     strategies.forEach { (value, label) ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(MaterialTheme.shapes.small)
-                                                .clickable { onConfigChange(config.copy(pwaOfflineStrategy = value)) }
-                                                .padding(vertical = 4.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            RadioButton(
-                                                selected = config.pwaOfflineStrategy == value,
-                                                onClick = { onConfigChange(config.copy(pwaOfflineStrategy = value)) }
-                                            )
-                                            Spacer(Modifier.width(4.dp))
-                                            Text(
-                                                text = label,
-                                                style = MaterialTheme.typography.bodySmall
-                                            )
-                                        }
+                                        WtaSelectableRow(
+                                            title = label,
+                                            selected = config.pwaOfflineStrategy == value,
+                                            onClick = { onConfigChange(config.copy(pwaOfflineStrategy = value)) }
+                                        )
                                     }
                                 }
                             }
@@ -2065,10 +2026,6 @@ private fun UserAgentControls(
         else -> null
     }
 
-    // Picking a flavor is the entire identity decision. It has to clear the custom mode (or a
-    // leftover UA string would keep winning) and switch the kernel disguise on, because the
-    // anti-detection JS that accompanies a flavor is gated behind that flag. Desktop flavors
-    // also request the desktop layout; that flag is what `desktopMode` exports.
     fun selectFlavor(choice: com.webtoapp.core.kernel.KernelFlavor) {
         onConfigChange(
             config.copy(
@@ -2166,10 +2123,6 @@ private fun UserAgentControls(
                 onConfigChange(
                     config.copy(
                         userAgentMode = UserAgentMode.CUSTOM,
-                        // A leftover flavor would keep winning whenever the typed string
-                        // cannot be described, and kernel disguise rewrites the UA after
-                        // the identity is applied. Custom means the typed string is the
-                        // identity; disguise can be turned back on from Special Settings.
                         kernelFlavor = com.webtoapp.core.kernel.KernelFlavor.SYSTEM_DEFAULT,
                         enableKernelDisguise = false
                     )
@@ -2199,7 +2152,6 @@ private fun UserAgentControls(
 
         WtaToggleRow(
             title = Strings.desktopModeLabel,
-            subtitle = Strings.desktopModeHint.ifDescriptionsShown(),
             checked = config.desktopMode,
             onCheckedChange = { onConfigChange(config.copy(desktopMode = it)) }
         )
@@ -2347,6 +2299,36 @@ fun FullscreenModeCard(
                 )
 
                 WtaSectionDivider()
+                Column(
+                    modifier = Modifier.padding(
+                        horizontal = WtaSpacing.RowHorizontal,
+                        vertical = WtaSpacing.ContentGap
+                    )
+                ) {
+                    Text(
+                        text = Strings.displayCutoutModeLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                    val cutoutModes = listOf(
+                        Triple(DisplayCutoutMode.SHORT_EDGES, Strings.displayCutoutModeShortEdges, Strings.displayCutoutModeShortEdgesDesc),
+                        Triple(DisplayCutoutMode.DEFAULT, Strings.displayCutoutModeDefault, Strings.displayCutoutModeDefaultDesc),
+                        Triple(DisplayCutoutMode.NEVER, Strings.displayCutoutModeNever, Strings.displayCutoutModeNeverDesc)
+                    )
+                    cutoutModes.forEach { (mode, label, desc) ->
+                        WtaSelectableRow(
+                            title = label,
+                            subtitle = desc.ifDescriptionsShown(),
+                            selected = webViewConfig.displayCutoutMode == mode,
+                            onClick = {
+                                onWebViewConfigChange(webViewConfig.copy(displayCutoutMode = mode))
+                            }
+                        )
+                    }
+                }
+
+                WtaSectionDivider()
                 WtaSliderRow(
                     title = Strings.fullscreenContentPadding,
                     subtitle = Strings.fullscreenContentPaddingHint.ifDescriptionsShown(),
@@ -2375,9 +2357,6 @@ fun FullscreenModeCard(
                     exit = CardCollapseTransition
                 ) {
                     Column {
-                        // #916: an unset side (null) follows the uniform value above;
-                        // dragging a side pins it. Left/right map to start/end so RTL
-                        // layouts mirror automatically.
                         val uniform = webViewConfig.fullscreenContentPaddingDp
                         WtaSliderRow(
                             title = Strings.paddingSideTop,
@@ -2498,9 +2477,6 @@ fun FullscreenModeCard(
                                                     statusBarBackgroundTypeDark = newConfig.statusBarBackgroundType,
                                                     statusBarBackgroundImageDark = newConfig.statusBarBackgroundImage,
                                                     statusBarBackgroundAlphaDark = newConfig.statusBarBackgroundAlpha,
-                                                    // statusBarHeightDp is a shared (non-per-theme)
-                                                    // field: the dark tab edits it in place, so it
-                                                    // must be written back like the light tab does.
                                                     statusBarHeightDp = newConfig.statusBarHeightDp
                                                 )
                                             )
@@ -2516,18 +2492,6 @@ fun FullscreenModeCard(
     }
 }
 
-/**
- * Inbound share sheet configuration (issue #943).
- *
- * Lets other apps hand content into this app through the Android share sheet. This is the
- * mirror image of the outbound `navigator.share` support: that one pushes the page's content
- * out to the system, this one pulls the system's content in.
- *
- * Rendered as rows inside [SpecialSettingsCard]'s links section: full-bleed
- * [WtaToggleRow] / [WtaChoiceRow] headers carrying their own padding, with anything that is
- * not a row (radio group, notes) inside a [WtaSpacing.RowHorizontal]-padded column. Expansion
- * state is its own `remember`, never bound to the feature switch.
- */
 @Composable
 private fun ShareReceiveRows(
     webViewConfig: WebViewConfig,
@@ -2547,9 +2511,6 @@ private fun ShareReceiveRows(
             subtitle = Strings.receiveShareHint.ifDescriptionsShown(),
             checked = enabled,
             onCheckedChange = { on ->
-                // The master switch is a convenience over the two filters: turning it on
-                // enables the common case (images) and keeps any text opt-in the user already
-                // made; turning it off clears both so the exported manifest drops the filter.
                 onWebViewConfigChange(
                     webViewConfig.copy(
                         receiveShareImages = on,
@@ -2616,36 +2577,30 @@ private fun ShareReceiveRows(
                             color = MaterialTheme.colorScheme.primary
                         )
 
-                        ShareDeliveryModeOption(
-                            label = Strings.receiveShareModeEvent,
-                            selected = deliveryMode == ShareDeliveryMode.JS_EVENT,
-                            onSelect = {
+                        WtaSegmentedRow(
+                            options = listOf(
+                                Strings.receiveShareModeEvent,
+                                Strings.receiveShareModeChooser,
+                                Strings.receiveShareModeBoth
+                            ),
+                            selectedIndex = when (deliveryMode) {
+                                ShareDeliveryMode.JS_EVENT -> 0
+                                ShareDeliveryMode.FILE_CHOOSER_PREFILL -> 1
+                                ShareDeliveryMode.BOTH -> 2
+                            },
+                            onSelect = { index ->
                                 onWebViewConfigChange(
-                                    webViewConfig.copy(shareDeliveryMode = ShareDeliveryMode.JS_EVENT)
-                                )
-                            }
-                        )
-                        ShareDeliveryModeOption(
-                            label = Strings.receiveShareModeChooser,
-                            selected = deliveryMode == ShareDeliveryMode.FILE_CHOOSER_PREFILL,
-                            onSelect = {
-                                onWebViewConfigChange(
-                                    webViewConfig.copy(shareDeliveryMode = ShareDeliveryMode.FILE_CHOOSER_PREFILL)
-                                )
-                            }
-                        )
-                        ShareDeliveryModeOption(
-                            label = Strings.receiveShareModeBoth,
-                            selected = deliveryMode == ShareDeliveryMode.BOTH,
-                            onSelect = {
-                                onWebViewConfigChange(
-                                    webViewConfig.copy(shareDeliveryMode = ShareDeliveryMode.BOTH)
+                                    webViewConfig.copy(
+                                        shareDeliveryMode = when (index) {
+                                            0 -> ShareDeliveryMode.JS_EVENT
+                                            1 -> ShareDeliveryMode.FILE_CHOOSER_PREFILL
+                                            else -> ShareDeliveryMode.BOTH
+                                        }
+                                    )
                                 )
                             }
                         )
 
-                        // One description for the current selection — the radio options
-                        // themselves stay label-only, per the config-card grammar.
                         Text(
                             text = when (deliveryMode) {
                                 ShareDeliveryMode.JS_EVENT -> Strings.receiveShareModeEventHint
@@ -2707,26 +2662,6 @@ private fun ShareReceiveRows(
     }
 }
 
-@Composable
-private fun ShareDeliveryModeOption(
-    label: String,
-    selected: Boolean,
-    onSelect: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(MaterialTheme.shapes.small)
-            .clickable { onSelect() }
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = onSelect)
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(text = label, style = MaterialTheme.typography.bodySmall)
-    }
-}
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LandscapeModeCard(
@@ -2769,15 +2704,6 @@ fun LandscapeModeCard(
             ) {
                 Column {
                     WtaSectionDivider()
-                    WtaStatusBanner(
-                        message = Strings.orientationModeHint,
-                        tone = WtaStatusTone.Info,
-                        modifier = Modifier.padding(
-                            horizontal = WtaSpacing.RowHorizontal,
-                            vertical = WtaSpacing.ContentGap
-                        )
-                    )
-
                     Text(
                         text = Strings.orientationBasicLabel,
                         style = MaterialTheme.typography.labelMedium,
@@ -3424,10 +3350,9 @@ fun SpecialSettingsCard(
     onConfigChange: (com.webtoapp.data.model.WebViewConfig) -> Unit,
     runtimePermissions: com.webtoapp.data.model.ApkRuntimePermissions,
     onRuntimePermissionsTransform: ((com.webtoapp.data.model.ApkRuntimePermissions) -> com.webtoapp.data.model.ApkRuntimePermissions) -> Unit,
-    adsEnabled: Boolean,
-    adConfig: com.webtoapp.data.model.AdConfig,
-    onAdsEnabledChange: (Boolean) -> Unit,
-    onAdConfigChange: (com.webtoapp.data.model.AdConfig) -> Unit,
+    audioMixingEngine: com.webtoapp.core.engine.EngineType?,
+    onAudioMixingEngineSelected: (com.webtoapp.core.engine.EngineType) -> Unit,
+    onOpenBrowserKernel: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -3435,18 +3360,15 @@ fun SpecialSettingsCard(
         ActivityResultContracts.OpenDocumentTree()
     ) { uri ->
         uri?.let { treeUri ->
-            val path = safTreeUriToPath(treeUri)
-            if (path != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        treeUri,
-                        android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
-                            android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                    )
-                } catch (_: Exception) {
-                }
-                onConfigChange(config.copy(customDownloadDirUri = path))
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    treeUri,
+                    android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                        android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            } catch (_: Exception) {
             }
+            onConfigChange(config.copy(customDownloadDirUri = treeUri.toString()))
         }
     }
 
@@ -3613,6 +3535,15 @@ fun SpecialSettingsCard(
                                     )
                                 }
                             )
+                            if (audioMixingEngine != null) {
+                                WtaSectionDivider()
+                                AudioMixingSettingRow(
+                                    engine = audioMixingEngine,
+                                    echEnabled = config.dnsConfig.echEffective,
+                                    onEngineSelected = onAudioMixingEngineSelected,
+                                    onOpenBrowserKernel = onOpenBrowserKernel
+                                )
+                            }
                         }
                         SpecialAdvancedRow(
                             title = Strings.fullscreenVideoOrientationTitle,
@@ -4198,7 +4129,8 @@ fun SpecialSettingsCard(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = config.customDownloadDirUri.ifEmpty { Strings.downloadLocationCustomEmpty },
+                                        text = displayDownloadDir(config.customDownloadDirUri)
+                                            .ifEmpty { Strings.downloadLocationCustomEmpty },
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.weight(1f),
@@ -4390,15 +4322,6 @@ fun SpecialSettingsCard(
                                 onCheckedChange = { onConfigChange(config.copy(errorPageConfig = config.errorPageConfig.copy(showRenderCrashErrorUi = it))) }
                             )
                         }
-                    }
-
-                    if (!BuildConfig.FDROID) {
-                        AdsMonetizationSection(
-                            enabled = adsEnabled,
-                            config = adConfig,
-                            onEnabledChange = onAdsEnabledChange,
-                            onConfigChange = onAdConfigChange
-                        )
                     }
                 }
             }
@@ -4874,16 +4797,15 @@ private fun CustomMediaPickerRow(
     }
 }
 
-private fun safTreeUriToPath(uri: Uri): String? {
-    if (uri.authority != "com.android.externalstorage.documents") return null
-    val docId = uri.lastPathSegment ?: return null
-    val parts = docId.split(":")
-    if (parts.isEmpty()) return null
-    val type = parts[0]
-    val relativePath = if (parts.size > 1) parts[1] else ""
-    val basePath = when (type) {
-        "primary" -> android.os.Environment.getExternalStorageDirectory().absolutePath
-        else -> "/storage/$type"
+internal fun displayDownloadDir(raw: String): String {
+    if (raw.isBlank()) return ""
+    if (!raw.startsWith("content://")) return raw
+    return try {
+        val docId = android.provider.DocumentsContract.getTreeDocumentId(Uri.parse(raw))
+        val parts = docId.split(":")
+        val label = if (parts.size > 1) parts[1] else parts[0]
+        label.ifBlank { raw }
+    } catch (_: Exception) {
+        raw
     }
-    return if (relativePath.isNotEmpty()) "$basePath/$relativePath" else basePath
 }

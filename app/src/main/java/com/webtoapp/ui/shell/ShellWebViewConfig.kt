@@ -49,6 +49,11 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         showStatusBarInFullscreen = config.webViewConfig.showStatusBarInFullscreen,
         showNavigationBarInFullscreen = config.webViewConfig.showNavigationBarInFullscreen,
         showToolbarInFullscreen = config.webViewConfig.showToolbarInFullscreen,
+        displayCutoutMode = try {
+            com.webtoapp.data.model.DisplayCutoutMode.valueOf(config.webViewConfig.displayCutoutMode)
+        } catch (e: Exception) {
+            com.webtoapp.data.model.DisplayCutoutMode.SHORT_EDGES
+        },
         fullscreenContentPaddingDp = config.webViewConfig.fullscreenContentPaddingDp,
         fullscreenContentPaddingTopDp = config.webViewConfig.fullscreenContentPaddingTopDp,
         fullscreenContentPaddingBottomDp = config.webViewConfig.fullscreenContentPaddingBottomDp,
@@ -82,7 +87,6 @@ fun buildWebViewConfig(config: ShellConfig): WebViewConfig {
         longPressHapticOnActionOnly = config.webViewConfig.longPressHapticOnActionOnly,
 
         popupBlockerEnabled = config.webViewConfig.popupBlockerEnabled,
-        popupBlockerToggleEnabled = config.webViewConfig.popupBlockerToggleEnabled,
 
         initialScale = config.webViewConfig.initialScale,
         pageZoomPercent = config.webViewConfig.pageZoomPercent,

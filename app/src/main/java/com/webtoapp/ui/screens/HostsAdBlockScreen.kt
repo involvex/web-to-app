@@ -4,10 +4,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +39,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -75,8 +72,10 @@ import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaExpandIn
 import com.webtoapp.ui.design.WtaFullEmptyState
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.design.WtaTextField
 import kotlinx.coroutines.Job
@@ -508,8 +507,7 @@ fun HostsAdBlockScreen(onBack: () -> Unit) {
                 TextButton(
                     onClick = {
                         scope.launch {
-                            adBlocker.clearHostsFileRules()
-                            adBlocker.saveHostsRules(context)
+                            adBlocker.clearHostsFileRules(context)
                             refreshState()
                             showClearDialog = false
                             snackbarHostState.showSnackbar(Strings.hostsCleared)
@@ -738,8 +736,8 @@ private fun HostsSourceCard(
 
             AnimatedVisibility(
                 visible = isDownloading,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 DownloadProgressPanel(progress = progress, onCancel = onCancel)
             }
@@ -808,11 +806,12 @@ private fun DownloadProgressPanel(
     val p = progress ?: DownloadProgress(0, 0, 0)
     Column(modifier = Modifier.fillMaxWidth()) {
         if (p.isIndeterminate) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
         } else {
             LinearProgressIndicator(
                 progress = { p.fraction },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
             )
         }
         Spacer(Modifier.height(6.dp))

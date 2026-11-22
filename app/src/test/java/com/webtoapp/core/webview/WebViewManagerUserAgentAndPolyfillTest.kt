@@ -125,7 +125,7 @@ class WebViewManagerUserAgentAndPolyfillTest {
     fun `private network bridge script patches fetch and XHR through NativeBridge`() {
         val script = WebViewManager.PrivateNetworkApiBridgeScriptHolder.SCRIPT
 
-        assertThat(script).contains("window.fetch = function")
+        assertThat(script).contains("window.fetch =")
         assertThat(script).contains("window.XMLHttpRequest = BridgedXHR")
         assertThat(script).contains("window.NativeBridge.httpRequest")
         assertThat(script).contains("isLocalPackagedPage")
@@ -145,9 +145,6 @@ class WebViewManagerUserAgentAndPolyfillTest {
     fun `private network bridge forwards responseType to the native request`() {
         val script = WebViewManager.PrivateNetworkApiBridgeScriptHolder.SCRIPT
 
-        // Keeping responseType on the wrapper alone leaves the native request on the
-        // default text type, so every binary loader receives a String — which is how a
-        // 62 MB GLB ended up in JSON.parse. The setter has to reach the native XHR.
         assertThat(script).contains("this._xhr.responseType = value")
         assertThat(script).contains("get: function() { return this._responseType || ''; }")
     }
@@ -156,8 +153,6 @@ class WebViewManagerUserAgentAndPolyfillTest {
     fun `private network bridge reads responseText only for textual response types`() {
         val script = WebViewManager.PrivateNetworkApiBridgeScriptHolder.SCRIPT
 
-        // responseText throws for any non-text responseType. The wrapper must decide
-        // from the type instead of reading the getter and catching the throw.
         assertThat(script).contains("(type === '' || type === 'text')")
         assertThat(script).doesNotContain("this.responseText = this._xhr.responseText")
     }
@@ -166,7 +161,6 @@ class WebViewManagerUserAgentAndPolyfillTest {
     fun `private network bridge keeps the XHR readyState constants`() {
         val script = WebViewManager.PrivateNetworkApiBridgeScriptHolder.SCRIPT
 
-        // Replacing window.XMLHttpRequest takes the constructor's constants with it.
         assertThat(script).contains("BridgedXHR.UNSENT = 0")
         assertThat(script).contains("BridgedXHR.HEADERS_RECEIVED = 2")
         assertThat(script).contains("BridgedXHR.DONE = 4")
@@ -177,10 +171,10 @@ class WebViewManagerUserAgentAndPolyfillTest {
         val script = ChromeExtensionPolyfill.generatePolyfill("ext-test", """{"manifest_version":3}""")
 
         assertThat(script).contains("typeof WtaExtBridge !== 'undefined' && typeof WtaExtBridge.executeScript === 'function'")
-        assertThat(script).contains("WtaExtBridge.executeScript(EXT_ID, JSON.stringify(payload))")
+        assertThat(script).contains("WtaExtBridge.executeScript(EXT_ID, EXT_TOKEN, JSON.stringify(payload))")
         assertThat(script).contains("files: (injection && Array.isArray(injection.files)) ? injection.files.slice() : []")
-        assertThat(script).contains("WtaExtBridge.insertCss(EXT_ID, JSON.stringify(")
-        assertThat(script).contains("WtaExtBridge.removeCss(EXT_ID, JSON.stringify(")
+        assertThat(script).contains("WtaExtBridge.insertCss(EXT_ID, EXT_TOKEN, JSON.stringify(")
+        assertThat(script).contains("WtaExtBridge.removeCss(EXT_ID, EXT_TOKEN, JSON.stringify(")
         assertThat(script).doesNotContain("Stub: executeScript is handled natively by WebViewManager")
     }
 

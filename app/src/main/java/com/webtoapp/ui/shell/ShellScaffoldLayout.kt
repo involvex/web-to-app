@@ -4,8 +4,6 @@ import android.webkit.WebView
 import com.webtoapp.ui.components.PremiumButton
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -27,9 +25,13 @@ import androidx.compose.ui.unit.dp
 import com.webtoapp.core.bgm.bgmControlEnabled
 import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.shell.ShellConfig
+import com.webtoapp.ui.design.WtaFadeIn
+import com.webtoapp.ui.design.WtaFadeOut
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.shared.PageEdgeChrome
 import com.webtoapp.ui.shared.effectiveBottomContentPadding
 import com.webtoapp.ui.shared.pageEdgeBands
+import com.webtoapp.ui.shared.needsPanelImePadding
 import com.webtoapp.ui.shared.parseBandColor
 import com.webtoapp.core.webview.WebViewCallbacks
 import com.webtoapp.data.model.WebViewConfig
@@ -100,8 +102,6 @@ fun BoxScope.ShellScaffoldLayout(
         val controller = com.webtoapp.core.webview.AutoRefreshController(
             intervalSec = webViewConfig.autoRefreshIntervalSec.coerceAtLeast(1),
             showCountdown = webViewConfig.autoRefreshShowCountdown,
-            // Surface-first: webViewRef stays null on the GeckoView kernel, where the
-            // countdown used to run against a reload that never happened.
             onReload = { browserSurface?.reload() ?: webViewRef?.reload() }
         )
         autoRefreshController = controller
@@ -115,8 +115,6 @@ fun BoxScope.ShellScaffoldLayout(
     }
 
     val toolbarCfg = config.webViewConfig
-    // Find-in-page runs on both kernels: WebView findAllAsync on the system engine,
-    // GeckoView's native SessionFinder on the Gecko engine (BrowserSurface.findInPage).
     val toolbarEnabled = toolbarCfg.browserToolbarEnabled
     val hasAnyItem = hasAnyToolbarItem(
         toolbarShowTitle = toolbarCfg.toolbarShowTitle,
@@ -127,11 +125,9 @@ fun BoxScope.ShellScaffoldLayout(
         toolbarShowConsole = toolbarCfg.toolbarShowConsole,
         toolbarShowFind = toolbarCfg.toolbarShowFind
     )
-    // Fullscreen hides the system bars only. The toolbar stays when its own switch is on.
     val showToolbar = isBrowserToolbarVisible(toolbarEnabled, hasAnyItem)
     val chromeHost = remember { BrowserChromeHost() }
 
-    // Every button requires both the master switch and its own flag.
     val toolbarVisibility = resolveToolbarButtons(
         toolbarEnabled = toolbarEnabled,
         toolbarShowTitle = toolbarCfg.toolbarShowTitle,
@@ -143,20 +139,21 @@ fun BoxScope.ShellScaffoldLayout(
         toolbarShowFind = toolbarCfg.toolbarShowFind
     )
 
+    val panelImePadding = if (needsPanelImePadding(webViewConfig.keyboardAdjustMode)) {
+        Modifier.imePadding()
+    } else {
+        Modifier
+    }
+
     CompositionLocalProvider(LocalBrowserChromeHost provides if (showToolbar) chromeHost else null) {
     Scaffold(
 
-        // Fullscreen already owns the system bars, so the scaffold must not add
-        // them again under the toolbar. Otherwise the page sits below a second inset.
         contentWindowInsets = if (hideToolbar) {
             WindowInsets(0, 0, 0, 0)
         } else {
-            // #1075: the window-level IME padding already lifts the layout above
-            // the keyboard, so the navigation-bar inset must not stack on top of
-            // it — the double inset rendered as a black band above the IME.
-            ScaffoldDefaults.contentWindowInsets.exclude(WindowInsets.ime)
+            ScaffoldDefaults.contentWindowInsets
         },
-        modifier = Modifier,
+        modifier = panelImePadding,
         topBar = {
             if (showToolbar) {
                 ShellTopAppBar(
@@ -167,7 +164,8 @@ fun BoxScope.ShellScaffoldLayout(
                     showUrl = toolbarVisibility.showUrl,
                     showBack = toolbarVisibility.showBack,
                     showForward = toolbarVisibility.showForward,
-                    showRefresh = toolbarVisibility.showRefresh,
+                    showRefresh = toolbarVisibility.showRefresh || chromeHost.refreshAction != null,
+                    onRefresh = { chromeHost.refreshAction?.invoke() ?: browserSurface?.reload() ?: webViewRef?.reload() },
                     canGoBack = canGoBack,
                     canGoForward = canGoForward,
                     webViewRef = webViewRef,
@@ -188,10 +186,6 @@ fun BoxScope.ShellScaffoldLayout(
 
         val density = LocalDensity.current
 
-        // On the classic pre-API-30 resize path the decor fits system windows: the status-bar
-        // inset is 0 whether or not a bar is drawn, and nothing renders behind the bar area
-        // (issue #683). Never pad the content by a guessed status-bar band there — only the
-        // user's explicit statusBarHeightDp override may reserve space.
         val classicSystemBars = LocalContext.current.let { ctx ->
             (ctx as? android.app.Activity)?.let { com.webtoapp.ui.shared.WindowHelper.isClassicSystemBarsWindow(it) } ?: false
         }
@@ -209,53 +203,32 @@ fun BoxScope.ShellScaffoldLayout(
 
         val actualStatusBarPadding = if (statusBarHeightDp >= 0) statusBarHeightDp.dp else systemStatusBarHeightDp
 
-        // 全屏模式下可选的内容内边距：把网页交互区从屏幕边缘内移，让角落按钮易于点按，
-        // 同时缓解与系统返回手势边缘带的冲突。默认 0 → 向后兼容旧行为。
-        // #916: each side may override the uniform value; null follows the base.
         val padTop = config.webViewConfig.fullscreenPadTop.dp
         val padStart = config.webViewConfig.fullscreenPadStart.dp
         val padEnd = config.webViewConfig.fullscreenPadEnd.dp
-        // #1172: the bottom band is anchored to the screen edge. The keyboard
-        // already covers it, so it must not ride up as a second gap.
         val padBottom = effectiveBottomContentPadding(config.webViewConfig.fullscreenPadBottom.dp)
 
-        // Issue #771: transparent/image bars overlay the content (persistent
-        // WeChat-style bar) instead of reserving a strip; solid bars keep the
-        // reservation so page controls stay clear of the status icons.
         val shellDark = androidx.compose.foundation.isSystemInDarkTheme()
         val shellBgType = if (shellDark) config.webViewConfig.statusBarBackgroundTypeDark else config.webViewConfig.statusBarBackgroundType
         val shellMode = if (shellDark) config.webViewConfig.statusBarColorModeDark else config.webViewConfig.statusBarColorMode
         val shellOverlaysContent = shellBgType == "IMAGE" ||
             shellMode == com.webtoapp.data.model.StatusBarColorMode.TRANSPARENT.name
 
-        val contentModifier = when {
-            hideToolbar && showToolbar -> {
-
-                Modifier.fillMaxSize().padding(padding)
-            }
-            hideToolbar && config.webViewConfig.showStatusBarInFullscreen -> {
-
-                Modifier.fillMaxSize().padding(
+        val contentPadding = when {
+            !hideToolbar || showToolbar -> padding
+            config.webViewConfig.showStatusBarInFullscreen -> {
+                PaddingValues(
                     top = (if (shellOverlaysContent) 0.dp else actualStatusBarPadding) + padTop,
                     start = padStart,
                     end = padEnd,
                     bottom = padBottom
                 )
             }
-            hideToolbar -> {
-
-                Modifier.fillMaxSize().padding(
-                    top = padTop,
-                    start = padStart,
-                    end = padEnd,
-                    bottom = padBottom
-                )
-            }
-            else -> {
-
-                Modifier.fillMaxSize().padding(padding)
-            }
+            else -> PaddingValues(top = padTop, start = padStart, end = padEnd, bottom = padBottom)
         }
+        val contentModifier = Modifier.fillMaxSize().padding(contentPadding).then(
+            if (appType == "MULTI_WEB") Modifier.consumeWindowInsets(contentPadding) else Modifier
+        )
 
         val customBand = if (shellDark) config.webViewConfig.statusBarColorDark else config.webViewConfig.statusBarColor
         val topBand = parseBandColor(PageEdgeChrome.topBandHex(shellMode, pageTopColor, customBand, shellDark))
@@ -299,6 +272,49 @@ fun BoxScope.ShellScaffoldLayout(
 
             ShellLyricsOverlay(config = config, bgmState = bgmState)
 
+            if (webViewConfig.showFloatingBackButton && !showToolbar && canGoBack) {
+                var fabAlpha by remember { mutableFloatStateOf(0.9f) }
+                var fadeKey by remember { mutableIntStateOf(0) }
+
+                LaunchedEffect(canGoBack, fadeKey) {
+                    fabAlpha = 0.9f
+                    kotlinx.coroutines.delay(3000L)
+                    val steps = 20
+                    val stepDelay = 30L
+                    for (i in 1..steps) {
+                        fabAlpha = 0.9f - (0.65f * i / steps)
+                        kotlinx.coroutines.delay(stepDelay)
+                    }
+                }
+
+                SmallFloatingActionButton(
+                    onClick = {
+                        fadeKey++
+                        (context as? AppCompatActivity)?.let { activity ->
+                            if (browserSurface != null) {
+                                ShellWebViewNavigation.goBackOrFinish(activity, browserSurface)
+                            } else {
+                                ShellWebViewNavigation.goBackOrFinish(activity, webViewRef)
+                            }
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .padding(start = 12.dp, top = actualStatusBarPadding + 8.dp)
+                        .graphicsLayer { alpha = fabAlpha },
+                    elevation = FloatingActionButtonDefaults.elevation(
+                        defaultElevation = 0.dp,
+                        pressedElevation = 0.dp,
+                        focusedElevation = 0.dp,
+                        hoveredElevation = 0.dp
+                    ),
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+                    contentColor = MaterialTheme.colorScheme.onSurface
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = Strings.cdBack)
+                }
+            }
+
             if (config.bgmEnabled &&
                 bgmControlEnabled(config.bgmShowFloatingPlayer) &&
                 config.bgmPlaylist.isNotEmpty()
@@ -328,11 +344,10 @@ fun BoxScope.ShellScaffoldLayout(
                 onDismiss = onErrorDismiss
             )
 
-            // Console panel (slides up from bottom when toggled)
             AnimatedVisibility(
                 visible = showConsole,
-                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + WtaFadeIn,
+                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + WtaFadeOut,
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 ConsolePanel(
@@ -345,11 +360,10 @@ fun BoxScope.ShellScaffoldLayout(
                 )
             }
 
-            // Find-in-page bar (native engine search; slides up like the console)
             AnimatedVisibility(
                 visible = showFindBar,
-                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + WtaFadeIn,
+                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + WtaFadeOut,
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 FindInPageBar(
@@ -358,8 +372,6 @@ fun BoxScope.ShellScaffoldLayout(
                 )
             }
 
-            // Unified plugin surface: sheet, panel host and the floating handle
-            // (entry style TOOLBAR mounts inside ShellTopAppBar instead).
             if (config.pluginsEnabled) {
                 val pluginContext = LocalContext.current
                 val pluginsUnsupported = remember(config.engineType, webViewConfig.dnsConfig.echEffective) {
@@ -393,6 +405,7 @@ private fun ShellTopAppBar(
     showBack: Boolean,
     showForward: Boolean,
     showRefresh: Boolean,
+    onRefresh: () -> Unit,
     canGoBack: Boolean,
     canGoForward: Boolean,
     webViewRef: WebView?,
@@ -420,8 +433,6 @@ private fun ShellTopAppBar(
         canGoForward = canGoForward,
         onBack = {
             (context as? AppCompatActivity)?.let { activity ->
-                // Surface-first: on the GeckoView kernel webViewRef is null and
-                // the engine's own history must drive back navigation.
                 if (browserSurface != null) {
                     ShellWebViewNavigation.goBackOrFinish(activity, browserSurface)
                 } else {
@@ -430,7 +441,7 @@ private fun ShellTopAppBar(
             }
         },
         onForward = { browserSurface?.goForward() ?: webViewRef?.goForward() },
-        onRefresh = { browserSurface?.reload() ?: webViewRef?.reload() },
+        onRefresh = onRefresh,
         showConsoleButton = showConsoleButton,
         consoleExpanded = showConsole,
         onToggleConsole = onToggleConsole,
@@ -472,7 +483,7 @@ private fun ShellContentArea(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
         ) {
-            CircularProgressIndicator()
+            WtaLoadingIndicator()
         }
     }
 

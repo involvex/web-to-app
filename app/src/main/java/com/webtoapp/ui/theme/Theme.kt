@@ -12,16 +12,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import com.webtoapp.core.i18n.AppLanguage
+import com.webtoapp.core.i18n.Strings
 
 val LocalAppTheme = staticCompositionLocalOf { AppThemes.Default }
 
 data class AnimationSettings(
     val enabled: Boolean = true,
-    val particlesEnabled: Boolean = true,
-    val hapticsEnabled: Boolean = true,
-    val soundEnabled: Boolean = true,
-    val speedMultiplier: Float = 1f
+    val hapticsEnabled: Boolean = true
 )
 
 val LocalAnimationSettings = staticCompositionLocalOf { AnimationSettings() }
@@ -80,22 +81,15 @@ private val DarkColorScheme = darkColorScheme(
 
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
-/**
- * Whether descriptive subtitles (the small hint text under feature titles) are
- * shown. Provided by [WebToAppTheme] from the user's display preference —
- * defaults to `true` so contexts that do not provide it (shell UI, previews)
- * keep rendering as before.
- */
 val LocalShowDescriptions = compositionLocalOf { true }
 
-/**
- * Opt-in gate for secondary/descriptive text: returns this string only when
- * [LocalShowDescriptions] is on, otherwise null. Call sites opt in per row so
- * genuinely important status text is never hidden.
- */
 @Composable
 fun String?.ifDescriptionsShown(): String? =
     if (LocalShowDescriptions.current) this else null
+
+@Composable
+private fun wtaLayoutDirection(): LayoutDirection =
+    if (Strings.lang == AppLanguage.ARABIC) LayoutDirection.Rtl else LayoutDirection.Ltr
 
 @Composable
 fun WebToAppTheme(
@@ -108,6 +102,7 @@ fun WebToAppTheme(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WebToAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -121,9 +116,7 @@ fun WebToAppTheme(
     val darkModeSetting by themeManager.darkModeFlow.collectAsStateWithLifecycle()
     val accent by themeManager.accentFlow.collectAsStateWithLifecycle()
     val enableAnimations by themeManager.enableAnimationsFlow.collectAsStateWithLifecycle()
-    val enableParticles by themeManager.enableParticlesFlow.collectAsStateWithLifecycle()
     val enableHaptics by themeManager.enableHapticsFlow.collectAsStateWithLifecycle()
-    val enableSound by themeManager.enableSoundFlow.collectAsStateWithLifecycle()
     val animationSpeed by themeManager.animationSpeedFlow.collectAsStateWithLifecycle()
     val fontSize by themeManager.fontSizeFlow.collectAsStateWithLifecycle()
     val cornerStyle by themeManager.cornerStyleFlow.collectAsStateWithLifecycle()
@@ -145,15 +138,12 @@ fun WebToAppTheme(
             if (useDarkTheme) dynamicDarkColorScheme(context)
             else dynamicLightColorScheme(context)
         }
-        else -> AppAccentPalettes.scheme(accent, useDarkTheme)?.applyTo(baseScheme) ?: baseScheme
+        else -> AppAccentPalettes.scheme(accent, useDarkTheme).applyTo(baseScheme)
     }
 
     val animationSettings = AnimationSettings(
         enabled = enableAnimations,
-        particlesEnabled = enableParticles,
-        hapticsEnabled = enableHaptics,
-        soundEnabled = enableSound,
-        speedMultiplier = animationSpeed.multiplier
+        hapticsEnabled = enableHaptics
     )
 
     SideEffect {
@@ -175,6 +165,7 @@ fun WebToAppTheme(
     )
 
     CompositionLocalProvider(
+        LocalLayoutDirection provides wtaLayoutDirection(),
         LocalAppTheme provides currentTheme,
         LocalAnimationSettings provides animationSettings,
         LocalIsDarkTheme provides useDarkTheme,
@@ -187,21 +178,19 @@ fun WebToAppTheme(
         MaterialTheme(
             colorScheme = colorScheme,
             typography = WtaTypography.withFontScale(fontSize.scale),
-            shapes = themeShapes
+            shapes = themeShapes,
+            motionScheme = if (enableAnimations) MotionScheme.expressive() else MotionScheme.standard()
         ) {
             if (settingsLoaded) {
                 content(useDarkTheme)
             } else {
-                // Hold a themed blank surface until the first preference
-                // emission lands; composing with defaults and re-laying-out on
-                // real values produces a visible startup jump (and again on
-                // the post-backup-restart cold start).
                 Surface(modifier = Modifier.fillMaxSize()) {}
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun WebToAppThemeSimple(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -210,17 +199,20 @@ fun WebToAppThemeSimple(
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
 
     CompositionLocalProvider(
+        LocalLayoutDirection provides wtaLayoutDirection(),
         LocalAppTheme provides AppThemes.Default,
         LocalAnimationSettings provides AnimationSettings(),
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = WtaTypography,
+            motionScheme = MotionScheme.expressive(),
             content = content
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ShellTheme(
     themeTypeName: String = "KIMI_NO_NAWA",
@@ -247,9 +239,7 @@ fun ShellTheme(
 
     val animationSettings = AnimationSettings(
         enabled = true,
-        particlesEnabled = currentTheme.effects.enableParticles,
-        hapticsEnabled = true,
-        speedMultiplier = 1f
+        hapticsEnabled = true
     )
 
     val themeShapes = Shapes(
@@ -266,6 +256,7 @@ fun ShellTheme(
     )
 
     CompositionLocalProvider(
+        LocalLayoutDirection provides wtaLayoutDirection(),
         LocalAppTheme provides currentTheme,
         LocalAnimationSettings provides animationSettings,
         LocalIsDarkTheme provides useDarkTheme,
@@ -274,6 +265,7 @@ fun ShellTheme(
             colorScheme = colorScheme,
             typography = WtaTypography,
             shapes = themeShapes,
+            motionScheme = MotionScheme.expressive(),
             content = content
         )
     }

@@ -8,6 +8,7 @@ import com.google.gson.JsonObject
 import com.webtoapp.core.extension.ExtensionModule
 import com.webtoapp.core.extension.ModuleSourceType
 import com.webtoapp.core.extension.ModuleVersion
+import com.webtoapp.core.extension.UrlMatchRule
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -58,7 +59,9 @@ class ChromePluginRowsTest {
         assertThat(chrome.single().popupPath).isEqualTo("popup.html")
         assertThat(chrome.single().backgroundScript).isEqualTo("bg.js")
         assertThat(chrome.single().manifestJson).contains("Dark Reader")
-        assertThat(store.enabledIds.value).contains("e_cs_0")
+        assertThat(chrome.single().matches.map { it.pattern })
+            .containsExactly("https://example.com/*")
+        assertThat(store.effectiveIds(true, emptyList())).contains("e_cs_0")
     }
 
     @Test
@@ -108,7 +111,7 @@ class ChromePluginRowsTest {
         assertThat(chrome.single().backgroundScript).isEqualTo("bg.js")
         assertThat(chrome.single().optionsPagePath).isEqualTo("options.html")
         assertThat(chrome.single().manifestJson).contains("default_popup")
-        assertThat(store.enabledIds.value).containsExactly("ext_cs_0")
+        assertThat(store.effectiveIds(true, emptyList())).containsExactly("ext_cs_0")
         assertThat(store.getPlugin("ext_cs_2")?.id).isEqualTo("ext_cs_0")
         assertThat(store.getPluginsByIds(listOf("ext_cs_1", "ext_cs_0")).map { it.id })
             .containsExactly("ext_cs_0")
@@ -134,8 +137,8 @@ class ChromePluginRowsTest {
         assertThat(store.plugins.value.filter { it.kind == PluginKind.CHROME_EXTENSION }).isEmpty()
         assertThat(store.getPlugin("ext_cs_0")).isNull()
         assertThat(extDir.exists()).isFalse()
-        assertThat(store.enabledIds.value).doesNotContain("ext_cs_0")
-        assertThat(store.enabledIds.value).doesNotContain("ext_cs_1")
+        assertThat(store.effectiveIds(true, emptyList())).doesNotContain("ext_cs_0")
+        assertThat(store.effectiveIds(true, emptyList())).doesNotContain("ext_cs_1")
     }
 
     @Test
@@ -145,15 +148,14 @@ class ChromePluginRowsTest {
             chromePlugin("ext_cs_1", "Dark Reader [2]", popup = "popup.html"),
             Plugin(id = "script", name = "Script", kind = PluginKind.USERSCRIPT)
         )
-        val collapsed = collapseChromePlugins(rows, enabledIds = listOf("ext_cs_1", "script"))
+        val collapsed = collapseChromePlugins(rows)
         assertThat(collapsed.plugins.map { it.id }).containsExactly("ext_cs_0", "script").inOrder()
         assertThat(collapsed.plugins.first().name).isEqualTo("Dark Reader")
         assertThat(collapsed.plugins.first().popupPath).isEqualTo("popup.html")
-        assertThat(collapsed.enabledIds).containsExactly("ext_cs_0", "script").inOrder()
         assertThat(collapsed.aliases).containsEntry("ext_cs_1", "ext_cs_0")
         assertThat(collapsed.changed).isTrue()
         val again = collapseChromePlugins(
-            collapsed.plugins, collapsed.enabledIds, collapsed.aliases
+            collapsed.plugins, collapsed.aliases
         )
         assertThat(again.changed).isFalse()
     }
@@ -180,6 +182,47 @@ class ChromePluginRowsTest {
         ).containsExactly("a", "b").inOrder()
     }
 
+    @Test
+    fun `load repairs a legacy store install whose directory name differs`() = runBlocking<Unit> {
+        val legacyDir = File(context.filesDir, "extensions/legacy-store-dir").apply { mkdirs() }
+        File(legacyDir, "manifest.json").writeText(
+            """
+            {
+              "manifest_version": 3,
+              "name": "Keyed Extension",
+              "version": "1.0",
+              "key": "$FIXTURE_KEY",
+              "action": {"default_popup": "popup.html"},
+              "options_ui": {"page": "options.html"},
+              "background": {"service_worker": "background.js"},
+              "content_scripts": [{"matches": ["https://www.example.com/*"], "js": ["content.js"]}]
+            }
+            """.trimIndent()
+        )
+        File(legacyDir, "content.js").writeText("console.log('x')")
+        writeChromeState(
+            listOf(
+                Plugin(
+                    id = "legacy_cs_0",
+                    name = "Keyed Extension",
+                    kind = PluginKind.CHROME_EXTENSION,
+                    chromeExtId = FIXTURE_ID
+                )
+            ),
+            enabled = listOf("legacy_cs_0")
+        )
+
+        val store = PluginStore.getInstance(context)
+        store.awaitLoaded()
+
+        val chrome = store.plugins.value.single { it.kind == PluginKind.CHROME_EXTENSION }
+        assertThat(chrome.manifestJson).contains("Keyed Extension")
+        assertThat(chrome.popupPath).isEqualTo("popup.html")
+        assertThat(chrome.optionsPagePath).isEqualTo("options.html")
+        assertThat(chrome.backgroundScript).isEqualTo("background.js")
+        assertThat(chrome.matches.map { it.pattern }).containsExactly("https://www.example.com/*")
+    }
+
     private fun chromeModule(
         id: String,
         name: String,
@@ -194,6 +237,7 @@ class ChromePluginRowsTest {
         popupPath = popup,
         backgroundScript = background,
         manifestJson = """{"name":"Dark Reader"}""",
+        urlMatches = listOf(UrlMatchRule(pattern = "https://example.com/*")),
         version = ModuleVersion(name = "4.9")
     )
 
@@ -221,4 +265,15 @@ class ChromePluginRowsTest {
         chromeExtId = "ext",
         popupPath = popup
     )
+
+    private companion object {
+        const val FIXTURE_KEY =
+            "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAu4wD92pRNqYR4URtq7XxAnR9bWB7" +
+                "YqY3uGP64eYFqVgX0yY5Ge+oJZ6y5c4wvepijnQZe37sYPWWXXtcSm0L/ry2Rn5LOLRbi2W" +
+                "YrXHgR8SzxrwQsHu88ruM7y0OhvgN7UpH+nDfeNDk1GQmyZ8zXGCw/NzL503FiI3k5ZiK+3A" +
+                "xrUjlrZnSmALbOm6GCTwSZm9UY5Wuc+WaubuhrrW82qi3oPnEFiMy4VMSsosInkskbs0A5hz" +
+                "5s+tIzcqZn2YZF47krHBopbgl1Y0EShXe/GsXRBsIy00I0H+8Hry4+d2eI+g1ootX0H0/NWo" +
+                "PWJglDn+z1Dwtsl//RdOS+6UxDwIDAQAB"
+        const val FIXTURE_ID = "gooibnpodkckifdenemmdmpfjhcbidib"
+    }
 }

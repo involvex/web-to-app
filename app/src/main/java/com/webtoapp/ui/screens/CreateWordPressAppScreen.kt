@@ -1,6 +1,8 @@
 package com.webtoapp.ui.screens
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSelectableRow
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.WtaSwitch
 import com.webtoapp.ui.components.PremiumButton
@@ -542,10 +544,10 @@ fun CreateWordPressAppScreen(
     }
 
     if (showDownloadDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {},
-            title = { Text(Strings.wpDownloadDeps) },
-            text = {
+            title = Strings.wpDownloadDeps,
+            content = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     when (val state = downloadState) {
                         is WordPressDependencyManager.DownloadState.Downloading -> {
@@ -554,7 +556,8 @@ fun CreateWordPressAppScreen(
                             LinearProgressIndicator(
                                 progress = { state.progress },
                                 modifier = Modifier.fillMaxWidth(),
-                                color = accentColor
+                                color = accentColor,
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                             Text(
                                 text = "${(state.progress * 100).toInt()}%",
@@ -565,17 +568,17 @@ fun CreateWordPressAppScreen(
                         is WordPressDependencyManager.DownloadState.Extracting -> {
                             Text("${Strings.wpExtracting}: ${state.fileName}")
                             Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor)
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor, gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         is WordPressDependencyManager.DownloadState.Verifying -> {
                             Text(Strings.verifyingFile.replaceFirst("%s", state.fileName))
                             Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor)
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor, gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         else -> {
                             Text(Strings.wpCheckingDeps)
                             Spacer(modifier = Modifier.height(8.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor)
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accentColor, gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                     }
 
@@ -754,36 +757,12 @@ private fun WpThemeCard(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 themes.forEach { theme ->
-                    val isActive = theme == activeTheme
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 2.dp)
-                            .clip(RoundedCornerShape(WtaRadius.Button))
-                            .background(
-                                if (isActive) accentColor.copy(alpha = 0.08f)
-                                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            )
-                            .clickable { onActiveThemeChange(theme) }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isActive,
-                                onClick = { onActiveThemeChange(theme) },
-                                modifier = Modifier.size(20.dp),
-                                colors = RadioButtonDefaults.colors(selectedColor = accentColor)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = theme,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal
-                            )
-                        }
-                    }
+                    WtaSelectableRow(
+                        title = theme,
+                        selected = theme == activeTheme,
+                        onClick = { onActiveThemeChange(theme) },
+                        accent = accentColor
+                    )
                 }
             } else {
                 Box(
@@ -934,34 +913,20 @@ private fun WpPermalinkCard(
 
             options.forEach { (value, label, icon) ->
                 val isSelected = selected == value
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 2.dp)
-                        .clip(RoundedCornerShape(WtaRadius.Button))
-                        .background(if (isSelected) accentColor.copy(alpha = 0.08f) else Color.Transparent)
-                        .clickable { onSelect(value) }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(
-                            selected = isSelected,
-                            onClick = { onSelect(value) },
-                            colors = RadioButtonDefaults.colors(selectedColor = accentColor)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Icon(icon, null, modifier = Modifier.size(18.dp), tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = label,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            fontFamily = FontFamily.Monospace
+                WtaSelectableRow(
+                    title = label,
+                    selected = isSelected,
+                    onClick = { onSelect(value) },
+                    accent = accentColor,
+                    leading = {
+                        Icon(
+                            icon,
+                            null,
+                            modifier = Modifier.size(18.dp),
+                            tint = if (isSelected) accentColor else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                }
+                )
             }
         }
     }

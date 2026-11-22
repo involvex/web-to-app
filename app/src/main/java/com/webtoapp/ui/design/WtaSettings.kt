@@ -319,6 +319,7 @@ fun WtaSettingRow(
     subtitle: String? = null,
     icon: ImageVector? = null,
     iconContent: (@Composable () -> Unit)? = null,
+    showIconPlate: Boolean = true,
     enabled: Boolean = true,
     active: Boolean? = null,
     tone: WtaRowTone = WtaRowTone.Normal,
@@ -375,8 +376,15 @@ fun WtaSettingRow(
                 Box(
                     modifier = Modifier
                         .size(WtaSize.IconPlate)
-                        .clip(RoundedCornerShape(WtaRadius.IconPlate))
-                        .background(iconPlate),
+                        .then(
+                            if (showIconPlate) {
+                                Modifier
+                                    .clip(RoundedCornerShape(WtaRadius.IconPlate))
+                                    .background(iconPlate)
+                            } else {
+                                Modifier
+                            }
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
                     if (iconContent != null) {
@@ -626,27 +634,6 @@ fun WtaDangerRow(
             text = Strings.tagSecurity,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.error
-        )
-    }
-}
-
-@Composable
-fun WtaActionBar(
-    modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit
-) {
-    Surface(
-        modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(WtaRadius.Card),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-        tonalElevation = 3.dp,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = WtaAlpha.Divider))
-    ) {
-        Row(
-            modifier = Modifier.padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            content = content
         )
     }
 }

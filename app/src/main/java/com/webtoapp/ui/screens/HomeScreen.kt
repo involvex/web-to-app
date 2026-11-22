@@ -6,10 +6,7 @@ import com.webtoapp.ui.components.PremiumButton
 import com.webtoapp.ui.components.SettingsSwitch
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.scrollBy
@@ -19,6 +16,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,7 +27,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Announcement
+import androidx.compose.material.icons.automirrored.outlined.ViewList
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -56,6 +59,7 @@ import com.webtoapp.core.i18n.Strings
 import com.webtoapp.core.logging.AppLogger
 import com.webtoapp.data.dao.WebAppSummary
 import com.webtoapp.data.model.AppCategory
+import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.withRuntimePermissionsSyncedFromFeatures
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.ui.components.CategoryEditorDialog
@@ -65,8 +69,20 @@ import com.webtoapp.ui.components.EnhancedElevatedCard
 import com.webtoapp.ui.components.PremiumTextField
 import com.webtoapp.ui.components.LanguageSelectorButton
 import com.webtoapp.ui.components.MoveToCategoryDialog
+import com.webtoapp.ui.design.WtaAlertDialog
+import com.webtoapp.ui.icons.WtaAppTypeIcon
+import com.webtoapp.ui.icons.WtaOfflinePackTypeIcon
+import com.webtoapp.ui.design.WtaLoadingIndicator
+import com.webtoapp.ui.design.WtaIconPlate
+import com.webtoapp.ui.design.WtaCard
+import com.webtoapp.ui.design.WtaCardTone
+import com.webtoapp.ui.design.WtaMorphingShape
+import com.webtoapp.ui.design.WtaPolygonShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.MaterialShapes
 import com.webtoapp.ui.design.WtaScreen
 import com.webtoapp.ui.design.WtaRadius
+import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.design.rememberHapticClick
 import com.webtoapp.ui.design.wtaPressScale
 import androidx.compose.ui.text.style.TextAlign
@@ -74,8 +90,6 @@ import com.webtoapp.ui.theme.LocalAnimationSettings
 import com.webtoapp.ui.theme.AppColors
 import com.webtoapp.ui.theme.ThemeManager
 import com.webtoapp.ui.theme.LocalAppTheme
-import com.webtoapp.ui.theme.LocalThemeRevealState
-import com.webtoapp.ui.animation.AnimatedAlertDialog
 import com.webtoapp.ui.viewmodel.MainViewModel
 import com.webtoapp.ui.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
@@ -99,9 +113,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.foundation.Canvas
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
@@ -115,11 +126,12 @@ import com.webtoapp.data.home.stepCustomDrag
 import com.webtoapp.ui.design.WtaBadge
 import com.webtoapp.ui.theme.LocalShowDescriptions
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun HomeScreen(
     viewModel: MainViewModel,
     onCreateApp: () -> Unit,
+    onCreateSampleApp: () -> Unit = {},
     onCreateMediaApp: () -> Unit = {},
     onCreateGalleryApp: () -> Unit = {},
     onCreateHtmlApp: () -> Unit = {},
@@ -174,12 +186,14 @@ fun HomeScreen(
     var selectedApp by remember { mutableStateOf<WebAppSummary?>(null) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var shareApkFailureReport by remember { mutableStateOf<BuildFailureReport?>(null) }
-    var showFabMenu by remember { mutableStateOf(false) }
     var showDataBackupDialog by remember { mutableStateOf(false) }
+    var showFabMenu by remember { mutableStateOf(false) }
 
     val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
+    val homeThemeManager = remember { ThemeManager.getInstance(context) }
+    val homeViewMode by homeThemeManager.homeViewModeFlow.collectAsStateWithLifecycle()
     LaunchedEffect(uiState) {
         when (uiState) {
             is UiState.Success -> {
@@ -194,135 +208,274 @@ fun HomeScreen(
         }
     }
 
-    val createMenuScrollState = rememberScrollState()
     val advancedFeatures by HostRuntimePrefs.getInstance(context)
         .advancedFeaturesFlow
         .collectAsStateWithLifecycle()
 
-    data class CreateActionItem(
-        val label: String,
-        val iconRes: Int,
-        val onClick: () -> Unit
-    )
-    val createActionItems = buildList {
-        add(CreateActionItem(Strings.appTypeWeb, R.drawable.ic_type_web, onCreateApp))
-        add(CreateActionItem(Strings.appTypeMultiWeb, R.drawable.ic_type_multi_web, onCreateMultiWebApp))
-        add(CreateActionItem(Strings.appTypeHtml, R.drawable.ic_type_html, onCreateHtmlApp))
-        add(CreateActionItem(Strings.websiteOfflinePack, R.drawable.ic_type_offline_pack, onCreateOfflinePack))
-        add(CreateActionItem(Strings.appTypeFrontend, R.drawable.ic_type_frontend, onCreateFrontendApp))
-        if (advancedFeatures) {
-            add(CreateActionItem(Strings.appTypePhp, R.drawable.ic_type_php, onCreatePhpApp))
-            add(CreateActionItem(Strings.appTypeWordPress, R.drawable.ic_type_wordpress, onCreateWordPressApp))
-            add(CreateActionItem(Strings.appTypeNodeJs, R.drawable.ic_type_nodejs, onCreateNodeJsApp))
-            add(CreateActionItem(Strings.appTypePython, R.drawable.ic_type_python, onCreatePythonApp))
-            add(CreateActionItem(Strings.appTypeGo, R.drawable.ic_type_go, onCreateGoApp))
-            add(CreateActionItem(Strings.createMediaApp, R.drawable.ic_type_media, onCreateMediaApp))
-        }
-        add(CreateActionItem(Strings.appTypeGallery, R.drawable.ic_type_gallery, onCreateGalleryApp))
-    }
+    val createMenuScrollState = rememberScrollState()
+    val createActionItems = listOf(
+        CreateActionItem(Strings.appTypeWeb, Strings.typeDescWeb, false, { WtaAppTypeIcon(AppType.WEB, Modifier.size(30.dp)) }, onCreateApp),
+        CreateActionItem(Strings.appTypeMultiWeb, Strings.typeDescMultiWeb, false, { WtaAppTypeIcon(AppType.MULTI_WEB, Modifier.size(30.dp)) }, onCreateMultiWebApp),
+        CreateActionItem(Strings.appTypeHtml, Strings.typeDescHtml, false, { WtaAppTypeIcon(AppType.HTML, Modifier.size(30.dp)) }, onCreateHtmlApp),
+        CreateActionItem(Strings.websiteOfflinePack, Strings.typeDescOfflinePack, false, { WtaOfflinePackTypeIcon(Modifier.size(30.dp)) }, onCreateOfflinePack),
+        CreateActionItem(Strings.appTypeFrontend, Strings.typeDescFrontend, false, { WtaAppTypeIcon(AppType.FRONTEND, Modifier.size(30.dp)) }, onCreateFrontendApp),
+        CreateActionItem(Strings.appTypeGallery, Strings.typeDescGallery, false, { WtaAppTypeIcon(AppType.GALLERY, Modifier.size(30.dp)) }, onCreateGalleryApp),
+        CreateActionItem(Strings.appTypePhp, Strings.typeDescPhp, true, { WtaAppTypeIcon(AppType.PHP_APP, Modifier.size(30.dp)) }, onCreatePhpApp),
+        CreateActionItem(Strings.appTypeWordPress, Strings.typeDescWordPress, true, { WtaAppTypeIcon(AppType.WORDPRESS, Modifier.size(30.dp)) }, onCreateWordPressApp),
+        CreateActionItem(Strings.appTypeNodeJs, Strings.typeDescNodeJs, true, { WtaAppTypeIcon(AppType.NODEJS_APP, Modifier.size(30.dp)) }, onCreateNodeJsApp),
+        CreateActionItem(Strings.appTypePython, Strings.typeDescPython, true, { WtaAppTypeIcon(AppType.PYTHON_APP, Modifier.size(30.dp)) }, onCreatePythonApp),
+        CreateActionItem(Strings.appTypeGo, Strings.typeDescGo, true, { WtaAppTypeIcon(AppType.GO_APP, Modifier.size(30.dp)) }, onCreateGoApp),
+        CreateActionItem(Strings.createMediaApp, Strings.typeDescMedia, true, { WtaAppTypeIcon(AppType.VIDEO, Modifier.size(30.dp)) }, onCreateMediaApp)
+    ).filter { advancedFeatures || !it.advanced }
 
     WtaScreen(
         title = Strings.myApps,
-        snackbarHostState = snackbarHostState,
-
-        titleContent = if (isSearchActive) {
-            {
-                com.webtoapp.ui.design.WtaTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.search(it) },
-                    placeholder = Strings.search,
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+        titleContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                WtaIconPlate(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    modifier = Modifier.size(30.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Apps,
+                        contentDescription = null,
+                        modifier = Modifier.size(17.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = Strings.myApps,
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
-        } else null,
+        },
+        snackbarHostState = snackbarHostState,
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = rememberHapticClick { showFabMenu = true },
+                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                text = { Text(Strings.createApp, style = MaterialTheme.typography.labelLargeEmphasized) },
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        },
+
         actions = {
-                    val context = LocalContext.current
-                    val themeManager = remember { ThemeManager.getInstance(context) }
-                    val darkModeState by themeManager.darkModeFlow.collectAsStateWithLifecycle()
-                    val isDarkNow = darkModeState == ThemeManager.DarkModeSettings.DARK
-
-                    val revealState = LocalThemeRevealState.current
-                    val view = LocalView.current
-                    val activity = context as? android.app.Activity
-
-                    var buttonCenter by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
-
-                    IconButton(
-                        onClick = {
-                            val switchToDark = !isDarkNow
-
-                            if (revealState != null) {
-
-                                revealState.triggerReveal(
-                                    center = buttonCenter,
-                                    switchToDark = switchToDark,
-                                    view = view,
-                                    window = activity?.window
-                                ) {
-
-                                    scope.launch {
-                                        val newMode = if (switchToDark) {
-                                            ThemeManager.DarkModeSettings.DARK
-                                        } else {
-                                            ThemeManager.DarkModeSettings.LIGHT
-                                        }
-                                        themeManager.setDarkMode(newMode)
-                                    }
-                                }
-                            } else {
-
-                                scope.launch {
-                                    val newMode = if (switchToDark) {
-                                        ThemeManager.DarkModeSettings.DARK
-                                    } else {
-                                        ThemeManager.DarkModeSettings.LIGHT
-                                    }
-                                    themeManager.setDarkMode(newMode)
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .size(44.dp)
-                            .onGloballyPositioned { coords ->
-                                val bounds = coords.boundsInRoot()
-                                buttonCenter = androidx.compose.ui.geometry.Offset(
-                                    bounds.left + bounds.width / 2,
-                                    bounds.top + bounds.height / 2
-                                )
-                            }
-                    ) {
-                        Icon(
-                            imageVector = if (isDarkNow) Icons.Outlined.DarkMode else Icons.Outlined.LightMode,
-                            contentDescription = if (isDarkNow) {
-                                Strings.statusBarDarkModeLabel
-                            } else {
-                                Strings.statusBarLightModeLabel
-                            },
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
                     LanguageSelectorButton(
+                        buttonSize = 40.dp,
                         onLanguageChanged = {
-
                             scope.launch {
                                 snackbarHostState.showSnackbar(Strings.msgLanguageChanged)
                             }
                         }
                     )
 
+                    IconButton(
+                        onClick = {
+                            val next = if (homeViewMode == ThemeManager.HomeViewMode.LIST) {
+                                ThemeManager.HomeViewMode.GRID
+                            } else {
+                                ThemeManager.HomeViewMode.LIST
+                            }
+                            scope.launch { homeThemeManager.setHomeViewMode(next) }
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Crossfade(
+                            targetState = homeViewMode,
+                            animationSpec = com.webtoapp.ui.design.WtaMotion.standardTween(),
+                            label = "homeViewModeIcon"
+                        ) { mode ->
+                            Icon(
+                                imageVector = if (mode == ThemeManager.HomeViewMode.GRID) {
+                                    Icons.AutoMirrored.Outlined.ViewList
+                                } else {
+                                    Icons.Outlined.GridView
+                                },
+                                contentDescription = if (mode == ThemeManager.HomeViewMode.GRID) {
+                                    Strings.homeViewList
+                                } else {
+                                    Strings.homeViewGrid
+                                },
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    IconButton(
+                        onClick = {
+                            isSearchActive = !isSearchActive
+                            if (!isSearchActive) viewModel.search("")
+                        },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
+                            contentDescription = Strings.search,
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    var showMoreMenu by remember { mutableStateOf(false) }
+                    Box {
+                        IconButton(
+                            onClick = { showMoreMenu = true },
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = Strings.more,
+                                modifier = Modifier.size(22.dp),
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuAgent) },
+                                onClick = { showMoreMenu = false; onOpenAgent() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.SmartToy, 0) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuAiSettings) },
+                                onClick = { showMoreMenu = false; onOpenAiSettings() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.AutoAwesome, 2) }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(Strings.pluginsManageTitle) },
+                                onClick = { showMoreMenu = false; onOpenPlugins() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Extension, 1) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuAppModifier) },
+                                onClick = { showMoreMenu = false; onOpenAppModifier() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.AppShortcut, 0) }
+                            )
+                            if (advancedFeatures) {
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuLinuxEnvironment) },
+                                    onClick = { showMoreMenu = false; onOpenLinuxEnvironment() },
+                                    leadingIcon = { MoreMenuIcon(Icons.Rounded.Terminal, 1) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuRuntimeDeps) },
+                                    onClick = { showMoreMenu = false; onOpenRuntimeDeps() },
+                                    leadingIcon = { MoreMenuIcon(Icons.Rounded.Memory, 2) }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(Strings.menuPortManager) },
+                                    onClick = { showMoreMenu = false; onOpenPortManager() },
+                                    leadingIcon = { MoreMenuIcon(Icons.Rounded.Router, 0) }
+                                )
+                            }
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuBrowserKernel) },
+                                onClick = { showMoreMenu = false; onOpenBrowserKernel() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Public, 1) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuHostsAdBlock) },
+                                onClick = { showMoreMenu = false; onOpenHostsAdBlock() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Shield, 2) }
+                            )
+                            HorizontalDivider()
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuStats) },
+                                onClick = { showMoreMenu = false; onOpenStats() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Analytics, 0) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuGooglePlay) },
+                                onClick = { showMoreMenu = false; onOpenPlayStore() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Shop, 1) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuFileManager) },
+                                onClick = { showMoreMenu = false; onOpenFileManager() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Folder, 2) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.dataBackupTitle) },
+                                onClick = { showMoreMenu = false; showDataBackupDialog = true },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Backup, 0) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.uiConfig) },
+                                onClick = { showMoreMenu = false; onOpenSettings() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Palette, 1) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(Strings.menuAbout) },
+                                onClick = { showMoreMenu = false; onOpenAbout() },
+                                leadingIcon = { MoreMenuIcon(Icons.Rounded.Info, 2) }
+                            )
+                        }
+                    }
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+
+            AnimatedVisibility(visible = isSearchActive) {
+                DockedSearchBar(
+                    query = searchQuery,
+                    onQueryChange = { viewModel.search(it) },
+                    onSearch = { viewModel.search(it) },
+                    active = false,
+                    onActiveChange = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    placeholder = { Text(Strings.search) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            isSearchActive = false
+                            viewModel.search("")
+                        }) {
+                            Icon(Icons.Default.Close, contentDescription = null)
+                        }
+                    }
+                ) {}
+            }
+
+            CategoryTabRow(
+                categories = categories,
+                selectedCategoryId = selectedCategoryId,
+                onCategorySelected = { viewModel.selectCategory(it) },
+                onAddCategory = {
+                    editingCategory = null
+                    showCategoryEditor = true
+                },
+                onEditCategory = { category ->
+                    editingCategory = category
+                    showCategoryEditor = true
+                },
+                onDeleteCategory = { viewModel.deleteCategory(it) },
+                onMoveCategory = { category, delta -> viewModel.moveCategory(category, delta) },
+                onManageCategories = { showCategoryManager = true },
+                trailingContent = {
                     Box {
                         IconButton(
                             onClick = { showSortMenu = true },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(28.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Outlined.Sort,
                                 contentDescription = Strings.appListSort,
-                                modifier = Modifier.size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         DropdownMenu(
@@ -351,144 +504,7 @@ fun HomeScreen(
                             }
                         }
                     }
-
-                    IconButton(
-                        onClick = {
-                            isSearchActive = !isSearchActive
-                            if (!isSearchActive) viewModel.search("")
-                        },
-                        modifier = Modifier.size(44.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isSearchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = Strings.search,
-                            modifier = Modifier.size(22.dp),
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-
-                    var showMoreMenu by remember { mutableStateOf(false) }
-                    Box {
-                        IconButton(
-                            onClick = { showMoreMenu = true },
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.MoreVert,
-                                contentDescription = null,
-                                modifier = Modifier.size(22.dp),
-                                tint = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                        DropdownMenu(
-                            expanded = showMoreMenu,
-                            onDismissRequest = { showMoreMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuAgent) },
-                                onClick = { showMoreMenu = false; onOpenAgent() },
-                                leadingIcon = { Icon(Icons.Outlined.Code, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuAiSettings) },
-                                onClick = { showMoreMenu = false; onOpenAiSettings() },
-                                leadingIcon = { Icon(Icons.Outlined.AutoAwesome, null, Modifier.size(20.dp)) }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(Strings.pluginsManageTitle) },
-                                onClick = { showMoreMenu = false; onOpenPlugins() },
-                                leadingIcon = { Icon(Icons.Outlined.Extension, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuAppModifier) },
-                                onClick = { showMoreMenu = false; onOpenAppModifier() },
-                                leadingIcon = { Icon(Icons.Outlined.AppShortcut, null, Modifier.size(20.dp)) }
-                            )
-                            if (advancedFeatures) {
-                                DropdownMenuItem(
-                                    text = { Text(Strings.menuLinuxEnvironment) },
-                                    onClick = { showMoreMenu = false; onOpenLinuxEnvironment() },
-                                    leadingIcon = { Icon(Icons.Outlined.Terminal, null, Modifier.size(20.dp)) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(Strings.menuRuntimeDeps) },
-                                    onClick = { showMoreMenu = false; onOpenRuntimeDeps() },
-                                    leadingIcon = { Icon(Icons.Outlined.Memory, null, Modifier.size(20.dp)) }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(Strings.menuPortManager) },
-                                    onClick = { showMoreMenu = false; onOpenPortManager() },
-                                    leadingIcon = { Icon(Icons.Outlined.Router, null, Modifier.size(20.dp)) }
-                                )
-                            }
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuBrowserKernel) },
-                                onClick = { showMoreMenu = false; onOpenBrowserKernel() },
-                                leadingIcon = { Icon(Icons.Outlined.Public, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuHostsAdBlock) },
-                                onClick = { showMoreMenu = false; onOpenHostsAdBlock() },
-                                leadingIcon = { Icon(Icons.Outlined.Shield, null, Modifier.size(20.dp)) }
-                            )
-                            HorizontalDivider()
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuStats) },
-                                onClick = { showMoreMenu = false; onOpenStats() },
-                                leadingIcon = { Icon(Icons.Outlined.BarChart, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuGooglePlay) },
-                                onClick = { showMoreMenu = false; onOpenPlayStore() },
-                                leadingIcon = { Icon(Icons.Outlined.PlayCircleOutline, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuFileManager) },
-                                onClick = { showMoreMenu = false; onOpenFileManager() },
-                                leadingIcon = { Icon(Icons.Outlined.Folder, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.dataBackupTitle) },
-                                onClick = { showMoreMenu = false; showDataBackupDialog = true },
-                                leadingIcon = { Icon(Icons.Outlined.Inventory2, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.uiConfig) },
-                                onClick = { showMoreMenu = false; onOpenSettings() },
-                                leadingIcon = { Icon(Icons.Outlined.Palette, null, Modifier.size(20.dp)) }
-                            )
-                            DropdownMenuItem(
-                                text = { Text(Strings.menuAbout) },
-                                onClick = { showMoreMenu = false; onOpenAbout() },
-                                leadingIcon = { Icon(Icons.Outlined.Info, null, Modifier.size(20.dp)) }
-                            )
-                        }
-                    }
-
-        }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-        ) {
-
-            CategoryTabRow(
-                categories = categories,
-                selectedCategoryId = selectedCategoryId,
-                onCategorySelected = { viewModel.selectCategory(it) },
-                onAddCategory = {
-                    editingCategory = null
-                    showCategoryEditor = true
-                },
-                onEditCategory = { category ->
-                    editingCategory = category
-                    showCategoryEditor = true
-                },
-                onDeleteCategory = { viewModel.deleteCategory(it) },
-                onMoveCategory = { category, delta -> viewModel.moveCategory(category, delta) },
-                onManageCategories = { showCategoryManager = true }
+                }
             )
 
             Box(
@@ -500,14 +516,14 @@ fun HomeScreen(
 
                     EmptyState(
                         modifier = Modifier.align(Alignment.Center),
-                        showCreateButton = !showFabMenu,
-                        onCreateApp = onCreateApp
+                        onCreateApp = onCreateApp,
+                        onCreateSampleApp = onCreateSampleApp
                     )
                 } else {
 
                     val listContext = LocalContext.current
                     val sharedExporter = remember { com.webtoapp.core.export.AppExporter(listContext) }
-                    val sharedApkBuilder = remember { ApkBuilder(listContext) }
+                    val sharedApkBuilder = remember { lazy { ApkBuilder(listContext) } }
                     val sharedScope = rememberCoroutineScope()
 
                     val healthMonitor: com.webtoapp.core.stats.AppHealthMonitor? = remember {
@@ -549,8 +565,6 @@ fun HomeScreen(
 
                     val screenshotVersions = remember { mutableStateMapOf<Long, Int>() }
                     val screenshotLoadingStates = remember { mutableStateMapOf<Long, Boolean>() }
-                    // Apps already offered a capture this session; auto-capture never retries
-                    // (manual tap still re-captures). Reset when HomeScreen state resets.
                     val autoCaptureAttempted = remember { mutableSetOf<Long>() }
 
                     val runCapture: (WebAppSummary, AppPreviewSpec) -> Unit = { cardApp, spec ->
@@ -611,6 +625,153 @@ fun HomeScreen(
                     }
 
 
+
+                    fun actionsFor(app: WebAppSummary): HomeAppActions = HomeAppActions(
+                        onEdit = {
+                            scope.launch {
+                                viewModel.getWebApp(app.id)?.let(onEditApp)
+                            }
+                        },
+                        onEditCore = {
+                            scope.launch {
+                                viewModel.getWebApp(app.id)?.let(onEditAppCore)
+                            }
+                        },
+                        onDelete = {
+                            selectedApp = app
+                            showDeleteDialog = true
+                        },
+                        onCreateShortcut = {
+                            scope.launch {
+                                val fullApp = viewModel.getWebApp(app.id) ?: return@launch
+                                when (val result = sharedExporter.createShortcut(fullApp)) {
+                                    is com.webtoapp.core.export.ShortcutResult.Success -> {
+                                        snackbarHostState.showSnackbar(Strings.shortcutCreatedSuccess)
+                                    }
+                                    is com.webtoapp.core.export.ShortcutResult.Pending -> {
+                                        snackbarHostState.showSnackbar(result.message)
+                                    }
+                                    is com.webtoapp.core.export.ShortcutResult.PermissionRequired -> {
+                                        snackbarHostState.showSnackbar(
+                                            message = result.message,
+                                            duration = SnackbarDuration.Long
+                                        )
+                                    }
+                                    is com.webtoapp.core.export.ShortcutResult.Error -> {
+                                        snackbarHostState.showSnackbar(result.message)
+                                    }
+                                }
+                            }
+                        },
+                        onExport = {
+                            scope.launch {
+                                val fullApp = viewModel.getWebApp(app.id) ?: return@launch
+                                val packed = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        com.webtoapp.core.export.AppSourcePackager(listContext).pack(fullApp)
+                                    }
+                                }
+                                val file = packed.getOrNull()
+                                val shared = file != null &&
+                                    com.webtoapp.core.export.AppSourcePackager(listContext).share(file)
+                                if (!shared) {
+                                    packed.exceptionOrNull()?.let {
+                                        AppLogger.e("HomeScreen", "Source export failed", it)
+                                    }
+                                    snackbarHostState.showSnackbar(Strings.exportAppSourceFailed)
+                                }
+                            }
+                        },
+                        onBuildApk = {
+                            onBuildApk(app.id)
+                        },
+                        onShareApk = {
+                            scope.launch {
+                                val fullApp = viewModel.getWebApp(app.id) ?: return@launch
+                                shareApkFailureReport = null
+                                snackbarHostState.showSnackbar(Strings.shareApkBuilding)
+                                val apkBuilder = withContext(Dispatchers.IO) { sharedApkBuilder.value }
+                                val result = apkBuilder.buildApk(fullApp) { _, _ -> }
+                                when (result) {
+                                    is BuildResult.Success -> {
+                                        snackbarHostState.showSnackbar(
+                                            Strings.shareApkReadyMode.replace(
+                                                "%s",
+                                                incrementalBuildModeLabel(result.buildMode)
+                                            )
+                                        )
+                                        try {
+                                            val apkUri = androidx.core.content.FileProvider.getUriForFile(
+                                                listContext,
+                                                "${listContext.packageName}.fileprovider",
+                                                result.apkFile
+                                            )
+                                            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                type = "application/vnd.android.package-archive"
+                                                putExtra(android.content.Intent.EXTRA_STREAM, apkUri)
+                                                putExtra(android.content.Intent.EXTRA_SUBJECT, Strings.shareApkTitle.replace("%s", fullApp.name))
+                                                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                            }
+                                            listContext.startActivity(android.content.Intent.createChooser(shareIntent, Strings.shareApkTitle.replace("%s", fullApp.name)))
+                                        } catch (e: Exception) {
+                                            shareApkFailureReport = buildActionFailureReport(
+                                                title = Strings.apkShareFailed,
+                                                stage = "share_apk_intent",
+                                                webApp = fullApp,
+                                                summary = Strings.shareApkFailed.replace("%s", e.message ?: "Unknown error"),
+                                                logPath = result.logPath,
+                                                throwable = e,
+                                                extraLines = listOf(
+                                                    "apkPath=${result.apkFile.absolutePath}",
+                                                    "apkSize=${result.apkFile.length()}"
+                                                )
+                                            )
+                                        }
+                                    }
+                                    is BuildResult.Error -> {
+                                        shareApkFailureReport = buildActionFailureReport(
+                                            title = Strings.apkShareFailed,
+                                            stage = result.diagnostic?.stage?.label ?: "build_apk_for_share",
+                                            webApp = fullApp,
+                                            summary = Strings.shareApkFailed.replace("%s", result.message),
+                                            logPath = result.logPath,
+                                            extraLines = buildDiagnosticLines(result)
+                                        )
+                                    }
+                                }
+                            }
+                        },
+                        onMoveToCategory = {
+                            appToMove = app
+                            showMoveToCategoryDialog = true
+                        },
+                        onClearCache = {
+                            appToClearCache = app
+                            showClearCacheDialog = true
+                        },
+                        onOpenInBrowser = {
+                            if (isExternalBrowserUrl(app.url)) {
+                                try {
+                                    val viewIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse(app.url.trim())
+                                    ).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    listContext.startActivity(
+                                        Intent.createChooser(viewIntent, Strings.chooseBrowser)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                } catch (e: Exception) {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            "${Strings.cannotOpenInBrowser}: ${e.message ?: Strings.failed}"
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    )
 
                     val listState = rememberLazyListState()
                     val listDrag = remember { HomeListDragState() }
@@ -681,10 +842,35 @@ fun HomeScreen(
                         }
                     }
 
+                    if (homeViewMode == ThemeManager.HomeViewMode.GRID) {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 150.dp),
+                            state = rememberLazyGridState(),
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            gridItemsIndexed(
+                                displayedApps,
+                                key = { _, app -> app.id },
+                                contentType = { _, _ -> "AppCard" }
+                            ) { _, app ->
+                                AppGridTile(
+                                    app = app,
+                                    onClick = { onPreviewApp(app) },
+                                    actions = actionsFor(app),
+                                    previewImageLoader = previewImageLoader,
+                                    healthStatus = healthMap[app.id]?.status,
+                                    modifier = Modifier.fillMaxWidth().animateItem()
+                                )
+                            }
+                        }
+                    } else {
                     LazyColumn(
                     state = listState,
                     userScrollEnabled = listDrag.id == null,
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 88.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     if (showDragHint) {
@@ -702,13 +888,9 @@ fun HomeScreen(
                         key = { _, app -> app.id },
                         contentType = { _, _ -> "AppCard" }
                     ) { index, app ->
-                        val exporter = sharedExporter
                         val scope = sharedScope
                         val previewSpec = previewSpecs[app.id] ?: AppPreviewSpec()
 
-                        // Auto-capture the card thumbnail once per session when the card
-                        // is composed and no cached screenshot exists yet; tapping the
-                        // thumbnail still forces a recapture.
                         LaunchedEffect(app.id, previewSpec.captureUrl) {
                             if (previewSpec.captureUrl == null || app.id in autoCaptureAttempted) {
                                 return@LaunchedEffect
@@ -779,10 +961,7 @@ fun HomeScreen(
                                                 val anim = Animatable(listDrag.dy)
                                                 anim.animateTo(
                                                     targetValue = 0f,
-                                                    animationSpec = spring(
-                                                        dampingRatio = 0.86f,
-                                                        stiffness = Spring.StiffnessMedium,
-                                                    ),
+                                                    animationSpec = com.webtoapp.ui.design.WtaMotion.bouncySpring(),
                                                     initialVelocity = velocity,
                                                 ) {
                                                     if (!listDrag.tracking) listDrag.dy = value
@@ -832,6 +1011,7 @@ fun HomeScreen(
                             enableDismissFromEndToStart = listDrag.id == null
                         ) {
 
+                        val actions = actionsFor(app)
                         AppCard(
                             app = app,
                             modifier = if (dragged) {
@@ -841,150 +1021,16 @@ fun HomeScreen(
                             },
                             onClick = { onPreviewApp(app) },
                             onLongClick = { selectedApp = app },
-                            onEdit = {
-                                scope.launch {
-                                    viewModel.getWebApp(app.id)?.let(onEditApp)
-                                }
-                            },
-                            onEditCore = {
-                                scope.launch {
-                                    viewModel.getWebApp(app.id)?.let(onEditAppCore)
-                                }
-                            },
-                            onDelete = {
-                                selectedApp = app
-                                showDeleteDialog = true
-                            },
-                            onCreateShortcut = {
-                                scope.launch {
-                                    val fullApp = viewModel.getWebApp(app.id) ?: return@launch
-                                    when (val result = exporter.createShortcut(fullApp)) {
-                                        is com.webtoapp.core.export.ShortcutResult.Success -> {
-                                            snackbarHostState.showSnackbar(Strings.shortcutCreatedSuccess)
-                                        }
-                                        is com.webtoapp.core.export.ShortcutResult.Pending -> {
-                                            snackbarHostState.showSnackbar(result.message)
-                                        }
-                                        is com.webtoapp.core.export.ShortcutResult.PermissionRequired -> {
-                                            snackbarHostState.showSnackbar(
-                                                message = result.message,
-                                                duration = SnackbarDuration.Long
-                                            )
-                                        }
-                                        is com.webtoapp.core.export.ShortcutResult.Error -> {
-                                            snackbarHostState.showSnackbar(result.message)
-                                        }
-                                    }
-                                }
-                            },
-                            onExport = {
-                                scope.launch {
-                                    val fullApp = viewModel.getWebApp(app.id) ?: return@launch
-                                    val packed = withContext(Dispatchers.IO) {
-                                        runCatching {
-                                            com.webtoapp.core.export.AppSourcePackager(listContext).pack(fullApp)
-                                        }
-                                    }
-                                    val file = packed.getOrNull()
-                                    val shared = file != null &&
-                                        com.webtoapp.core.export.AppSourcePackager(listContext).share(file)
-                                    if (!shared) {
-                                        packed.exceptionOrNull()?.let {
-                                            AppLogger.e("HomeScreen", "Source export failed", it)
-                                        }
-                                        snackbarHostState.showSnackbar(Strings.exportAppSourceFailed)
-                                    }
-                                }
-                            },
-                            onBuildApk = {
-                                onBuildApk(app.id)
-                            },
-                            onShareApk = {
-                                scope.launch {
-                                    val fullApp = viewModel.getWebApp(app.id) ?: return@launch
-                                    shareApkFailureReport = null
-                                    snackbarHostState.showSnackbar(Strings.shareApkBuilding)
-                                    val apkBuilder = sharedApkBuilder
-                                    val result = apkBuilder.buildApk(fullApp) { _, _ -> }
-                                    when (result) {
-                                        is BuildResult.Success -> {
-                                            snackbarHostState.showSnackbar(
-                                                Strings.shareApkReadyMode.replace(
-                                                    "%s",
-                                                    incrementalBuildModeLabel(result.buildMode)
-                                                )
-                                            )
-                                            try {
-                                                val apkUri = androidx.core.content.FileProvider.getUriForFile(
-                                                    listContext,
-                                                    "${listContext.packageName}.fileprovider",
-                                                    result.apkFile
-                                                )
-                                                val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                                                    type = "application/vnd.android.package-archive"
-                                                    putExtra(android.content.Intent.EXTRA_STREAM, apkUri)
-                                                    putExtra(android.content.Intent.EXTRA_SUBJECT, Strings.shareApkTitle.replace("%s", fullApp.name))
-                                                    addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                                }
-                                                listContext.startActivity(android.content.Intent.createChooser(shareIntent, Strings.shareApkTitle.replace("%s", fullApp.name)))
-                                            } catch (e: Exception) {
-                                                shareApkFailureReport = buildActionFailureReport(
-                                                    title = Strings.apkShareFailed,
-                                                    stage = "share_apk_intent",
-                                                    webApp = fullApp,
-                                                    summary = Strings.shareApkFailed.replace("%s", e.message ?: "Unknown error"),
-                                                    logPath = result.logPath,
-                                                    throwable = e,
-                                                    extraLines = listOf(
-                                                        "apkPath=${result.apkFile.absolutePath}",
-                                                        "apkSize=${result.apkFile.length()}"
-                                                    )
-                                                )
-                                            }
-                                        }
-                                        is BuildResult.Error -> {
-                                            shareApkFailureReport = buildActionFailureReport(
-                                                title = Strings.apkShareFailed,
-                                                stage = result.diagnostic?.stage?.label ?: "build_apk_for_share",
-                                                webApp = fullApp,
-                                                summary = Strings.shareApkFailed.replace("%s", result.message),
-                                                logPath = result.logPath,
-                                                extraLines = buildDiagnosticLines(result)
-                                            )
-                                        }
-                                    }
-                                }
-                            },
-                            onMoveToCategory = {
-                                appToMove = app
-                                showMoveToCategoryDialog = true
-                            },
-                            onClearCache = {
-                                appToClearCache = app
-                                showClearCacheDialog = true
-                            },
-                            onOpenInBrowser = {
-                                if (isExternalBrowserUrl(app.url)) {
-                                    try {
-                                        val viewIntent = Intent(
-                                            Intent.ACTION_VIEW,
-                                            Uri.parse(app.url.trim())
-                                        ).apply {
-                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        }
-                                        listContext.startActivity(
-                                            Intent.createChooser(viewIntent, Strings.chooseBrowser)
-                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                        )
-                                    } catch (e: Exception) {
-                                        scope.launch {
-                                            snackbarHostState.showSnackbar(
-                                                "${Strings.cannotOpenInBrowser}: ${e.message ?: Strings.failed}"
-                                            )
-                                        }
-                                    }
-                                }
-                            },
+                            onEdit = actions.onEdit,
+                            onEditCore = actions.onEditCore,
+                            onDelete = actions.onDelete,
+                            onCreateShortcut = actions.onCreateShortcut,
+                            onExport = actions.onExport,
+                            onBuildApk = actions.onBuildApk,
+                            onShareApk = actions.onShareApk,
+                            onMoveToCategory = actions.onMoveToCategory,
+                            onClearCache = actions.onClearCache,
+                            onOpenInBrowser = actions.onOpenInBrowser,
                             healthStatus = healthMap[app.id]?.status,
                             previewImageLoader = previewImageLoader,
                             screenshotPath = if (previewSpec.captureUrl != null) {
@@ -1007,112 +1053,54 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(16.dp))
                     }
                 }
+                    }
                 }
             }
 
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
+            }
+    }
+
+    if (showFabMenu) {
+        ModalBottomSheet(
+            onDismissRequest = { showFabMenu = false },
+            sheetState = rememberModalBottomSheetState(),
+            containerColor = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(createMenuScrollState)
+                    .padding(horizontal = WtaSpacing.ScreenHorizontal)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)
+            ) {
+                Text(
+                    text = Strings.createApp,
+                    style = MaterialTheme.typography.titleLargeEmphasized,
+                    modifier = Modifier.padding(bottom = WtaSpacing.Small)
+                )
+                createActionItems.chunked(2).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(WtaSpacing.CardGap)
                     ) {
-
-                        AnimatedVisibility(
-                            visible = showFabMenu,
-                            enter = expandVertically(
-                                animationSpec = spring(
-                                    dampingRatio = 0.75f,
-                                    stiffness = Spring.StiffnessMediumLow
-                                ),
-                                expandFrom = Alignment.Bottom
-                            ) + fadeIn(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = Spring.StiffnessMedium
-                                )
-                            ),
-                            exit = shrinkVertically(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = Spring.StiffnessMedium
-                                ),
-                                shrinkTowards = Alignment.Bottom
-                            ) + fadeOut(
-                                animationSpec = spring(
-                                    dampingRatio = 0.85f,
-                                    stiffness = Spring.StiffnessMedium
-                                )
+                        rowItems.forEach { item ->
+                            CreateActionTile(
+                                item = item,
+                                onClick = {
+                                    showFabMenu = false
+                                    item.onClick()
+                                },
+                                modifier = Modifier.weight(1f)
                             )
-                        ) {
-                            EnhancedElevatedCard(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 8.dp),
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f)
-                            ) {
-                                Column(
-                                    modifier = Modifier
-                                        .heightIn(max = 360.dp)
-                                        .verticalScroll(createMenuScrollState)
-                                        .padding(10.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    createActionItems.chunked(3).forEach { rowItems ->
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            rowItems.forEach { item ->
-                                                CreateActionTile(
-                                                    label = item.label,
-                                                    iconRes = item.iconRes,
-                                                    onClick = {
-                                                        showFabMenu = false
-                                                        item.onClick()
-                                                    },
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                            }
-                                            repeat(3 - rowItems.size) {
-                                                Spacer(modifier = Modifier.weight(1f))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                         }
-
-                        val fabRotation by animateFloatAsState(
-                            targetValue = if (showFabMenu) 135f else 0f,
-                            animationSpec = com.webtoapp.ui.design.WtaMotion.settleSpring(),
-                            label = "fabRotation"
-                        )
-
-                        FilledTonalButton(
-                            onClick = { showFabMenu = !showFabMenu },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(48.dp),
-                            shape = RoundedCornerShape(WtaRadius.Button),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                Strings.btnCreate,
-                                modifier = Modifier
-                                    .size(20.dp)
-                                    .graphicsLayer { rotationZ = fabRotation }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                if (showFabMenu) Strings.close else Strings.createApp,
-                                style = MaterialTheme.typography.labelLarge
-                            )
+                        if (rowItems.size == 1) {
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                }
             }
+        }
     }
 
     shareApkFailureReport?.let { report ->
@@ -1123,13 +1111,13 @@ fun HomeScreen(
     }
 
     if (showDeleteDialog && selectedApp != null) {
-        AnimatedAlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {
                 showDeleteDialog = false
                 selectedApp = null
             },
-            title = { Text(Strings.deleteConfirmTitle) },
-            text = { Text(Strings.deleteConfirmMessage) },
+            title = Strings.deleteConfirmTitle,
+            text = Strings.deleteConfirmMessage,
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1156,13 +1144,13 @@ fun HomeScreen(
     }
 
     if (showClearCacheDialog && appToClearCache != null) {
-        AnimatedAlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {
                 showClearCacheDialog = false
                 appToClearCache = null
             },
-            title = { Text(Strings.clearAppCacheTitle) },
-            text = { Text(Strings.clearAppCacheConfirm) },
+            title = Strings.clearAppCacheTitle,
+            text = Strings.clearAppCacheConfirm,
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1253,97 +1241,13 @@ fun HomeScreen(
 
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SidebarMenuItem(
-    label: String,
-    icon: ImageVector,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.9f else 1f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessHigh),
-        label = "sidebarItemScale"
-    )
-
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(label) } },
-        state = rememberTooltipState()
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(WtaRadius.Control))
-                .graphicsLayer { scaleX = scale; scaleY = scale }
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SidebarMenuItem(
-    label: String,
-    iconPainter: androidx.compose.ui.graphics.painter.Painter,
-    onClick: () -> Unit
-) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.9f else 1f,
-        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessHigh),
-        label = "sidebarItemScale"
-    )
-
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-        tooltip = { PlainTooltip { Text(label) } },
-        state = rememberTooltipState()
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(WtaRadius.Control))
-                .graphicsLayer { scaleX = scale; scaleY = scale }
-                .clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                    onClick = onClick
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = iconPainter,
-                contentDescription = label,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
 private fun isExternalBrowserUrl(url: String): Boolean {
     val trimmed = url.trim()
     return trimmed.startsWith("http://", ignoreCase = true) ||
         trimmed.startsWith("https://", ignoreCase = true)
 }
 
-@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun AppCard(
     app: WebAppSummary,
@@ -1369,9 +1273,6 @@ fun AppCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
-    val canOpenInBrowser = (app.appType == com.webtoapp.data.model.AppType.WEB ||
-        app.appType == com.webtoapp.data.model.AppType.MULTI_WEB) &&
-        isExternalBrowserUrl(app.url)
     val secondaryText = when (app.appType) {
         com.webtoapp.data.model.AppType.IMAGE -> app.url.ifBlank { Strings.appTypeImage }
         com.webtoapp.data.model.AppType.VIDEO -> app.url.ifBlank { Strings.appTypeVideo }
@@ -1393,14 +1294,14 @@ fun AppCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
-                Box(
-                    modifier = Modifier
-                        .size(52.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(colors.secondaryContainer),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (app.iconPath != null) {
+                if (app.iconPath != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(52.dp)
+                            .clip(RoundedCornerShape(WtaRadius.Card))
+                            .background(colors.secondaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
                         AsyncImage(
                             model = ImageRequest.Builder(LocalContext.current)
                                 .data(app.iconPath)
@@ -1410,26 +1311,16 @@ fun AppCard(
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop
                         )
-                    } else {
-                        val defaultIconRes = when (app.appType) {
-                            com.webtoapp.data.model.AppType.WEB -> R.drawable.ic_type_web
-                            com.webtoapp.data.model.AppType.IMAGE -> R.drawable.ic_type_media
-                            com.webtoapp.data.model.AppType.VIDEO -> R.drawable.ic_type_media
-                            com.webtoapp.data.model.AppType.HTML -> R.drawable.ic_type_html
-                            com.webtoapp.data.model.AppType.GALLERY -> R.drawable.ic_type_gallery
-                            com.webtoapp.data.model.AppType.FRONTEND -> R.drawable.ic_type_frontend
-                            com.webtoapp.data.model.AppType.WORDPRESS -> R.drawable.ic_type_wordpress
-                            com.webtoapp.data.model.AppType.NODEJS_APP -> R.drawable.ic_type_nodejs
-                            com.webtoapp.data.model.AppType.PHP_APP -> R.drawable.ic_type_php
-                            com.webtoapp.data.model.AppType.PYTHON_APP -> R.drawable.ic_type_python
-                            com.webtoapp.data.model.AppType.GO_APP -> R.drawable.ic_type_go
-                            com.webtoapp.data.model.AppType.MULTI_WEB -> R.drawable.ic_type_multi_web
-                        }
-                        Icon(
-                            painter = painterResource(defaultIconRes),
-                            contentDescription = null,
+                    }
+                } else {
+                    WtaIconPlate(
+                        containerColor = colors.secondaryContainer,
+                        modifier = Modifier.size(52.dp)
+                    ) {
+                        WtaAppTypeIcon(
+                            type = app.appType,
                             modifier = Modifier.size(26.dp),
-                            tint = colors.onSecondaryContainer
+                            color = colors.onSecondaryContainer
                         )
                     }
                 }
@@ -1496,7 +1387,7 @@ fun AppCard(
                 modifier = Modifier
                     .width(44.dp)
                     .height(64.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .clip(RoundedCornerShape(WtaRadius.Control))
                     .background(colors.surfaceContainerHigh)
                     .clickable(enabled = onCaptureScreenshot != null) {
                         onCaptureScreenshot?.invoke()
@@ -1518,18 +1409,10 @@ fun AppCard(
                         contentScale = ContentScale.Crop
                     )
                     if (isScreenshotLoading) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(14.dp),
-                            strokeWidth = 1.5.dp,
-                            color = colors.onSurfaceVariant
-                        )
+                        WtaLoadingIndicator(size = 14.dp, color = colors.onSurfaceVariant)
                     }
                 } else if (isScreenshotLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(14.dp),
-                        strokeWidth = 1.5.dp,
-                        color = colors.onSurfaceVariant
-                    )
+                    WtaLoadingIndicator(size = 14.dp, color = colors.onSurfaceVariant)
                 } else if (onCaptureScreenshot != null) {
                     Icon(
                         imageVector = Icons.Outlined.Refresh,
@@ -1538,26 +1421,10 @@ fun AppCard(
                         tint = colors.onSurfaceVariant
                     )
                 } else {
-                    Icon(
-                        painter = painterResource(
-                            when (app.appType) {
-                                com.webtoapp.data.model.AppType.WEB -> R.drawable.ic_type_web
-                                com.webtoapp.data.model.AppType.IMAGE -> R.drawable.ic_type_media
-                                com.webtoapp.data.model.AppType.VIDEO -> R.drawable.ic_type_media
-                                com.webtoapp.data.model.AppType.HTML -> R.drawable.ic_type_html
-                                com.webtoapp.data.model.AppType.GALLERY -> R.drawable.ic_type_gallery
-                                com.webtoapp.data.model.AppType.FRONTEND -> R.drawable.ic_type_frontend
-                                com.webtoapp.data.model.AppType.WORDPRESS -> R.drawable.ic_type_wordpress
-                                com.webtoapp.data.model.AppType.NODEJS_APP -> R.drawable.ic_type_nodejs
-                                com.webtoapp.data.model.AppType.PHP_APP -> R.drawable.ic_type_php
-                                com.webtoapp.data.model.AppType.PYTHON_APP -> R.drawable.ic_type_python
-                                com.webtoapp.data.model.AppType.GO_APP -> R.drawable.ic_type_go
-                                com.webtoapp.data.model.AppType.MULTI_WEB -> R.drawable.ic_type_multi_web
-                            }
-                        ),
-                        contentDescription = Strings.btnPreview,
+                    WtaAppTypeIcon(
+                        type = app.appType,
                         modifier = Modifier.size(18.dp),
-                        tint = colors.onSurfaceVariant
+                        color = colors.onSurfaceVariant
                     )
                 }
             }
@@ -1571,107 +1438,264 @@ fun AppCard(
                     contentDescription = Strings.more
                 )
 
-                DropdownMenu(
+                AppCardActionsMenu(
+                    app = app,
                     expanded = expanded,
-                    onDismissRequest = { expanded = false }
-                ) {
-                    if (app.appType == com.webtoapp.data.model.AppType.WEB) {
-                        com.webtoapp.ui.design.WtaDropdownMenuItem(
-                            text = Strings.btnEdit,
-                            leadingIcon = Icons.Outlined.Edit,
-                            onClick = {
-                                expanded = false
-                                onEdit()
-                            }
-                        )
-                    } else {
-                        com.webtoapp.ui.design.WtaDropdownMenuItem(
-                            text = Strings.editCoreConfig,
-                            leadingIcon = Icons.Outlined.Tune,
-                            onClick = {
-                                expanded = false
-                                onEditCore()
-                            }
-                        )
-                        com.webtoapp.ui.design.WtaDropdownMenuItem(
-                            text = Strings.editCommonConfig,
-                            leadingIcon = Icons.Outlined.Settings,
-                            onClick = {
-                                expanded = false
-                                onEdit()
-                            }
+                    onDismiss = { expanded = false },
+                    actions = HomeAppActions(
+                        onEdit = onEdit,
+                        onEditCore = onEditCore,
+                        onDelete = onDelete,
+                        onCreateShortcut = onCreateShortcut,
+                        onExport = onExport,
+                        onBuildApk = onBuildApk,
+                        onShareApk = onShareApk,
+                        onMoveToCategory = onMoveToCategory,
+                        onClearCache = onClearCache,
+                        onOpenInBrowser = onOpenInBrowser
+                    )
+                )
+            }
+        }
+    }
+}
+
+class HomeAppActions(
+    val onEdit: () -> Unit,
+    val onEditCore: () -> Unit,
+    val onDelete: () -> Unit,
+    val onCreateShortcut: () -> Unit,
+    val onExport: () -> Unit,
+    val onBuildApk: () -> Unit,
+    val onShareApk: () -> Unit,
+    val onMoveToCategory: () -> Unit,
+    val onClearCache: () -> Unit,
+    val onOpenInBrowser: () -> Unit
+)
+
+@Composable
+fun AppCardActionsMenu(
+    app: WebAppSummary,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    actions: HomeAppActions
+) {
+    val canOpenInBrowser = (app.appType == com.webtoapp.data.model.AppType.WEB ||
+        app.appType == com.webtoapp.data.model.AppType.MULTI_WEB) &&
+        isExternalBrowserUrl(app.url)
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        if (app.appType == com.webtoapp.data.model.AppType.WEB) {
+            com.webtoapp.ui.design.WtaDropdownMenuItem(
+                text = Strings.btnEdit,
+                leadingIcon = Icons.Outlined.Edit,
+                onClick = {
+                    onDismiss()
+                    actions.onEdit()
+                }
+            )
+        } else {
+            com.webtoapp.ui.design.WtaDropdownMenuItem(
+                text = Strings.editCoreConfig,
+                leadingIcon = Icons.Outlined.Tune,
+                onClick = {
+                    onDismiss()
+                    actions.onEditCore()
+                }
+            )
+            com.webtoapp.ui.design.WtaDropdownMenuItem(
+                text = Strings.editCommonConfig,
+                leadingIcon = Icons.Outlined.Settings,
+                onClick = {
+                    onDismiss()
+                    actions.onEdit()
+                }
+            )
+        }
+        HorizontalDivider()
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.btnShortcut,
+            leadingIcon = Icons.Outlined.AppShortcut,
+            onClick = {
+                onDismiss()
+                actions.onCreateShortcut()
+            }
+        )
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.buildDialogTitle,
+            leadingIcon = Icons.Outlined.InstallMobile,
+            onClick = {
+                onDismiss()
+                actions.onBuildApk()
+            }
+        )
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.shareApk,
+            leadingIcon = Icons.Outlined.Share,
+            onClick = {
+                onDismiss()
+                actions.onShareApk()
+            }
+        )
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.exportAppSource,
+            leadingIcon = Icons.Outlined.Code,
+            onClick = {
+                onDismiss()
+                actions.onExport()
+            }
+        )
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.moveToCategory,
+            leadingIcon = Icons.Outlined.Folder,
+            onClick = {
+                onDismiss()
+                actions.onMoveToCategory()
+            }
+        )
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.clearAppCacheMenu,
+            leadingIcon = Icons.Outlined.CleaningServices,
+            onClick = {
+                onDismiss()
+                actions.onClearCache()
+            }
+        )
+        if (canOpenInBrowser) {
+            com.webtoapp.ui.design.WtaDropdownMenuItem(
+                text = Strings.openInBrowser,
+                leadingIcon = Icons.Outlined.OpenInBrowser,
+                onClick = {
+                    onDismiss()
+                    actions.onOpenInBrowser()
+                }
+            )
+        }
+        HorizontalDivider()
+        com.webtoapp.ui.design.WtaDropdownMenuItem(
+            text = Strings.btnDelete,
+            leadingIcon = Icons.Outlined.Delete,
+            destructive = true,
+            onClick = {
+                onDismiss()
+                actions.onDelete()
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun AppGridTile(
+    app: WebAppSummary,
+    onClick: () -> Unit,
+    actions: HomeAppActions,
+    previewImageLoader: ImageLoader,
+    healthStatus: com.webtoapp.core.stats.HealthStatus? = null,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val colors = MaterialTheme.colorScheme
+    EnhancedElevatedCard(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        pressScale = 0.97f
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box {
+                if (app.iconPath != null) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(WtaRadius.Card))
+                            .background(colors.secondaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(LocalContext.current)
+                                .data(app.iconPath)
+                                .crossfade(false)
+                                .build(),
+                            contentDescription = app.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
                     }
-                    HorizontalDivider()
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.btnShortcut,
-                        leadingIcon = Icons.Outlined.AppShortcut,
-                        onClick = {
-                            expanded = false
-                            onCreateShortcut()
-                        }
-                    )
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.buildDialogTitle,
-                        leadingIcon = Icons.Outlined.InstallMobile,
-                        onClick = {
-                            expanded = false
-                            onBuildApk()
-                        }
-                    )
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.shareApk,
-                        leadingIcon = Icons.Outlined.Share,
-                        onClick = {
-                            expanded = false
-                            onShareApk()
-                        }
-                    )
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.exportAppSource,
-                        leadingIcon = Icons.Outlined.Code,
-                        onClick = {
-                            expanded = false
-                            onExport()
-                        }
-                    )
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.moveToCategory,
-                        leadingIcon = Icons.Outlined.Folder,
-                        onClick = {
-                            expanded = false
-                            onMoveToCategory()
-                        }
-                    )
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.clearAppCacheMenu,
-                        leadingIcon = Icons.Outlined.CleaningServices,
-                        onClick = {
-                            expanded = false
-                            onClearCache()
-                        }
-                    )
-                    if (canOpenInBrowser) {
-                        com.webtoapp.ui.design.WtaDropdownMenuItem(
-                            text = Strings.openInBrowser,
-                            leadingIcon = Icons.Outlined.OpenInBrowser,
-                            onClick = {
-                                expanded = false
-                                onOpenInBrowser()
-                            }
+                } else {
+                    WtaIconPlate(
+                        containerColor = colors.secondaryContainer,
+                        modifier = Modifier.size(56.dp)
+                    ) {
+                        WtaAppTypeIcon(
+                            type = app.appType,
+                            modifier = Modifier.size(28.dp),
+                            color = colors.onSecondaryContainer
                         )
                     }
-                    HorizontalDivider()
-                    com.webtoapp.ui.design.WtaDropdownMenuItem(
-                        text = Strings.btnDelete,
-                        leadingIcon = Icons.Outlined.Delete,
-                        destructive = true,
-                        onClick = {
-                            expanded = false
-                            onDelete()
-                        }
+                }
+
+                if (healthStatus != null && healthStatus != com.webtoapp.core.stats.HealthStatus.UNKNOWN) {
+                    val semantic = com.webtoapp.ui.design.WtaColors.semantic
+                    val dotColor = when (healthStatus) {
+                        com.webtoapp.core.stats.HealthStatus.ONLINE -> semantic.success
+                        com.webtoapp.core.stats.HealthStatus.SLOW -> semantic.warning
+                        com.webtoapp.core.stats.HealthStatus.OFFLINE -> semantic.error
+                        else -> semantic.neutral
+                    }
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = 2.dp, y = 2.dp)
+                            .size(12.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(colors.surface)
+                            .padding(2.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(dotColor)
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = app.name,
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            AppTypeChip(appType = app.appType)
+
+            Spacer(modifier = Modifier.height(2.dp))
+
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.webtoapp.ui.design.WtaIconButton(
+                    onClick = { expanded = true },
+                    icon = Icons.Default.MoreVert,
+                    contentDescription = Strings.more
+                )
+                AppCardActionsMenu(
+                    app = app,
+                    expanded = expanded,
+                    onDismiss = { expanded = false },
+                    actions = actions
+                )
             }
         }
     }
@@ -1751,53 +1775,120 @@ fun AppTypeChip(appType: com.webtoapp.data.model.AppType) {
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EmptyState(
     modifier: Modifier = Modifier,
-    showCreateButton: Boolean = true,
-    onCreateApp: () -> Unit
+    onCreateApp: () -> Unit = {},
+    onCreateSampleApp: () -> Unit = {}
 ) {
+    val colors = MaterialTheme.colorScheme
     Column(
         modifier = modifier.padding(horizontal = 32.dp, vertical = 40.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .size(72.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            modifier = Modifier.size(232.dp),
             contentAlignment = Alignment.Center
         ) {
+            WtaMorphingShape(
+                startPolygon = MaterialShapes.Cookie9Sided,
+                endPolygon = MaterialShapes.Sunny,
+                color = colors.secondaryContainer,
+                modifier = Modifier.size(164.dp)
+            )
             Icon(
                 imageVector = Icons.Outlined.AppShortcut,
                 contentDescription = null,
-                modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.size(56.dp),
+                tint = colors.onSecondaryContainer
             )
         }
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         Text(
             text = Strings.msgNoApps,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface,
+            style = MaterialTheme.typography.titleLargeEmphasized,
+            color = colors.onSurface,
             textAlign = TextAlign.Center
         )
+        if (LocalShowDescriptions.current) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = Strings.emptyStateHint,
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        PremiumButton(
+            onClick = onCreateApp,
+            modifier = Modifier.widthIn(min = 220.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Add,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(Strings.createApp)
+        }
         Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = Strings.emptyStateHint,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        AnimatedVisibility(visible = showCreateButton) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Spacer(modifier = Modifier.height(20.dp))
-                com.webtoapp.ui.design.WtaButton(
-                    onClick = onCreateApp,
-                    text = Strings.createApp,
-                    variant = com.webtoapp.ui.design.WtaButtonVariant.Primary,
-                    size = com.webtoapp.ui.design.WtaButtonSize.Medium,
-                    leadingIcon = Icons.Default.Add
+        TextButton(onClick = onCreateSampleApp) {
+            Text(Strings.emptyStateSampleApp)
+        }
+    }
+}
+
+private data class CreateActionItem(
+    val label: String,
+    val description: String,
+    val advanced: Boolean,
+    val icon: @Composable () -> Unit,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun CreateActionTile(
+    item: CreateActionItem,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    WtaCard(
+        onClick = onClick,
+        modifier = modifier,
+        tone = WtaCardTone.Elevated,
+        pressScale = 0.97f,
+        contentPadding = PaddingValues(WtaSpacing.Medium)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(WtaSpacing.Small)
+        ) {
+            WtaIconPlate(
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.size(52.dp)
+            ) {
+                item.icon()
+            }
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.titleSmallEmphasized,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            if (LocalShowDescriptions.current) {
+                Text(
+                    text = item.description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.height(32.dp)
                 )
             }
         }
@@ -1805,48 +1896,25 @@ fun EmptyState(
 }
 
 @Composable
-private fun CreateActionTile(
-    label: String,
-    iconRes: Int,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun MoreMenuIcon(
+    icon: ImageVector,
+    tone: Int
 ) {
-    val interactionSource = remember { MutableInteractionSource() }
-    val hapticClick = rememberHapticClick(onClick)
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(
-                interactionSource = interactionSource,
-                indication = com.webtoapp.ui.design.rememberWtaIndication(),
-                onClick = hapticClick
-            )
-            .padding(vertical = 8.dp, horizontal = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+    val colors = MaterialTheme.colorScheme
+    val onContainer = when (tone % 3) {
+        0 -> colors.onPrimaryContainer
+        1 -> colors.onSecondaryContainer
+        else -> colors.onTertiaryContainer
+    }
+    WtaIconPlate(
+        modifier = Modifier.size(36.dp),
+        toneIndex = tone
     ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.secondaryContainer),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                painter = painterResource(iconRes),
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSecondaryContainer
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(19.dp),
+            tint = onContainer
         )
     }
 }

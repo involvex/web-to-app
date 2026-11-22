@@ -17,6 +17,8 @@ import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.SynchronousQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -36,6 +38,10 @@ object LocalDnsBridgeProxy {
     @Volatile private var listenPort: Int = 0
 
     @Volatile private var refCount: Int = 0
+
+    private val liveClients = ConcurrentHashMap.newKeySet<Socket>()
+    private val liveTargets = ConcurrentHashMap.newKeySet<Socket>()
+    private val socketLock = Any()
 
     /**
      * Per-session credential. Any app on the device can reach a loopback
@@ -125,15 +131,21 @@ object LocalDnsBridgeProxy {
     }
 
     private fun stopInternal() {
-        running = false
-        refCount = 0
-        try { serverSocket?.close() } catch (_: Exception) {}
-        serverSocket = null
-        try { executor?.shutdownNow() } catch (_: Exception) {}
-        executor = null
-        acceptThread = null
-        listenPort = 0
-        authToken = ""
+        synchronized(socketLock) {
+            running = false
+            refCount = 0
+            try { serverSocket?.close() } catch (_: Exception) {}
+            serverSocket = null
+            try { executor?.shutdownNow() } catch (_: Exception) {}
+            executor = null
+            acceptThread = null
+            liveClients.forEach { safeClose(it) }
+            liveClients.clear()
+            liveTargets.forEach { safeClose(it) }
+            liveTargets.clear()
+            listenPort = 0
+            authToken = ""
+        }
     }
 
     private fun newSessionToken(): String {
@@ -166,6 +178,22 @@ object LocalDnsBridgeProxy {
     }
 
     private fun handleClient(client: Socket) {
+        synchronized(socketLock) {
+            if (!running) {
+                safeClose(client)
+                return
+            }
+            liveClients.add(client)
+        }
+        try {
+            handleClientInner(client)
+        } finally {
+            liveClients.remove(client)
+            safeClose(client)
+        }
+    }
+
+    private fun handleClientInner(client: Socket) {
         try {
             client.tcpNoDelay = true
             client.soTimeout = CLIENT_READ_TIMEOUT_MS
@@ -203,9 +231,6 @@ object LocalDnsBridgeProxy {
             val target = parts[1]
             val version = parts[2]
 
-            // The socket is loopback-only, but loopback is shared with every
-            // other app on the device — require the per-session token before
-            // forwarding anything (CONNECT tunnels and plain HTTP alike).
             if (!isProxyAuthorized(headerLines)) {
                 sendProxyAuthRequired(output)
                 safeClose(client)
@@ -290,8 +315,7 @@ object LocalDnsBridgeProxy {
             clientOut.flush()
         } catch (e: Exception) {
             AppLogger.w(TAG, "Failed to send CONNECT 200: ${e.message}")
-            safeClose(client)
-            safeClose(targetSocket)
+            closeTunnel(client, targetSocket)
             return
         }
 
@@ -354,8 +378,7 @@ object LocalDnsBridgeProxy {
             pumpRequestBodyIfPresent(clientIn, targetOut, headers)
         } catch (e: Exception) {
             AppLogger.w(TAG, "Failed to forward HTTP request: ${e.message}")
-            safeClose(client)
-            safeClose(targetSocket)
+            closeTunnel(client, targetSocket)
             return
         }
 
@@ -370,6 +393,13 @@ object LocalDnsBridgeProxy {
 
             val resolved = InetAddress.getByName(host)
             socket.connect(InetSocketAddress(resolved, port), CONNECT_TIMEOUT_MS)
+            synchronized(socketLock) {
+                if (!running) {
+                    safeClose(socket)
+                    throw IOException("DNS bridge proxy stopped")
+                }
+                liveTargets.add(socket)
+            }
             return socket
         } catch (e: Exception) {
             safeClose(socket)
@@ -439,19 +469,33 @@ object LocalDnsBridgeProxy {
 
     private fun bridge(a: Socket, b: Socket) {
         val ex = executor ?: run {
-            safeClose(a)
-            safeClose(b)
+            closeTunnel(a, b)
             return
         }
-        val pump = ex.submit {
-            copyStream(a, b)
-            try { b.shutdownOutput() } catch (_: Exception) {}
+        val pump = try {
+            ex.submit {
+                copyStream(a, b)
+                try { b.shutdownOutput() } catch (_: Exception) {}
+            }
+        } catch (e: RejectedExecutionException) {
+            AppLogger.w(TAG, "Tunnel pump rejected: ${e.message}")
+            closeTunnel(a, b)
+            return
         }
-        copyStream(b, a)
-        try { a.shutdownOutput() } catch (_: Exception) {}
-        try { pump.get(2, TimeUnit.SECONDS) } catch (_: Exception) {}
-        safeClose(a)
-        safeClose(b)
+        try {
+            copyStream(b, a)
+            try { a.shutdownOutput() } catch (_: Exception) {}
+            try { pump.get(2, TimeUnit.SECONDS) } catch (_: Exception) {}
+        } finally {
+            pump.cancel(true)
+            closeTunnel(a, b)
+        }
+    }
+
+    private fun closeTunnel(client: Socket, target: Socket) {
+        safeClose(client)
+        safeClose(target)
+        liveTargets.remove(target)
     }
 
     private fun copyStream(from: Socket, to: Socket) {

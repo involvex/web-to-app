@@ -52,7 +52,12 @@ class PageEdgeChromeTest {
         assertThat(StatusBarPageColorSampler.decodePageEdgeColors(null)).isEqualTo(PageEdgeColors(null, null))
         assertThat(StatusBarPageColorSampler.decodePageEdgeColors("null")).isEqualTo(PageEdgeColors(null, null))
         assertThat(StatusBarPageColorSampler.decodePageEdgeColors("\"#AABBCC\""))
-            .isEqualTo(PageEdgeColors("#AABBCC", "#AABBCC"))
+            .isEqualTo(PageEdgeColors("#AABBCC", "#AABBCC", "#AABBCC"))
+        assertThat(
+            StatusBarPageColorSampler.decodePageEdgeColors(
+                """{"top":"#112233","bottom":"#445566","page":"#778899"}"""
+            )
+        ).isEqualTo(PageEdgeColors("#112233", "#445566", "#778899"))
         assertThat(
             StatusBarPageColorSampler.decodePageEdgeColors(
                 "\"{\\\"top\\\":\\\"#112233\\\",\\\"bottom\\\":\\\"#445566\\\"}\""
@@ -77,6 +82,17 @@ class PageEdgeChromeTest {
         assertThat(preview).contains("applyPageEdgeNavigation(")
         assertThat(shellActivity).contains("if (!enabled || !shouldHideNavBar) applyPageEdgeNavigation")
         assertThat(preview).contains("if (!enabled || !shouldHideNavBar) applyPageEdgeNavigation")
+    }
+
+    @Test
+    fun `focus changes resolve status icons from the sampled page`() {
+        val shellActivity = readSource("com/webtoapp/ui/shell/ShellActivity.kt")
+        val focusChanged = shellActivity
+            .substringAfter("override fun onWindowFocusChanged")
+            .substringBefore("override fun onSaveInstanceState")
+        assertThat(focusChanged).contains("refreshStatusBarAppearance()")
+        assertThat(focusChanged).doesNotContain("effectiveDarkIcons")
+        assertThat(shellActivity).contains("resolvedStatusIcons(systemDark)")
     }
 
     private fun readSource(relativePath: String): String {

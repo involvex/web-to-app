@@ -13,6 +13,7 @@ import org.bouncycastle.jce.provider.BouncyCastleProvider
 import java.io.*
 import java.math.BigInteger
 import java.security.*
+import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.util.*
 import java.util.zip.*
@@ -47,6 +48,76 @@ class JarSigner(private val context: Context) {
 
         fun signatureHashOf(cert: X509Certificate): ByteArray =
             java.security.MessageDigest.getInstance("SHA-256").digest(cert.encoded)
+
+        internal fun requiredSigningSchemes(minSdk: Int, targetSdk: Int): Set<Int> = buildSet {
+            if (minSdk < 24) add(1)
+            if (minSdk < 28 || targetSdk >= 30) add(2)
+        }
+
+        internal fun schemeFallbackLadder(
+            selected: List<Int>,
+            forced: Set<Int>,
+            autoFallback: Boolean
+        ): List<List<Int>> {
+            if (!autoFallback) return listOf(selected)
+            val ladder = mutableListOf<List<Int>>()
+            var current = selected
+            while (true) {
+                ladder.add(current)
+                if (current.size <= 1) break
+                val droppable = current.lastOrNull { it !in forced } ?: break
+                current = current.filter { it != droppable }
+            }
+            return ladder
+        }
+
+        internal fun isKeystoreUnusableFailure(e: Throwable): Boolean {
+            var current: Throwable? = e
+            var depth = 0
+            while (current != null && depth < 10) {
+                if (current.javaClass.name.startsWith("com.android.apksig.")) {
+                    return false
+                }
+                if (current.message?.contains("Failed to sign using signer") == true) {
+                    return false
+                }
+                if (current is UnrecoverableKeyException) {
+                    return false
+                }
+                val message = current.message?.lowercase(Locale.US).orEmpty()
+                if (message.contains("password")) {
+                    return false
+                }
+                if (current is KeyStoreException ||
+                    current is NoSuchAlgorithmException ||
+                    current is CertificateException ||
+                    current is InvalidKeyException
+                ) {
+                    return true
+                }
+                if (current is java.io.IOException && isStructuralDerFailure(message)) {
+                    return true
+                }
+                current = current.cause
+                depth++
+            }
+            return false
+        }
+
+        private fun isStructuralDerFailure(message: String): Boolean {
+            return message.contains("toderinputstream") ||
+                message.contains("der input") ||
+                message.contains("invalid der") ||
+                message.contains("not a der") ||
+                message.contains("unexpected end of") ||
+                message.contains("truncated") ||
+                message.contains("invalid stream header") ||
+                message.contains("invalid magic") ||
+                message.contains("not pkcs12") ||
+                message.contains("short read") ||
+                message.contains("sequence tag error") ||
+                message.contains("extra data at end")
+        }
 
         /**
          * Full BouncyCastle (bundled dependency), used explicitly for *reading* keystores.
@@ -284,7 +355,9 @@ class JarSigner(private val context: Context) {
             return
         }
 
-        initError = "无法初始化签名密钥"
+        if (initError == null) {
+            initError = "无法初始化签名密钥"
+        }
         AppLogger.e(TAG, initError!!)
     }
 
@@ -401,52 +474,105 @@ class JarSigner(private val context: Context) {
 
     private fun tryLoadOrCreateAutoPkcs12(): Boolean {
         val keyStoreFile = File(context.filesDir, DEFAULT_PKCS12_FILE)
-        val keyStorePassword = getOrCreateKeystorePassword()
+        val credential = resolveKeystoreCredential()
+        if (credential.readFailed) {
+            AppLogger.e(TAG, "Keystore credential unreadable; refusing to touch the existing keystore")
+            initError = Strings.signKeyCredentialUnreadable
+            return false
+        }
+        val keyStorePassword = credential.password
+            ?: generateKeystorePassword(allowOverwrite = !keyStoreFile.exists())
+            ?: return false
+
+        if (!keyStoreFile.exists()) {
+            return try {
+                createNewPkcs12(keyStoreFile, keyStorePassword, FALLBACK_KEY_ALIAS)
+                true
+            } catch (e: Exception) {
+                AppLogger.e(TAG, "Auto PKCS12 creation failed", e)
+                false
+            }
+        }
 
         return try {
             val keyStore = KeyStore.getInstance("PKCS12")
+            FileInputStream(keyStoreFile).use { fis ->
+                keyStore.load(fis, keyStorePassword.copyOf())
+            }
+            privateKey = keyStore.getKey(FALLBACK_KEY_ALIAS, keyStorePassword.copyOf()) as? PrivateKey
+            certificate = keyStore.getCertificate(FALLBACK_KEY_ALIAS) as? X509Certificate
 
-            if (keyStoreFile.exists()) {
-                FileInputStream(keyStoreFile).use { fis ->
-
-                    keyStore.load(fis, keyStorePassword.copyOf())
+            if (privateKey != null && certificate != null) {
+                val cert = certificate!!
+                if (cert.notAfter.before(Date())) {
+                    AppLogger.w(TAG, "Certificate expired (notAfter=${cert.notAfter}), regenerating...")
+                    keyStoreFile.delete()
+                    privateKey = null
+                    certificate = null
+                    createNewPkcs12(keyStoreFile, keyStorePassword, FALLBACK_KEY_ALIAS)
+                    noticeIdentityRotation()
+                    return true
                 }
-                privateKey = keyStore.getKey(FALLBACK_KEY_ALIAS, keyStorePassword.copyOf()) as? PrivateKey
-                certificate = keyStore.getCertificate(FALLBACK_KEY_ALIAS) as? X509Certificate
-
-                if (privateKey != null && certificate != null) {
-
-                    val cert = certificate!!
-                    val now = Date()
-                    if (cert.notAfter.before(now)) {
-                        AppLogger.w(TAG, "Certificate expired or invalid (notAfter=${cert.notAfter}), regenerating...")
-                        keyStoreFile.delete()
-                        privateKey = null
-                        certificate = null
-                    } else {
-                        AppLogger.d(TAG, "Loaded auto-generated PKCS12 successfully, valid until ${cert.notAfter}")
-                        return true
-                    }
-                }
+                AppLogger.d(TAG, "Loaded auto-generated PKCS12 successfully, valid until ${cert.notAfter}")
+                return true
             }
 
-            createNewPkcs12(keyStoreFile, keyStorePassword, FALLBACK_KEY_ALIAS)
-            true
+            if (credential.freshlyGenerated) {
+                keyStoreFile.delete()
+                createNewPkcs12(keyStoreFile, keyStorePassword, FALLBACK_KEY_ALIAS)
+                noticeIdentityRotation()
+                true
+            } else {
+                AppLogger.e(TAG, "Auto keystore holds no usable key entry; leaving the file untouched")
+                false
+            }
         } catch (e: Exception) {
-            AppLogger.e(TAG, "Auto PKCS12 key scheme failed", e)
+            AppLogger.e(TAG, "Auto PKCS12 load failed", e)
+            if (isKeystoreUnusableFailure(e)) {
+                keyStoreFile.delete()
+                return try {
+                    createNewPkcs12(keyStoreFile, keyStorePassword, FALLBACK_KEY_ALIAS)
+                    noticeIdentityRotation()
+                    true
+                } catch (e2: Exception) {
+                    AppLogger.e(TAG, "Auto PKCS12 recreation failed", e2)
+                    false
+                }
+            }
+            if (!credential.freshlyGenerated) {
+                initError = Strings.signKeyKeystoreUnreadable
+            }
             false
         }
     }
 
-    private fun getOrCreateKeystorePassword(): CharArray {
-        val passwordFile = File(context.filesDir, ".ks_credential")
+    private fun noticeIdentityRotation() {
+        AppLogger.e(TAG, Strings.signKeyRegeneratedRetry)
+        val previous = initError
+        initError = if (previous.isNullOrBlank()) {
+            Strings.signKeyRegeneratedRetry
+        } else {
+            "$previous\n${Strings.signKeyRegeneratedRetry}"
+        }
+    }
 
+    private data class KeystoreCredential(
+        val password: CharArray?,
+        val freshlyGenerated: Boolean,
+        val readFailed: Boolean
+    )
+
+    private fun resolveKeystoreCredential(): KeystoreCredential {
+        val passwordFile = File(context.filesDir, ".ks_credential")
         if (passwordFile.exists()) {
-            try {
-                val saved = passwordFile.readText().trim()
-                if (saved.isNotEmpty()) return saved.toCharArray()
+            val saved = try {
+                passwordFile.readText().trim()
             } catch (e: Exception) {
                 AppLogger.w(TAG, "Failed to read password file", e)
+                return KeystoreCredential(null, freshlyGenerated = false, readFailed = true)
+            }
+            if (saved.isNotEmpty()) {
+                return KeystoreCredential(saved.toCharArray(), freshlyGenerated = false, readFailed = false)
             }
         }
 
@@ -456,26 +582,33 @@ class JarSigner(private val context: Context) {
             try {
                 val ks = KeyStore.getInstance("PKCS12")
                 FileInputStream(keyStoreFile).use { fis -> ks.load(fis, legacyPassword.toCharArray()) }
-
                 passwordFile.writeText(legacyPassword)
                 AppLogger.d(TAG, "Migrating legacy password to file storage")
-                return legacyPassword.toCharArray()
+                return KeystoreCredential(legacyPassword.toCharArray(), freshlyGenerated = false, readFailed = false)
             } catch (_: Exception) {
-
             }
         }
 
+        return KeystoreCredential(null, freshlyGenerated = false, readFailed = false)
+    }
+
+    private fun generateKeystorePassword(allowOverwrite: Boolean): CharArray? {
+        val passwordFile = File(context.filesDir, ".ks_credential")
+        if (passwordFile.exists() && !allowOverwrite) {
+            AppLogger.e(TAG, "Refusing to overwrite an existing keystore credential")
+            initError = Strings.signKeyCredentialUnreadable
+            return null
+        }
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#%^&*"
         val random = SecureRandom()
         val password = CharArray(32) { chars[random.nextInt(chars.length)] }
-
-        try {
+        return try {
             passwordFile.writeText(String(password))
+            password
         } catch (e: Exception) {
             AppLogger.e(TAG, "Failed to save password file", e)
+            null
         }
-
-        return password
     }
 
     /**
@@ -1099,8 +1232,10 @@ class JarSigner(private val context: Context) {
             if (key == null || cert == null) {
                 AppLogger.e(TAG, "Key or certificate is empty, retrying initialisation...")
 
-                File(context.filesDir, DEFAULT_PKCS12_FILE).delete()
-                File(context.filesDir, ".ks_credential").delete()
+                val autoKeystore = File(context.filesDir, DEFAULT_PKCS12_FILE)
+                if (!autoKeystore.exists()) {
+                    File(context.filesDir, ".ks_credential").delete()
+                }
                 initializeKey()
                 if (privateKey == null || certificate == null) {
                     val errorDetail = initError ?: "key=${privateKey != null}, cert=${certificate != null}"
@@ -1115,7 +1250,6 @@ class JarSigner(private val context: Context) {
         return trySignWithRetry(
             inputApk,
             outputApk,
-            maxRetries = 2,
             targetSdk = targetSdk,
             minSdk = minSdk,
             identity = identity
@@ -1157,7 +1291,6 @@ class JarSigner(private val context: Context) {
     private fun trySignWithRetry(
         inputApk: File,
         outputApk: File,
-        maxRetries: Int,
         targetSdk: Int,
         minSdk: Int,
         identity: SigningIdentity? = null
@@ -1171,20 +1304,14 @@ class JarSigner(private val context: Context) {
         val v1Name = resolveV1SignerName(options.v1SignerName, identity?.certificate)
         AppLogger.d(TAG, "Signing scheme options: $options (resolved V1 name=$v1Name)")
 
-        // apksig refuses a V1-less signature set below minSdk 24, and API 23 devices
-        // cannot install one. Force V1 only while the packed manifest still targets
-        // those devices. Raised minSdk (>= 24) may drop V1 if the user turned it off.
-        var v1Enabled = options.v1Enabled
-        if (!v1Enabled && minSdk < 24) {
-            v1Enabled = true
+        val forced = requiredSigningSchemes(minSdk, targetSdk)
+        val v1Enabled = options.v1Enabled || 1 in forced
+        val v2Enabled = options.v2Enabled || 2 in forced
+        if (!options.v1Enabled && 1 in forced) {
             AppLogger.w(TAG, "V1 signing forced on: minSdk $minSdk requires a JAR signature")
         }
-        // Android 11+ rejects apps with targetSdk >= 30 that carry only a V1 signature —
-        // the build would succeed and produce an APK that fails to install. Force V2 on.
-        var v2Enabled = options.v2Enabled
-        if (!v2Enabled && targetSdk >= 30) {
-            v2Enabled = true
-            AppLogger.w(TAG, "V2 signing forced on: targetSdk $targetSdk >= 30 requires an APK Signature Scheme v2 block")
+        if (!options.v2Enabled && 2 in forced) {
+            AppLogger.w(TAG, "V2 signing forced on: minSdk $minSdk < 28 or targetSdk $targetSdk >= 30 requires an APK Signature Scheme v2 block")
         }
 
         val selected = buildList {
@@ -1200,19 +1327,7 @@ class JarSigner(private val context: Context) {
             v3 = versions.contains(3)
         )
 
-        val configs = if (options.autoFallback) {
-
-            buildList {
-                var current = selected
-                while (current.isNotEmpty()) {
-                    add(configOf(current))
-                    current = current.dropLast(1)
-                }
-            }
-        } else {
-
-            listOf(configOf(selected))
-        }
+        val configs = schemeFallbackLadder(selected, forced, options.autoFallback).map { configOf(it) }
 
         for (config in configs) {
             try {
@@ -1223,7 +1338,8 @@ class JarSigner(private val context: Context) {
                 val success = attemptSign(
                     inputApk, outputApk, config.v1, config.v2, config.v3, v1Name,
                     identity,
-                    minSdk
+                    minSdk,
+                    targetSdk
                 )
                 if (success) {
                     AppLogger.d(TAG, "Signed successfully: ${config.name}")
@@ -1242,18 +1358,6 @@ class JarSigner(private val context: Context) {
                 AppLogger.e(TAG, "Full stack trace:", e)
 
                 if (outputApk.exists()) outputApk.delete()
-
-                if (identity == null &&
-                    (causeChain.contains("key", ignoreCase = true) ||
-                        causeChain.contains("sign", ignoreCase = true) ||
-                        causeChain.contains("certificate", ignoreCase = true))) {
-                    // Only ever regenerate the host's own key — an externally supplied
-                    // identity is the caller's responsibility and must never be reset here.
-                    AppLogger.d(TAG, "Possible key issue detected, regenerating...")
-                    File(context.filesDir, DEFAULT_PKCS12_FILE).delete()
-                    File(context.filesDir, ".ks_credential").delete()
-                    initializeKey()
-                }
             }
         }
 
@@ -1279,14 +1383,12 @@ class JarSigner(private val context: Context) {
         v1: Boolean, v2: Boolean, v3: Boolean,
         v1SignerName: String,
         identity: SigningIdentity? = null,
-        minSdk: Int = GeneratedSdkLevels.TEMPLATE_MIN_SDK
+        minSdk: Int = GeneratedSdkLevels.TEMPLATE_MIN_SDK,
+        targetSdk: Int = GeneratedSdkLevels.TEMPLATE_TARGET_SDK
     ): Boolean {
         val key = (identity?.privateKey ?: privateKey) ?: throw IllegalStateException("私钥为空")
         val cert = (identity?.certificate ?: certificate) ?: throw IllegalStateException("证书为空")
 
-        // apksig's minSdk must match the packed manifest. Deriving it from the
-        // scheme toggles used to skip V1 on a V2-only config while the manifest
-        // still installed on API 23.
         val effectiveMinSdk = minSdk.coerceAtLeast(GeneratedSdkLevels.TEMPLATE_MIN_SDK)
 
         AppLogger.d(TAG, "Certificate: subject=${cert.subjectX500Principal.name}, algo=${cert.sigAlgName}")
@@ -1321,14 +1423,17 @@ class JarSigner(private val context: Context) {
         AppLogger.d(TAG, "Signed output: ${outputApk.length() / 1024} KB")
 
         val schemeName = "ApkSigner-${if (v3) "V3" else if (v2) "V2" else "V1"}"
-        return verifyApkDetailed(outputApk, schemeName)
+        return verifyApkDetailed(outputApk, schemeName, effectiveMinSdk, targetSdk)
     }
 
 
-    private fun verifyApkDetailed(apk: File, source: String): Boolean {
+    private fun verifyApkDetailed(apk: File, source: String, minSdk: Int, targetSdk: Int): Boolean {
         return try {
             AppLogger.d(TAG, "[$source] Verifying APK: path=${apk.absolutePath}, size=${apk.length()}")
-            val verifier = ApkVerifier.Builder(apk).build()
+            val verifier = ApkVerifier.Builder(apk)
+                .setMinCheckedPlatformVersion(minSdk)
+                .setMaxCheckedPlatformVersion(maxOf(targetSdk, 30))
+                .build()
             val result = verifier.verify()
 
             AppLogger.d(TAG, "[$source] APK verification complete: isVerified=${result.isVerified}, " +
@@ -1351,9 +1456,15 @@ class JarSigner(private val context: Context) {
 
             if (!result.isVerified) {
                 AppLogger.w(TAG, "[$source] ApkVerifier reported a verification failure — treating the signature as invalid")
+                return false
             }
 
-            result.isVerified
+            if (targetSdk >= 30 && !result.isVerifiedUsingV2Scheme && !result.isVerifiedUsingV3Scheme) {
+                AppLogger.w(TAG, "[$source] targetSdk $targetSdk requires a verified V2/V3 signature; V1-only output is not installable on Android 11+")
+                return false
+            }
+
+            true
         } catch (e: Exception) {
             AppLogger.w(TAG, "[$source] Verification raised an exception (build is unaffected): ${e.message}")
             false

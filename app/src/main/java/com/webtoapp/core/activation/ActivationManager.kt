@@ -98,19 +98,33 @@ class ActivationManager(private val context: Context) {
         deliverUrl: Boolean = false,
         encryptUrl: Boolean = false,
         aesKeyBase64: String = "",
-        deviceBound: Boolean = false
+        deviceBound: Boolean = false,
+        trustMode: com.webtoapp.data.model.RemoteActivationTrustMode =
+            com.webtoapp.data.model.RemoteActivationTrustMode.SYSTEM,
+        pinnedCertificate: String = "",
+        pinnedCertHost: String = "",
+        packageName: String? = null
     ): RemoteActivationVerifier.RemoteRequest {
+        val requestPackage = packageName?.takeIf { it.isNotBlank() } ?: context.packageName
+        val requestDeviceId = if (requestPackage == context.packageName) {
+            DeviceIdGenerator.getDeviceId(context)
+        } else {
+            DeviceIdGenerator.previewDeviceId(context, requestPackage)
+        }
         return RemoteActivationVerifier.RemoteRequest(
             verifyUrl = verifyUrl,
             publicKeyBase64 = publicKeyBase64,
             offlinePolicy = offlinePolicy,
             code = "",
-            deviceId = DeviceIdGenerator.getDeviceId(context),
-            packageName = context.packageName,
+            deviceId = requestDeviceId,
+            packageName = requestPackage,
             deliverUrl = deliverUrl,
             encryptUrl = encryptUrl,
             aesKeyBase64 = aesKeyBase64,
-            deviceBound = deviceBound
+            deviceBound = deviceBound,
+            trustMode = trustMode,
+            pinnedCertificate = pinnedCertificate,
+            pinnedCertHost = pinnedCertHost
         )
     }
 
@@ -171,10 +185,11 @@ class ActivationManager(private val context: Context) {
         validCodes: List<ActivationCode>
     ): ActivationResult {
 
+        val inputDigest = sha256Hash(normalizedInput)
         val matchedCode = validCodes.firstOrNull { code ->
             val normalizedCode = normalizeCode(code.code)
             constantTimeEquals(normalizedInput, normalizedCode) ||
-                constantTimeEquals(sha256Hash(normalizedInput), normalizedCode)
+                constantTimeEquals(inputDigest, normalizedCode.lowercase())
         }
 
         if (matchedCode == null) {
@@ -466,10 +481,13 @@ class ActivationManager(private val context: Context) {
                 preferences[longPreferencesKey("activated_time_$appId")] =
                     System.currentTimeMillis()
             }
-            // A remote grant isn't backed by a local card — drop any remembered
-            // code so relaunch checks never attribute this grant to a stale card.
             preferences.remove(stringPreferencesKey("used_code_$appId"))
+            preferences.remove(longPreferencesKey("expire_time_$appId"))
+            preferences.remove(intPreferencesKey("usage_limit_$appId"))
+            preferences.remove(intPreferencesKey("usage_count_$appId"))
+            preferences.remove(stringPreferencesKey("code_type_$appId"))
         }
+        usageConsumedThisProcess.remove(appId)
     }
 
     suspend fun incrementUsageCount(appId: Long) {

@@ -10,6 +10,7 @@ import com.google.gson.JsonParser
 import com.webtoapp.data.converter.Converters
 import com.webtoapp.data.database.AppDatabase
 import com.webtoapp.data.model.AppCategory
+import com.webtoapp.data.model.AppType
 import com.webtoapp.data.model.WebApp
 import com.webtoapp.data.repository.WebAppRepository
 import com.webtoapp.core.stats.AppUsageStats
@@ -56,7 +57,8 @@ class DataBackupManager(private val context: Context) {
         private const val TAG = "DataBackupManager"
 
         private const val BACKUP_VERSION = 5
-        private const val APPS_JSON = "apps.json"
+        internal const val APPS_JSON = "apps.json"
+        internal const val SOURCE_BUNDLE_CONFIG = "app/src/main/assets/app_config.json"
         private const val RESOURCES_DIR = "resources/"
         private const val ICONS_DIR = "resources/icons/"
         private const val SPLASH_DIR = "resources/splash/"
@@ -69,6 +71,7 @@ class DataBackupManager(private val context: Context) {
         private const val GALLERY_DIR = "resources/gallery/"
         private const val CERTS_DIR = "resources/certs/"
         private const val MULTI_WEB_DIR = "resources/multi_web/"
+        private const val ANNOUNCEMENT_DIR = "resources/announcement/"
         private const val EXTENSION_DIR = "extensions/"
         private const val EXTENSION_MODULES_FILE = "${EXTENSION_DIR}modules.json"
         private const val EXTENSION_BUILTIN_STATES_FILE = "${EXTENSION_DIR}builtin_states.json"
@@ -90,6 +93,8 @@ class DataBackupManager(private val context: Context) {
             "website_icons",
             "custom_ca",
             "aicoding",
+            "app_icons",
+            "media_apps",
 
             "nodejs_projects",
             "php_projects",
@@ -124,8 +129,24 @@ class DataBackupManager(private val context: Context) {
             "activation",
             "ai_config",
             "aicoding_sessions_v1",
-            "aicoding_prefs"
+            "aicoding_prefs",
+            "host_runtime_prefs"
         )
+
+        private const val AI_CONFIG_DATASTORE_ENTRY = "${DATASTORE_DIR}ai_config.preferences_pb"
+        private const val ACTIVATION_DATASTORE_ENTRY = "${DATASTORE_DIR}activation.preferences_pb"
+        private const val HOST_RUNTIME_DATASTORE_ENTRY = "${DATASTORE_DIR}host_runtime_prefs.preferences_pb"
+        private const val GALLERY_POSITIONS_PREFS_ENTRY = "${SHARED_PREFS_DIR}gallery_positions.xml"
+
+        private val ACTIVATION_KEY_PREFIXES = listOf(
+            "activated_time_", "activated_",
+            "expire_time_", "usage_count_", "usage_limit_",
+            "device_id_", "code_type_", "used_code_",
+            "failed_attempts_", "lockout_until_",
+            "remote_code_", "remote_expires_", "remote_verified_at_", "remote_url_"
+        )
+
+        private val HOST_RUNTIME_MCP_KEYS = setOf("host_mcp_enabled", "host_mcp_token", "host_mcp_port")
 
         private val SAFE_SHARED_PREF_NAMES = listOf(
             "installed_store_items",
@@ -196,6 +217,91 @@ class DataBackupManager(private val context: Context) {
         /** Added in backup v5; absent (empty) in older backups. */
         val healthRecords: List<com.webtoapp.core.stats.AppHealthRecord> = emptyList()
     )
+
+    data class AppBackupPayload(
+        val appsJson: String,
+        val resources: Map<String, File>,
+        val projectFiles: Map<String, File>
+    )
+
+    fun buildAppBackupPayload(app: WebApp): AppBackupPayload {
+        val resources = mutableMapOf<String, String>()
+        collectAppResources(app, resources)
+        val relativeApp = updateAppPathsToRelative(app, resources).copy(categoryId = null)
+        val backupData = BackupData(
+            version = BACKUP_VERSION,
+            exportTime = System.currentTimeMillis(),
+            appCount = 1,
+            apps = listOf(relativeApp)
+        )
+        val projectFiles = linkedMapOf<String, File>()
+        appProjectDirs(app).forEach { (dirName, projectId) ->
+            collectShareableProjectFiles(
+                sourceDir = File(context.filesDir, "$dirName/$projectId"),
+                zipRoot = "$LOCAL_FILES_DIR$dirName/$projectId/",
+                files = projectFiles
+            )
+        }
+        return AppBackupPayload(
+            appsJson = gson.toJson(backupData),
+            resources = resources.mapValues { File(it.value) },
+            projectFiles = projectFiles
+        )
+    }
+
+    private fun collectShareableProjectFiles(
+        sourceDir: File,
+        zipRoot: String,
+        files: MutableMap<String, File>
+    ) {
+        if (!sourceDir.exists() || !sourceDir.isDirectory) return
+        val base = sourceDir.canonicalFile
+        val basePath = base.path + File.separator
+        sourceDir.walkTopDown()
+            .onEnter { child ->
+                child.name != "node_modules" && child.name !in MANAGED_FILES_EXCLUDED_SEGMENTS
+            }
+            .filter { it.isFile && it.canRead() }
+            .forEach { file ->
+                val canonical = file.canonicalFile
+                if (canonical == base || !canonical.path.startsWith(basePath)) return@forEach
+                val relativePath = file.relativeTo(sourceDir).invariantSeparatorsPath
+                if (isExcludedManagedPath(relativePath)) return@forEach
+                files["$zipRoot$relativePath"] = file
+            }
+    }
+
+    private fun appProjectDirs(app: WebApp): List<Pair<String, String>> {
+        val dirs = mutableListOf<Pair<String, String>>()
+        fun add(dirName: String, projectId: String?) {
+            if (!projectId.isNullOrBlank()) dirs += dirName to projectId
+        }
+        when (app.appType) {
+            AppType.NODEJS_APP -> add("nodejs_projects", app.nodejsConfig?.projectId)
+            AppType.PHP_APP -> add("php_projects", app.phpAppConfig?.projectId)
+            AppType.PYTHON_APP -> add("python_projects", app.pythonAppConfig?.projectId)
+            AppType.GO_APP -> add("go_projects", app.goAppConfig?.projectId)
+            AppType.WORDPRESS -> {
+                add("wordpress_projects", app.wordpressConfig?.projectId)
+                add("html_projects", app.wordpressConfig?.sourceProjectId)
+            }
+            AppType.HTML, AppType.FRONTEND -> add("html_projects", app.htmlConfig?.projectId)
+            AppType.MULTI_WEB -> {
+                add("html_projects", app.multiWebConfig?.projectId)
+                app.multiWebConfig?.sites.orEmpty().forEach { site ->
+                    add("html_projects", site.sourceProjectId)
+                    add("html_projects", site.siteProjectId)
+                    add("nodejs_projects", site.nodejsConfig?.projectId)
+                    add("php_projects", site.phpAppConfig?.projectId)
+                    add("python_projects", site.pythonAppConfig?.projectId)
+                    add("go_projects", site.goAppConfig?.projectId)
+                    add("wordpress_projects", site.wordpressConfig?.projectId)
+                }
+            }
+            else -> Unit
+        }
+        return dirs.distinct()
+    }
 
     suspend fun exportAllData(
         repository: WebAppRepository,
@@ -309,7 +415,7 @@ class DataBackupManager(private val context: Context) {
                         }
                     }
                 }
-            } ?: return@withContext Result.failure(Exception("无法创建输出文件"))
+            } ?: return@withContext Result.failure(Exception(Strings.backupOutputFailed))
 
             onProgress(100, 100, Strings.backupExportComplete)
 
@@ -332,6 +438,8 @@ class DataBackupManager(private val context: Context) {
         onProgress: (Int, Int, String) -> Unit = { _, _, _ -> }
     ): Result<ImportResult> = withContext(Dispatchers.IO) {
         val extractedFiles = mutableListOf<File>()
+        val createdAppIds = mutableListOf<Long>()
+        var localsCommitted = false
 
         try {
             onProgress(0, 100, Strings.backupReadingBackup)
@@ -341,6 +449,7 @@ class DataBackupManager(private val context: Context) {
             val extractedResources = mutableMapOf<String, String>()
             var modulesJsonBytes: ByteArray? = null
             var builtInStatesJsonBytes: ByteArray? = null
+            var looksLikeSourceBundle = false
             val pendingLocalEntries = mutableListOf<PendingLocalEntry>()
 
             context.contentResolver.openInputStream(inputUri)?.use { inputStream ->
@@ -368,6 +477,9 @@ class DataBackupManager(private val context: Context) {
                                 backupData = parseBackupData(jsonStr)
                                 AppLogger.i(TAG, "读取到 ${backupData?.appCount} 个应用")
                             }
+                            entry.name == SOURCE_BUNDLE_CONFIG -> {
+                                looksLikeSourceBundle = true
+                            }
                             entry.name == EXTENSION_MODULES_FILE -> {
                                 modulesJsonBytes = readJsonEntry(zipIn, entryGuard)
                             }
@@ -393,20 +505,55 @@ class DataBackupManager(private val context: Context) {
                 }
             } ?: run {
                 discardPendingLocalEntries(pendingLocalEntries)
-                return@withContext Result.failure(Exception("无法读取备份文件"))
+                return@withContext Result.failure(Exception(Strings.backupUnreadableFile))
             }
 
             val data = backupData
             if (data == null) {
+                if (looksLikeSourceBundle) {
+                    val legacy = runCatching {
+                        context.contentResolver.openInputStream(inputUri)?.use { stream ->
+                            LegacySourceBundleImporter(context).restore(stream)
+                        } ?: throw IOException(Strings.backupUnreadableFile)
+                    }
+                    val restored = legacy.getOrNull()
+                    if (restored != null) {
+                        onProgress(60, 100, Strings.backupImportingData)
+                        coroutineContext.ensureActive()
+                        val existingKeys = repository.allWebApps.first()
+                            .mapTo(HashSet()) { backupDedupKey(it) }
+                        if (!existingKeys.add(backupDedupKey(restored.app))) {
+                            AppLogger.i(TAG, "跳过重复的旧版源码包应用: ${restored.app.name}")
+                            return@withContext Result.success(ImportResult(
+                                totalCount = 1,
+                                importedCount = 0,
+                                skippedCount = 0,
+                                duplicateCount = 1,
+                                legacySourceBundle = true
+                            ))
+                        }
+                        val now = System.currentTimeMillis()
+                        repository.createWebApp(restored.app.copy(id = 0, createdAt = now, updatedAt = now))
+                        onProgress(100, 100, Strings.backupImportComplete)
+                        return@withContext Result.success(ImportResult(
+                            totalCount = 1,
+                            importedCount = 1,
+                            skippedCount = 0,
+                            legacySourceBundle = true,
+                            missingProjectFiles = restored.missingProjectFiles
+                        ))
+                    }
+                    AppLogger.w(TAG, "旧版源码包恢复失败", legacy.exceptionOrNull())
+                }
                 cleanupExtractedFiles(extractedFiles)
                 discardPendingLocalEntries(pendingLocalEntries)
-                return@withContext Result.failure(Exception("备份文件格式无效"))
+                val message = if (looksLikeSourceBundle) {
+                    Strings.backupInvalidFormatSourceZip
+                } else {
+                    Strings.backupInvalidFormat
+                }
+                return@withContext Result.failure(Exception(message))
             }
-
-            // The backup has validated — only now overwrite live local config files.
-            // Restart is only needed when local files actually changed: Room writes
-            // take effect immediately, so an apps-only restore stays put.
-            val localsRestored = commitPendingLocalEntries(pendingLocalEntries)
 
             onProgress(60, 100, Strings.backupImportingData)
             coroutineContext.ensureActive()
@@ -455,12 +602,16 @@ class DataBackupManager(private val context: Context) {
                     if (app.id != 0L && newId > 0L) {
                         appIdMap[app.id] = newId
                     }
+                    createdAppIds.add(newId)
                     importedCount++
                 } catch (e: Exception) {
                     AppLogger.w(TAG, "导入应用失败: ${app.name}", e)
                     skippedCount++
                 }
             }
+
+            localsCommitted = true
+            val localsRestored = commitPendingLocalEntries(pendingLocalEntries, appIdMap)
 
             restoreUsageStats(data.usageStats, appIdMap)
 
@@ -479,31 +630,35 @@ class DataBackupManager(private val context: Context) {
             ))
 
         } catch (e: CancellationException) {
+            rollbackFailedImport(repository, createdAppIds, localsCommitted, extractedFiles)
             throw e
         } catch (e: Exception) {
             AppLogger.e(TAG, "导入失败", e)
-            cleanupExtractedFiles(extractedFiles)
+            rollbackFailedImport(repository, createdAppIds, localsCommitted, extractedFiles)
             Result.failure(e)
         }
     }
 
-    /**
-     * Reads a JSON entry fully, bounded by the shared zip-bomb guard and a hard
-     * per-entry cap — a corrupt archive must not OOM the importer mid-read.
-     */
-    private fun readJsonEntry(
+    private suspend fun rollbackFailedImport(
+        repository: WebAppRepository,
+        createdAppIds: List<Long>,
+        localsCommitted: Boolean,
+        extractedFiles: List<File>
+    ) {
+        createdAppIds.forEach { id ->
+            runCatching { repository.deleteWebAppById(id) }
+                .onFailure { AppLogger.w(TAG, "回滚导入应用失败: $id", it) }
+        }
+        if (createdAppIds.isEmpty() && !localsCommitted) {
+            cleanupExtractedFiles(extractedFiles)
+        }
+    }
+
+    internal fun readJsonEntry(
         zipIn: ZipInputStream,
         guard: com.webtoapp.util.SafeZip.EntryGuard
     ): ByteArray {
-        val out = ByteArrayOutputStream()
-        guard.copyTo(zipIn, out)
-        if (out.size() > MAX_JSON_ENTRY_BYTES) {
-            throw com.webtoapp.util.SafeZip.ZipBombException(
-                com.webtoapp.util.SafeZip.ZipBombException.Kind.TOTAL_SIZE,
-                "JSON entry exceeds ${MAX_JSON_ENTRY_BYTES / 1024 / 1024} MB"
-            )
-        }
-        return out.toByteArray()
+        return guard.readBytes(zipIn, MAX_JSON_ENTRY_BYTES)
     }
 
     /**
@@ -829,6 +984,27 @@ class DataBackupManager(private val context: Context) {
                 resources["${MULTI_WEB_DIR}${appId}_site_$index.$ext"] = path
             }
         }
+
+        app.announcement?.customIconPath?.let { path ->
+            if (File(path).exists()) {
+                val ext = path.substringAfterLast('.', "png")
+                resources["${ANNOUNCEMENT_DIR}${appId}_announcement_icon.$ext"] = path
+            }
+        }
+
+        app.webViewConfig.errorPageConfig.customMediaPath?.let { path ->
+            if (File(path).exists()) {
+                val ext = path.substringAfterLast('.', "png")
+                resources["${MEDIA_DIR}${appId}_errorpage_media.$ext"] = path
+            }
+        }
+
+        app.webViewConfig.floatingWindowConfig.minimizedIconPath?.let { path ->
+            if (File(path).exists()) {
+                val ext = path.substringAfterLast('.', "png")
+                resources["${ICONS_DIR}${appId}_floating_minimized.$ext"] = path
+            }
+        }
     }
 
     private fun collectLocalBackupFiles(): Map<String, File> {
@@ -917,7 +1093,7 @@ class DataBackupManager(private val context: Context) {
         }
     }
 
-    private fun updateAppPathsToRelative(
+    internal fun updateAppPathsToRelative(
         app: WebApp,
         resources: Map<String, String>
     ): WebApp {
@@ -930,6 +1106,9 @@ class DataBackupManager(private val context: Context) {
 
         return app.copy(
             iconPath = findZipPath(app.iconPath),
+            announcement = app.announcement?.copy(
+                customIconPath = findZipPath(app.announcement.customIconPath)
+            ),
             splashConfig = app.splashConfig?.copy(
                 mediaPath = findZipPath(app.splashConfig?.mediaPath)
             ),
@@ -976,7 +1155,13 @@ class DataBackupManager(private val context: Context) {
             ),
             webViewConfig = app.webViewConfig.copy(
                 statusBarBackgroundImage = findZipPath(app.webViewConfig.statusBarBackgroundImage),
-                statusBarBackgroundImageDark = findZipPath(app.webViewConfig.statusBarBackgroundImageDark)
+                statusBarBackgroundImageDark = findZipPath(app.webViewConfig.statusBarBackgroundImageDark),
+                errorPageConfig = app.webViewConfig.errorPageConfig.copy(
+                    customMediaPath = findZipPath(app.webViewConfig.errorPageConfig.customMediaPath)
+                ),
+                floatingWindowConfig = app.webViewConfig.floatingWindowConfig.copy(
+                    minimizedIconPath = findZipPath(app.webViewConfig.floatingWindowConfig.minimizedIconPath)
+                )
             ),
             url = if (app.appType == com.webtoapp.data.model.AppType.IMAGE ||
                       app.appType == com.webtoapp.data.model.AppType.VIDEO) {
@@ -985,12 +1170,15 @@ class DataBackupManager(private val context: Context) {
         )
     }
 
-    private fun updateAppPathsToLocal(
+    internal fun updateAppPathsToLocal(
         app: WebApp,
         extractedResources: Map<String, String>
     ): WebApp {
         return app.copy(
             iconPath = extractedResources[app.iconPath] ?: app.iconPath,
+            announcement = app.announcement?.copy(
+                customIconPath = app.announcement.customIconPath?.let { extractedResources[it] ?: it }
+            ),
             splashConfig = app.splashConfig?.copy(
                 mediaPath = extractedResources[app.splashConfig?.mediaPath] ?: app.splashConfig?.mediaPath
             ),
@@ -1041,7 +1229,17 @@ class DataBackupManager(private val context: Context) {
                 },
                 statusBarBackgroundImageDark = app.webViewConfig.statusBarBackgroundImageDark?.let {
                     extractedResources[it] ?: it
-                }
+                },
+                errorPageConfig = app.webViewConfig.errorPageConfig.copy(
+                    customMediaPath = app.webViewConfig.errorPageConfig.customMediaPath?.let {
+                        extractedResources[it] ?: it
+                    }
+                ),
+                floatingWindowConfig = app.webViewConfig.floatingWindowConfig.copy(
+                    minimizedIconPath = app.webViewConfig.floatingWindowConfig.minimizedIconPath?.let {
+                        extractedResources[it] ?: it
+                    }
+                )
             ),
             url = if (app.appType == com.webtoapp.data.model.AppType.IMAGE ||
                       app.appType == com.webtoapp.data.model.AppType.VIDEO) {
@@ -1068,6 +1266,7 @@ class DataBackupManager(private val context: Context) {
                 zipPath.startsWith(GALLERY_DIR) -> File(context.filesDir, "backup_gallery") to GALLERY_DIR
                 zipPath.startsWith(CERTS_DIR) -> File(context.filesDir, "backup_certs") to CERTS_DIR
                 zipPath.startsWith(MULTI_WEB_DIR) -> File(context.filesDir, "backup_multi_web") to MULTI_WEB_DIR
+                zipPath.startsWith(ANNOUNCEMENT_DIR) -> File(context.filesDir, "backup_announcement") to ANNOUNCEMENT_DIR
                 else -> File(context.filesDir, "backup_other") to RESOURCES_DIR
             }
 
@@ -1178,12 +1377,34 @@ class DataBackupManager(private val context: Context) {
     }
 
     /** Visible for unit tests (commit accounting). */
-    internal fun commitPendingLocalEntries(pending: List<PendingLocalEntry>): Boolean {
+    internal fun commitPendingLocalEntries(
+        pending: List<PendingLocalEntry>,
+        appIdMap: Map<Long, Long> = emptyMap()
+    ): Boolean {
         var committed = false
         pending.forEach { entry ->
+            if (entry.zipPath == AI_CONFIG_DATASTORE_ENTRY && entry.targetFile.exists()) {
+                AppLogger.i(TAG, "Keeping the local AI config; backup keys are device-bound")
+                entry.tempFile.delete()
+                return@forEach
+            }
             runCatching {
                 entry.targetFile.parentFile?.mkdirs()
-                entry.tempFile.copyTo(entry.targetFile, overwrite = true)
+                when (entry.zipPath) {
+                    ACTIVATION_DATASTORE_ENTRY -> {
+                        val restored = remapActivationDataStore(entry.tempFile.readBytes(), appIdMap)
+                        entry.targetFile.writeBytes(restored)
+                    }
+                    HOST_RUNTIME_DATASTORE_ENTRY -> {
+                        val sanitized = stripHostRuntimeMcpKeys(entry.tempFile.readBytes())
+                        entry.targetFile.writeBytes(sanitized)
+                    }
+                    GALLERY_POSITIONS_PREFS_ENTRY -> {
+                        val remapped = remapGalleryPositionsXml(entry.tempFile.readText(), appIdMap)
+                        entry.targetFile.writeText(remapped)
+                    }
+                    else -> entry.tempFile.copyTo(entry.targetFile, overwrite = true)
+                }
                 committed = true
             }.onFailure { e ->
                 AppLogger.w(TAG, "恢复本地数据失败: ${entry.zipPath}", e)
@@ -1195,6 +1416,69 @@ class DataBackupManager(private val context: Context) {
 
     private fun discardPendingLocalEntries(pending: List<PendingLocalEntry>) {
         pending.forEach { it.tempFile.delete() }
+    }
+
+    internal fun remapActivationDataStore(bytes: ByteArray, appIdMap: Map<Long, Long>): ByteArray {
+        if (appIdMap.isEmpty()) return bytes
+        return try {
+            val prefs = androidx.datastore.preferences.PreferencesProto.PreferenceMap.parseFrom(bytes)
+            val builder = prefs.toBuilder()
+            val remapped = mutableMapOf<String, androidx.datastore.preferences.PreferencesProto.Value>()
+            prefs.preferencesMap.forEach { (name, value) ->
+                val suffix = name.substringAfterLast('_', "")
+                val oldId = suffix.toLongOrNull()
+                val newId = if (oldId != null) appIdMap[oldId] else null
+                if (newId != null) {
+                    val prefix = name.substring(0, name.length - suffix.length)
+                    remapped["$prefix$newId"] = value
+                } else {
+                    remapped[name] = value
+                }
+            }
+            builder.clearPreferences()
+            builder.putAllPreferences(remapped)
+            builder.build().toByteArray()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "激活存储重映射失败，按原样恢复", e)
+            bytes
+        }
+    }
+
+    internal fun stripHostRuntimeMcpKeys(bytes: ByteArray): ByteArray {
+        return try {
+            val prefs = androidx.datastore.preferences.PreferencesProto.PreferenceMap.parseFrom(bytes)
+            val builder = prefs.toBuilder()
+            HOST_RUNTIME_MCP_KEYS.forEach { builder.removePreferences(it) }
+            builder.build().toByteArray()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "宿主偏好 MCP 密钥剔除失败，按原样恢复", e)
+            bytes
+        }
+    }
+
+    internal fun remapGalleryPositionsXml(xml: String, appIdMap: Map<Long, Long>): String {
+        if (appIdMap.isEmpty()) return xml
+        return try {
+            val doc = javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                .parse(java.io.ByteArrayInputStream(xml.toByteArray(Charsets.UTF_8)))
+            val nodes = doc.getElementsByTagName("int")
+            for (i in 0 until nodes.length) {
+                val el = nodes.item(i) as? org.w3c.dom.Element ?: continue
+                val name = el.getAttribute("name")
+                if (!name.startsWith("pos_")) continue
+                val oldId = name.removePrefix("pos_").toLongOrNull() ?: continue
+                val newId = appIdMap[oldId] ?: continue
+                el.setAttribute("name", "pos_$newId")
+            }
+            val transformer = javax.xml.transform.TransformerFactory.newInstance().newTransformer()
+            transformer.setOutputProperty(javax.xml.transform.OutputKeys.OMIT_XML_DECLARATION, "yes")
+            val out = java.io.StringWriter()
+            transformer.transform(javax.xml.transform.dom.DOMSource(doc), javax.xml.transform.stream.StreamResult(out))
+            out.toString()
+        } catch (e: Exception) {
+            AppLogger.w(TAG, "画廊位置重映射失败，按原样恢复", e)
+            xml
+        }
     }
 
     /** Visible for unit tests (traversal rules). */
@@ -1269,5 +1553,9 @@ data class ImportResult(
     /** Backup apps already installed (same type+name+URL), skipped not duplicated. */
     val duplicateCount: Int = 0,
     /** True when any local (prefs/datastore/shared/file) entry was committed. */
-    val localFilesRestored: Boolean = false
+    val localFilesRestored: Boolean = false,
+    /** True when the archive was a pre-#1522 source export restored via app_config.json. */
+    val legacySourceBundle: Boolean = false,
+    /** Legacy restore: the old export never carried this app's project/media files. */
+    val missingProjectFiles: Boolean = false
 )

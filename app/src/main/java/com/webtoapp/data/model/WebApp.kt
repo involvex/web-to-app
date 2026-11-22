@@ -90,9 +90,6 @@ data class WebApp(
     val activationRemoteConfig: RemoteActivationConfig? = null,
     val isActivated: Boolean = false,
 
-    val adsEnabled: Boolean = false,
-    val adConfig: AdConfig? = null,
-
     val announcementEnabled: Boolean = false,
     val announcement: Announcement? = null,
 
@@ -146,18 +143,6 @@ data class WebApp(
      */
     @ColumnInfo(defaultValue = "0")
     val homeSortIndex: Int = 0
-)
-
-data class AdConfig(
-    val appId: String = "",
-    val bannerEnabled: Boolean = false,
-    val bannerId: String = "",
-    val interstitialEnabled: Boolean = false,
-    val interstitialId: String = "",
-    val splashEnabled: Boolean = false,
-    val splashId: String = "",
-    val splashDuration: Int = 3,
-    val testMode: Boolean = false
 )
 
 enum class AnnouncementTemplateType {
@@ -366,6 +351,7 @@ data class WebViewConfig(
     // status bar even if showStatusBarInFullscreen is on; restore it on exit fullscreen.
     val hideStatusBarInVideoFullscreen: Boolean = true,
     val showNavigationBarInFullscreen: Boolean = false,
+    val displayCutoutMode: DisplayCutoutMode = DisplayCutoutMode.SHORT_EDGES,
     // Retained so saved configs and export JSON still round-trip. Fullscreen no
     // longer hides the browser toolbar; [isBrowserToolbarVisible] ignores this flag.
     val showToolbarInFullscreen: Boolean = false,
@@ -405,7 +391,6 @@ data class WebViewConfig(
     val longPressHapticOnActionOnly: Boolean = false,
 
     val popupBlockerEnabled: Boolean = false,
-    val popupBlockerToggleEnabled: Boolean = false,
 
     val initialScale: Int = 0,
     // Build-time per-app page zoom in percent (100 = default). A document-start
@@ -857,6 +842,12 @@ enum class ViewportMode {
     CUSTOM
 }
 
+enum class DisplayCutoutMode {
+    SHORT_EDGES,
+    DEFAULT,
+    NEVER
+}
+
 data class MediaConfig(
     val mediaPath: String,
     val enableAudio: Boolean = true,
@@ -893,17 +884,8 @@ data class GalleryConfig(
         else items.filter { it.categoryId == categoryId }
     }
 
-    fun getSortedItems(categoryId: String? = null): List<GalleryItem> {
-        val filtered = getItemsByCategory(categoryId)
-        return when (sortOrder) {
-            GallerySortOrder.CUSTOM -> filtered.sortedBy { it.sortIndex }
-            GallerySortOrder.NAME_ASC -> filtered.sortedBy { it.name.lowercase() }
-            GallerySortOrder.NAME_DESC -> filtered.sortedByDescending { it.name.lowercase() }
-            GallerySortOrder.DATE_ASC -> filtered.sortedBy { it.createdAt }
-            GallerySortOrder.DATE_DESC -> filtered.sortedByDescending { it.createdAt }
-            GallerySortOrder.TYPE -> filtered.sortedBy { it.type.ordinal }
-        }
-    }
+    fun getSortedItems(categoryId: String? = null): List<GalleryItem> =
+        sortedGalleryItems(getItemsByCategory(categoryId), sortOrder)
 
     val imageCount: Int get() = items.count { it.type == GalleryItemType.IMAGE }
     val videoCount: Int get() = items.count { it.type == GalleryItemType.VIDEO }
@@ -974,6 +956,16 @@ enum class GallerySortOrder {
     DATE_DESC,
     TYPE
 }
+
+fun sortedGalleryItems(items: List<GalleryItem>, order: GallerySortOrder): List<GalleryItem> =
+    when (order) {
+        GallerySortOrder.CUSTOM -> items.sortedBy { it.sortIndex }
+        GallerySortOrder.NAME_ASC -> items.sortedBy { it.name.lowercase() }
+        GallerySortOrder.NAME_DESC -> items.sortedByDescending { it.name.lowercase() }
+        GallerySortOrder.DATE_ASC -> items.sortedBy { it.createdAt }
+        GallerySortOrder.DATE_DESC -> items.sortedByDescending { it.createdAt }
+        GallerySortOrder.TYPE -> items.sortedBy { it.type.ordinal }
+    }
 
 enum class NodeJsBuildMode {
     STATIC,
@@ -1103,6 +1095,8 @@ data class MultiWebConfig(
     // historical layout (2 card columns, 1 drawer column, aspect 1.2).
     val cardColumns: Int = 2,
     val drawerColumns: Int = 1,
+    val drawerEntry: String = "FLOATING",
+    val drawerFabAnchor: String = "TOP_END",
     val cardAspectRatio: Float = 1.2f,
     // Inverted storage: stored JSON predating this field deserializes to false,
     // so existing and new apps both default to "sites follow the parent config".
@@ -1111,7 +1105,8 @@ data class MultiWebConfig(
     // LAST reopens the site from the last session. SITE opens startSiteId.
     // A missing key stays LAST so existing apps keep resuming.
     val startTab: String = "LAST",
-    val startSiteId: String = ""
+    val startSiteId: String = "",
+    val independentSessions: Boolean = false
 )
 
 data class MultiWebSite(
@@ -1569,14 +1564,7 @@ data class PerformanceOptimizationConfig(
     val convertToWebP: Boolean = true,
     val minifyCode: Boolean = true,
     val minifySvg: Boolean = true,
-    val removeUnusedResources: Boolean = true,
-    val parallelProcessing: Boolean = true,
-    val enableCache: Boolean = true,
-    val injectPreloadHints: Boolean = true,
-    val injectLazyLoading: Boolean = true,
-    val optimizeScripts: Boolean = true,
-    val injectDnsPrefetch: Boolean = true,
-    val injectPerformanceScript: Boolean = true
+    val removeUnusedResources: Boolean = true
 ) {
     fun toOptimizerConfig(): com.webtoapp.core.linux.PerformanceOptimizer.OptimizeConfig {
         return com.webtoapp.core.linux.PerformanceOptimizer.OptimizeConfig(
@@ -1585,14 +1573,7 @@ data class PerformanceOptimizationConfig(
             convertToWebP = convertToWebP,
             minifyCode = minifyCode,
             minifySvg = minifySvg,
-            removeUnusedResources = removeUnusedResources,
-            parallelProcessing = parallelProcessing,
-            enableCache = enableCache,
-            injectPreloadHints = injectPreloadHints,
-            injectLazyLoading = injectLazyLoading,
-            optimizeScripts = optimizeScripts,
-            injectDnsPrefetch = injectDnsPrefetch,
-            injectPerformanceScript = injectPerformanceScript
+            removeUnusedResources = removeUnusedResources
         )
     }
 }
@@ -1712,6 +1693,15 @@ enum class RemoteActivationOfflinePolicy {
     ALLOW
 }
 
+enum class RemoteActivationTrustMode {
+    SYSTEM,
+    PINNED
+}
+
+fun parseRemoteActivationTrustMode(name: String?): RemoteActivationTrustMode =
+    RemoteActivationTrustMode.entries.firstOrNull { it.name.equals(name?.trim(), ignoreCase = true) }
+        ?: RemoteActivationTrustMode.SYSTEM
+
 data class RemoteActivationConfig(
     val enabled: Boolean = false,
     val verifyUrl: String = "",
@@ -1724,7 +1714,10 @@ data class RemoteActivationConfig(
     // enforce per-device seats (maxDevices, default 1 = one-time / single-device code).
     // Requires a remote verifier; purely local activation cannot bind devices because
     // there is no shared state between devices.
-    val deviceBound: Boolean = false
+    val deviceBound: Boolean = false,
+    val trustMode: RemoteActivationTrustMode = RemoteActivationTrustMode.SYSTEM,
+    val pinnedCertificate: String = "",
+    val pinnedCertHost: String = ""
 )
 
 data class AutoStartConfig(
@@ -1934,6 +1927,32 @@ data class NativeBridgeCapabilities(
  */
 fun NativeBridgeCapabilities.withNotificationPolyfill(polyfillEnabled: Boolean): NativeBridgeCapabilities =
     if (polyfillEnabled) copy(notification = true) else this
+
+fun notificationPolyfillOnlyCapabilities(): NativeBridgeCapabilities = NativeBridgeCapabilities(
+    clipboard = false,
+    vibration = false,
+    geolocation = false,
+    brightness = false,
+    notification = true,
+    notificationScheduled = false,
+    notificationPersistent = false,
+    download = false,
+    privateNetwork = false,
+    screenWake = false,
+    openExternal = false,
+    deviceInfo = false,
+    securityInfo = false,
+    networkInfo = false,
+    toast = false,
+    logging = false,
+    findInPage = false,
+    orientation = false,
+    fullscreen = false,
+    print = false,
+    googleSignIn = false,
+    googleSignInClientId = "",
+    directory = false,
+)
 
 enum class GeolocationAccuracy {
 

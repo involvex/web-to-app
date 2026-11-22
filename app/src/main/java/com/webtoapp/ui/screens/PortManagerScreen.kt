@@ -5,10 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -49,12 +45,12 @@ import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.SyncDisabled
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -95,8 +91,11 @@ import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaColors
+import com.webtoapp.ui.design.WtaExpandIn
 import com.webtoapp.ui.design.WtaFullEmptyState
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaTab
 import com.webtoapp.ui.design.WtaTabRow
 import com.webtoapp.ui.design.WtaTextField
@@ -187,7 +186,7 @@ fun PortManagerScreen(onBack: () -> Unit) {
 
     fun killAllServices() {
         scope.launch {
-            val count = ProcessPortScanner.killAllProcesses(context)
+            val (count, _) = ProcessPortScanner.killAllProcesses(context)
             snackbarHostState.showSnackbar(Strings.portManagerAllKilled.format(count))
             delay(300)
             doScan()
@@ -270,7 +269,7 @@ fun PortManagerScreen(onBack: () -> Unit) {
                 enabled = !isScanning && !isScanningWtaApps
             ) {
                 if (isScanning || isScanningWtaApps) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    WtaLoadingIndicator(size = 20.dp)
                 } else {
                     Icon(Icons.Outlined.Refresh, contentDescription = Strings.refresh)
                 }
@@ -592,8 +591,8 @@ private fun PortStatsCard(
 
             AnimatedVisibility(
                 visible = showRangeStats,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     HorizontalDivider()
@@ -631,7 +630,8 @@ private fun PortStatsCard(
                                     stat.usagePercent > 0.5f -> semantic.warning
                                     else -> MaterialTheme.colorScheme.primary
                                 },
-                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                             )
                             Text(
                                 "${stat.allocated}/${stat.total}",
@@ -759,8 +759,8 @@ private fun ServiceCard(
 
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(modifier = Modifier.padding(top = 12.dp)) {
                     HorizontalDivider()
@@ -854,7 +854,7 @@ private fun AllAppsTabContent(
     when {
         reports.isEmpty() && isScanning -> {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator()
+                WtaLoadingIndicator()
             }
         }
         reports.isEmpty() -> {
@@ -977,8 +977,8 @@ private fun WtaAppPortReportCard(
 
             AnimatedVisibility(
                 visible = expanded && report.allocations.isNotEmpty(),
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(
                     modifier = Modifier.padding(top = 12.dp),

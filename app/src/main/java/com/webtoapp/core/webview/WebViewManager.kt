@@ -63,7 +63,9 @@ class WebViewManager(
     private val geolocationShimHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val shareInboxScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val cosmeticFilterScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
-    private val pageZoomScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val safeAreaScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
+    private val safeAreaInstalledWebViews = java.util.WeakHashMap<WebView, Boolean>()
+    private var safeAreaUnsubscribe: (() -> Unit)? = null
     private val videoFitScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val wasmStreamScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
     private val kernelFlavorScriptHandlers = java.util.WeakHashMap<WebView, ScriptHandler>()
@@ -77,10 +79,12 @@ class WebViewManager(
         private val MIME_TYPE_MAP = mapOf(
             "html" to "text/html", "htm" to "text/html",
             "css" to "text/css", "js" to "application/javascript",
+            "mjs" to "application/javascript",
             "json" to "application/json", "xml" to "application/xml",
             "txt" to "text/plain", "png" to "image/png",
             "jpg" to "image/jpeg", "jpeg" to "image/jpeg",
             "gif" to "image/gif", "webp" to "image/webp",
+            "avif" to "image/avif", "bmp" to "image/bmp",
             "svg" to "image/svg+xml", "ico" to "image/x-icon",
             "mp3" to "audio/mpeg", "wav" to "audio/wav",
             "ogg" to "audio/ogg", "mp4" to "video/mp4",
@@ -97,9 +101,6 @@ class WebViewManager(
 
         private const val PLUGIN_NOTIFICATION_CHANNEL_ID = "plugin_notifications"
 
-        // Transport WebViews backing onCreateWindow are only destroyed when a
-        // navigation actually lands; a popup that never loads would leak the
-        // whole view, so cap their lifetime (#1033).
         private const val TRANSPORT_WEBVIEW_TIMEOUT_MS = 15_000L
 
         private val DESKTOP_UA_MODES = setOf(
@@ -183,13 +184,6 @@ class WebViewManager(
 
         private val WEBVIEW_WV_MARKER_REGEX = Regex(";\\s*wv\\s*\\)")
 
-        /**
-         * Android WebView appends `Version/4.0` beside `Chrome/`. That token is the
-         * old Android browser marker, not a Safari version. Emscripten still treats
-         * any UA containing `Safari/` and `Version/` as Safari, so a Godot web
-         * export throws "requires Safari 15.2" while `index.js` evaluates and the
-         * canvas stays blank.
-         */
         private val WEBVIEW_VERSION_TOKEN_REGEX = Regex("\\sVersion/4\\.0(?=\\s)")
 
         @JvmStatic
@@ -205,12 +199,6 @@ class WebViewManager(
             return ua
         }
 
-        /**
-         * Classifies whether a navigation target is an external link relative to the current
-         * page. Navigations between the app's own local origins (file:// or the loopback dev
-         * server) are internal content, never external; a local page with no host (file://)
-         * opening a remote URL is external.
-         */
         @JvmStatic
         fun isExternalUrl(targetUrl: String, currentUrl: String?): Boolean {
             if (currentUrl == null) return false
@@ -222,7 +210,6 @@ class WebViewManager(
             return !targetHost.endsWith(".$currentHost") && !currentHost.endsWith(".$targetHost")
         }
 
-        /** True for URLs that belong to the app's own local content (file:// or loopback server). */
         @JvmStatic
         fun isLocalAppUrl(url: String?): Boolean {
             if (url == null) return false
@@ -232,20 +219,12 @@ class WebViewManager(
             return isLoopbackHost(host)
         }
 
-        /** True for loopback hosts (127.0.0.1 / localhost / ::1). */
         @JvmStatic
         fun isLoopbackHost(host: String): Boolean {
             val h = host.lowercase()
             return h == "127.0.0.1" || h == "localhost" || h == "[::1]" || h == "::1"
         }
 
-        /**
-         * Hardens a page-supplied `intent://` parse result before launch (Chrome parity):
-         * an explicit `component` bypasses intent-filter/category resolution entirely and
-         * would let a page address any app's exported activity; a `selector` redirects
-         * resolution away from data/type. Strip both — `package=` targeting keeps working
-         * via implicit resolution, and BROWSABLE keeps the result browser-eligible.
-         */
         @JvmStatic
         fun hardenIntentSchemeIntent(intent: android.content.Intent) {
             intent.addCategory(android.content.Intent.CATEGORY_BROWSABLE)
@@ -257,13 +236,6 @@ class WebViewManager(
             browsingDataClearGeneration++
         }
 
-        /**
-         * Set when this process deleted the WebView profile directory for the
-         * current [browsingDataClearGeneration]. The matching
-         * [clearBrowsingData] call must be skipped: the directory is already
-         * empty, and touching [android.webkit.CookieManager] would start the
-         * provider and race the page that plants the next session cookie.
-         */
         @Volatile
         private var wipedProfileGeneration = -1L
 
@@ -279,25 +251,6 @@ class WebViewManager(
 
         fun runWhenFreshSessionReady(block: () -> Unit) = FreshSessionGate.runWhenReady(block)
 
-        /**
-         * (Re-)applies the "follow system dark mode" state to a single WebView, derived from
-         * the CURRENT system uiMode. Safe to call at setup time and again whenever the system
-         * theme changes (e.g. Activity.onConfigurationChanged), which is required because:
-         *
-         *  - Which darkening API the WebView honors depends on the host app's targetSdkVersion:
-         *    targetSdk <= 32 only honors FORCE_DARK; targetSdk >= 33 only honors
-         *    setAlgorithmicDarkeningAllowed. Dispatch on the real runtime targetSdk (see
-         *    preferAlgorithmicDarkening) so dark mode keeps working on generated APKs whose
-         *    targetSdk is raised above 32 and on the Play AAB (targetSdk rewritten to 36)
-         *    (regression from #342, reported as #485).
-         *  - FORCE_DARK is a static switch: it does not track system theme changes by itself,
-         *    so the hosting activity must re-derive ON/OFF from the uiMode on every change
-         *    (#301 / #341).
-         *
-         * DARK_STRATEGY_PREFER_WEB_THEME_OVER_USER_AGENT_DARKENING keeps pages that ship their
-         * own prefers-color-scheme: dark theme using their own theme, while pages without one
-         * still get algorithmically darkened — so both categories follow the system.
-         */
         @JvmStatic
         fun refreshSystemDarkMode(webView: WebView?, followSystemDarkMode: Boolean) {
             if (webView == null) return
@@ -305,14 +258,6 @@ class WebViewManager(
                 val systemInDarkMode = (webView.context.resources.configuration.uiMode and
                     android.content.res.Configuration.UI_MODE_NIGHT_MASK) ==
                     android.content.res.Configuration.UI_MODE_NIGHT_YES
-                // Which darkening API actually takes effect depends on the HOST app's
-                // targetSdkVersion (read at runtime from the APK's own manifest), NOT on
-                // the WebView version:
-                //   targetSdk <= 32: setForceDark() works; setAlgorithmicDarkeningAllowed() is a no-op.
-                //   targetSdk >= 33: setForceDark() is a no-op; setAlgorithmicDarkeningAllowed() works.
-                // Picking by WebViewFeature alone silently broke dark mode on the Play AAB path
-                // (whose manifest is rewritten to targetSdk 36) and on any generated APK whose
-                // targetSdk is raised above 32. Dispatch on the real runtime targetSdk instead.
                 val useAlgorithmic = preferAlgorithmicDarkening(webView.context)
                 if (followSystemDarkMode) {
                     if (useAlgorithmic) {
@@ -341,13 +286,10 @@ class WebViewManager(
                             "Follow system dark mode: FORCE_DARK ${if (systemInDarkMode) "ON" else "OFF"}"
                         )
                     } else if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
-                        // Very old WebViews without FORCE_DARK: algorithmic is the only option.
                         WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, systemInDarkMode)
                         AppLogger.d("WebViewManager", "Follow system dark mode: algorithmic darkening allowed")
                     }
                 } else {
-                    // Explicitly off: reset both mechanisms so a previously dark WebView
-                    // stops being darkened even after the system theme changed.
                     if (WebViewFeature.isFeatureSupported(WebViewFeature.FORCE_DARK)) {
                         @Suppress("DEPRECATION")
                         WebSettingsCompat.setForceDark(webView.settings, WebSettingsCompat.FORCE_DARK_OFF)
@@ -361,13 +303,6 @@ class WebViewManager(
             }
         }
 
-        /**
-         * Whether the modern [WebSettingsCompat.setAlgorithmicDarkeningAllowed] API must be
-         * used instead of the legacy FORCE_DARK. On apps whose own targetSdkVersion is >= 33
-         * (TIRAMISU), FORCE_DARK becomes a no-op and algorithmic darkening is the only path.
-         * Read from the actual runtime manifest so this works correctly for the Play AAB
-         * (targetSdk rewritten to 36) and for any generated APK whose targetSdk is raised.
-         */
         private fun preferAlgorithmicDarkening(context: Context): Boolean {
             val targetSdk = try {
                 context.applicationInfo.targetSdkVersion
@@ -378,27 +313,26 @@ class WebViewManager(
             return targetSdk >= android.os.Build.VERSION_CODES.TIRAMISU
         }
 
-        /**
-         * @param holdNavigation when true, [runWhenFreshSessionReady] waits
-         *   until [CookieManager.removeAllCookies] has finished and the new
-         *   jar has been flushed. [CookieManager.flush] before that callback
-         *   writes the previous cookies back out, so the next page load still
-         *   sends them — and a cookie that has Max-Age is not removed by
-         *   [CookieManager.removeSessionCookies].
-         */
         @Suppress("DEPRECATION")
-        fun clearBrowsingData(context: Context, webView: WebView?, holdNavigation: Boolean = false) {
+        fun clearBrowsingData(
+            context: Context,
+            webView: WebView?,
+            holdNavigation: Boolean = false
+        ): Boolean {
+            var cleared = true
             try {
                 webView?.stopLoading()
                 webView?.clearCache(true)
                 webView?.clearHistory()
                 webView?.clearFormData()
             } catch (e: Exception) {
+                cleared = false
                 AppLogger.w("WebViewManager", "Failed to clear WebView browsing data", e)
             }
             try {
                 WebStorage.getInstance().deleteAllData()
             } catch (e: Exception) {
+                cleared = false
                 AppLogger.w("WebViewManager", "Failed to clear WebStorage", e)
             }
             val ticket = if (holdNavigation) FreshSessionGate.open() else null
@@ -413,6 +347,7 @@ class WebViewManager(
                     if (ticket != null) FreshSessionGate.close(ticket)
                 }
             } catch (e: Exception) {
+                cleared = false
                 AppLogger.w("WebViewManager", "Failed to clear cookies", e)
                 if (ticket != null) FreshSessionGate.close(ticket)
             }
@@ -422,9 +357,11 @@ class WebViewManager(
                 db.clearUsernamePassword()
                 db.clearFormData()
             } catch (e: Exception) {
+                cleared = false
                 AppLogger.w("WebViewManager", "Failed to clear WebView database", e)
             }
             AppLogger.i("WebViewManager", "Fresh browsing session data cleared")
+            return cleared
         }
 
         private val COMMON_SECOND_LEVEL_TLDS = setOf(
@@ -797,29 +734,10 @@ class WebViewManager(
             })();
         """
 
-        /**
-         * JavascriptInterface name the document-start cosmetic script uses to pull
-         * the per-host payload (issue #998).
-         */
         private const val COSMETIC_BRIDGE_NAME = "WtaCosmeticBridge"
 
-        /**
-         * Shared cosmetic apply body from [com.webtoapp.core.adblock.CosmeticFilterScript].
-         * Invoked as `(COSMETIC_APPLY_JS)(payload)` where payload is
-         * `{"css":…,"batches":[…],"proc":[…]}` from AdBlocker.getCosmeticPayloadJson.
-         * The document-start script and the onPageFinished fallback both use it,
-         * so they stay behaviour-identical and idempotent through the
-         * __wta_cosmetic_observer__ / style[data-wta] guards. The home-card
-         * thumbnail runs this same function.
-         */
         private const val COSMETIC_APPLY_JS = com.webtoapp.core.adblock.CosmeticFilterScript.APPLY_JS
 
-        /**
-         * Document-start bootstrap: the payload is host-specific, so it is pulled
-         * synchronously through the JavascriptInterface instead of being baked in
-         * (#998). Runs before page scripts and before any paint, which is what
-         * removes the cosmetic-filter flash.
-         */
         private const val COSMETIC_DOCUMENT_START_JS = """
         (function() {
             'use strict';
@@ -1185,7 +1103,6 @@ class WebViewManager(
         """
     }
 
-    /** First page load waits here while a downloaded rule list is parsed off the main thread. */
     fun runWhenAdBlockRulesReady(block: () -> Unit) = adBlocker.runWhenRulesInstalled(block)
 
     private var appPluginPayloads: List<com.webtoapp.core.plugin.PluginSession.Resolved> = emptyList()
@@ -1206,7 +1123,15 @@ class WebViewManager(
     private var geoBridge: GeolocationBridge? = null
 
     private var extensionRuntimes: MutableMap<String, com.webtoapp.core.extension.ChromeExtensionRuntime> = mutableMapOf()
+    private val extensionTokens = java.util.concurrent.ConcurrentHashMap<String, String>()
     private val extensionPopupDialogs = mutableMapOf<String, Dialog>()
+
+    private fun extensionTokenFor(extId: String): String =
+        extensionTokens.getOrPut(extId) {
+            val bytes = ByteArray(24)
+            java.security.SecureRandom().nextBytes(bytes)
+            android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP or android.util.Base64.URL_SAFE)
+        }
 
     private val extensionFileManager by lazy {
         com.webtoapp.core.extension.ExtensionFileManager(context)
@@ -1247,25 +1172,17 @@ class WebViewManager(
     private val LOOPBACK_MAIN_FRAME_MAX_RETRIES = 3
     private val LOOPBACK_MAIN_FRAME_RETRY_DELAY_MS = 150L
 
-    // One silent reload per main-frame 403. The first hit on some video hosts is
-    // rejected (hotlink / Referer); the retry is the request the user otherwise
-    // makes by tapping the error page. A repeat 403 still shows that page.
     private val mainFrameHttpRetry = MainFrameHttpRetry()
+    private val offlineNavigationRetry = OfflineNavigationRetry()
+    private val OFFLINE_NAVIGATION_RETRY_DELAY_MS = 400L
     private var mainFrameRefererUrl: String? = null
 
-    // Cross-URL budget over all app-initiated auto-reloads (#654): per-path counters
-    // reset when the URL changes, so only this breaker can stop error-navigation
-    // cycles (e.g. login redirect loops) from reloading forever.
     private val reloadBreaker = ReloadCircuitBreaker()
 
-    // A download-intercepted navigation surfaces as an aborted main-frame load; remember
-    // the URL so the loopback auto-retry does not re-navigate into the same download.
     private var lastDownloadInterceptedUrl: String? = null
     private var lastDownloadInterceptedAtMs = 0L
     private val DOWNLOAD_INTERCEPT_RETRY_SUPPRESS_MS = 10_000L
 
-    // Set once an auth/challenge provider is visited; third-party cookies stay on for
-    // this WebView session so embedded sign-in frames can complete (#601).
     private var thirdPartyCookiesForceEnabled = false
 
     private fun noteDownloadInterceptedUrl(url: String) {
@@ -1307,9 +1224,6 @@ class WebViewManager(
             return false
         }
         val nextUrl = urls[current]
-        // Circuit breaker (#654): error-navigation-error cycles reset the per-URL
-        // counters above, so only a cross-URL budget can stop a reload storm.
-        // Tripping falls through to the error UI instead of another loadUrl.
         if (!reloadBreaker.noteAutoReload(nextUrl)) {
             AppLogger.w("WebViewManager", "Failover circuit breaker tripped, showing error instead: $nextUrl reason=$reason")
             return false
@@ -1394,21 +1308,12 @@ class WebViewManager(
 
         ensureDynamicUserAgents()
 
-        // Older WebViews do not automatically expose debuggable apps to Chrome.
-        // Match the HTML preview policy for ordinary host and shell WebViews.
         if (com.webtoapp.BuildConfig.DEBUG) {
             WebView.setWebContentsDebuggingEnabled(true)
         }
 
         this.currentConfig = config
 
-        // Keep the renderer at foreground priority even while the app is in the
-        // background (camera capture, WeChat/Alipay OAuth hop, share sheet). The
-        // default BOUND policy lets the system reap the renderer as soon as the
-        // app leaves the foreground — a backgrounded renderer is the first LMK
-        // victim, and a missed onRenderProcessGone leaves a dead WebView showing
-        // a white page forever (#1030). With IMPORTANT the system kills the whole
-        // app under pressure instead, which the save/restore path recovers from.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             try {
                 webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, false)
@@ -1419,9 +1324,6 @@ class WebViewManager(
 
         if (config.clearBrowsingDataOnLaunch && appliedBrowsingDataClearGeneration != browsingDataClearGeneration) {
             appliedBrowsingDataClearGeneration = browsingDataClearGeneration
-            // A cold start already deleted app_webview. Clearing again here
-            // would open CookieManager against the empty directory and the
-            // async removal could delete the cookie the new page is about to set.
             if (!wasFreshProfileWiped()) {
                 clearBrowsingData(context, webView, holdNavigation = true)
             }
@@ -1429,7 +1331,7 @@ class WebViewManager(
 
         this.cachedBrowserDisguiseConfig = browserDisguiseConfig
         this.cachedBrowserDisguiseJs = if (browserDisguiseConfig?.enabled == true) {
-            com.webtoapp.core.appearance.BrowserDisguiseJsGenerator.generate(browserDisguiseConfig).also { js ->
+            com.webtoapp.core.appearance.BrowserDisguiseJsGenerator.generate(browserDisguiseConfig, context.resources).also { js ->
                 val coverage = com.webtoapp.core.appearance.BrowserDisguiseConfig.calculateCoverage(browserDisguiseConfig)
                 AppLogger.d("WebViewManager", "Browser Disguise JS cached: ${js.length} chars, coverage=${"%,.0f".format(coverage * 100)}%")
             }
@@ -1445,13 +1347,8 @@ class WebViewManager(
 
         this.currentDeviceDisguiseConfig = deviceDisguiseConfig
 
-        // Resolve the one browser identity this app presents, after every disguise source is
-        // cached. The UA string and its client-hint metadata are produced together here and
-        // applied together below, so a page can never see a UA that contradicts `Sec-CH-UA`.
         this.resolvedBrowserIdentity = resolveBrowserIdentityFor(config)
 
-        // Flavor JS now also covers SYSTEM_DEFAULT plus a derived Chrome UA (device disguise).
-        // Challenge iframes must see window.chrome / webdriver before their own scripts run.
         this.cachedKernelFlavorJs = resolvedBrowserIdentity.profile
             ?.buildFlavorJs()
             ?.takeIf { it.isNotEmpty() }
@@ -1502,13 +1399,7 @@ class WebViewManager(
 
         val tlsFingerprintEnabled = config.tlsFingerprintEnabled &&
             config.tlsFingerprintTemplate.isNotBlank()
-        // ECH on the system engine rides the same MITM bridge as forced HTTP/3: the
-        // upstream leg is Cronet, whose Chromium stack fetches HTTPS records and
-        // encrypts the ClientHello SNI natively. Without DoH the record query goes out
-        // over plain DNS — echEffective still allows that; the SNI itself stays hidden.
         val echUpstream = config.dnsConfig.echEffective
-        // Forced HTTP/3 and ECH both ride the MITM bridge (their upstream leg is
-        // Cronet), so either must be able to start the bridge alone.
         val needsMitmBridge = tlsFingerprintEnabled || config.forceHttp3 || echUpstream
 
         if (needsMitmBridge) {
@@ -1553,6 +1444,7 @@ class WebViewManager(
 
             if (mitmPort > 0) {
                 AppLogger.d("WebViewManager", "TLS MITM bridge started on 127.0.0.1:$mitmPort template=${template.id} socks=${upstreamSocks != null}")
+                TlsMitmBridge.setDnsManager(if (config.dnsMode != "SYSTEM") dnsManager else null)
                 GeckoViewEngine.setTlsMitmActive(true)
                 proxyApplyJob?.cancel()
                 proxyApplyJob = proxyScope.launch {
@@ -1644,9 +1536,6 @@ class WebViewManager(
                 displayZoomControls = false
 
                 useWideViewPort = true
-                // Overview fit recomputes scale from the page width and undoes an
-                // explicit page zoom. Default path (zoom 100) keeps the historical
-                // behavior. Viewport-mode branches below must not turn it back on.
                 loadWithOverviewMode = if (zoomPlan.zoomActive) {
                     false
                 } else {
@@ -1654,8 +1543,6 @@ class WebViewManager(
                 }
 
                 if (zoomPlan.zoomActive) {
-                    // Page zoom owns the viewport. FIT_SCREEN / DESKTOP / CUSTOM
-                    // would force overview and a scale of 1.
                     AppLogger.d("WebViewManager", "Page zoom active: viewport modes deferred (${config.pageZoomPercent}%)")
                 } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
                     useWideViewPort = true
@@ -1688,12 +1575,8 @@ class WebViewManager(
                 } else {
                     val stripped = stripWebViewMarker(userAgentString)
                     userAgentString = stripped
-                    // The engine's own Sec-CH-UA still says "Android WebView" after the `; wv`
-                    // token is removed. Hints have to describe the string we actually send.
                     com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(stripped)?.let { profile ->
                         com.webtoapp.core.kernel.KernelFlavorMetadata.apply(webView, profile)
-                        // Modern WebView publishes these hints into every frame, including
-                        // the Turnstile iframe. Older WebViews need the flavor script there.
                         if (!androidx.webkit.WebViewFeature.isFeatureSupported(
                                 androidx.webkit.WebViewFeature.USER_AGENT_METADATA
                             ) && cachedKernelFlavorJs.isNullOrEmpty()
@@ -1712,8 +1595,6 @@ class WebViewManager(
                     if (hasActiveChromeExt) {
                         val desktopUa = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
                         userAgentString = desktopUa
-                        // Swapping the UA here must carry its client hints along, or the same
-                        // UA/client-hint contradiction reappears for extension-bearing apps.
                         com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
                             webView,
                             com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(desktopUa)
@@ -1722,9 +1603,6 @@ class WebViewManager(
                     }
                 }
 
-                // Isolation fingerprint wins last: its UA is injected into navigator.* by the
-                // page script — unless the real request UA agrees, server-side checks see the
-                // discrepancy instantly. Client hints must move with it for the same reason.
                 try {
                     val isoUa = com.webtoapp.core.privacy.IsolationManager.getInstance(context).getUserAgent()
                     if (isoUa != null) {
@@ -1763,12 +1641,6 @@ class WebViewManager(
                 mediaPlaybackRequiresUserGesture = if (!config.mediaAutoplayEnabled) {
                     true
                 } else {
-                    // Android WebSettings.mediaPlaybackRequiresUserGesture is a single binary
-                    // flag that applies to ALL media (audio and video alike); the platform cannot
-                    // gate one media kind independently of the other. So "autoplay enabled"
-                    // simply means media may play without a prior user gesture. The
-                    // mediaAutoplayScope field is retained for data/JSON compatibility but no
-                    // longer changes runtime behavior — see issue #268 investigation.
                     false
                 }
 
@@ -1781,11 +1653,6 @@ class WebViewManager(
                 allowFileAccessFromFileURLs = config.allowFileAccessFromFileURLs
                 allowUniversalAccessFromFileURLs = config.allowUniversalAccessFromFileURLs
 
-                // Follow system dark mode. The effective API depends on the host app's
-                // targetSdkVersion (see refreshSystemDarkMode / preferAlgorithmicDarkening):
-                // targetSdk <= 32 uses FORCE_DARK, targetSdk >= 33 uses algorithmic darkening.
-                // Re-applied whenever the system uiMode changes (ShellActivity.onConfigurationChanged
-                // calls refreshSystemDarkMode).
                 WebViewManager.refreshSystemDarkMode(webView, config.followSystemDarkMode)
 
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -1793,10 +1660,6 @@ class WebViewManager(
                 }
             }
 
-            // Android 12+ stretches the WebView bitmap at the edge, which pulls
-            // position:fixed chrome with it (#1193). OVER_SCROLL_NEVER stops
-            // that. Reset explicitly so a pooled WebView cannot keep the
-            // previous app's mode.
             overScrollMode = if (config.overscrollEffectEnabled) {
                 WebView.OVER_SCROLL_IF_CONTENT_SCROLLS
             } else {
@@ -1810,22 +1673,9 @@ class WebViewManager(
 
             com.webtoapp.core.perf.NativePerfEngine.optimizeWebViewSettings(this)
 
-            // Per-app page zoom (#654, #1264). setInitialScale is ignored once a
-            // viewport meta exists (useWideViewPort), which is every modern
-            // dashboard — the previous mechanism looked identical to 100%.
-            // The document-start script below owns the scale. textZoom stays at
-            // 100 so glyphs are not scaled twice. A pooled WebView must not keep
-            // a stale initial scale, so clear it. JS-disabled pages have no
-            // script and fall back to setInitialScale.
             if (zoomPlan.zoomActive) {
-                settings.textZoom = 100
-                settings.loadWithOverviewMode = false
-                if (config.javaScriptEnabled) {
-                    setInitialScale(0)
-                } else {
-                    setInitialScale(zoomPlan.initialScalePercent)
-                }
-                AppLogger.d("WebViewManager", "Applied page zoom: ${zoomPlan.initialScalePercent}% via viewport (overview off)")
+                applySystemPageZoom(zoomPlan.initialScalePercent)
+                AppLogger.d("WebViewManager", "Set system page zoom: ${zoomPlan.initialScalePercent}%")
             } else if (config.initialScale > 0) {
                 setInitialScale(config.initialScale)
                 AppLogger.d("WebViewManager", "Set initial scale: ${config.initialScale}%")
@@ -1838,26 +1688,22 @@ class WebViewManager(
                 setInitialScale(1)
                 AppLogger.d("WebViewManager", "ViewportMode.CUSTOM: forced initial scale to 1 (custom width=${config.customViewportWidth})")
             } else {
-                // DEFAULT mode, no zoom: clear any scale a pooled WebView may carry.
                 setInitialScale(0)
             }
 
-            // Scripted window.open must reach onCreateWindow even when popups are
-            // configured to fold into the same page. Otherwise Google's sign-in
-            // popup replaces the app and window.close() never returns (#1316).
             val scriptWindowsAllowed = config.javaScriptCanOpenWindows &&
                 config.jsOpenWindowsPolicy != com.webtoapp.data.model.JsOpenWindowsPolicy.BLOCK &&
                 config.newWindowBehavior != NewWindowBehavior.BLOCK
             settings.setSupportMultipleWindows(scriptWindowsAllowed)
 
-            webViewClient = createWebViewClient(config, callbacks)
+            webViewClient = createWebViewClient(config, callbacks, applyViewportMode = !zoomPlan.zoomActive)
 
             webChromeClient = createWebChromeClient(config, callbacks)
 
-            installPageZoomDocumentStart(this, config)
             installVideoFitDocumentStart(this, config)
             installWasmStreamDocumentStart(this, config)
             installKernelFlavorDocumentStart(this)
+            installSafeAreaDocumentStart(this, config)
 
             if (config.enablePrivateNetworkBridge || config.enableCorsBypass) {
                 installPrivateNetworkApiBridge(this, config)
@@ -1894,8 +1740,6 @@ class WebViewManager(
             }
 
             if (config.enableShareReceive) {
-                // The ack bridge lets the page mark items consumed (issue #1038); without
-                // it a processed share keeps re-announcing on every document load until TTL.
                 addJavascriptInterface(
                     com.webtoapp.core.share.ShareInboxBridge(context),
                     com.webtoapp.core.share.ShareReceiveContract.JS_BRIDGE_NAME
@@ -1918,6 +1762,14 @@ class WebViewManager(
                 installNotificationPolyfillDocumentStart(this)
             }
 
+            if (config.staticAssetPackEnabled) {
+                ServiceWorkerRequestRouter.addHandler { request ->
+                    val reqUrl = request.url?.toString() ?: return@addHandler null
+                    if (request.isForMainFrame) return@addHandler null
+                    if (!reqUrl.startsWith("http://") && !reqUrl.startsWith("https://")) return@addHandler null
+                    resolveStaticPackAsset(reqUrl, config)
+                }
+            }
 
             // Cosmetic filtering at document start so the hide stylesheet and the
             // mutation observer are in place before the page can paint (#998).
@@ -1939,8 +1791,6 @@ class WebViewManager(
                 installGeolocationShimDocumentStart(this)
             }
 
-            // Device disguise desktop spoof: patch JS-detectable signals (platform,
-            // touchPoints, screen, matchMedia, Client Hints) that UA alone can't cover.
             val ddConfig = currentDeviceDisguiseConfig
             if (ddConfig != null && ddConfig.enabled && ddConfig.requiresDesktopViewport()) {
                 val disguiseScript = ddConfig.generateSpoofScript()
@@ -1949,14 +1799,6 @@ class WebViewManager(
                 }
             }
 
-            // Register the GM bridge only when userscripts can actually run: the interface
-            // object is exposed to every frame of every page, so an unconditional
-            // registration hands a cross-origin HTTP client to apps with zero userscripts.
-            // The interface object is exposed to every frame of every page, so an
-            // unconditional registration hands a cross-origin HTTP client to apps
-            // with zero userscripts. Late payloads keep the bridge registered when
-            // the set is resolved dynamically — a late addJavascriptInterface would
-            // not reach already-loaded pages.
             val hasUserscriptPlugins = runCatching {
                 pluginPayloads.any { it.plugin.kind == com.webtoapp.core.plugin.PluginKind.USERSCRIPT }
             }.getOrDefault(false)
@@ -2036,12 +1878,6 @@ class WebViewManager(
                 com.webtoapp.core.kernel.BrowserKernel.configureWebView(webView, level)
             }
 
-            // BrowserKernel.configureWebView rewrites settings.userAgentString from whatever
-            // is current (it strips "; wv" and "Version/x.y"). That runs after the identity
-            // block above, so a custom or flavor UA would be replaced and Sec-CH-UA would
-            // stay on the metadata of a string the network stack no longer sends. Re-apply
-            // the resolved pair last. Same for the isolation and extension overrides, which
-            // sit in that earlier block and are clobbered by the same rewrite.
             reapplyRequestUserAgent(webView, isDesktopModeRequested)
 
             isFocusable = true
@@ -2050,11 +1886,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Late-arriving plugin payloads (the store loads asynchronously). Rebuilds
-     * the session set, spins up chrome runtimes if they just appeared, and
-     * re-runs injection for the current page so late plugins still land.
-     */
     fun updatePluginPayloads(webView: WebView, payloads: List<com.webtoapp.core.plugin.PluginSession.Resolved>) {
         appPluginPayloads = payloads
         if (!pluginsEnabled) return
@@ -2064,8 +1895,6 @@ class WebViewManager(
         if (ensureDesktopUaForDeferredChromeExt(webView)) return
         val url = webView.url?.takeIf { it.isNotBlank() && it != "about:blank" } ?: return
         session.onUrlChanged(url)
-        // Bootstrap is idempotent; re-running all phases lets document_start
-        // plugins land even when they missed the actual start.
         injectPlugins(webView, url, ScriptRunTime.DOCUMENT_START)
         injectPlugins(webView, url, ScriptRunTime.DOCUMENT_END)
         injectPlugins(webView, url, ScriptRunTime.DOCUMENT_IDLE)
@@ -2205,9 +2034,9 @@ class WebViewManager(
 
     private fun createWebViewClient(
         config: WebViewConfig,
-        callbacks: WebViewCallbacks
+        callbacks: WebViewCallbacks,
+        applyViewportMode: Boolean
     ): WebViewClient {
-
         var diagPageStartTime = 0L
         var diagRequestCount = 0
         var diagBlockedCount = 0
@@ -2223,16 +2052,10 @@ class WebViewManager(
                     val url = it.url?.toString() ?: ""
                     diagRequestCount++
 
-                    // Service-worker notification bridge. Some WebView versions fetch the
-                    // worker script through this client; the process-wide service-worker
-                    // client covers the rest. Both serve the same response.
                     if (config.enableNotificationPolyfill) {
                         WebNotificationBridge.intercept(context, url)?.let { bridged -> return bridged }
                     }
 
-                    // Feed the TLS-MITM bridge's host allowlist: every request the WebView
-                    // issues passes through here before its network stack CONNECTs through
-                    // the bridge, so this is the authoritative "host actually requested" set.
                     if (TlsMitmBridge.isRunning()) {
                         TlsMitmBridge.allowHost(runCatching { android.net.Uri.parse(url).host }.getOrNull())
                     }
@@ -2242,8 +2065,6 @@ class WebViewManager(
                     }
 
                     val resType = if (url.startsWith("http://") || url.startsWith("https://")) inferResourceType(it) else null
-                    // One Uri.parse + host extraction per request; the initiator domain
-                    // is constant across every check in this callback.
                     val initiatorDomain = try { android.net.Uri.parse(currentMainFrameUrl ?: "").host ?: "" } catch (_: Exception) { "" }
                     if (resType != null) {
 
@@ -2324,10 +2145,6 @@ class WebViewManager(
                         return loadEncryptedAsset(assetPath)
                     }
 
-                    // Build-time Static Asset Pack: serve packaged static assets (CSS/JS/fonts/
-                    // icons) locally for the live site. Only http/https sub-resource requests are
-                    // eligible — the main document always comes from the network so the site's
-                    // dynamic content stays live. A miss falls through to normal network loading.
                     if (!it.isForMainFrame &&
                         (url.startsWith("http://") || url.startsWith("https://"))) {
                         resolveStaticPackAsset(url, config)?.let { response -> return response }
@@ -2361,10 +2178,6 @@ class WebViewManager(
                         }
                     }
 
-                    // Legacy proxy fallback for pre-PROXY_OVERRIDE WebViews: fetch via
-                    // the configured proxy in-app. Null when disarmed/bypassed/scheme
-                    // mismatch (normal loading continues); 502 on fetch failure so a
-                    // dead proxy fails closed instead of leaking direct.
                     LegacyProxyFetchBridge.intercept(
                         url = url,
                         method = it.method,
@@ -2404,18 +2217,12 @@ class WebViewManager(
                     }
                 }
 
-                // OAuth sign-in must complete inside this WebView: the site session lives
-                // in this WebView's cookie jar, so handing the login navigation to an
-                // external browser (openExternalLinks) can never sign the app in (#601).
                 if (request.isForMainFrame && isOAuthServiceRequest(url)) {
                     AppLogger.d("WebViewManager", "Keeping OAuth navigation in-app: $url")
                     return false
                 }
 
                 if (config.openExternalLinks && isExternalUrl(url, view?.url)) {
-                    // For local-file apps, only open externally on a genuine user gesture.
-                    // Otherwise an automatic entry/redirect navigation gets hijacked and the
-                    // WebView is left on net::ERR_ACCESS_DENIED with no content to fall back to.
                     if (isLocalAppUrl(view?.url) && !isUserGesture) {
                         return false
                     }
@@ -2423,9 +2230,6 @@ class WebViewManager(
                     return true
                 }
 
-                // Chromium cannot render documents like PDF inline; letting the main frame
-                // navigate there yields a black page and never fires the download listener.
-                // Hand the navigation straight to the download pipeline instead (#601).
                 if (request.isForMainFrame &&
                     config.downloadEnabled &&
                     DocumentDownloadPolicy.isUnrenderableDocumentUrl(url)
@@ -2460,11 +2264,6 @@ class WebViewManager(
                 }
                 url?.let { pluginSession?.onUrlChanged(it) }
 
-                // Embedded sign-in frames ("Sign in with Google" buttons, captcha
-                // challenges) are cross-origin iframes that need third-party cookies,
-                // which WebView disables by default. Once the user reaches a login or
-                // challenge provider, enable them for this WebView's session so the
-                // flow can complete even under the default privacy config (#601).
                 if (view != null && url != null && !thirdPartyCookiesForceEnabled &&
                     (isOAuthServiceRequest(url) || isCaptchaServiceRequest(url))
                 ) {
@@ -2498,9 +2297,6 @@ class WebViewManager(
                 diagBlockedCount = 0
                 diagErrorCount = 0
 
-                // Warm the memoized per-host cosmetic payload while the navigation
-                // is in flight so the document-start bridge lookup does not pay the
-                // rule-scan cost inside the page parser (#998).
                 if (url != null && adBlocker.isEnabled()) {
                     extractHostFromUrl(url)?.let { host ->
                         proxyScope.launch(Dispatchers.IO) { adBlocker.getCosmeticPayloadJson(host) }
@@ -2526,10 +2322,6 @@ class WebViewManager(
                     scheduleFailoverTimeoutIfNeeded(view, config, url)
                 }
 
-                // NOTE: do NOT invalidate adBlocker cache here. The cache key
-                // includes pageHost + resource type so it is correct across
-                // navigations; clearing per page destroys the hit rate and
-                // forces cold regex matching for every subresource.
 
                 val isBack = isNavigatingBack
 
@@ -2572,12 +2364,11 @@ class WebViewManager(
                     view?.let { com.webtoapp.core.kernel.BrowserKernel.injectKernelJs(it, kernelLevel) }
                 }
 
-                // Batch the static config-gated shims below into ONE evaluateJavascript:
-                // each call is a Binder IPC + renderer round-trip on the first-paint
-                // path. Chunks stay in original order and are try/catch-isolated so
-                // one failing shim can't suppress the rest (separate evals used to
-                // provide that isolation for free).
                 val startBatch = StringBuilder()
+                if (config.javaScriptEnabled) {
+                    startBatch.append("try{").append(SafeAreaInsetsBridge.DOCUMENT_START_SCRIPT)
+                        .append("}catch(e){};\n")
+                }
                 if (config.enableClipboardPolyfill) {
                     startBatch.append("try{").append(CLIPBOARD_POLYFILL_JS).append("}catch(e){};\n")
                 }
@@ -2586,9 +2377,6 @@ class WebViewManager(
                     startBatch.append("try{").append(GeolocationBridge.getShimScript()).append("}catch(e){};\n")
                 }
 
-                // Warm up the audio session on the first user gesture so async audio (e.g. AI
-                // voice-chat responses that arrive after the gesture window) can play even when
-                // mediaPlaybackRequiresUserGesture is true. See AudioUnlockInjector / issue #268.
                 view?.let { AudioUnlockInjector.inject(it) }
 
                 if (config.enableNotificationPolyfill) {
@@ -2603,22 +2391,13 @@ class WebViewManager(
                 }
 
                 if (config.javaScriptEnabled) {
-                    // Fallback when document-start is unavailable. The script
-                    // no-ops once it is already installed on this document.
                     startBatch.append("try{").append(VideoElementFit.SCRIPT).append("}catch(e){};\n")
                     startBatch.append("try{").append(WasmStreamCompat.SCRIPT).append("}catch(e){};\n")
                 }
 
-                val pageZoomJs = view?.let { pageZoomScriptFor(it, config) }
-                if (pageZoomJs != null) {
-                    // Fallback when document-start is unavailable, and a second
-                    // chance once the view has a size. The WebView's CSS width
-                    // wins over the screen.width guess from document-start.
-                    // FIT_SCREEN / CUSTOM force initial-scale=1 and would undo it.
-                    startBatch.append("try{").append(pageZoomJs).append("}catch(e){};\n")
-                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
+                if (applyViewportMode && config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
                     startBatch.append("try{").append(VIEWPORT_FIT_SCREEN_JS).append("}catch(e){};\n")
-                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
+                } else if (applyViewportMode && config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
                     startBatch.append("try{").append(customJs).append("}catch(e){};\n")
@@ -2689,13 +2468,10 @@ class WebViewManager(
 
                 view?.let { injectScripts(it, config.injectScripts, ScriptRunTime.DOCUMENT_END, url) }
 
-                val pageZoomJs = view?.let { pageZoomScriptFor(it, config) }
-                if (pageZoomJs != null) {
-                    view?.evaluateJavascript(pageZoomJs, null)
-                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
+                if (applyViewportMode && config.viewportMode == com.webtoapp.data.model.ViewportMode.FIT_SCREEN) {
 
                     view?.evaluateJavascript("window.__wtaViewportFitApplied=false;\n$VIEWPORT_FIT_SCREEN_JS", null)
-                } else if (config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
+                } else if (applyViewportMode && config.viewportMode == com.webtoapp.data.model.ViewportMode.CUSTOM) {
                     val customWidth = config.customViewportWidth.coerceIn(320, 3840)
                     val customJs = VIEWPORT_CUSTOM_JS.replace("CUSTOM_WIDTH_PLACEHOLDER", customWidth.toString())
                     view?.evaluateJavascript("window.__wtaViewportCustomApplied=false;\n$customJs", null)
@@ -2735,9 +2511,6 @@ class WebViewManager(
                         if (view.url == url) {
                             val pageHost = extractHostFromUrl(url) ?: ""
                             if (pageHost.isNotEmpty()) {
-                                // Fallback for WebViews without document-start support
-                                // (#998). Where the document-start script already ran,
-                                // the __wta_cosmetic_observer__ guard makes this a no-op.
                                 val payload = adBlocker.getCosmeticPayloadJson(pageHost)
                                 if (payload.isNotEmpty()) {
                                     view.evaluateJavascript("$COSMETIC_APPLY_JS($payload)", null)
@@ -2772,16 +2545,21 @@ class WebViewManager(
                 if (config.pwaOfflineEnabled) {
                     view?.postDelayed({
                         if (view.url == finishedUrl) {
-                            val strategy = try {
-                                PwaOfflineSupport.CacheStrategy.valueOf(config.pwaOfflineStrategy)
-                            } catch (_: Exception) {
-                                PwaOfflineSupport.CacheStrategy.NETWORK_FIRST
+                            val pageUrl = view.url.orEmpty()
+                            if (pageUrl.startsWith("file://") || pageUrl.startsWith("content://")) {
+                                AppLogger.i("WebViewManager", "PWA offline skipped: service workers cannot register on $pageUrl")
+                            } else {
+                                val strategy = try {
+                                    PwaOfflineSupport.CacheStrategy.valueOf(config.pwaOfflineStrategy)
+                                } catch (_: Exception) {
+                                    PwaOfflineSupport.CacheStrategy.NETWORK_FIRST
+                                }
+                                val offlineConfig = PwaOfflineSupport.OfflineConfig(
+                                    enabled = true,
+                                    strategy = strategy
+                                )
+                                PwaOfflineSupport.injectServiceWorker(view, offlineConfig)
                             }
-                            val offlineConfig = PwaOfflineSupport.OfflineConfig(
-                                enabled = true,
-                                strategy = strategy
-                            )
-                            PwaOfflineSupport.injectServiceWorker(view, offlineConfig)
                         }
                     }, 800)
                 }
@@ -2884,10 +2662,6 @@ class WebViewManager(
                     }
 
                     if (view != null) {
-                        // On ROMs enforcing the Android 17 local-network permission, LAN
-                        // loads fail here with ERR_LOCAL_NETWORK_PERMISSION_MISSING or a
-                        // bare timeout; request the permission and auto-reload on grant.
-                        // The error page below still shows while the dialog is pending.
                         maybeRequestLocalNetworkPermission(view, failedUrl, rawDescription)
                     }
 
@@ -2921,6 +2695,25 @@ class WebViewManager(
                             fileRetryCount = 0
                             fileRetryUrl = null
                         }
+                    }
+
+                    if (view != null &&
+                        !isLocalRuntimeUrl(failedUrl) &&
+                        !wasRecentlyInterceptedForDownload(failedUrl) &&
+                        offlineNavigationRetry.shouldSilentRetry(failedUrl, errorCode, rawDescription) &&
+                        reloadBreaker.noteAutoReload(failedUrl)
+                    ) {
+                        AppLogger.i(
+                            "WebViewManager",
+                            "Main-frame network error (code=$errorCode, desc=$rawDescription), retrying once before the error page: $failedUrl"
+                        )
+                        view.postDelayed({
+                            val currentUrl = view.url
+                            if (currentUrl == null || currentUrl == "about:blank" || currentUrl == failedUrl || currentMainFrameUrl == failedUrl) {
+                                view.loadUrl(failedUrl)
+                            }
+                        }, OFFLINE_NAVIGATION_RETRY_DELAY_MS)
+                        return
                     }
 
                     if (view != null && config.failoverEnabled && config.failoverTriggers.networkError) {
@@ -3023,10 +2816,6 @@ class WebViewManager(
                     }
 
                     val manager = errorPageManager
-                    // Local router runtimes (PHP/WordPress) stamp their own diagnostic page
-                    // (fatal message / stack trace) into X-Wta-Router-Error on 5xx. Showing the
-                    // body beats replacing it with a generic "HTTP 500" page that hides whether
-                    // the failure is a fatal, an exception, or app-level PHP output.
                     val routerErrorBody = if (statusCode in 500..599) {
                         extractRouterErrorBody(errorResponse)
                     } else null
@@ -3089,10 +2878,6 @@ class WebViewManager(
                     return
                 }
 
-                // Imported custom CA: if the only problem is an untrusted chain and the server
-                // leaf cryptographically validates against an anchor the user imported in the
-                // editor, honor it. Applies to both main-frame and sub-resource requests so that
-                // CSS/JS/XHR served over the same custom-CA HTTPS also load.
                 if (error != null &&
                     error.primaryError == android.net.http.SslError.SSL_UNTRUSTED) {
                     runCatching { CustomCaTrustStore.init(context) }
@@ -3112,10 +2897,6 @@ class WebViewManager(
                     }
                 }
 
-                // Explicit opt-out (Special Settings): proceed past every certificate error
-                // for main-frame AND sub-resource loads — an expired-cert site must render
-                // fully, not just its HTML. This deliberately disables TLS MITM protection
-                // for the whole app; the Play policy checker flags it for Play-bound exports.
                 if (config.errorPageConfig.ignoreSslErrors) {
                     AppLogger.w(
                         "WebViewManager",
@@ -3354,16 +3135,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Drop every per-WebView bookkeeping entry for [webView]. Called when a view
-     * is torn down outside the normal client callbacks — e.g. the resume-time
-     * liveness probe found a renderer whose death was never reported (#1030).
-     */
-    /**
-     * Transport WebViews created for `onCreateWindow` are destroyed inside
-     * `shouldOverrideUrlLoading` once the popup URL is known — a popup that is
-     * granted but never navigates would otherwise leak the whole view (#1033).
-     */
     private fun scheduleTransportWebViewDestroy(webView: WebView) {
         webView.postDelayed({ runCatching { webView.destroy() } }, TRANSPORT_WEBVIEW_TIMEOUT_MS)
     }
@@ -3371,17 +3142,14 @@ class WebViewManager(
     fun discardWebView(webView: WebView) {
         userscriptInjectionState.remove(webView)
         pagePhaseExecutionState.remove(webView)
+        safeAreaScriptHandlers.remove(webView)?.let { handler -> runCatching { handler.remove() } }
+        safeAreaInstalledWebViews.remove(webView)
         managedWebViews.remove(webView)
         primeUserActivationDone.remove(webView)
         failoverCursor.remove(webView)
         cancelFailoverTimeout(webView)
     }
 
-    /**
-     * `hcj.openExternal` — plugins may only send a page out to a browser; the
-     * scheme allowlist is deliberately narrower than NativeBridge.openUrl's so
-     * a script can never bounce an intent onto tel/sms/geo handlers.
-     */
     private fun openPluginExternalUrl(url: String) {
         val safeUrl = normalizeExternalIntentUrl(url)
         if (safeUrl.isEmpty() || !isAllowedUrlScheme(safeUrl, PLUGIN_EXTERNAL_SCHEMES)) {
@@ -3411,13 +3179,6 @@ class WebViewManager(
 
     private val localNetworkPermissionRequestedUrls = mutableSetOf<String>()
 
-    /**
-     * Fires the local-network permission dialog for a failing LAN main-frame request.
-     * The manager has no hook into the hosting activity's onRequestPermissionsResult,
-     * so grant detection is a bounded poll instead; on grant the page reloads, on
-     * denial the already-rendered error page stays. Each failed URL prompts at most
-     * once per WebViewManager instance.
-     */
     private fun maybeRequestLocalNetworkPermission(view: WebView, failedUrl: String, errorDescription: String) {
         if (!LocalNetworkPermission.shouldRequest(context, failedUrl, errorDescription)) return
         if (!localNetworkPermissionRequestedUrls.add(failedUrl)) {
@@ -3444,9 +3205,6 @@ class WebViewManager(
     private fun pollLocalNetworkGrant(view: WebView, url: String, attempts: Int) {
         if (attempts <= 0) return
         view.postDelayed({
-            // The interim error page reports about:blank / file:/// as its URL; treat
-            // those as "still on the failed page" and only give up once the user has
-            // navigated to a genuinely different destination.
             val current = view.url
             if (current != null && current != url && current != "about:blank" && !current.startsWith("file:///")) {
                 AppLogger.d("WebViewManager", "Skip local network reload, WebView navigated away: $current")
@@ -3493,8 +3251,6 @@ class WebViewManager(
     ): Boolean {
         if (!isLocalRuntimeUrl(failedUrl)) return false
         if (isCleartextBlockedError(errorCode, rawDescription, normalizedDescription)) return false
-        // An aborted load of a document URL (or of a URL the download pipeline just took)
-        // is a download interception, not a server that failed to come up — never re-navigate.
         if (wasRecentlyInterceptedForDownload(failedUrl)) return false
         if (DocumentDownloadPolicy.isUnrenderableDocumentUrl(failedUrl)) return false
 
@@ -3606,11 +3362,6 @@ class WebViewManager(
             ?: runCatching { Uri.parse(target).host?.lowercase() }.getOrNull()
     }
 
-    /**
-     * Reads and base64-decodes the X-Wta-Router-Error diagnostic header that the local
-     * PHP router stamps onto 5xx responses. Returns null when the header is absent
-     * (non-router origins) or unreadable.
-     */
     private fun extractRouterErrorBody(errorResponse: WebResourceResponse?): String? {
         val headers = runCatching { errorResponse?.responseHeaders }.getOrNull() ?: return null
         val encoded = headers.entries
@@ -3626,9 +3377,6 @@ class WebViewManager(
     private fun isMitmSslError(error: android.net.http.SslError?): Boolean {
         if (error == null) return false
         if (!TlsMitmBridge.isRunning()) return false
-        // Only a certificate that cryptographically chains to the local MITM CA counts.
-        // Never fall back to error-type matching: any other SSL error (an attacker's
-        // self-signed cert on a non-tunneled connection) must surface to the user.
         return TlsMitmCaManager.isSignedByLocalCa(extractServerCert(error))
     }
 
@@ -3790,7 +3538,6 @@ class WebViewManager(
         }
     }
 
-    // region Static Asset Pack (build-time packaged static assets served locally)
 
     @Volatile
     private var staticPackManifest: StaticAssetPack.Manifest? = null
@@ -3798,11 +3545,6 @@ class WebViewManager(
     @Volatile
     private var staticPackLoadAttempted = false
 
-    /**
-     * Lazily load + cache the packaged static-asset manifest from assets. Returns null when
-     * the feature has no manifest (not packaged) or it cannot be read; the probe runs at most
-     * once per WebViewManager instance so a missing manifest is not re-checked per request.
-     */
     private fun loadStaticPackManifest(): StaticAssetPack.Manifest? {
         if (staticPackLoadAttempted) return staticPackManifest
         staticPackLoadAttempted = true
@@ -3822,11 +3564,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Resolve a live-site sub-resource request to a packaged static asset, or null to let it
-     * fall through to the network. Serves only exact URLs scraped at build time and honors the
-     * maxAgeDays staleness safety valve (expired packs defer to the network).
-     */
     private fun resolveStaticPackAsset(url: String, config: WebViewConfig): WebResourceResponse? {
         if (!config.staticAssetPackEnabled) return null
         val manifest = loadStaticPackManifest() ?: return null
@@ -3837,7 +3574,6 @@ class WebViewManager(
         return loadEncryptedAsset(assetPath)
     }
 
-    // endregion
 
     private fun loadEncryptedAsset(assetPath: String): WebResourceResponse? {
         return try {
@@ -3851,8 +3587,6 @@ class WebViewManager(
             val mimeType = getMimeType(assetPath)
             val encoding = if (isTextMimeType(mimeType)) "UTF-8" else null
 
-            // Stream rather than buffer: a packaged static asset can be a
-            // multi-megabyte model or video, and WebView reads it incrementally.
             val stream = secureLoader.openAssetStream(assetPath) ?: return null
 
             AppLogger.d("WebViewManager", "Load resource (stream): $assetPath ($mimeType)")
@@ -3999,7 +3733,6 @@ class WebViewManager(
 
                 val originalWebView = view
 
-                // Load the popup URL into the main WebView through a transport.
                 fun openInSameWindow(): Boolean {
                     val transport = resultMsg?.obj as? WebView.WebViewTransport
                     if (transport != null) {
@@ -4023,8 +3756,6 @@ class WebViewManager(
                     return true
                 }
 
-                // A sign-in popup must stay attached to this WebView's session: opening it
-                // in an external browser or dropping it breaks the OAuth round-trip (#601).
                 if (href != null && isOAuthServiceRequest(href)) {
                     AppLogger.d("WebViewManager", "OAuth popup kept in-app: $href")
                     return openInSameWindow()
@@ -4061,8 +3792,6 @@ class WebViewManager(
                         true
                     }
                     NewWindowBehavior.POPUP_WINDOW -> {
-                        // No host currently renders a real popup window; fall back to the
-                        // same-window transport instead of silently swallowing the popup.
                         if (callbacks.onNewWindow(resultMsg)) {
                             true
                         } else {
@@ -4086,10 +3815,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Keeps a `window.open` child alive as its own WebView so `window.opener`
-     * and `window.close()` work. Google's popup sign-in depends on both (#1316).
-     */
     @SuppressLint("SetJavaScriptEnabled")
     private fun openRealScriptPopup(parent: WebView, resultMsg: android.os.Message?): Boolean {
         val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
@@ -4128,8 +3853,6 @@ class WebViewManager(
             runCatching { popup.stopLoading() }
             runCatching { popup.destroy() }
         }
-        // Attach before handing the transport over. A WebView with no window
-        // never becomes window.opener for the page that called window.open.
         val shown = com.webtoapp.core.engine.ScriptPopupHost.show(
             context = context,
             content = popup,
@@ -4318,13 +4041,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Report a successful handoff to an external app so hosts can flag the
-     * source page as a potential one-shot trampoline (#1030). Scoped to real
-     * app-switch schemes (payment/social deep links and `intent://` wrappers) —
-     * a `tel:`/`mailto:` launch is a short interaction, not a page worth
-     * vetoing on restore.
-     */
     private fun notifyExternalAppLaunch(
         scheme: String,
         url: String,
@@ -4420,10 +4136,6 @@ class WebViewManager(
             runCatching { handler.remove() }
         }
         cosmeticFilterScriptHandlers.clear()
-        pageZoomScriptHandlers.values.toList().forEach { handler ->
-            runCatching { handler.remove() }
-        }
-        pageZoomScriptHandlers.clear()
         videoFitScriptHandlers.values.toList().forEach { handler ->
             runCatching { handler.remove() }
         }
@@ -4436,6 +4148,13 @@ class WebViewManager(
             runCatching { handler.remove() }
         }
         kernelFlavorScriptHandlers.clear()
+        safeAreaUnsubscribe?.invoke()
+        safeAreaUnsubscribe = null
+        safeAreaScriptHandlers.values.toList().forEach { handler ->
+            runCatching { handler.remove() }
+        }
+        safeAreaScriptHandlers.clear()
+        safeAreaInstalledWebViews.clear()
         managedWebViews.keys.toList().forEach { webView ->
             destroyWebView(webView)
         }
@@ -4487,25 +4206,6 @@ class WebViewManager(
         }
     }
 
-    private fun webViewCssWidth(webView: WebView): Int {
-        val density = webView.resources.displayMetrics.density
-        if (webView.width <= 0 || density <= 0f) return 0
-        return (webView.width / density).roundToInt()
-    }
-
-    private fun pageZoomScriptFor(webView: WebView, config: WebViewConfig): String? {
-        return pageZoomDocumentScript(
-            config.pageZoomPercent,
-            config.zoomEnabled,
-            webViewCssWidth(webView)
-        )
-    }
-
-    /**
-     * Other document-start scripts must not run inside a Turnstile / hCaptcha
-     * frame. Kernel flavor and device disguise are the exception: those frames
-     * have to see the same identity as the parent (#1121).
-     */
     @Suppress("UNUSED_PARAMETER")
     private fun addDocumentStartExceptChallenges(
         webView: WebView,
@@ -4517,12 +4217,6 @@ class WebViewManager(
         setOf("*")
     )
 
-    /**
-     * Chrome (and other kernel) flavor JS must run before the page's own scripts,
-     * including challenge iframes. [evaluateJavascript] on onPageStarted loses that
-     * race, which is why device disguise (Chrome UA, no early JS) still tripped
-     * z.ai / Turnstile (#1121).
-     */
     private fun installKernelFlavorDocumentStart(webView: WebView) {
         kernelFlavorScriptHandlers.remove(webView)?.let { handler ->
             runCatching { handler.remove() }
@@ -4545,43 +4239,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Page zoom is CSS `zoom` on the root, installed before page scripts.
-     * Rewriting the viewport meta reloaded pages such as OpenChamber (#1317).
-     * [android.webkit.WebView.setInitialScale] loses to that meta (#1264).
-     * Re-installs on every configure so a pooled WebView does not keep the
-     * previous app's percent. Default zoom (100) removes a stale handler.
-     */
-    private fun installPageZoomDocumentStart(webView: WebView, config: WebViewConfig) {
-        pageZoomScriptHandlers.remove(webView)?.let { handler ->
-            runCatching { handler.remove() }
-        }
-        val script = pageZoomDocumentScript(
-            config.pageZoomPercent,
-            config.zoomEnabled,
-            webViewCssWidth(webView)
-        ) ?: return
-        if (!config.javaScriptEnabled) return
-        if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
-            AppLogger.d("WebViewManager", "Document-start unsupported; page zoom will use onPageStarted")
-            return
-        }
-        try {
-            pageZoomScriptHandlers[webView] = addDocumentStartExceptChallenges(
-                webView,
-                script,
-                setOf("*")
-            )
-            AppLogger.d("WebViewManager", "Page zoom installed at document start: ${config.pageZoomPercent}%")
-        } catch (e: Exception) {
-            AppLogger.w("WebViewManager", "Document-start page zoom install failed", e)
-        }
-    }
-
-    /**
-     * Keep a `<video>` inside the CSS box the page asked for. System WebView
-     * otherwise lays it out at the media's intrinsic pixel size.
-     */
     private fun installVideoFitDocumentStart(webView: WebView, config: WebViewConfig) {
         if (!config.javaScriptEnabled) return
         if (videoFitScriptHandlers.containsKey(webView)) return
@@ -4601,10 +4258,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Godot (and other wasm loaders) clone the wasm response and read only one
-     * side. Install before page scripts so the clone cannot stall the download.
-     */
     private fun installWasmStreamDocumentStart(webView: WebView, config: WebViewConfig) {
         if (!config.javaScriptEnabled) return
         if (wasmStreamScriptHandlers.containsKey(webView)) return
@@ -4710,14 +4363,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Install the inbound-share page API early (issue #943).
-     *
-     * Document-start matters here: a page that wants the share content has to be able to
-     * subscribe before its own scripts run. `injectCompatibilityScripts` also carries the
-     * bootstrap as a fallback for WebView versions without document-start support, and the
-     * bootstrap is idempotent, so a double install is harmless.
-     */
     private fun installShareInboxDocumentStart(webView: WebView) {
         if (shareInboxScriptHandlers.containsKey(webView)) return
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -4773,13 +4418,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Synchronous host → payload lookup for the document-start cosmetic script.
-     * The interface is reachable from every frame; local runtime pages and a
-     * disabled blocker get an empty payload, which the page-side script treats
-     * as "no work". Runs on a WebView-private thread — the payload read goes
-     * through AdBlocker's memoized, synchronized cache.
-     */
     private inner class CosmeticFilterJsInterface {
         @JavascriptInterface
         fun getCosmeticPayload(pageUrl: String?): String {
@@ -4790,14 +4428,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Installs cosmetic filtering at document start (issue #998). uBO/Brave land
-     * the hide stylesheet before the page's first paint via document_start
-     * content scripts; doing the same removes the flash the old
-     * onPageFinished+200ms injection caused. The onPageFinished path stays as the
-     * fallback for WebViews without DOCUMENT_START_SCRIPT support and is
-     * idempotent through the __wta_cosmetic_observer__ guard.
-     */
     private fun installCosmeticFilterDocumentStart(webView: WebView) {
         if (cosmeticFilterScriptHandlers.containsKey(webView)) return
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -4817,6 +4447,46 @@ class WebViewManager(
         }
     }
 
+    private inner class SafeAreaJsInterface {
+        @JavascriptInterface
+        fun getInsets(): String = SafeAreaInsetsBridge.currentJson
+    }
+
+    private fun installSafeAreaDocumentStart(webView: WebView, config: WebViewConfig) {
+        if (!config.javaScriptEnabled) return
+        if (safeAreaInstalledWebViews.containsKey(webView)) return
+        try {
+            safeAreaInstalledWebViews[webView] = true
+            context.findActivity()?.let { activity ->
+                SafeAreaInsetsBridge.publish(activity, config.displayCutoutMode)
+            }
+            webView.addJavascriptInterface(
+                SafeAreaJsInterface(),
+                SafeAreaInsetsBridge.JS_BRIDGE_NAME
+            )
+            if (safeAreaUnsubscribe == null) {
+                safeAreaUnsubscribe = SafeAreaInsetsBridge.addListener(::refreshSafeAreaInsets)
+            }
+            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                safeAreaScriptHandlers[webView] = addDocumentStartExceptChallenges(
+                    webView,
+                    SafeAreaInsetsBridge.DOCUMENT_START_SCRIPT,
+                    setOf("*")
+                )
+            }
+        } catch (e: Exception) {
+            safeAreaInstalledWebViews.remove(webView)
+            AppLogger.w("WebViewManager", "Safe-area document-start install failed", e)
+        }
+    }
+
+    private fun refreshSafeAreaInsets(insets: SafeAreaInsets) {
+        val script = SafeAreaInsetsBridge.updateScript(insets)
+        for (webView in managedWebViews.keys.toList()) {
+            webView.post { runCatching { webView.evaluateJavascript(script, null) } }
+        }
+    }
+
     private fun injectBlobCacheHookScript(webView: WebView) {
         if (currentConfig?.downloadEnabled != true) return
         if (currentConfig?.enableBlobDownloadInterception == true) return
@@ -4831,11 +4501,6 @@ class WebViewManager(
 
     private fun injectPrivateNetworkApiBridgeFallback(webView: WebView, pageUrl: String?) {
         if (!isLocalRuntimeUrl(pageUrl ?: webView.url)) return
-        // Only install the fetch/XHR hijack when a Java-side NativeBridge actually
-        // exists. Without this gate the hijack intercepts cross-origin fetches on
-        // local pages and rejects them with "bridge is unavailable" even though the
-        // user never enabled any bridge — the request should just use the WebView's
-        // normal (CORS-enforcing) behavior instead.
         val cfg = currentConfig ?: return
         if (!cfg.enableNativeBridge && !cfg.enablePrivateNetworkBridge && !cfg.enableCorsBypass) return
         try {
@@ -4854,11 +4519,6 @@ class WebViewManager(
 
     private var cachedKernelFlavorJs: String? = null
 
-    /**
-     * The single browser identity resolved for the current app: its `User-Agent` and the
-     * client-hint metadata that describes it. Kept as one value so the two can never be applied
-     * apart from each other.
-     */
     private var resolvedBrowserIdentity: com.webtoapp.core.kernel.BrowserIdentity =
         com.webtoapp.core.kernel.BrowserIdentity.SYSTEM_DEFAULT
 
@@ -4892,7 +4552,8 @@ class WebViewManager(
                             isRegex = it.isRegex,
                             exclude = it.exclude
                         )
-                    }
+                    },
+                    extensionId = extId
                 )
 
                 val runtime = com.webtoapp.core.extension.ChromeExtensionRuntime(
@@ -4904,9 +4565,6 @@ class WebViewManager(
                 )
                 runtime.initialize(webView)
                 extensionRuntimes[extId] = runtime
-                // Load static DNR rulesets (uBO filter lists can be several MB with
-                // ~100k rules) off the main thread so activating an extension never
-                // blocks the WebView setup.
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
                     loadDeclarativeNetRequestRules(extId, plugin.manifestJson)
                 }
@@ -4918,7 +4576,8 @@ class WebViewManager(
                     runtimes = extensionRuntimes,
                     currentWebViewProvider = { webView },
                     openPopupHandler = { extId, popupPath -> showChromeExtensionPage(extId, popupPath) },
-                    openOptionsPageHandler = { extId, optionsPath -> showChromeExtensionPage(extId, optionsPath) }
+                    openOptionsPageHandler = { extId, optionsPath -> showChromeExtensionPage(extId, optionsPath) },
+                    tokenProvider = { extId -> extensionTokens[extId] }
                 )
                 webView.addJavascriptInterface(contentBridge, com.webtoapp.core.extension.ChromeExtensionRuntime.JS_BRIDGE_NAME)
                 com.webtoapp.core.extension.ChromeExtensionAuthChannel.install(webView, contentBridge)
@@ -4981,11 +4640,6 @@ class WebViewManager(
 
             if (minimizeLocalRuntimeInjection) {
                 injectPrivateNetworkApiBridgeFallback(webView, url)
-                // The compat batch below is skipped on local-runtime pages, but the
-                // orientation shim is purely additive (screen.orientation.lock →
-                // NativeBridge) and a WEB app pointed at a LAN dev server (JavaWeb on
-                // 192.168.x.x, etc.) hits this same gate — install it standalone or the
-                // enableOrientationPolyfill toggle silently does nothing there (#1023).
                 if (!scriptlessMode && currentConfig?.enableOrientationPolyfill == true) {
                     webView.evaluateJavascript(ORIENTATION_POLYFILL_JS, null)
                 }
@@ -5043,9 +4697,6 @@ class WebViewManager(
             }
 
         if (minimizeLocalRuntimeInjection) {
-            // Ambient machinery stays suppressed on local-runtime pages, but plugins the
-            // user explicitly attached to this app are user intent — they must still run.
-            // The ambient/global set keeps being skipped: it is ambient, not attached.
             injectPlugins(webView, url, runAt, appAttachedOnly = true)
             return
         }
@@ -5358,9 +5009,6 @@ class WebViewManager(
                 """.trimIndent())
             }
 
-            // Inbound share bootstrap (#943). Added on every page phase because WebView
-            // versions without DOCUMENT_START_SCRIPT never got the early install; the script
-            // is idempotent. Not gated on conservativeMode — it only adds an API.
             if (config.enableShareReceive) {
                 scripts.add(com.webtoapp.core.share.SHARE_INBOX_BOOTSTRAP_JS)
             }
@@ -5673,7 +5321,7 @@ class WebViewManager(
                                     var urlObj = new URL(url, window.location.href);
                                     isSameOrigin = urlObj.origin === window.location.origin;
                                 }
-                            } catch(e) { /* URL parse failed, treat as cross-origin */ }
+                            } catch(e) { }
 
                             var shouldBlock = false;
                             if (isSameOrigin) {
@@ -5785,9 +5433,7 @@ class WebViewManager(
                 """.trimIndent())
             }
 
-            val canInjectShieldsJs = !conservativeMode
-
-            if (canInjectShieldsJs && adBlocker.isEnabled()) {
+            if (adBlocker.isEnabled()) {
                 val adPageHost = pageUrl?.let { extractHostFromUrl(it) } ?: ""
                 if (adPageHost.isNotEmpty()) {
                     val cosmeticCss = adBlocker.getCosmeticFilterCss(adPageHost)
@@ -5803,8 +5449,6 @@ class WebViewManager(
                                 if (window.__wta_cosmetic_filters__) return;
                                 window.__wta_cosmetic_filters__ = true;
                                 try {
-                                    // The document-start script may already have
-                                    // installed the stylesheet for this page (#998).
                                     if (!document.querySelector('style[data-wta="cosmetic"]')) {
                                         var style = document.createElement('style');
                                         style.setAttribute('type', 'text/css');
@@ -5840,15 +5484,6 @@ class WebViewManager(
         ScriptRunTime.DOCUMENT_IDLE -> com.webtoapp.core.plugin.PluginRunAt.DOCUMENT_IDLE
     }
 
-    /**
-     * One pass of plugin injection for a page phase: HCJ payload (bootstrap +
-     * CSS + wrapped main.js from the session), userscripts via the GM path, and
-     * chrome extension content scripts resolved from their on-disk packages.
-     *
-     * @param appAttachedOnly On local-runtime pages: run only plugins explicitly
-     * attached to this app. The ambient/global set stays suppressed — local
-     * pages should not inherit unrelated scripts.
-     */
     private fun injectPlugins(
         webView: WebView,
         url: String,
@@ -5859,8 +5494,6 @@ class WebViewManager(
         val session = pluginSession ?: return
         val pluginRunAt = runAt.toPluginRunAt()
 
-        // Expose the app-configured language so injected plugin JS uses the app
-        // language rather than the device locale.
         webView.evaluateJavascript("window.__wtaAppLang='${Strings.lang.code}'", null)
 
         if (runAt == ScriptRunTime.DOCUMENT_START) {
@@ -5883,11 +5516,6 @@ class WebViewManager(
         }
     }
 
-    /**
-     * Chrome extension content scripts for this phase, built from each active
-     * extension's on-disk manifest (the registry returns legacy module records;
-     * only their code/css/runAt/matches are consumed here).
-     */
     private fun resolveChromeContentScripts(
         pluginRunAt: com.webtoapp.core.plugin.PluginRunAt,
         url: String,
@@ -5901,18 +5529,6 @@ class WebViewManager(
         }.filter { it.runAt == moduleRunAt && it.matchesUrl(url) }
     }
 
-    /**
-     * Resolves the single browser identity for [config] from the currently cached disguise
-     * sources. Reading the cached device-disguise config (rather than taking it as a parameter)
-     * keeps this usable both during configuration and from late plugin updates.
-     */
-    /**
-     * Writes the request User-Agent and its client-hint metadata again.
-     *
-     * Called at the end of [configureWebView], after kernel disguise has had its chance to
-     * sanitize the string. When [resolvedBrowserIdentity] is a no-op the system UA (already
-     * sanitized, if disguise is on) is left alone.
-     */
     private fun reapplyRequestUserAgent(
         webView: WebView,
         isDesktopModeRequested: Boolean
@@ -5995,7 +5611,6 @@ class WebViewManager(
         val desktopUa = DESKTOP_USER_AGENT ?: DESKTOP_USER_AGENT_FALLBACK
         if (webView.settings.userAgentString == desktopUa) return false
         webView.settings.userAgentString = desktopUa
-        // Carry the client hints along with the swapped UA, or the UA and `Sec-CH-UA` disagree.
         com.webtoapp.core.kernel.KernelFlavorMetadata.apply(
             webView,
             com.webtoapp.core.kernel.UserAgentProfileDeriver.derive(desktopUa)
@@ -6008,10 +5623,6 @@ class WebViewManager(
         return true
     }
 
-    /**
-     * All chrome extension content-script records for the active extensions —
-     * used by early-CSS so styles land before the page paints.
-     */
     private fun resolveAllChromeContentScripts(
         appAttachedOnly: Boolean = false
     ): List<com.webtoapp.core.extension.ExtensionModule> {
@@ -6084,7 +5695,8 @@ class WebViewManager(
                     codeBuilder.appendLine(
                         com.webtoapp.core.extension.ChromeExtensionPolyfill.generatePolyfill(
                             extensionId = extId,
-                            manifestJson = manifestJson
+                            manifestJson = manifestJson,
+                            token = extensionTokenFor(extId)
                         )
                     )
                     codeBuilder.appendLine()
@@ -6112,7 +5724,8 @@ class WebViewManager(
                     extBuilder.appendLine(
                         com.webtoapp.core.extension.ChromeExtensionPolyfill.generatePolyfill(
                             extensionId = extId,
-                            manifestJson = manifestJson
+                            manifestJson = manifestJson,
+                            token = extensionTokenFor(extId)
                         )
                     )
                     appendChromeExtCss(extBuilder, extId, extModules)
@@ -6137,7 +5750,6 @@ class WebViewManager(
                 .replace("`", "\\`")
                 .replace("\$", "\\\$")
             builder.appendLine("""
-                // ===== CSS: ${module.name} =====
                 (function() {
                     try {
                         var style = document.createElement('style');
@@ -6163,7 +5775,6 @@ class WebViewManager(
             if (module.world == "MAIN") {
 
                 builder.appendLine("""
-                    // ===== MAIN world: ${module.name} =====
                     (function() {
                         if (typeof __INTLIFY_PROD_DEVTOOLS__ === 'undefined') { try { Object.defineProperty(window, '__INTLIFY_PROD_DEVTOOLS__', { value: false, writable: true, configurable: true }); } catch(e){/* expected */} }
                         if (typeof __VUE_PROD_DEVTOOLS__ === 'undefined') { try { Object.defineProperty(window, '__VUE_PROD_DEVTOOLS__', { value: false, writable: true, configurable: true }); } catch(e){/* expected */} }
@@ -6179,7 +5790,6 @@ class WebViewManager(
             } else {
 
                 builder.appendLine("""
-                    // ===== ISOLATED world: ${module.name} =====
                     (function() {
                         if (typeof __INTLIFY_PROD_DEVTOOLS__ === 'undefined') { try { Object.defineProperty(window, '__INTLIFY_PROD_DEVTOOLS__', { value: false, writable: true, configurable: true }); } catch(e){/* expected */} }
                         if (typeof __VUE_PROD_DEVTOOLS__ === 'undefined') { try { Object.defineProperty(window, '__VUE_PROD_DEVTOOLS__', { value: false, writable: true, configurable: true }); } catch(e){/* expected */} }
@@ -6232,18 +5842,16 @@ class WebViewManager(
                     extensionFileManager.getCachedResource(name, url) ?: url
                 }
 
-                // The polyfill carries a random storage alias, not the raw plugin id: the
-                // bridge object is reachable from every frame, so raw ids would let any
-                // embedded content read/write another script's GM storage.
+                val gmAlias = gmBridge?.storageAliasFor(plugin.id) ?: plugin.id
+                val gmToken = gmBridge?.registerScript(plugin.id, plugin.gmGrants) ?: ""
                 val polyfill = com.webtoapp.core.extension.GreasemonkeyBridge.generatePolyfillScript(
-                    scriptId = gmBridge?.storageAliasFor(plugin.id) ?: plugin.id,
+                    scriptId = gmAlias,
                     grants = plugin.gmGrants,
                     scriptInfo = scriptInfo,
-                    resources = resolvedResources
+                    resources = resolvedResources,
+                    token = gmToken
                 )
 
-                // Embedded payloads carry require bodies inline; the host
-                // resolves them lazily from the extension file cache.
                 val requireBlocks = plugin.requireUrls.mapNotNull { url ->
                     (resolved.requireContents[url]
                         ?: extensionFileManager.getCachedRequire(url))?.let { requireCode ->
@@ -6403,15 +6011,9 @@ class WebViewManager(
         }
     }
 
-    /** Popup managers created for the unified panel host, keyed by extension id. */
     private val chromePanelManagers =
         java.util.concurrent.ConcurrentHashMap<String, com.webtoapp.core.extension.ExtensionPopupManager>()
 
-    /**
-     * Builds a chrome-extension:// popup WebView for the unified plugin panel
-     * host. The companion [ExtensionPopupManager] is kept so the panel host can
-     * destroy it when the panel closes.
-     */
     private fun createChromePanelWebView(url: String): WebView? {
         val activity = context as? Activity ?: return null
         if (!com.webtoapp.core.extension.ExtensionResourceInterceptor.isExtensionResourceUrl(url)) return null
@@ -6429,20 +6031,26 @@ class WebViewManager(
             targetWebViewProvider = { managedWebViews.keys.firstOrNull() },
             manifestJson = plugin.manifestJson.ifBlank { "{}" },
             openPopupHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) },
-            openOptionsPageHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) }
+            openOptionsPageHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) },
+            token = extensionTokenFor(extId)
         )
         chromePanelManagers[extId] = manager
         return manager.createPopupWebView()
     }
 
-    /** Destroy popup WebViews owned by the unified panel host. */
     private fun destroyChromePanelWebViews() {
         chromePanelManagers.values.forEach { it.destroy() }
         chromePanelManagers.clear()
     }
 
     private fun showChromeExtensionPage(extId: String, pagePath: String) {
-        if (pagePath.isBlank()) return
+        if (pagePath.isBlank()) {
+            AppLogger.w(
+                "WebViewManager",
+                "Chrome extension $extId has no popup or options page to open"
+            )
+            return
+        }
         val activity = context as? Activity ?: return
         val primaryPlugin = getActivePluginsForCurrentApp().firstOrNull {
             it.kind == com.webtoapp.core.plugin.PluginKind.CHROME_EXTENSION &&
@@ -6460,7 +6068,8 @@ class WebViewManager(
                 targetWebViewProvider = { managedWebViews.keys.firstOrNull() },
                 manifestJson = primaryPlugin.manifestJson.ifBlank { "{}" },
                 openPopupHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) },
-                openOptionsPageHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) }
+                openOptionsPageHandler = { nextExtId, nextPath -> showChromeExtensionPage(nextExtId, nextPath) },
+                token = extensionTokenFor(extId)
             )
             val popupWebView = popupManager.createPopupWebView()
             val dialog = Dialog(activity).apply {
@@ -6614,10 +6223,6 @@ class WebViewManager(
                     }).catch(function(){});
                 }
 
-                // WebView never delivers ServiceWorkerRegistration.showNotification.
-                // A page that posts to the worker and asks it to show a local
-                // notification only reaches the shade if the worker script itself
-                // calls back into the bridge.
                 if (navigator.serviceWorker && navigator.serviceWorker.register &&
                         !navigator.serviceWorker.__wtaRegisterPatched) {
                     var originalRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
@@ -6717,23 +6322,6 @@ class WebViewManager(
                     }
                 }
 
-                function headersToObject(headers) {
-                    var obj = {};
-                    try {
-                        if (!headers) return obj;
-                        if (typeof Headers !== 'undefined' && headers instanceof Headers) {
-                            headers.forEach(function(value, key) { obj[key] = String(value); });
-                        } else if (Array.isArray(headers)) {
-                            headers.forEach(function(pair) {
-                                if (pair && pair.length >= 2) obj[String(pair[0])] = String(pair[1]);
-                            });
-                        } else if (typeof headers === 'object') {
-                            Object.keys(headers).forEach(function(key) { obj[key] = String(headers[key]); });
-                        }
-                    } catch (e) {}
-                    return obj;
-                }
-
                 function bytesToBase64(bytes) {
                     var binary = '';
                     var chunkSize = 0x8000;
@@ -6791,30 +6379,19 @@ class WebViewManager(
                     }
                 }
 
-                function normalizeFetchInput(input, init) {
-                    var url = '';
-                    var method = 'GET';
-                    var headers = {};
-                    var body = null;
-                    if (typeof Request !== 'undefined' && input instanceof Request) {
-                        url = input.url;
-                        method = input.method || method;
-                        headers = headersToObject(input.headers);
-                        if (!init && method !== 'GET' && method !== 'HEAD') body = input.clone();
-                    } else {
-                        url = String(input);
-                    }
-                    if (init) {
-                        if (init.method) method = String(init.method);
-                        Object.assign(headers, headersToObject(init.headers));
-                        if ('body' in init) body = init.body;
-                    }
-                    return { url: url, method: method.toUpperCase(), headers: headers, body: body };
+                function needsBrowserFetch(request, init) {
+                    return request.mode !== 'cors' || request.credentials === 'include' ||
+                        (request.redirect && request.redirect !== 'follow') || request.keepalive || request.integrity ||
+                        request.cache === 'force-cache' ||
+                        (typeof request.referrer === 'string' && request.referrer !== 'about:client') ||
+                        request.referrerPolicy || (init && typeof ReadableStream !== 'undefined' &&
+                            init.body instanceof ReadableStream);
                 }
 
-                // Async bridge mailbox: native delivers results into
-                // __wtaNativeHttpResponse(id, json) via evaluateJavascript, so the JS
-                // thread never blocks on the HTTP round-trip.
+                function abortReason(signal) {
+                    return signal.reason === undefined ? new DOMException('Request aborted', 'AbortError') : signal.reason;
+                }
+
                 window.__wtaNativeHttpPending = window.__wtaNativeHttpPending || {};
                 window.__wtaNativeHttpResponse = function(id, raw) {
                     var p = window.__wtaNativeHttpPending[id];
@@ -6830,17 +6407,20 @@ class WebViewManager(
                     return result;
                 }
 
-                function nativeHttpRequest(payload) {
-                    if (!window.NativeBridge || (typeof window.NativeBridge.httpRequest !== 'function'
-                        && typeof window.NativeBridge.httpRequestAsync !== 'function')) {
-                        // Defensive only since the wrapper is no longer injected without a
-                        // bridge; kept actionable in case interface removal races injection.
+                function hasNativeHttpRequest() {
+                    return window.NativeBridge && (typeof window.NativeBridge.httpRequestAsync === 'function' ||
+                        typeof window.NativeBridge.httpRequest === 'function');
+                }
+
+                function nativeHttpRequest(payload, signal) {
+                    if (!hasNativeHttpRequest()) {
                         return Promise.reject(new TypeError(
                             'Native private network bridge is unavailable. ' +
                             'Enable "Private network bridge" (or CORS bypass) for this app in the WebToApp editor and rebuild.'
                         ));
                     }
                     return bodyToBase64(payload.body).then(function(bodyBase64) {
+                        if (signal && signal.aborted) throw abortReason(signal);
                         var requestJson = JSON.stringify({
                             url: payload.url,
                             method: payload.method || 'GET',
@@ -6850,52 +6430,74 @@ class WebViewManager(
                         if (typeof window.NativeBridge.httpRequestAsync === 'function') {
                             return new Promise(function(resolve, reject) {
                                 var id = 'h' + (++nativeHttpSeq) + '_' + Date.now();
-                                window.__wtaNativeHttpPending[id] = resolve;
+                                function cleanup() {
+                                    delete window.__wtaNativeHttpPending[id];
+                                    if (signal) signal.removeEventListener('abort', onAbort);
+                                }
+                                function onAbort() {
+                                    cleanup();
+                                    reject(abortReason(signal));
+                                }
+                                window.__wtaNativeHttpPending[id] = function(raw) {
+                                    cleanup();
+                                    resolve(raw);
+                                };
+                                if (signal) signal.addEventListener('abort', onAbort, { once: true });
                                 try {
                                     window.NativeBridge.httpRequestAsync(requestJson, id);
                                 } catch (e) {
-                                    delete window.__wtaNativeHttpPending[id];
+                                    cleanup();
                                     reject(e);
                                 }
                             }).then(parseBridgeResult);
                         }
-                        // Gecko polyfill returns a Promise; the sync WebView bridge a string.
                         var raw = window.NativeBridge.httpRequest(requestJson);
                         if (raw && typeof raw.then === 'function') return raw.then(parseBridgeResult);
                         return parseBridgeResult(raw);
                     });
                 }
 
+                async function fetchViaBridge(request, isWrite) {
+                    var signal = request.signal;
+                    if (signal && signal.aborted) throw abortReason(signal);
+                    var headers = Object.create(null);
+                    request.headers.forEach(function(value, key) { headers[key] = value; });
+                    if (isWrite) headers.origin = typeof window.origin === 'string' ? window.origin : window.location.origin;
+                    var result = await nativeHttpRequest({
+                        url: request.url,
+                        method: request.method,
+                        headers: headers,
+                        body: request.body === null ? null : await request.arrayBuffer()
+                    }, signal);
+                    var status = Number(result.status || 0);
+                    var body = request.method === 'HEAD' || status === 204 || status === 205 || status === 304
+                        ? null : base64ToBytes(result.bodyBase64 || '');
+                    return new Response(body, {
+                        status: status,
+                        statusText: String(result.statusText || ''),
+                        headers: result.headers || {}
+                    });
+                }
+
                 if (nativeFetch) {
-                    window.fetch = function(input, init) {
-                        var payload = normalizeFetchInput(input, init);
-                        var isCorsBypass = (typeof window.__wta_private_network_scope__ === 'string')
-                            && window.__wta_private_network_scope__ === 'CORS_BYPASS';
-                        if (!shouldBridge(payload.url)) return nativeFetch(input, init);
-                        if (isCorsBypass) {
-                            return nativeHttpRequest(payload).then(function(result) {
-                                var bytes = base64ToBytes(result.bodyBase64 || '');
-                                return new Response(bytes, {
-                                    status: Number(result.status || 0),
-                                    statusText: String(result.statusText || ''),
-                                    headers: result.headers || {}
-                                });
-                            });
+                    window.fetch = async function(input, init) {
+                        var request = new Request(input, init);
+                        var isCorsBypass = window.__wta_private_network_scope__ === 'CORS_BYPASS';
+                        var method = request.method.toUpperCase();
+                        var isRead = method === 'GET' || method === 'HEAD';
+                        var isWrite = method === 'POST' || method === 'PUT' || method === 'PATCH' || method === 'DELETE';
+                        if (!shouldBridge(request.url) || !hasNativeHttpRequest() ||
+                            (!isRead && (!isCorsBypass || !isWrite)) || (isCorsBypass && needsBrowserFetch(request, init))) {
+                            return nativeFetch(request);
                         }
-                        if (payload.method !== 'GET' && payload.method !== 'HEAD') {
-                            return nativeFetch(input, init);
+                        if (isCorsBypass && isRead) {
+                            try {
+                                return await nativeFetch(request);
+                            } catch (error) {
+                                if (!error || error.name !== 'TypeError' || (request.signal && request.signal.aborted)) throw error;
+                            }
                         }
-                        if (payload.body != null) {
-                            return nativeFetch(input, init);
-                        }
-                        return nativeHttpRequest(payload).then(function(result) {
-                            var bytes = base64ToBytes(result.bodyBase64 || '');
-                            return new Response(bytes, {
-                                status: Number(result.status || 0),
-                                statusText: String(result.statusText || ''),
-                                headers: result.headers || {}
-                            });
-                        });
+                        return fetchViaBridge(request, isWrite);
                     };
                 }
 
@@ -6930,16 +6532,6 @@ class WebViewManager(
                         });
                     }
 
-                    // responseText is readable only while the native type is '' or
-                    // 'text'; every other type makes that getter throw. Read the type
-                    // first instead of probing it with try/catch: a binary load then
-                    // never touches the throwing getter at all, rather than raising
-                    // and swallowing an InvalidStateError on all four
-                    // readystatechange transitions.
-                    // Replacing window.XMLHttpRequest drops the readyState constants that
-                    // live on the constructor. A page comparing
-                    // `xhr.readyState === XMLHttpRequest.DONE` would compare against
-                    // undefined and never treat the response as complete.
                     BridgedXHR.UNSENT = 0;
                     BridgedXHR.OPENED = 1;
                     BridgedXHR.HEADERS_RECEIVED = 2;
@@ -6951,9 +6543,6 @@ class WebViewManager(
                         var type = source.responseType || '';
                         this.readyState = source.readyState;
                         this.response = source.response;
-                        // No text form exists for binary/json/document, so keep the
-                        // property a stable empty string. A page that probes it gets a
-                        // value instead of an exception; the data is in `response`.
                         this.responseText = (type === '' || type === 'text')
                             ? (source.responseText || '')
                             : '';
@@ -7069,11 +6658,6 @@ class WebViewManager(
                         if (this._native) return this._xhr.overrideMimeType(mimeType);
                     };
 
-                    // responseType has to be forwarded to the native XHR. Without this
-                    // the wrapper only stores the value on itself, the underlying
-                    // request stays on the default text type, and every binary loader
-                    // (GLTFLoader, fetch->arraybuffer) silently receives a String —
-                    // which is exactly how a 62 MB GLB ends up in JSON.parse.
                     Object.defineProperty(BridgedXHR.prototype, 'responseType', {
                         configurable: true,
                         get: function() { return this._responseType || ''; },

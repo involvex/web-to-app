@@ -10,7 +10,6 @@ import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.os.Build
-import androidx.core.content.FileProvider
 import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
@@ -32,6 +31,24 @@ import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 import com.webtoapp.core.apkbuilder.ZipUtils
 import com.webtoapp.util.AppConstants
+
+internal fun apkUsesSignatureBoundEncryption(sourceApk: File): Boolean {
+    return try {
+        ZipFile(sourceApk).use { zip ->
+            val entry = zip.getEntry("assets/${com.webtoapp.core.crypto.CryptoConstants.ENCRYPTION_META_FILE}")
+                ?: return false
+            val meta = zip.getInputStream(entry).bufferedReader().use { it.readText() }
+            val parsed = com.webtoapp.util.GsonProvider.gson.fromJson(
+                meta,
+                com.webtoapp.core.crypto.EncryptionMetadataRuntime::class.java
+            )
+            parsed != null && parsed.keyMode != "EMBEDDED"
+        }
+    } catch (e: Exception) {
+        AppLogger.w("AppCloner", "Encryption metadata check failed: ${e.message}")
+        false
+    }
+}
 
 class AppCloner(private val context: Context) {
 
@@ -258,6 +275,13 @@ class AppCloner(private val context: Context) {
                 ?: return@withContext AppModifyResult.Error(resolveClonePackageError(config))
             AppLogger.d("AppCloner", "New package name: $newPackageName")
 
+            if (hasSignatureBoundEncryption(sourceApk)) {
+                AppLogger.w("AppCloner", "Source APK uses signature-bound encryption; clone would break decryption")
+                return@withContext AppModifyResult.Error(
+                    com.webtoapp.core.i18n.Strings.appModifierCloneEncryptedUnsupported
+                )
+            }
+
             val hasModifications = CloneConfigBuilder.hasAnyModification(config)
             AppLogger.d("AppCloner", "Has modifications: $hasModifications")
 
@@ -338,7 +362,7 @@ class AppCloner(private val context: Context) {
             unsignedApk.delete()
 
             withContext(Dispatchers.Main) {
-                installApk(signedApk)
+                com.webtoapp.core.apkbuilder.ApkInstaller.install(context, signedApk)
             }
 
             safeProgress(100, "Done")
@@ -359,6 +383,9 @@ class AppCloner(private val context: Context) {
             null
         }
     }
+
+    private fun hasSignatureBoundEncryption(sourceApk: File): Boolean =
+        apkUsesSignatureBoundEncryption(sourceApk)
 
     private fun resolveClonePackageName(config: AppModifyConfig): String? {
         val requested = config.newPackageName?.trim().orEmpty()
@@ -435,9 +462,7 @@ class AppCloner(private val context: Context) {
 
                     when {
 
-                        entry.name.startsWith("META-INF/") &&
-                        (entry.name.endsWith(".SF") || entry.name.endsWith(".RSA") ||
-                         entry.name.endsWith(".DSA") || entry.name == "META-INF/MANIFEST.MF") -> {
+                        isV1SignatureEntry(entry.name) -> {
                         }
 
                         entry.name == "AndroidManifest.xml" -> {
@@ -496,8 +521,7 @@ class AppCloner(private val context: Context) {
                         }
 
                         injectConfigJson != null && entry.name == "assets/clone_config.json" -> {
-                            AppLogger.d("AppCloner", "Replacing existing clone_config.json")
-                            writeEntryDeflated(zipOut, entry.name, injectConfigJson.toByteArray(Charsets.UTF_8))
+                            AppLogger.d("AppCloner", "Skipping existing clone_config.json (re-injected after the loop)")
                         }
 
                         injectSplashMediaPath != null && (
@@ -563,6 +587,15 @@ class AppCloner(private val context: Context) {
                 }
             }
         }
+    }
+
+    private fun isV1SignatureEntry(entryName: String): Boolean {
+        if (!entryName.startsWith("META-INF/")) return false
+        if (entryName == "META-INF/MANIFEST.MF") return true
+        val fileName = entryName.removePrefix("META-INF/")
+        if (fileName.contains('/')) return false
+        return fileName.endsWith(".SF") || fileName.endsWith(".RSA") ||
+            fileName.endsWith(".DSA") || fileName.endsWith(".EC")
     }
 
     private fun isIconEntry(entryName: String): Boolean {
@@ -766,29 +799,4 @@ class AppCloner(private val context: Context) {
         }
     }
 
-    private fun installApk(apkFile: File): Boolean {
-        return try {
-            val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                FileProvider.getUriForFile(
-                    context,
-                    "${context.packageName}.fileprovider",
-                    apkFile
-                )
-            } else {
-                Uri.fromFile(apkFile)
-            }
-
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            context.startActivity(intent)
-            true
-        } catch (e: Exception) {
-            AppLogger.e("AppCloner", "Operation failed", e)
-            false
-        }
-    }
 }

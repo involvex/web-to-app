@@ -1,10 +1,6 @@
 package com.webtoapp.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,17 +32,18 @@ import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Warning
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -77,7 +74,10 @@ import com.webtoapp.ui.design.WtaButtonVariant
 import com.webtoapp.ui.design.WtaCard
 import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaColors
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaTextField
 import com.webtoapp.ui.theme.ifDescriptionsShown
 import com.webtoapp.ui.viewmodel.MainViewModel
@@ -169,8 +169,10 @@ fun PlayStoreScreen(
             exportState = ExportState.Running(AabExporter.Stage.STARTING, 0)
             exportState = withContext(Dispatchers.IO) {
                 try {
+                    var lastPercent = 0
                     val result = coordinator.export(app) { stage, percent ->
-                        exportState = ExportState.Running(stage, percent)
+                        lastPercent = maxOf(lastPercent, percent.coerceIn(0, 100))
+                        exportState = ExportState.Running(stage, lastPercent)
                     }
                     refreshRecentAabs()
                     hasBuiltApk = true
@@ -195,8 +197,14 @@ fun PlayStoreScreen(
     }
 
     fun requestExport(app: WebApp) {
-        val current = report ?: PlayPolicyChecker.check(app)
-        report = current
+        val current = report
+        if (current == null) {
+            scope.launch {
+                report = withContext(Dispatchers.Default) { PlayPolicyChecker.check(app) }
+                requestExport(app)
+            }
+            return
+        }
         when {
             current.blockerCount > 0 -> {
                 policyExpanded = true
@@ -235,7 +243,7 @@ fun PlayStoreScreen(
             title = Strings.playStoreExportWarningTitle,
             text = String.format(
                 Strings.playStoreExportWarningBody,
-                report?.warningCount ?: pendingExportApp?.let { PlayPolicyChecker.check(it).warningCount } ?: 0
+                report?.warningCount ?: 0
             ),
             confirmButton = {
                 TextButton(
@@ -410,8 +418,8 @@ private fun ExportAppCard(
 
                 AnimatedVisibility(
                     visible = pickerExpanded && totalCount > 1,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut()
+                    enter = WtaExpandIn,
+                    exit = WtaShrinkOut
                 ) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (totalCount > 6) {
@@ -620,7 +628,10 @@ private fun PolicyAdviceCard(
     report: PlayPolicyChecker.Report?,
     webApp: WebApp
 ) {
-    val rpt = report ?: PlayPolicyChecker.check(webApp)
+    val rptState by produceState<PlayPolicyChecker.Report?>(report, webApp) {
+        value = report ?: withContext(Dispatchers.Default) { PlayPolicyChecker.check(webApp) }
+    }
+    val rpt = rptState ?: return
     WtaCard(tone = WtaCardTone.Surface) {
         Column(modifier = Modifier.padding(16.dp)) {
             Surface(
@@ -688,8 +699,8 @@ private fun PolicyAdviceCard(
 
             AnimatedVisibility(
                 visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -836,10 +847,7 @@ private fun ExportStateCard(
             WtaCard(tone = WtaCardTone.Highlighted) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp
-                        )
+                        WtaLoadingIndicator(size = 20.dp)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             text = Strings.playStoreExportRunning,
@@ -858,7 +866,8 @@ private fun ExportStateCard(
                     LinearProgressIndicator(
                         progress = { state.percent / 100f },
                         modifier = Modifier.fillMaxWidth(),
-                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(

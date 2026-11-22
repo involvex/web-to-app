@@ -55,6 +55,7 @@ fun ShellScreen(
     onBrowserSurfaceCreated: (com.webtoapp.core.engine.BrowserSurface) -> Unit = {},
     onStatusBarAutoColorChanged: (String?) -> Unit = {},
     onPageBottomColorChanged: (String?) -> Unit = {},
+    onPageScroll: ((Int) -> Unit)? = null,
     onTopTabColor: (String?) -> Unit = {},
     onFileChooser: (ValueCallback<Array<Uri>>?, WebChromeClient.FileChooserParams?) -> Boolean,
     onShowCustomView: (View, WebChromeClient.CustomViewCallback?) -> Unit,
@@ -78,10 +79,13 @@ fun ShellScreen(
     val activation = WebToAppApplication.activation
     val announcement = WebToAppApplication.announcement
     val adBlocker = WebToAppApplication.adBlock
+    val siteAdBlockActive = config.multiWebConfig?.sitesUseOwnConfig == true &&
+        config.multiWebConfig?.sites?.any { it.enabled && it.siteShellConfig?.adBlockEnabled == true } == true
+    val effectiveAdBlockEnabled = config.adBlockEnabled || siteAdBlockActive
     // Arm before the browser view is composed. LaunchedEffect runs after that
     // view, so a hold started inside the effect would miss the first load.
     remember {
-        if (config.adBlockEnabled) adBlocker.holdRuleInstall()
+        if (effectiveAdBlockEnabled) adBlocker.holdRuleInstall()
     }
 
     val appType = config.appType.trim().uppercase()
@@ -202,7 +206,7 @@ fun ShellScreen(
 
     LaunchedEffect(Unit) {
 
-        if (config.adBlockEnabled) {
+        if (effectiveAdBlockEnabled) {
             try {
                 adBlocker.installCompiledRules {
                     val bundled = try {
@@ -212,7 +216,12 @@ fun ShellScreen(
                     } catch (_: Exception) {
                         emptyList()
                     }
-                    if (config.adBlockRules.isEmpty()) bundled else config.adBlockRules + bundled
+                    val siteRules = if (config.multiWebConfig?.sitesUseOwnConfig == true) {
+                        config.multiWebConfig.sites
+                            .filter { it.enabled && it.siteShellConfig?.adBlockEnabled == true }
+                            .flatMap { it.siteShellConfig?.adBlockRules.orEmpty() }
+                    } else emptyList()
+                    (config.adBlockRules + siteRules).distinct() + bundled
                 }
             } catch (e: Exception) {
                 AppLogger.e("ShellScreen", "Failed to install ad-block rules", e)
@@ -238,7 +247,12 @@ fun ShellScreen(
                         deliverUrl = config.activationRemoteDeliverUrl,
                         encryptUrl = config.activationRemoteEncryptUrl,
                         aesKeyBase64 = config.activationRemoteAesKey,
-                        deviceBound = config.activationRemoteDeviceBound
+                        deviceBound = config.activationRemoteDeviceBound,
+                        trustMode = com.webtoapp.data.model.parseRemoteActivationTrustMode(
+                            config.activationRemoteTrustMode
+                        ),
+                        pinnedCertificate = config.activationRemotePinnedCertificate,
+                        pinnedCertHost = config.activationRemotePinnedCertHost
                     ),
                     reverifyEveryLaunch = config.activationRequireEveryTime
                 )
@@ -496,7 +510,7 @@ fun ShellScreen(
                     return@LifecycleEventObserver
                 }
                 val wv = webViewRef
-                if (wv != null && !isLoading) {
+                if (wv != null) {
                     com.webtoapp.core.webview.RendererLivenessProbe.probe(
                         wv,
                         stillCurrent = { webViewRef === wv }
@@ -588,20 +602,25 @@ fun ShellScreen(
         }
     }
 
+    val pageScrollCallback = androidx.compose.runtime.rememberUpdatedState(onPageScroll)
     val handleWebViewCreated: (WebView) -> Unit = remember(onWebViewCreated, config) {
         { webView ->
             statusBarColorTracker?.detach()
             val tracker = com.webtoapp.core.webview.StatusBarPageColorTracker(
                 webView = webView,
-                shouldSample = ::usesPageEdgeColor,
+                shouldSample = { true },
+                onScroll = { y -> pageScrollCallback.value?.invoke(y) },
                 onColors = { colors ->
-                    if (statusBarAutoColor != colors.top) {
-                        statusBarAutoColor = colors.top
-                        onStatusBarAutoColorChanged(colors.top)
-                    }
-                    if (pageBottomAutoColor != colors.bottom) {
-                        pageBottomAutoColor = colors.bottom
-                        onPageBottomColorChanged(colors.bottom)
+                    com.webtoapp.ui.shared.WindowHelper.setImeGapColor(colors.page)
+                    if (usesPageEdgeColor()) {
+                        if (statusBarAutoColor != colors.top) {
+                            statusBarAutoColor = colors.top
+                            onStatusBarAutoColorChanged(colors.top)
+                        }
+                        if (pageBottomAutoColor != colors.bottom) {
+                            pageBottomAutoColor = colors.bottom
+                            onPageBottomColorChanged(colors.bottom)
+                        }
                     }
                 }
             )
@@ -613,6 +632,9 @@ fun ShellScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalPageScrollTracker provides statusBarColorTracker
+    ) {
 
     ShellScaffoldLayout(
         config = config,
@@ -723,7 +745,9 @@ fun ShellScreen(
         )
     }
 
-    if (showAnnouncementDialog && config.announcementTitle.isNotEmpty()) {
+    if (showAnnouncementDialog &&
+        (config.announcementTitle.isNotEmpty() || config.announcementContent.isNotEmpty())
+    ) {
         ShellAnnouncementDialog(
             config = config,
             onDismiss = { showAnnouncementDialog = false }
@@ -821,5 +845,6 @@ fun ShellScreen(
         insetsController.isAppearanceLightNavigationBars = isLightOverlay
     }
 
+    }
     }
 }

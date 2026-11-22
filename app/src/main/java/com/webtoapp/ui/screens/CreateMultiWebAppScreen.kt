@@ -36,6 +36,10 @@ import com.webtoapp.core.i18n.Strings
 import com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_CARD_ASPECT
 import com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_CARD_COLUMNS
 import com.webtoapp.ui.shell.MULTI_WEB_DEFAULT_DRAWER_COLUMNS
+import com.webtoapp.ui.shell.MULTI_WEB_DRAWER_ENTRY_BAR
+import com.webtoapp.ui.shell.MULTI_WEB_DRAWER_ENTRY_FLOATING
+import com.webtoapp.ui.shell.MULTI_WEB_FAB_ANCHOR_BOTTOM_START
+import com.webtoapp.ui.shell.MULTI_WEB_FAB_ANCHOR_TOP_END
 import com.webtoapp.ui.shell.MULTI_WEB_MAX_CARD_COLUMNS
 import com.webtoapp.ui.shell.MULTI_WEB_MAX_DRAWER_COLUMNS
 import com.webtoapp.ui.shell.MULTI_WEB_START_LAST
@@ -54,6 +58,8 @@ import com.webtoapp.ui.components.PremiumTextField
 import com.webtoapp.ui.components.RuntimeIconPickerCard
 import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaChip
+import com.webtoapp.ui.design.WtaSegmentedRow
+import com.webtoapp.ui.design.WtaSelectableRow
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.util.ensureWebUrlScheme
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
@@ -100,10 +106,13 @@ fun CreateMultiWebAppScreen(
     var showSiteIcons by remember { mutableStateOf(true) }
     var cardColumns by remember { mutableIntStateOf(MULTI_WEB_DEFAULT_CARD_COLUMNS) }
     var drawerColumns by remember { mutableIntStateOf(MULTI_WEB_DEFAULT_DRAWER_COLUMNS) }
+    var drawerEntry by remember { mutableStateOf(MULTI_WEB_DRAWER_ENTRY_FLOATING) }
+    var drawerFabAnchor by remember { mutableStateOf(MULTI_WEB_FAB_ANCHOR_TOP_END) }
     var cardAspectRatio by remember { mutableFloatStateOf(MULTI_WEB_DEFAULT_CARD_ASPECT) }
     var sitesInheritConfig by remember { mutableStateOf(true) }
     var startTab by remember { mutableStateOf(MULTI_WEB_START_LAST) }
     var startSiteId by remember { mutableStateOf("") }
+    var independentSessions by remember { mutableStateOf(false) }
 
     var selectedAppIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
     var filterType by remember { mutableStateOf<String?>(null) }
@@ -143,10 +152,21 @@ fun CreateMultiWebAppScreen(
                         MULTI_WEB_DEFAULT_DRAWER_COLUMNS,
                         MULTI_WEB_MAX_DRAWER_COLUMNS
                     )
+                    drawerEntry = if (config.drawerEntry == MULTI_WEB_DRAWER_ENTRY_BAR) {
+                        MULTI_WEB_DRAWER_ENTRY_BAR
+                    } else {
+                        MULTI_WEB_DRAWER_ENTRY_FLOATING
+                    }
+                    drawerFabAnchor = if (config.drawerFabAnchor == MULTI_WEB_FAB_ANCHOR_BOTTOM_START) {
+                        MULTI_WEB_FAB_ANCHOR_BOTTOM_START
+                    } else {
+                        MULTI_WEB_FAB_ANCHOR_TOP_END
+                    }
                     cardAspectRatio = resolvedCardAspect(config.cardAspectRatio)
                     sitesInheritConfig = !config.sitesUseOwnConfig
                     startTab = if (config.startTab == MULTI_WEB_START_SITE) MULTI_WEB_START_SITE else MULTI_WEB_START_LAST
                     startSiteId = config.startSiteId
+                    independentSessions = config.independentSessions
                 }
                 injectScripts = app.webViewConfig.injectScripts
                 pluginsEnabled = app.pluginsEnabled
@@ -178,11 +198,14 @@ fun CreateMultiWebAppScreen(
                             showSiteIcons = showSiteIcons,
                             cardColumns = cardColumns,
                             drawerColumns = drawerColumns,
+                            drawerEntry = drawerEntry,
+                            drawerFabAnchor = drawerFabAnchor,
                             cardAspectRatio = cardAspectRatio,
                             sitesUseOwnConfig = !sitesInheritConfig,
                             projectId = "",
                             startTab = startTab,
-                            startSiteId = startSiteId
+                            startSiteId = startSiteId,
+                            independentSessions = independentSessions
                         ),
                         appIcon,
                         injectScripts,
@@ -256,9 +279,9 @@ fun CreateMultiWebAppScreen(
                             )
                             if (startTab == MULTI_WEB_START_SITE) {
                                 sites.filter { it.enabled }.forEach { site ->
-                                    StartTabRadioRow(
+                                    WtaSelectableRow(
+                                        title = site.name.ifBlank { site.url },
                                         selected = startSiteId == site.id,
-                                        label = site.name.ifBlank { site.url },
                                         onClick = { startSiteId = site.id }
                                     )
                                 }
@@ -302,6 +325,34 @@ fun CreateMultiWebAppScreen(
                                 range = 1..MULTI_WEB_MAX_DRAWER_COLUMNS,
                                 onValueChange = { drawerColumns = it }
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(
+                                Strings.multiWebDrawerEntry,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            MultiWebRadioChoice(
+                                options = listOf(
+                                    MULTI_WEB_DRAWER_ENTRY_FLOATING to Strings.multiWebDrawerEntryFab,
+                                    MULTI_WEB_DRAWER_ENTRY_BAR to Strings.multiWebDrawerEntryBar
+                                ),
+                                selected = drawerEntry,
+                                onSelect = { drawerEntry = it }
+                            )
+                            if (drawerEntry == MULTI_WEB_DRAWER_ENTRY_FLOATING) {
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    Strings.multiWebFabAnchor,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                MultiWebRadioChoice(
+                                    options = listOf(
+                                        MULTI_WEB_FAB_ANCHOR_TOP_END to Strings.multiWebFabTopEnd,
+                                        MULTI_WEB_FAB_ANCHOR_BOTTOM_START to Strings.multiWebFabBottomStart
+                                    ),
+                                    selected = drawerFabAnchor,
+                                    onSelect = { drawerFabAnchor = it }
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(
@@ -325,6 +376,30 @@ fun CreateMultiWebAppScreen(
                             Switch(
                                 checked = sitesInheritConfig,
                                 onCheckedChange = { sitesInheritConfig = it }
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    Strings.multiWebIndependentSessions,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                if (LocalShowDescriptions.current) {
+                                    Text(
+                                        Strings.multiWebIndependentSessionsHint,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Switch(
+                                checked = independentSessions,
+                                onCheckedChange = { independentSessions = it }
                             )
                         }
                     }
@@ -928,43 +1003,26 @@ private fun StartTabChoice(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    Column {
-        StartTabRadioRow(
-            selected = selected == MULTI_WEB_START_LAST,
-            label = Strings.multiWebStartLast,
-            onClick = { onSelect(MULTI_WEB_START_LAST) }
-        )
-        StartTabRadioRow(
-            selected = selected == MULTI_WEB_START_SITE,
-            label = Strings.multiWebStartSite,
-            onClick = { onSelect(MULTI_WEB_START_SITE) }
-        )
-    }
+    WtaSegmentedRow(
+        options = listOf(Strings.multiWebStartLast, Strings.multiWebStartSite),
+        selectedIndex = if (selected == MULTI_WEB_START_LAST) 0 else 1,
+        onSelect = { index ->
+            onSelect(if (index == 0) MULTI_WEB_START_LAST else MULTI_WEB_START_SITE)
+        }
+    )
 }
 
 @Composable
-private fun StartTabRadioRow(
-    selected: Boolean,
-    label: String,
-    onClick: () -> Unit
+private fun MultiWebRadioChoice(
+    options: List<Pair<String, String>>,
+    selected: String,
+    onSelect: (String) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        RadioButton(selected = selected, onClick = onClick)
-        Spacer(modifier = Modifier.width(4.dp))
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-    }
+    WtaSegmentedRow(
+        options = options.map { it.second },
+        selectedIndex = options.indexOfFirst { it.first == selected }.coerceAtLeast(0),
+        onSelect = { index -> onSelect(options[index].first) }
+    )
 }
 
 private data class DisplayModeOption(

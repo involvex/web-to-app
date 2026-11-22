@@ -12,9 +12,11 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,6 +33,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -209,7 +215,7 @@ fun WtaChip(
     )
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(WtaRadius.Chip))
+            .clip(RoundedCornerShape(WtaRadius.Pill))
             .combinedClickable(
                 interactionSource = interactionSource,
                 indication = rememberWtaIndication(),
@@ -217,7 +223,7 @@ fun WtaChip(
                 onClick = hapticClick,
                 onLongClick = onLongClick
             ),
-        shape = RoundedCornerShape(WtaRadius.Chip),
+        shape = RoundedCornerShape(WtaRadius.Pill),
         color = containerColor
     ) {
         Row(
@@ -282,4 +288,86 @@ fun WtaCheckbox(
             disabledUncheckedColor = colors.outlineVariant.copy(alpha = 0.3f)
         )
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun WtaSegmentedRow(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
+) {
+    val hapticSelect = rememberHapticClick { }
+    SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, label ->
+            SegmentedButton(
+                selected = index == selectedIndex,
+                onClick = {
+                    hapticSelect()
+                    onSelect(index)
+                },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                enabled = enabled,
+                icon = {}
+            ) {
+                Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+fun WtaSelectableRow(
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    accent: Color = MaterialTheme.colorScheme.primary,
+    leading: (@Composable () -> Unit)? = null,
+    enabled: Boolean = true
+) {
+    val hapticClick = rememberHapticClick(onClick)
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(WtaRadius.Control))
+            .clickable(enabled = enabled, onClick = hapticClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(10.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (selected) accent else MaterialTheme.colorScheme.onSurface,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (!subtitle.isNullOrBlank()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        if (selected) {
+            Spacer(Modifier.width(8.dp))
+            Icon(
+                Icons.Default.Check,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(WtaSize.Icon)
+            )
+        }
+    }
 }

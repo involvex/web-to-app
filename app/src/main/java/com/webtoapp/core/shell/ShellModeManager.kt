@@ -193,6 +193,15 @@ data class ShellConfig(
     @SerializedName("activationRemoteDeviceBound")
     val activationRemoteDeviceBound: Boolean = false,
 
+    @SerializedName("activationRemoteTrustMode")
+    val activationRemoteTrustMode: String = "SYSTEM",
+
+    @SerializedName("activationRemotePinnedCertificate")
+    val activationRemotePinnedCertificate: String = "",
+
+    @SerializedName("activationRemotePinnedCertHost")
+    val activationRemotePinnedCertHost: String = "",
+
     @SerializedName("adBlockEnabled")
     val adBlockEnabled: Boolean = false,
 
@@ -258,33 +267,6 @@ data class ShellConfig(
 
     @SerializedName("announcementHasCustomIcon")
     val announcementHasCustomIcon: Boolean = false,
-
-    @SerializedName("adsEnabled")
-    val adsEnabled: Boolean = false,
-
-    @SerializedName("adAppId")
-    val adAppId: String = "",
-
-    @SerializedName("adTestMode")
-    val adTestMode: Boolean = false,
-
-    @SerializedName("adBannerEnabled")
-    val adBannerEnabled: Boolean = false,
-
-    @SerializedName("adBannerId")
-    val adBannerId: String = "",
-
-    @SerializedName("adInterstitialEnabled")
-    val adInterstitialEnabled: Boolean = false,
-
-    @SerializedName("adInterstitialId")
-    val adInterstitialId: String = "",
-
-    @SerializedName("adSplashEnabled")
-    val adSplashEnabled: Boolean = false,
-
-    @SerializedName("adSplashId")
-    val adSplashId: String = "",
 
     @SerializedName("webViewConfig")
     val webViewConfig: WebViewShellConfig = WebViewShellConfig(),
@@ -729,7 +711,13 @@ data class GalleryShellItem(
     val duration: Long = 0,
 
     @SerializedName("thumbnailPath")
-    val thumbnailPath: String? = null
+    val thumbnailPath: String? = null,
+
+    @SerializedName("sortIndex")
+    val sortIndex: Int = 0,
+
+    @SerializedName("createdAt")
+    val createdAt: Long = 0
 )
 
 data class MediaShellConfig(
@@ -911,6 +899,12 @@ data class MultiWebShellConfig(
     @SerializedName("drawerColumns")
     val drawerColumns: Int = 1,
 
+    @SerializedName("drawerEntry")
+    val drawerEntry: String = "FLOATING",
+
+    @SerializedName("drawerFabAnchor")
+    val drawerFabAnchor: String = "TOP_END",
+
     @SerializedName("cardAspectRatio")
     val cardAspectRatio: Float = 1.2f,
 
@@ -926,7 +920,10 @@ data class MultiWebShellConfig(
     val startTab: String = "LAST",
 
     @SerializedName("startSiteId")
-    val startSiteId: String = ""
+    val startSiteId: String = "",
+
+    @SerializedName("independentSessions")
+    val independentSessions: Boolean = false
 )
 
 data class MultiWebSiteShellConfig(
@@ -1124,6 +1121,9 @@ data class WebViewShellConfig(
     @SerializedName("showToolbarInFullscreen")
     val showToolbarInFullscreen: Boolean = false,
 
+    @SerializedName("displayCutoutMode")
+    val displayCutoutMode: String = "SHORT_EDGES",
+
     @SerializedName("fullscreenContentPaddingDp")
     val fullscreenContentPaddingDp: Int = 0,
 
@@ -1201,9 +1201,6 @@ data class WebViewShellConfig(
     @SerializedName("popupBlockerEnabled")
     val popupBlockerEnabled: Boolean = false,
 
-    @SerializedName("popupBlockerToggleEnabled")
-    val popupBlockerToggleEnabled: Boolean = false,
-
     @SerializedName("openExternalLinks")
     val openExternalLinks: Boolean = false,
 
@@ -1261,7 +1258,7 @@ data class WebViewShellConfig(
     val hideUrlPreview: Boolean = false,
 
     @SerializedName("decodeBase64DeepLinks")
-    val decodeBase64DeepLinks: Boolean = false,
+    val decodeBase64DeepLinks: Boolean = true,
 
     @SerializedName("decodeBase64Mode")
     val decodeBase64Mode: String = "GESTURE_ONLY",
@@ -1288,19 +1285,19 @@ data class WebViewShellConfig(
     val kernelFlavor: String = "SYSTEM_DEFAULT",
 
     @SerializedName("enableImageRepair")
-    val enableImageRepair: Boolean = false,
+    val enableImageRepair: Boolean = true,
 
     @SerializedName("enableScrollMemory")
-    val enableScrollMemory: Boolean = false,
+    val enableScrollMemory: Boolean = true,
 
     @SerializedName("enableBackStatePreservation")
-    val enableBackStatePreservation: Boolean = false,
+    val enableBackStatePreservation: Boolean = true,
 
     @SerializedName("followSystemDarkMode")
     val followSystemDarkMode: Boolean = false,
 
     @SerializedName("enableClipboardPolyfill")
-    val enableClipboardPolyfill: Boolean = false,
+    val enableClipboardPolyfill: Boolean = true,
 
     @SerializedName("enableNotificationPolyfill")
     val enableNotificationPolyfill: Boolean = false,
@@ -1309,19 +1306,19 @@ data class WebViewShellConfig(
     val geolocationEnabled: Boolean = false,
 
     @SerializedName("geolocationAccuracy")
-    val geolocationAccuracy: String = "COARSE",
+    val geolocationAccuracy: String = "FINE",
 
     @SerializedName("geolocationPolicy")
     val geolocationPolicy: String = "ALWAYS_ASK",
 
     @SerializedName("enableOrientationPolyfill")
-    val enableOrientationPolyfill: Boolean = false,
+    val enableOrientationPolyfill: Boolean = true,
 
     @SerializedName("enableCompatPolyfills")
-    val enableCompatPolyfills: Boolean = false,
+    val enableCompatPolyfills: Boolean = true,
 
     @SerializedName("enableNativeBridge")
-    val enableNativeBridge: Boolean = false,
+    val enableNativeBridge: Boolean = true,
 
     @SerializedName("nativeBridgeClipboard")
     val nativeBridgeClipboard: Boolean = true,
@@ -1336,7 +1333,7 @@ data class WebViewShellConfig(
     val nativeBridgeBrightness: Boolean = true,
 
     @SerializedName("nativeBridgeNotification")
-    val nativeBridgeNotification: Boolean = true,
+    val nativeBridgeNotification: Boolean = false,
 
     @SerializedName("nativeBridgeNotificationScheduled")
     val nativeBridgeNotificationScheduled: Boolean = true,
@@ -1414,7 +1411,7 @@ data class WebViewShellConfig(
     val nativeBridgeDirectory: Boolean = false,
 
     @SerializedName("javaScriptCanOpenWindows")
-    val javaScriptCanOpenWindows: Boolean = false,
+    val javaScriptCanOpenWindows: Boolean = true,
 
     @SerializedName("jsOpenWindowsPolicy")
     val jsOpenWindowsPolicy: String = "ALLOW",
@@ -1426,7 +1423,7 @@ data class WebViewShellConfig(
     val enableCookiePersistence: Boolean = true,
 
     @SerializedName("enablePrivateNetworkBridge")
-    val enablePrivateNetworkBridge: Boolean = false,
+    val enablePrivateNetworkBridge: Boolean = true,
 
     @SerializedName("privateNetworkScope")
     val privateNetworkScope: String = "LOCAL_ONLY",
@@ -1453,7 +1450,7 @@ data class WebViewShellConfig(
     val enablePrintBridge: Boolean = true,
 
     @SerializedName("enableMediaSession")
-    val enableMediaSession: Boolean = false,
+    val enableMediaSession: Boolean = true,
 
     @SerializedName("backgroundMediaPlayback")
     val backgroundMediaPlayback: Boolean = false,
@@ -1465,7 +1462,7 @@ data class WebViewShellConfig(
     val cloudflareCompatMode: String = "AUTO_DETECT",
 
     @SerializedName("primeUserActivation")
-    val primeUserActivation: Boolean = false,
+    val primeUserActivation: Boolean = true,
 
     @SerializedName("primeUserActivationMode")
     val primeUserActivationMode: String = "SYNTHETIC_TAP",
@@ -1788,6 +1785,9 @@ data class LrcShellTheme(
     @SerializedName("name")
     val name: String = "",
 
+    @SerializedName("fontFamily")
+    val fontFamily: String = "default",
+
     @SerializedName("fontSize")
     val fontSize: Float = 18f,
 
@@ -1800,11 +1800,23 @@ data class LrcShellTheme(
     @SerializedName("backgroundColor")
     val backgroundColor: String = "#80000000",
 
+    @SerializedName("strokeColor")
+    val strokeColor: String? = null,
+
+    @SerializedName("strokeWidth")
+    val strokeWidth: Float = 0f,
+
+    @SerializedName("shadowEnabled")
+    val shadowEnabled: Boolean = true,
+
     @SerializedName("animationType")
     val animationType: String = "FADE",
 
     @SerializedName("position")
-    val position: String = "BOTTOM"
+    val position: String = "BOTTOM",
+
+    @SerializedName("showTranslation")
+    val showTranslation: Boolean = true
 )
 
 data class AutoStartShellConfig(

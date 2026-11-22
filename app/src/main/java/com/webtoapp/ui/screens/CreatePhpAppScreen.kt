@@ -40,6 +40,7 @@ import com.webtoapp.data.model.PhpAppConfig
 import com.webtoapp.ui.components.*
 import com.webtoapp.ui.animation.CardCollapseTransition
 import com.webtoapp.ui.animation.CardExpandTransition
+import com.webtoapp.ui.design.WtaAlertDialog
 import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaSpacing
 import com.webtoapp.ui.screens.create.WtaCreateFlowScaffold
@@ -644,21 +645,21 @@ fun CreatePhpAppScreen(
     }
 
     if (showDownloadDialog) {
-        AlertDialog(
+        WtaAlertDialog(
             onDismissRequest = {},
-            title = { Text(Strings.wpDownloadDeps) },
-            text = {
+            title = Strings.wpDownloadDeps,
+            content = {
                 Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     when (val state = downloadState) {
                         is WordPressDependencyManager.DownloadState.Downloading -> {
                             Text(Strings.wpDownloading)
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         is WordPressDependencyManager.DownloadState.Extracting -> {
                             Text("${Strings.wpExtracting} ${state.fileName}...")
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                         is WordPressDependencyManager.DownloadState.Complete -> {
                             Text(Strings.wpDepsReady)
@@ -669,7 +670,7 @@ fun CreatePhpAppScreen(
                         else -> {
                             Text(Strings.wpDownloading)
                             Spacer(modifier = Modifier.height(12.dp))
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize)
                         }
                     }
                 }

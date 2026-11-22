@@ -1,79 +1,27 @@
 package com.webtoapp.core.webview
 
+import android.webkit.WebView
 import kotlin.math.roundToInt
 
-/**
- * Whole-page zoom for [WebViewManager.configureWebView] (#654, #1264).
- *
- * `pageZoomPercent` is the build-time per-app zoom (100 = default). It scales
- * text, layout, images, and canvas together with CSS `zoom` on the root
- * element. Rewriting `<meta name="viewport">` reloaded the document on
- * Android WebView whenever the page restored its own meta (#1317).
- * [android.webkit.WebView.setInitialScale] cannot do this either — with
- * `useWideViewPort` a page `<meta name="viewport">` (`width=device-width`,
- * often `maximum-scale=1`) wins, and the page stays at 100% (#1264).
- *
- * Pure logic, no Android dependencies: unit-tested on plain JVM.
- */
 internal data class PageZoomPlan(
-    /** True when an explicit non-100 zoom is configured. */
     val zoomActive: Boolean,
-    /**
-     * Percent to apply. 0 on the default path means "leave WebView scale alone"
-     * unless [initialScaleField] itself is non-zero (legacy `initialScale`).
-     */
     val initialScalePercent: Int
 )
 
 internal fun planPageZoom(pageZoomPercent: Int, initialScaleField: Int): PageZoomPlan {
-    // 0 = legacy data without the field; treat as 100 (default).
     val zoom = if (pageZoomPercent > 0) pageZoomPercent else 100
     if (zoom != 100) return PageZoomPlan(zoomActive = true, initialScalePercent = zoom)
-    // Default path preserves the dormant `initialScale` field semantics.
     return PageZoomPlan(zoomActive = false, initialScalePercent = if (initialScaleField > 0) initialScaleField else 0)
 }
 
-/**
- * Layout viewport for [baseCssWidth] (the WebView's CSS width before zoom).
- * Null when zoom is default or the base width is not known yet.
- *
- * `layoutWidth * scale == baseCssWidth`, so `width` and `initial-scale` agree
- * and the browser does not drop one of them to resolve a conflict.
- * Keep the JS in [pageZoomDocumentScript] on this same formula.
- */
-internal data class PageZoomViewport(
-    val layoutWidthPx: Int,
-    val scale: Double,
-)
-
-internal fun planPageZoomViewport(baseCssWidth: Int, pageZoomPercent: Int): PageZoomViewport? {
-    val plan = planPageZoom(pageZoomPercent, 0)
-    if (!plan.zoomActive || baseCssWidth <= 0) return null
-    val zoom = plan.initialScalePercent / 100.0
-    val layout = (baseCssWidth / zoom).roundToInt().coerceAtLeast(1)
-    return PageZoomViewport(layoutWidthPx = layout, scale = baseCssWidth.toDouble() / layout)
+internal fun WebView.applySystemPageZoom(zoomPercent: Int) {
+    settings.useWideViewPort = false
+    settings.loadWithOverviewMode = false
+    settings.textZoom = 100
+    setInitialScale((zoomPercent * resources.displayMetrics.density).roundToInt().coerceAtLeast(1))
 }
 
-/**
- * Document-start script that scales the top frame with CSS `zoom`.
- * Null when zoom is the default (100, or legacy 0). Idempotent across
- * document-start plus later `evaluateJavascript` calls. Ignores subframes.
- *
- * Rewriting `<meta name="viewport">` made Android WebView reload the document.
- * Dashboard apps such as OpenChamber put their own viewport back, the script
- * wrote it again, and the page refreshed in a loop (#1264, #1317). CSS zoom
- * scales text, layout, images, and canvas without a navigation.
- *
- * Pinch is owned by `WebViewConfig.zoomEnabled` (`setSupportZoom`). [pinchEnabled]
- * and [nativeCssWidth] stay in the signature so existing call sites compile;
- * the script does not read them.
- */
-@Suppress("UNUSED_PARAMETER")
-internal fun pageZoomDocumentScript(
-    pageZoomPercent: Int,
-    pinchEnabled: Boolean,
-    nativeCssWidth: Int = 0,
-): String? {
+internal fun pageZoomDocumentScript(pageZoomPercent: Int): String? {
     val plan = planPageZoom(pageZoomPercent, 0)
     if (!plan.zoomActive) return null
     return PAGE_ZOOM_JS.replace("PCT_PLACEHOLDER", plan.initialScalePercent.toString())
@@ -85,32 +33,87 @@ try{if(window.top!==window)return;}catch(e){return;}
 var PCT=PCT_PLACEHOLDER;
 var Z=PCT/100;
 var value=String(Z);
-function root(){return document.documentElement;}
-function apply(){
-var el=root();
-if(!el)return;
-if(el.style.zoom===value)return;
-el.style.zoom=value;
+var KEY='__wtaPageZoomBudget';
+var gaveUp=false;
+function meta(){return document.querySelector('meta[name="viewport" i]');}
+function scaleOf(m){
+var parts=((m&&m.getAttribute('content'))||'').split(',');
+for(var i=0;i<parts.length;i++){
+var kv=parts[i].split('=');
+if((kv[0]||'').trim().toLowerCase()==='initial-scale')return parseFloat((kv[1]||'').trim());
 }
-if(window.__wtaPageZoomPercent===PCT){
-apply();
+return NaN;
+}
+function stop(){
+gaveUp=true;
+if(window.__wtaPageZoomMo){window.__wtaPageZoomMo.disconnect();window.__wtaPageZoomMo=null;}
+}
+function budgetOk(){
+try{
+var s=window.sessionStorage;
+if(!s)return true;
+var now=Date.now();
+var raw=s.getItem(KEY);
+var n=0,t=now;
+if(raw){var p=raw.split(':');n=parseInt(p[0],10)||0;t=parseInt(p[1],10)||now;}
+if(now-t>10000){n=0;t=now;}
+if(n>=8){stop();return false;}
+s.setItem(KEY,(n+1)+':'+t);
+return true;
+}catch(e){return true;}
+}
+function patch(m){
+var parts=(m.getAttribute('content')||'').split(',');
+var out=[];
+var scale=false,max=false,min=false;
+for(var i=0;i<parts.length;i++){
+var raw=parts[i];
+var kv=raw.split('=');
+var key=(kv[0]||'').trim().toLowerCase();
+if(!key)continue;
+var val=(kv[1]||'').trim();
+if(key==='initial-scale'){out.push('initial-scale='+value);scale=true;}
+else if(key==='maximum-scale'){var mx=parseFloat(val);out.push('maximum-scale='+((isFinite(mx)&&mx>Z)?val:value));max=true;}
+else if(key==='minimum-scale'){var mn=parseFloat(val);out.push('minimum-scale='+((isFinite(mn)&&mn<Z)?val:value));min=true;}
+else out.push(raw.trim());
+}
+if(!scale)out.push('initial-scale='+value);
+if(!max)out.push('maximum-scale=5');
+if(!min)out.push('minimum-scale=0.25');
+m.setAttribute('content',out.join(','));
+}
+function apply(){
+if(gaveUp)return;
+var el=meta();
+if(!el){
+if(!document.head)return;
+if(!budgetOk())return;
+el=document.createElement('meta');
+el.setAttribute('name','viewport');
+el.setAttribute('content','width=device-width, initial-scale='+value);
+document.head.appendChild(el);
 return;
 }
-window.__wtaPageZoomPercent=PCT;
-apply();
-if(document.readyState==='loading'){
-document.addEventListener('DOMContentLoaded',function(){apply();});
+if(scaleOf(el)===Z)return;
+if(!budgetOk())return;
+patch(el);
 }
-if(typeof MutationObserver==='function'&&root()&&!window.__wtaPageZoomMo){
-var writing=false;
-window.__wtaPageZoomMo=new MutationObserver(function(){
-if(writing)return;
-var el=root();
-if(!el||el.style.zoom===value)return;
-writing=true;
-el.style.zoom=value;
-writing=false;
-});
-window.__wtaPageZoomMo.observe(root(),{attributes:true,attributeFilter:['style']});
+function watch(){
+if(window.__wtaPageZoomWatched)return;
+window.__wtaPageZoomWatched=true;
+var root=document.documentElement||document;
+if(typeof MutationObserver==='function'&&root){
+window.__wtaPageZoomMo=new MutationObserver(function(){apply();});
+window.__wtaPageZoomMo.observe(root,{childList:true,subtree:true,attributes:true,attributeFilter:['content']});
+}
+}
+if(window.__wtaPageZoomPercent===PCT){apply();return;}
+window.__wtaPageZoomPercent=PCT;
+if(document.readyState==='loading'){
+watch();
+document.addEventListener('DOMContentLoaded',function(){watch();apply();});
+}else{
+apply();
+watch();
 }
 })();"""

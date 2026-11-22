@@ -1,6 +1,8 @@
 package com.webtoapp.ui.screens
 
 import androidx.compose.animation.*
+import com.webtoapp.ui.design.WtaExpandIn
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaSwitch
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -262,8 +264,8 @@ fun CreateOfflinePackScreen(
 
                         AnimatedVisibility(
                             visible = showAdvanced,
-                            enter = expandVertically() + fadeIn(),
-                            exit = shrinkVertically() + fadeOut()
+                            enter = WtaExpandIn,
+                            exit = WtaShrinkOut
                         ) {
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -459,7 +461,8 @@ fun CreateOfflinePackScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(4.dp)
-                                        .clip(RoundedCornerShape(2.dp))
+                                        .clip(RoundedCornerShape(2.dp)),
+                                    gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                                 )
                             }
 

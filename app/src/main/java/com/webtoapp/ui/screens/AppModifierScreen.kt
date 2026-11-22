@@ -5,10 +5,6 @@ import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -36,12 +32,12 @@ import androidx.compose.material.icons.outlined.SortByAlpha
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Warning
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -89,9 +85,12 @@ import com.webtoapp.ui.design.WtaCardTone
 import com.webtoapp.ui.design.WtaChip
 import com.webtoapp.ui.design.WtaColors
 import com.webtoapp.ui.design.WtaEmptyState
+import com.webtoapp.ui.design.WtaExpandIn
 import com.webtoapp.ui.design.WtaFullEmptyState
+import com.webtoapp.ui.design.WtaLoadingIndicator
 import com.webtoapp.ui.design.WtaRadius
 import com.webtoapp.ui.design.WtaScreen
+import com.webtoapp.ui.design.WtaShrinkOut
 import com.webtoapp.ui.design.WtaStatusBanner
 import com.webtoapp.ui.design.WtaStatusTone
 import com.webtoapp.ui.design.WtaTextField
@@ -196,7 +195,7 @@ fun AppModifierScreen(
                 enabled = !isLoading
             ) {
                 if (isLoading) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                    WtaLoadingIndicator(size = 18.dp)
                 } else {
                     Icon(Icons.Outlined.Refresh, contentDescription = Strings.refresh)
                 }
@@ -207,7 +206,7 @@ fun AppModifierScreen(
             isLoading && allApps.isEmpty() -> {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator()
+                        WtaLoadingIndicator()
                         Spacer(Modifier.height(12.dp))
                         Text(
                             Strings.appModifierLoading,
@@ -514,7 +513,7 @@ fun AppModifyFullScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                CircularProgressIndicator()
+                WtaLoadingIndicator()
             }
         }
         return
@@ -1180,8 +1179,8 @@ private fun AppModifyBottomBar(
         ) {
             AnimatedVisibility(
                 visible = isProcessing,
-                enter = fadeIn() + expandVertically(),
-                exit = fadeOut() + shrinkVertically()
+                enter = WtaExpandIn,
+                exit = WtaShrinkOut
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     LinearProgressIndicator(
@@ -1189,7 +1188,8 @@ private fun AppModifyBottomBar(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .clip(RoundedCornerShape(999.dp))
+                            .clip(RoundedCornerShape(999.dp)),
+                        gapSize = ProgressIndicatorDefaults.LinearIndicatorTrackGapSize
                     )
                     if (progressText.isNotBlank()) {
                         Text(

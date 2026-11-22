@@ -14,10 +14,9 @@ Output: `app/build/outputs/apk/standard/release/app-standard-release-unsigned.ap
 | --- | --- |
 | Firebase Cloud Messaging | Omitted. Push still works through the Web Notification polyfill, HTTP polling, and WebSocket. |
 | Google Sign-In (Play Services / Credential Manager) | Omitted. `NativeBridge.googleSignIn` returns `UNAVAILABLE`. |
-| AdMob feature stack | The `:feature-stacks:admob` module is not included. Editor ads UI is hidden. Export writes a disabled ads block. |
 | Play Services FIDO (GeckoView WebAuthn) | Excluded. Other GeckoView paths are unchanged. |
 | Release signing | `signingConfig` is null so the APK stays unsigned. |
-| Host editor | FCM / Google Sign-In / AdMob entries are hidden. Saved config fields stay in the schema so export no-ops instead of forking JSON. |
+| Host editor | FCM / Google Sign-In entries are hidden. Saved config fields stay in the schema so export no-ops instead of forking JSON. |
 
 `BuildConfig.FDROID` is `true` in both `:app` and `:shell`. Google-typed sources live in `app/src/google/java`; the F-Droid twins with the same FQCN live in `app/src/fdroid/java`. Shell sync copies one of those two trees.
 
@@ -53,9 +52,9 @@ RepoType: git
 Repo: https://github.com/shiaho777/web-to-app.git
 
 Builds:
-  - versionName: "2.8.4"
-    versionCode: 83
-    commit: v2.8.4
+  - versionName: "2.9.0"
+    versionCode: 88
+    commit: v2.9.0
     subdir: app
     gradle:
       - standard
@@ -63,7 +62,6 @@ Builds:
       - fdroid=true
     ndk: r28c
     rm:
-      - feature-stacks/admob
       - app/src/google
 
 AutoUpdateMode: Version
@@ -71,8 +69,8 @@ UpdateCheckMode: Tags
 UpdateCheckData: app/build.gradle.kts|versionCode = (\d+)|.|versionName = "([^"]+)"
 ```
 
-Tag the same commit that GitHub Releases use (`v2.8.4`). F-Droid and GitHub then ship the same version from one tag; F-Droid's signing key is different, so the two APKs cannot update each other.
+Tag the same commit that GitHub Releases use (`v2.9.0`). F-Droid and GitHub then ship the same version from one tag; F-Droid's signing key is different, so the two APKs cannot update each other.
 
 ## Do not mix templates
 
-A `-Pfdroid=true` assemble rebuilds `webview_shell.apk` without Firebase and copies it into `app/src/main/assets/template/`. Restore that file from git before a normal GitHub/Play template build, or run `:shell:assembleRelease :app:syncShellTemplateApk` **without** `-Pfdroid`.
+A `-Pfdroid=true` assemble rebuilds `webview_shell.apk` without Firebase and copies it into `app/src/main/assets/template/`. Regenerate the template before a normal GitHub or Play build. Run `:shell:assembleRelease :app:syncShellTemplateApk` **without** `-Pfdroid`.
