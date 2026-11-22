@@ -3561,7 +3561,7 @@ fun WebViewScreen(
     val previewMode = if (previewDark) statusConfig?.statusBarColorModeDark else statusConfig?.statusBarColorMode
     val previewBgType = if (previewDark) statusConfig?.statusBarBackgroundTypeDark else statusConfig?.statusBarBackgroundType
     val customBand = if (previewDark) statusConfig?.statusBarColorDark else statusConfig?.statusBarColor
-    val classicSystemBars = WindowHelper.isClassicKeyboardResize(statusConfig?.keyboardAdjustMode)
+    val classicSystemBars = WindowHelper.isClassicSystemBarsWindow(activity)
 
     val isMultiWeb = webApp?.appType == com.webtoapp.data.model.AppType.MULTI_WEB
     Box(modifier = Modifier.fillMaxSize()) {
