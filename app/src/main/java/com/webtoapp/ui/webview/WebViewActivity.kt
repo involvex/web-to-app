@@ -1023,6 +1023,7 @@ open class WebViewActivity : AppCompatActivity() {
                     refreshStatusBarAppearance()
                 },
                 onStatusBarAppearanceChanged = { appearance ->
+                    if (customView != null) return@onStatusBarAppearanceChanged
                     if (statusBarAppearance != appearance) {
                         statusBarAppearance = appearance
                         refreshStatusBarAppearance()
